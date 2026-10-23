@@ -88,6 +88,12 @@ capabilities:
   bench-wifi-ap:
     what: Start and stop a WPA2 access point on the bench radio, with DHCP and a station list (Harness /api/wifi/ap_start, ap_stop, ap_status)
     available: yes
+    # Usage note (2026-10-23): the first ap_start of the session (18:42Z,
+    # tds3-commission) left the DUT associating and being dropped with reason 2
+    # (AUTH_EXPIRE), no station listed, no wifi event; ap_stop + ap_start fixed
+    # it at once. The body field for the passphrase is `pass`. Candidate bench
+    # fault: file it with the bench owner if a test sees it again (never
+    # worked around in this project's tests).
   bench-wifi-sta:
     what: Join and leave a DUT's SoftAP as a station (Harness /api/wifi/sta_join, sta_leave)
     available: yes
@@ -137,49 +143,123 @@ capabilities:
     # also logs (FR-7.9, K2); FSD R-12.
   seam-no-confirm-build:
     what: "Test build identical to the shipped one except that it never marks itself valid (FSD FR-5.24, §5.6)"
-    available: unproven
-    # Does not exist yet; proven by its CI job going green.
+    available: no
+    observed: 2026-10-23
+    consequence: >
+      It cannot exist before the product confirms images (FSD Phase 4). /build
+      writes it with that feature and flips this to yes when its CI job is
+      green; until then FR-5.24's test is blocked, nothing else.
   seam-hang-build:
     what: "Test build that blocks the application task 20 s after startup (variant app) or an HTTP handler on GET /hang (variant http) (FSD §19.3)"
-    available: unproven
-    # Does not exist yet; proven by its CI job going green for both variants.
+    available: no
+    observed: 2026-10-23
+    consequence: >
+      Variant app needs the product's application task (FSD Phase 1), variant
+      http its HTTP server (Phase 3). /build writes each with that phase and
+      flips this when CI builds both; until then FR-19.1/FR-19.2 tests are blocked.
   stall-http-peer:
     what: "HTTP server reachable from the bench AP network that sends headers and 100 kB of an image, then holds the connection silent (FSD FR-15.11 stall contract)"
-    available: unproven
-    # No such peer exists. Owner: this project (a peer it brings), proven in /commission.
+    available: no
+    observed: 2026-10-23
+    consequence: >
+      Only the bench Pi is on the bench AP network, so a project peer cannot
+      reach the DUT. A testbench change request (a stall mode on the
+      /firmware/ route) is drafted for the owner to file; until the bench
+      declares it, the FR-15.11 (stall) contract is blocked. The other
+      FR-15.11 failure modes (bad image, oversize, 404) need only
+      bench-firmware-hosting.
   seam-lcd-fault-injection:
     what: "Test build whose LCD interface returns a chosen esp_err_t at init or the k-th draw, logging `lcdfi: call`"
-    available: unproven
-    # Carried from tdisplay-s3-hello (tests/target/lcd_fault/, CI job lcd-fault);
-    # not yet built by this repo's CI.
+    available: yes
+    observed: 2026-10-23
+    evidence: >
+      Build Firmware runs 40002443185 and 40003952313: jobs `lcd-fault (init)`
+      and `lcd-fault (write5)` success, artefacts lcdfault-init / lcdfault-write5.
+    consequence: >
+      It stubs the base project's `lcd` under hello_* logic; when /build
+      replaces hello_logic with device_logic it must keep this build compiling
+      against the new composition root.
   release-verification:
     what: Tag-triggered journey run against the released artifact
     available: unproven
     # Needs a registered `testbench` runner for this repo (.devcontainer/register-runner.sh).
+    # The owner registers it (a standing grant); proven when the runner is
+    # listed under the repo's Actions runners.
     # An absent bench at verify time is an unmet precondition (not done), never a failure.
   dut-tdisplay-s3-slot4:
     what: The board in SLOT4 is a T-Display-S3 with 16 MB flash; a CI-built image flashes over USB and its log reaches SLOT4's monitor
-    available: unproven
-    # Proven for tdisplay-s3-hello on 2026-10-23 (its test-plan.yaml); this
-    # repo's evidence must come from this repo's CI artefacts.
+    available: yes
+    observed: 2026-10-23
+    evidence: >
+      Identity: /api/chip/info SLOT4 18:37:40Z: ESP32-S3 (QFN56) v0.1, MAC
+      34:85:18:71:c7:34, flash ef/4018 16MB, embedded PSRAM 8MB (matches
+      dut_record and FSD §2.2). Forward path: Commissioning aids run
+      40004940061, artefact `forward-path` (product table, C-10.6, rollback
+      bootloader), flashed with its own flash_args: 0x0 bootloader, 0x8000
+      partition table, 0xf000 ota_data_initial, 0x20000 forward_path.bin, all
+      hashes verified (18:41:52Z). Serial monitor matched `OFF` (18:41:56Z);
+      serial reset capture showed the five-row table, "Loaded app from
+      partition at offset 0x20000", then ON/OFF.
+    consequence: >
+      The CI → artefact → flash_args offsets → boot → observation pipeline is
+      above suspicion, on the product's own partition layout.
   lcd-st7789:
     what: The built-in ST7789 lights correctly with the T-Display-S3 pin map, GPIO 15 power, GPIO 38 backlight, 10 MHz i80 clock and offset 35
-    available: unproven
-    # Proven for tdisplay-s3-hello on 2026-10-23: invert_color(true),
-    # swap_xy(true), mirror(false, true), set_gap(0, 35), RGB order, RGB565
-    # bytes swapped. Re-observe here with this repo's commissioning/lcd-probe.
+    available: yes
+    observed: 2026-10-23
+    evidence: >
+      lcd-probe from run 40004940061 with mirror(false, true): every esp_lcd
+      call ESP_OK, but the operator cancelled twice (18:45:10Z, 18:47:57Z) and
+      reported the pattern rotated 180° with USB-C on the right (red
+      bottom-right, blue top-right). lcd-probe from run 40006382938 with
+      mirror(true, false), flashed 18:52:42Z: all calls ESP_OK, `pattern
+      drawn`, operator confirmed (18:53:10Z "Human confirmed"): USB-C on the
+      right, black background, white frame on all four edges with no noise,
+      RED top-left, GREEN top-right, BLUE bottom-left.
+    consequence: >
+      Confirmed settings: invert_color(true), swap_xy(true), mirror(true,
+      false), set_gap(0, 35), RGB element order, RGB565 bytes swapped. The
+      shipped components/lcd/lcd.c still calls mirror(false, true) and will
+      fail FR-6.1; /build changes it with FR-6.1's test. This contradicts
+      tdisplay-s3-hello's record (same binary confirmed correct at 02:58Z,
+      and its JRN-01.4 at 14:29Z): one of the observations was made with the
+      board the other way round, so every orientation prompt must state
+      "USB-C cable leaving the board on your right" explicitly.
   dut-wifi-slot4:
     what: The T-Display-S3 in SLOT4 associates with the bench AP and obtains a DHCP lease
-    available: unproven
-    # This board's radio and antenna have never been seen working here.
+    available: yes
+    observed: 2026-10-23
+    evidence: >
+      wifi-probe from run 40004940061, bench AP `tds3-commission` (WPA2,
+      channel 6). After the AP was restarted (see bench-wifi-ap note):
+      `wifiprobe: got ip 192.168.4.6` (18:43:51Z); ap_status stations
+      [{mac 34:85:18:71:c7:34, ip 192.168.4.6}]; wifi events STA_CONNECT with
+      hostname espressif; 10 heartbeats over 20 s stayed connected, RSSI −58
+      to −60 dBm.
+    consequence: >
+      The board's radio is good at the bench distance; RSSI around −59 dBm
+      leaves margin for association-dependent tests.
   dut-boot-button:
     what: Firmware on the T-Display-S3 in SLOT4 reads GPIO 0 low while an operator holds BOOT, high on release
-    available: unproven
+    available: yes
+    observed: 2026-10-23
+    evidence: >
+      button-probe from run 40004940061 (18:49:17Z): idle `boot=high`; during
+      the operator prompt (18:49:27Z – 18:50:37Z "Human confirmed") the probe
+      logged `buttonprobe: boot=low` then `buttonprobe: boot=high`.
+    consequence: >
+      GPIO 0 reads active low with the board's pull-up, debounced over 60 ms;
+      FR-18.x tests can rely on an operator press.
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the T-Display-S3 panel, held USB-C to the right
-    available: unproven
-    # An answer counts only when given on the Pi display and the bench logs
-    # "Human confirmed".
+    available: yes
+    observed: 2026-10-23
+    evidence: >
+      BOOT prompt "Human confirmed" 18:50:37Z, with the matching GPIO 0 change
+      on serial; LCD prompt "Human confirmed" 18:53:10Z.
+    consequence: >
+      An answer counts only when given on the Pi display and the bench logs
+      "Human confirmed". Orientation must be stated as the USB-C cable side.
 
 # ── Gate verdicts ────────────────────────────────────────────────────────
 gates:

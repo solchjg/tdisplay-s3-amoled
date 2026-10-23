@@ -30,7 +30,7 @@ requirements first need them, never earlier.
 - Panel bring-up order (confirmed by commissioning, capability `lcd-st7789`): GPIO 15 high → i80 bus (10 MHz) → ST7789 panel IO and
   panel → reset → init → colour inversion on → swap X/Y and mirror for landscape →
   gap (0, 35) → display on → clear to black → draw → GPIO 38 high. Use exactly
-  invert_color(true), swap_xy(true), mirror(false, true), RGB element order, and
+  invert_color(true), swap_xy(true), mirror(true, false), RGB element order, and
   RGB565 pixels byte-swapped (MSB first) in the draw buffer for the 8-bit bus.
   FSD FR-6.1, FR-6.3 and FR-6.4 are the requirements; operator checks decide.
 - The start guard (FSD D1/D2) is the result of `lcd_start()`: bring-up, clear
