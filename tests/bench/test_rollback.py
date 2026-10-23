@@ -53,7 +53,9 @@ def test_never_online_image_is_rolled_back(bench, dut, online_ip, image_b):
     assert code == 202
     watch.join()
     time.sleep(3)
-    lines = [e["text"] for e in bench.serial_output(dut, lines=1000, since=mark).get("lines", [])]
+    raw = [e["text"] for e in bench.serial_output(dut, lines=1000, since=mark).get("lines", [])]
+    # The bench ring can hold a line twice in a row; one device line, one entry.
+    lines = [ln for i, ln in enumerate(raw) if i == 0 or ln != raw[i - 1]]
     save_evidence("rollback", lines)
     assert found.get("matched"), "no `rolled back` line within 180 s"
     seen = [(i, b) for i, b in boots(lines)]

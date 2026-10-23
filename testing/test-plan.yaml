@@ -49,6 +49,9 @@ capabilities:
   bench-serial-monitor:
     what: Read SLOT4 serial with pattern wait, DTR/RTS held low (Harness serial monitor)
     available: yes
+    # Usage note (2026-10-23): /api/serial/output can hold the same device line
+    # twice in a row (seen around flashes and debug sessions). Tests counting
+    # lines collapse adjacent duplicates (tests/bench/test_rollback.py).
     # Usage note carried from esp32-oled-hello: a `^`-anchored pattern did not
     # match lines the monitor itself returned; use unanchored patterns.
     # Usage note (2026-10-23): a monitor running when the bench serial reset
@@ -172,12 +175,13 @@ capabilities:
     # also logs (FR-7.9, K2); FSD R-12.
   seam-no-network-build:
     what: "Test build identical to the shipped one except that it never starts a station attempt, so it never reaches ONLINE (FSD FR-5.24, §5.6)"
-    available: no
+    available: yes
     observed: 2026-10-23
-    consequence: >
-      It is only meaningful once the product confirms images (FSD Phase 4). /build
-      writes it with that feature and flips this to yes when its CI job is
-      green; until then FR-5.24's test is blocked, nothing else.
+    evidence: >
+      tests/target/no_network, Build Firmware run 40033728057 job no-network
+      success, artefact nonetwork (tdisplay_webserver_nonetwork.bin, version
+      0.0.0-no-network). On SLOT4 it stayed CONNECTING/WIFI_LOST, never
+      ONLINE, and was rolled back by T13 (TC-OTA-20).
   seam-hang-build:
     what: "Test build that blocks the application task 20 s after startup (variant app) or an HTTP handler on GET /hang (variant http) (FSD §19.3)"
     available: no
