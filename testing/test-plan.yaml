@@ -1366,3 +1366,16 @@ tests:
     observable: "AP down, reset, 120 s: CONNECTING/WIFI_LOST alternate, no PROVISIONING, TDS3-71C734 never scanned; ONLINE once the AP returns"
     impl: tests/bench/test_recovery.py::test_reset_with_the_ap_down_never_opens_the_portal
     result: {status: successful, commit: 9347e23, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench run, junit 4 passed in 269.4 s; backoff 1000/2000/4000/8000/15000/15000/15000 ms on schedule; ONLINE ~1 s after AP return"}
+
+  - id: TC-OTA-20
+    title: An image that never reaches the network is rolled back
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-5.24, FR-7.31]
+    needs: [seam-no-network-build, bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "A ONLINE; OTA to no-network build B: one boot of B, L16 at 60-63 s of B's uptime, restart, A boots with 'rolled back, invalid=<B slot>', not PROVISIONING, ONLINE again"
+    impl: tests/bench/test_rollback.py::test_never_online_image_is_rolled_back
+    result: {status: not done, reason: not yet run against this commit}

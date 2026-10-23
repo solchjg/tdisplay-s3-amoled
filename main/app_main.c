@@ -189,7 +189,12 @@ static dl_disp_t disp_tick(dl_disp_t disp)
 static void start_attempt(void)
 {
     web_log_sta_mode(stored.ssid);
+#ifdef TDS3_TEST_NO_NETWORK
+    // No-network test build (FSD §5.6): the attempt is never made.
+    esp_err_t err = ESP_OK;
+#else
     esp_err_t err = net_sta_start(&stored);
+#endif
     if (err != ESP_OK) {
         web_log_warn("station start", err);
     }
