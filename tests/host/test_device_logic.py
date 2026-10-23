@@ -49,6 +49,10 @@ int main(int argc, char **argv)
         char out[DL_LINE_MAX];
         dl_sanitize_ssid(argv[2], out);
         fputs(out, stdout);
+    } else if (strcmp(argv[1], "delay") == 0) {
+        for (uint32_t n = 1; n <= 8; n++) {
+            printf("%u ", (unsigned)dl_retry_delay_s(n));
+        }
     } else if (strcmp(argv[1], "conn") == 0) {
         // conn <state> <event> <guard> <n>
         static const char *ev[] = {"CR", "CS", "IP", "AF", "DC", "RT", "IC", "FR", "OS",
@@ -214,3 +218,44 @@ def test_t5_ip_enters_online(run, pending, confirm):
     assert n == 0, "T5 resets the retry count"
     want = cacts(run, "START_SERVICES") | (cacts(run, "CONFIRM_IMAGE") if confirm else 0)
     assert acts == want
+
+
+# ── Wave 2: deviation rows ───────────────────────────────────────────────
+
+# TC-DL-14 · T6, T7, T8 (FR-5.16, FR-5.30, FR-5.17)
+def test_t6_t7_t8_loss_and_retry(run):
+    nxt, acts, n = conn(run, "CONNECTING", "AF", n=2)
+    assert (nxt, acts, n) == ("WIFI_LOST", cacts(run, "ARM_RETRY"), 3), "T6"
+    nxt, acts, n = conn(run, "CONNECTING", "DC", n=0)
+    assert (nxt, n) == ("WIFI_LOST", 1), "CONNECTING x DC counts as a failed attempt"
+    nxt, acts, n = conn(run, "ONLINE", "DC", n=0)
+    assert nxt == "WIFI_LOST" and n == 1, "T7"
+    assert acts == cacts(run, "ABORT_OTA", "STOP_SERVICES", "ARM_RETRY")
+    nxt, acts, n = conn(run, "WIFI_LOST", "RT", n=4)
+    assert (nxt, acts, n) == ("CONNECTING", cacts(run, "START_ATTEMPT"), 4), "T8"
+
+
+# TC-DL-15 · FR-5.18 (core)
+def test_retry_delay_schedule(run):
+    assert [int(x) for x in run("delay").split()] == [1, 2, 4, 8, 15, 15, 15, 15]
+
+
+# TC-DL-16 · T9, T12, and the never-to-PROVISIONING rule (FR-5.19)
+def test_t9_t12_and_no_way_back_to_the_portal(run):
+    assert conn(run, "ONLINE", "IC") == ("ONLINE", cacts(run, "LOG_ONLINE"), 0), "T9"
+    assert conn(run, "ONLINE", "OF") == ("ONLINE", 0, 0), "T12"
+    events = ["CR", "CS", "IP", "AF", "DC", "RT", "IC", "OS", "OF", "60"]
+    for state in ("CONNECTING", "ONLINE", "WIFI_LOST"):
+        for ev in events:
+            for guard in (0, 1):
+                nxt, _, _ = conn(run, state, ev, guard=guard)
+                assert nxt != "PROVISIONING", f"{state} x {ev} (guard {guard}) -> PROVISIONING"
+
+
+# TC-DL-17 · T13 (FR-5.24)
+def test_t13_restarts_only_a_pending_image_outside_online(run):
+    for state in ("BOOT", "PROVISIONING", "CONNECTING", "WIFI_LOST"):
+        nxt, acts, _ = conn(run, state, "60", guard=1)
+        assert acts == cacts(run, "RESTART") and not acts & cacts(run, "CONFIRM_IMAGE"), state
+        assert conn(run, state, "60", guard=0)[1] == 0, f"{state}: restart without a pending image"
+    assert conn(run, "ONLINE", "60", guard=1)[1] == 0, "ONLINE x 60 must be ignored"

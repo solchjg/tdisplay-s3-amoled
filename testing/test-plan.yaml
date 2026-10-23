@@ -1262,3 +1262,107 @@ tests:
     observable: "relay GET http://tds3-71c734.local/api/status -> 200 with the device's ip"
     impl: tests/bench/test_status.py::test_hostname_resolves_to_the_device
     result: {status: not done, reason: "blocked: bench-mdns-resolve = no (FSD R-8)"}
+
+  - id: TC-DL-14
+    title: "T6, T7, T8: loss and retry"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.16, FR-5.30, FR-5.17]
+    needs: []
+    observable: "AF/DC in CONNECTING -> WIFI_LOST n+1; ONLINE DC -> WIFI_LOST n=1 with ABORT_OTA, STOP_SERVICES, ARM_RETRY; RT -> CONNECTING"
+    impl: tests/host/test_device_logic.py::test_t6_t7_t8_loss_and_retry
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-15
+    title: "Retry delay schedule"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.18]
+    needs: []
+    observable: "delay(1..8) = 1, 2, 4, 8, 15, 15, 15, 15 s"
+    impl: tests/host/test_device_logic.py::test_retry_delay_schedule
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-16
+    title: "T9, T12, and no way back to the portal"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.19]
+    needs: []
+    observable: "IC -> LOG_ONLINE; OF -> nothing; no event leads CONNECTING/ONLINE/WIFI_LOST to PROVISIONING"
+    impl: tests/host/test_device_logic.py::test_t9_t12_and_no_way_back_to_the_portal
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-17
+    title: "T13 restarts only a pending image outside ONLINE"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-5.24]
+    needs: []
+    observable: "60 with pending image -> RESTART in BOOT/PROVISIONING/CONNECTING/WIFI_LOST; nothing without; ignored in ONLINE"
+    impl: tests/host/test_device_logic.py::test_t13_restarts_only_a_pending_image_outside_online
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-REC-10
+    title: "AP loss enters WIFI_LOST within 15 s"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: bench
+    verifies: [NFR-5.3, FR-5.30, FR-7.24]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "bench AP stopped: state=WIFI_LOST <= 15 s (+3), K7, no restart"
+    impl: tests/bench/test_recovery.py::test_ap_loss_enters_wifi_lost_within_15_s
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-REC-11
+    title: "Retries follow the backoff schedule"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.18, FR-5.16, FR-5.17, FR-7.17]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "75 s outage: L6 delays 1000, 2000, 4000, 8000, 15000, 15000 ms; each CONNECTING its delay (+-10 %) after L6; attempt counts 1, 2, 3, ..."
+    impl: tests/bench/test_recovery.py::test_retries_follow_the_backoff_schedule
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-REC-12
+    title: "Reconnects within 30 s of the AP returning"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: bench
+    verifies: [NFR-5.2]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: ">= 60 s outage, AP back: web: online <= 30 s (+3); no restart, no PROVISIONING in the whole window"
+    impl: tests/bench/test_recovery.py::test_reconnects_within_30_s_of_the_ap_returning
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-REC-13
+    title: "Reset with the AP down never opens the portal"
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.19]
+    needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4]
+    observable: "AP down, reset, 120 s: CONNECTING/WIFI_LOST alternate, no PROVISIONING, TDS3-71C734 never scanned; ONLINE once the AP returns"
+    impl: tests/bench/test_recovery.py::test_reset_with_the_ap_down_never_opens_the_portal
+    result: {status: not done, reason: not yet run against this commit}
