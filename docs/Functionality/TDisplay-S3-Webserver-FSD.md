@@ -232,7 +232,7 @@ testbench.
 ### 3.4 Phase 4: OTA and factory reset
 
 - **Scope.** OTA download, confirm and rollback; BOOT-button factory reset.
-- **Deliverables.** §15, §18, FR-5.21, FR-5.23, FR-5.24, FR-5.32, FR-7.15, FR-7.16, FR-7.25, FR-7.27, FR-7.28; the test build
+- **Deliverables.** §15, §18, FR-5.21, FR-5.23, FR-5.24, FR-5.32, FR-7.15, FR-7.16, FR-7.25, FR-7.27, FR-7.28 (§15 includes FR-15.13); the test build
   §12.0 names for rollback.
 - **Exit criteria.** A valid image hosted on the bench and requested through
   `POST /ota` boots and confirms; an invalid, oversized or unreachable image
@@ -343,7 +343,7 @@ has no IP address 15 s after the attempt started.
 | T4 | PROVISIONING | credentials submitted | invalid | PROVISIONING | Answer 400; NVS unchanged | — |
 | T5 | CONNECTING | IP acquired | — | ONLINE | n := 0; start status server, mDNS, UDP log; if image pending verify, confirm it | — |
 | T6 | CONNECTING | attempt failed | — | WIFI_LOST | n := n + 1; arm retry timer with delay(n) | — |
-| T7 | ONLINE | disconnected | — | WIFI_LOST | Stop status server, mDNS, UDP log; n := 1; arm retry timer with delay(1) | `web: state=WIFI_LOST` ≤ 15 s after the AP stops (NFR-5.3) |
+| T7 | ONLINE | disconnected | — | WIFI_LOST | Abort any OTA download (FR-15.13); stop status server, mDNS, UDP log; n := 1; arm retry timer with delay(1) | `web: state=WIFI_LOST` ≤ 15 s after the AP stops (NFR-5.3) |
 | T8 | WIFI_LOST | retry timer | — | CONNECTING | Start station attempt | — |
 | T9 | ONLINE | IP changed | — | ONLINE | Update the shown IP; log `web: online` again | — |
 | T10 | PROVISIONING, CONNECTING, ONLINE, WIFI_LOST | factory reset (§18) | — | restart → BOOT | Abort any OTA download; erase credentials; restart | restart ≤ 2 s after the event |
@@ -365,15 +365,14 @@ reset (60).
 - CONNECTING × DC: an attempt failed (§5.3 definition) — T6. × CR: impossible
   (read once, in BOOT). × CS: impossible (no portal).
   × IC: impossible (no address yet; the first address is IP). × OS / OF:
-  impossible (no station server). × RT: impossible (timer armed only in
+  impossible — a download exists only in ONLINE and T7 aborts it on leaving. × RT: impossible (timer armed only in
   WIFI_LOST). × 60 without image pending verify: ignored.
 - ONLINE × CR: impossible. × CS: impossible. × IP: impossible — the station
   already has an address; a new one arrives as IC. × AF / RT: impossible (no
   attempt in progress, timer cancelled on T5). × 60: ignored — an image pending
   verify was confirmed by T5, so the guard is false.
-- WIFI_LOST × CR / CS: impossible. × OS: impossible (a download cannot complete
-  without the station). × OF (a download cut by T7): logged, otherwise ignored;
-  boot slot unchanged. × IP / IC: impossible (no attempt in progress). × AF:
+- WIFI_LOST × CR / CS: impossible. × OS / OF: impossible — T7 aborted any
+  download (logging K11 as part of T7) before this state was entered. × IP / IC: impossible (no attempt in progress). × AF:
   impossible (no attempt in progress). × DC: ignored. × 60 without image pending
   verify: ignored.
 - Any state × reset or watchdog reset (§19): restart into BOOT; only credentials
@@ -759,7 +758,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L11 | OTA download succeeded | `web: ota downloaded bytes=<n>` | I |
 | L12 | OTA request refused (400, 409) | `web: ota refused <status>: <reason>` | W |
 | L13 | T5 with image pending verify | `web: ota confirmed` | I |
-| L14 | Boot after a rollback | `web: rolled back, invalid=<partition label>` | W |
+| L14 | Every boot while the bootloader records an invalid (rolled-back) slot | `web: rolled back, invalid=<partition label>` | W |
 | L15 | T10 | `web: factory reset` | W |
 | L16 | T13 | `web: ota not confirmed, restarting` | E |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
@@ -997,6 +996,9 @@ the log (K10, K11) and, on success, by the restart (T11).
   application slot that is not running.
 - **FR-15.12** [Must] [derived] A `POST /ota` while a download is in progress
   shall answer 409.
+- **FR-15.13** [Must] [derived from §15.1, ONLINE only] When the station
+  disconnects during a download, the device shall abort the download, log K11
+  and leave the boot slot unchanged (T7).
 - **NFR-15.1** [Must] [user] A `POST /ota` shall be answered within 2 s of the
   request's last byte.
 - **NFR-15.2** [Must] [user] A download that fails for any reason other than a
@@ -1018,9 +1020,10 @@ the log (K10, K11) and, on success, by the restart (T11).
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| FR-15.1 | Note L1's `slot=`; request a valid hosted image; then request it again | After each OTA, L1's `slot=` is the other slot (`ota_0` ↔ `ota_1`), each boot ONLINE and confirmed | The same slot after an OTA; an L14 line | bench |
+| FR-15.1 | Note L1's `slot=`; request a valid hosted image; then request it again | After each OTA, L1's `slot=` is the other slot (`ota_0` ↔ `ota_1`), each boot ONLINE and confirmed | The same slot after an OTA; a boot with `fw=` other than the requested build | bench |
 | FR-15.12 | Host a 3 MB image; request it; request again within 1 s | Second answer 409; first download completes | Two downloads; the second answered 202 | bench |
 | FR-15.12 (core) | Download state machine: second start while busy | Refused with 409 | Accepted | host |
+| FR-15.13 | ONLINE running build A; host a 3 MB build B; request it; stop the bench AP 2 s after the bench log shows the fetch starting; restart the AP after 20 s | K11 and `web: state=WIFI_LOST`; after the AP returns, `web: online` with `fw_version` = A, and a following USB reset boots `fw=A` on the same `slot=` | K10; a restart into B; `OTA succeeded` after the disconnect | bench |
 | NFR-15.1 | ONLINE; 5 × `POST /ota` (valid URL, then 4 invalid bodies of FR-15.9) | Each answered ≤ 2 s after sending, by relay timing | An answer after 2 s; an answer only after the download | bench |
 | FR-15.8 | ONLINE; `POST /ota` with a hosted image URL | 202 `{"ok":true}` (NFR-15.1 timing); the bench activity log shows the device fetching the file | 200 with a delayed answer after the download; no fetch | bench |
 | FR-15.9 (core) | Parse bodies: not JSON; `{}`; `{"url":5}`; `https://…`; 257-character URL; valid | 400 for each invalid; accepted only for the valid one | Any invalid body accepted | host |
@@ -1040,13 +1043,13 @@ verification:
   expected_observations:
     - Each request answered 202, followed by K11 for each download.
     - "web: online" continues; GET /api/status still answers with fw_version = A after every attempt.
-    - After the USB reset, the boot line shows fw=A on the same slot, and no L14 line.
+    - After the USB reset, the boot line shows fw=A and the same slot= as before the attempts.
   timing: K11 within 60 s of each request (NFR-15.2)
   tolerance: none
   prohibited_outcomes:
     - Any restart before the USB reset.
     - K10 for any of the four.
-    - A boot into the other slot, or L14, after the USB reset (the slot was switched).
+    - A boot into the other slot after the USB reset (the slot was switched).
   tier: bench
   evidence:
     - Bench activity log of the four fetches; serial capture through the USB reset.
@@ -1063,12 +1066,12 @@ verification:
     - POST /ota with that server's URL; wait 45 s.
   expected_observations:
     - K11 30 s – 33 s after the last byte was sent (30 s stall timeout, up to + 3 s late, Appendix A).
-    - A following valid request (FR-15.10) is accepted with 202, proving the receiver recovered.
+    - A follow-up request for build A's own image is answered 202 (the receiver recovered), followed by K10 and a restart into fw=A (T11).
   timing: 30 s stall detection
   tolerance: + 3 s, never early
   prohibited_outcomes:
     - K11 before 30 s (stall timeout too short).
-    - A restart.
+    - A restart before the follow-up request is sent.
     - K11 later than 33 s after the last byte, or none within 45 s (download hangs).
     - 409 for the following request (receiver stuck "in progress").
   tier: bench
@@ -1303,7 +1306,7 @@ verification:
     - "web: state=PROVISIONING" after the restart.
   tier: target
   evidence:
-    - Serial capture from the reset through the second "web: online".
+    - Serial capture from the reset through the TASK_WDT boot's L17 and, from Phase 2 on, its `web: state=CONNECTING`.
   cleanup:
     - Reflash the shipped build.
 ```
@@ -1451,7 +1454,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.3.3
+fsd_version: 0.3.4
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1470,6 +1473,7 @@ change_history:
   - 0.3.1 2026-10-23 Load-defined findings: FR-5.22, FR-6.5, FR-6.6, FR-15.5 superseded by FR-5.32, FR-6.9, FR-6.10, FR-15.12 (meaning had changed); completeness lists made explicit; NFR-5.3, NFR-15.1, NFR-15.2, NFR-19.1 and the + 3 s tolerance state numbers contracts used; FR-5.24 requires L16; FR-17.2 observed via bench WiFi events; R-6 restated
   - 0.3.2 2026-10-23 CONNECTING × disconnected listed (counts as AF, T6); Appendix A restart row names T13
   - 0.3.3 2026-10-23 FR-5.24 test build is a no-network build (reaching ONLINE confirms, by T5; user decision); FR-7.25 moved to Phase 4; FR-5.15 contract needs no line order; FR-15.11 stall prohibits late K11; FR-9.2 air MAC range stated; R-7/R-8 defer to the bench declaration
+  - 0.3.4 2026-10-23 FR-15.13 (T7 aborts an OTA download; derived from §15.1) closes OS/OF outside ONLINE; L14 logged on every boot while a slot is recorded invalid, contracts check slot= instead of L14's absence; FR-15.11 stall follow-up re-installs A; FR-19.1 evidence fits target tier
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5]
 open_decisions: []
 related_test_baseline: none yet
