@@ -593,13 +593,13 @@ tests:
     title: Two text lines stacked inside the visible area (base project)
     status: superseded
     superseded_by: TC-LCD-05
-    verifies: [FR-6.5]
+    verified_when_live: [FR-6.5]   # superseded requirement; history only
     impl: none (removed with FR-6.5's supersession)
   - id: TC-LCD-04
     title: The 16-character uptime line fits one row (base project)
     status: superseded
     superseded_by: TC-LCD-06
-    verifies: [FR-6.6]
+    verified_when_live: [FR-6.6]   # superseded requirement; history only
     impl: none (removed with FR-6.6's supersession)
 
   - id: TC-DL-01
