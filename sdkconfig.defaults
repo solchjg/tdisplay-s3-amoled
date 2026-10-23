@@ -1,0 +1,7 @@
+# FSD C-10.1 target esp32s3 is set by `idf.py set-target esp32s3`.
+# FSD C-10.3: 16 MB flash, stated rather than left to a default.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+# FSD C-10.4: default single-app partition table (1 MB factory partition).
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
+# FSD C-10.5: console on USB-Serial/JTAG (EN/BOOT not wired on SLOT4).
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

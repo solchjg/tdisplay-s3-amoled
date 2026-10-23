@@ -1,0 +1,6 @@
+{
+  "name": "tdisplay-s3-webserver",
+  "build": { "dockerfile": "Dockerfile" },
+  "runArgs": ["--restart=unless-stopped"],
+  "postStartCommand": "echo 'Runner not registered. Registering gives workflow code from this repo control of the testbench; run .devcontainer/register-runner.sh only after the owner agrees.'"
+}

@@ -1,0 +1,4 @@
+# Same flash, partition and console settings as the product (FSD C-10.3 – C-10.5).
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

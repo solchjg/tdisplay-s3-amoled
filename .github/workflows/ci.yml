@@ -1,0 +1,30 @@
+name: host tests + lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'pytest==8.*' 'ruff==0.16.1' 'pyyaml==6.*'
+      - run: ruff check .
+      - run: pytest tests/host -q
+
+  devcontainer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build .devcontainer -t tdisplay-webserver-dev
+      - name: Toolchain is ESP-IDF v6.0.2
+        run: docker run --rm tdisplay-webserver-dev idf.py --version | tee /dev/stderr | grep -q 'v6.0.2'
+      - name: TestbenchDriver importable
+        run: docker run --rm --entrypoint python tdisplay-webserver-dev -c "import testbench_driver"
+      - name: Runner installed
+        run: docker run --rm -u runner --entrypoint /opt/actions-runner/config.sh tdisplay-webserver-dev --version

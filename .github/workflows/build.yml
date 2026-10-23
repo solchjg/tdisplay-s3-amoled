@@ -1,0 +1,182 @@
+name: Build Firmware
+
+# build    — every push to main, every v*.*.* tag, manual dispatch
+# verify   — tags only: flash THIS run's bytes to the testbench and run the
+#            journey (JRN-01) on the self-hosted runner in the devcontainer
+# release  — tags only, and only after verify is green: red journey = no release
+
+env:
+  IDF_TAG: v6.0.2          # keep in step with the container tag below (FSD C-10.2)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 1.2.0)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      # Container runs as root, workspace belongs to the runner user: without
+      # this, every git call after checkout dies with "dubious ownership".
+      - name: Trust the workspace
+        run: git config --global --add safe.directory '*'
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # tags are needed for the version
+
+      - name: Show the IDF version actually used
+        run: . $IDF_PATH/export.sh >/dev/null && idf.py --version
+
+      - name: Decide the version
+        id: plan
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="0.0.0-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building $VERSION"
+
+      # -DSDKCONFIG keeps the generated config in the build dir, so a stray
+      # root sdkconfig can never outrank sdkconfig.defaults.
+      - name: Build firmware
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig \
+                -DPROJECT_VER=${{ steps.plan.outputs.version }}"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+
+      - name: Check the image fits the 1 MB factory partition (FSD C-10.4)
+        run: |
+          SIZE=$(stat -c %s build/tdisplay_webserver.bin)
+          echo "app image: $SIZE bytes"
+          [ "$SIZE" -le 1048576 ] || { echo "FATAL: image exceeds 1 MB"; exit 1; }
+
+      # Host-tier inspection of this build (FSD C-10.1 – C-10.4, FR-9.1);
+      # in ci.yml these tests skip for want of a build.
+      - name: Inspect the build (tests/host/test_build.py)
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          python -m pip install -q 'pytest==8.*'
+          BUILD_OUTPUT=build python -m pytest tests/host/test_build.py -v -rs -p no:cacheprovider
+
+      - name: Collect artefacts
+        run: |
+          V="${{ steps.plan.outputs.version }}"
+          cp build/tdisplay_webserver.bin firmware_v${V}.bin
+          cp build/tdisplay_webserver.elf firmware_v${V}.elf
+          # Cold-flash set taken from flash_args, never hand-written.
+          mkdir -p coldflash
+          cp build/flash_args coldflash/
+          awk '$1 ~ /^0x/ {print $2}' build/flash_args | while read -r f; do
+            cp "build/$f" coldflash/ || { echo "FATAL: missing build/$f"; exit 1; }
+          done
+          cp build/sdkconfig sdkconfig.generated
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-v${{ steps.plan.outputs.version }}
+          path: |
+            firmware_v*.bin
+            firmware_v*.elf
+            sdkconfig.generated
+            coldflash/
+
+  # Fault-injection test builds (FSD §5.5): test artefacts for Wave 3's
+  # negative tests. `release` never downloads them.
+  lcd-fault:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    strategy:
+      matrix:
+        variant: [init, write5]
+    defaults:
+      run:
+        shell: bash
+        working-directory: tests/target/lcd_fault
+    steps:
+      - name: Trust the workspace
+        working-directory: /
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig \
+                -DSDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/sdkconfig.defaults;$PWD/sdkconfig.${{ matrix.variant }}"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+          grep -E 'CONFIG_LCD_FAULT_' build/sdkconfig
+      - name: Collect flash set from flash_args
+        run: |
+          mkdir -p out
+          cp build/flash_args out/
+          awk '$1 ~ /^0x/ {print $2}' build/flash_args | while read -r f; do
+            cp "build/$f" out/ || { echo "FATAL: missing build/$f"; exit 1; }
+          done
+          cat out/flash_args
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lcdfault-${{ matrix.variant }}
+          path: tests/target/lcd_fault/out/
+
+  verify:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: [self-hosted, testbench]     # runner inside .devcontainer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-v${{ needs.build.outputs.version }}
+          path: artifact
+      # An unreachable bench is an unmet precondition: fail here with the
+      # reason, publish nothing, re-run once the bench is powered.
+      - name: Bench reachable
+        run: curl -fsS --max-time 10 "$TESTBENCH_URL/api/info"
+        env:
+          TESTBENCH_URL: http://192.168.2.230:8080
+      - name: Journey on the released bytes
+        run: pytest tests/bench -m journey -q
+        env:
+          TESTBENCH_URL: http://192.168.2.230:8080
+          FIRMWARE_DIR: ${{ github.workspace }}/artifact/coldflash
+
+  release:
+    needs: [build, verify]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-v${{ needs.build.outputs.version }}
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            firmware_v*.bin
+            firmware_v*.elf
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,21 @@
+menu "LCD fault injection (test build only)"
+
+    choice LCD_FAULT_AT
+        prompt "Fail at"
+        default LCD_FAULT_AT_INIT
+        config LCD_FAULT_AT_INIT
+            bool "initialisation (lcd_start)"
+        config LCD_FAULT_AT_WRITE
+            bool "the k-th lcd_draw_line after T1"
+    endchoice
+
+    config LCD_FAULT_WRITE_N
+        int "k"
+        default 5
+        depends on LCD_FAULT_AT_WRITE
+
+    config LCD_FAULT_ERR
+        hex "esp_err_t returned by the failing call"
+        default 0x107
+
+endmenu

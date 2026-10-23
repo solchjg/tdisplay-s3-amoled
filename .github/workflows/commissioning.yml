@@ -1,0 +1,48 @@
+name: Commissioning aids
+
+# Builds the Phase 2 debugging programs under commissioning/. They are not
+# product firmware and are never released.
+
+on:
+  push:
+    branches: [main]
+    paths: ['commissioning/**', '.github/workflows/commissioning.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    strategy:
+      matrix:
+        program: [forward-path, lcd-probe]
+    defaults:
+      run:
+        shell: bash
+        working-directory: commissioning/${{ matrix.program }}
+    steps:
+      - name: Trust the workspace
+        working-directory: /
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+      - name: Collect flash set from flash_args
+        run: |
+          mkdir -p out
+          cp build/flash_args out/
+          awk '$1 ~ /^0x/ {print $2}' build/flash_args | while read -r f; do
+            cp "build/$f" out/ || { echo "FATAL: missing build/$f"; exit 1; }
+          done
+          ls -l out; cat out/flash_args
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.program }}
+          path: commissioning/${{ matrix.program }}/out/

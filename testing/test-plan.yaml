@@ -1,0 +1,128 @@
+# Test plan — every test, what it verifies, what it needs, what it last produced.
+# Owned by /build. Contract: docs/Functionality/TDisplay-S3-Webserver-FSD.md
+#
+# Status values: not done | successful | failed — written by whatever ran the
+# test, never by hand, always with the commit. Blocked is computed from
+# `needs` against `capabilities`; never typed.
+
+project: tdisplay-s3-webserver
+fsd: docs/Functionality/TDisplay-S3-Webserver-FSD.md
+dut:
+  board: LilyGO T-Display-S3 (non-touch, 16 MB flash, 8 MB PSRAM)
+  chip: esp32s3
+  slot: SLOT4
+  serial: rfc2217://192.168.2.230:4004
+testbench:
+  url: http://192.168.2.230:8080
+  record:   # dated observation (memory); tests select the bench by identity
+    observed: 2026-10-23
+    hostname: testbench-0441
+    last_seen_ip: 192.168.2.230
+    portal_version: not reported (/api/info carries none)
+dut_record:   # the unit this project is verified against (observed 2026-10-23, /api/chip/info SLOT4)
+  chip: ESP32-S3 (QFN56)
+  revision: v0.1
+  psram: embedded 8MB (AP_3v3)
+  flash: 16MB (manufacturer 0xef, device 0x4018), quad
+  mac: 34:85:18:71:c7:34
+  usb: USB-Serial/JTAG 303a:1001, /dev/ttyACM0
+
+# ── Capabilities ─────────────────────────────────────────────────────────
+# Bench capabilities: `yes` as the bench declares them (Harness FSD); a
+# project never proves the bench. Project-side equipment: `unproven` until
+# /commission observes it working here — each one is a debugging-agenda item.
+capabilities:
+  bench-flash:
+    what: Flash an image set to SLOT4 over USB (Harness /api/flash)
+    available: yes
+    # Usage notes (2026-10-23): upload the artefact's flash_args file with the
+    # parts (tests/bench/conftest.py does). Even then the bench flashes 40 MHz
+    # and keeps the flash size: pi/portal.py's flash_args parser reads only
+    # the first option of a line, and ESP-IDF writes all three on one line
+    # (DUT boot: "Boot SPI Speed : 40MHz" for an 80m build, fw 0.0.0-41110fb).
+    # Bench fault filed: SensorsIot/Embedded-AI-Harness#52. No FSD clause states
+    # a flash clock, so nothing here is blocked.
+    # /api/chip/info is logged as "flash(SLOT4)": filed as #53.
+    # /api/chip/info runs esptool and appears in the activity log as
+    # "flash(SLOT4)" with about 665 bytes of output (02:47:11Z, 03:04:14Z); it
+    # reads identity and does not write an image.
+  bench-serial-monitor:
+    what: Read SLOT4 serial with pattern wait, DTR/RTS held low (Harness serial monitor)
+    available: yes
+    # Usage note carried from esp32-oled-hello: a `^`-anchored pattern did not
+    # match lines the monitor itself returned; use unanchored patterns.
+    # Usage note (2026-10-23): a monitor running when the bench serial reset
+    # is issued ends at once with "timeout, no match" (log 03:02:53Z), so it
+    # cannot catch a one-shot boot line across a reset. Read the boot capture
+    # that the serial reset returns, or match a periodic line.
+  bench-usb-reset:
+    what: Reset the DUT in SLOT4 over USB-Serial/JTAG (Harness serial reset)
+    available: yes
+    # Usage note (2026-10-23): on this native-USB S3 the DTR/RTS reset resets the
+    # chip a second time ~3.4 s after its 5 s capture, when the bench reopens
+    # the port (pi/portal.py serial_reset -> start_proxy). The capture shows
+    # boot B; the board then runs boot C, whose first ~1 s nobody reads
+    # (raw dump: tdisplay-s3-hello testing/evidence/runs/slot4-double-reset-ring.json). Fine for
+    # "what does a boot print"; wrong for any no-reset window. Bench fault:
+    # SensorsIot/Embedded-AI-Harness#47 (reproduction and code path commented).
+  bench-jtag-reset:
+    what: Reset SLOT4 through its built-in USB-JTAG in a debug session, keeping the serial proxy up (Harness debug + serial reset)
+    available: yes
+    # One boot, lines live in the ring with bench timestamps; the 5 s capture
+    # is re-pushed as a block sharing one timestamp (conftest.reset_and_follow).
+  bench-operator-prompt:
+    what: Blocking operator prompt with yes/no answer and timestamp (Harness human interaction)
+    available: yes
+  bench-test-progress:
+    what: Live test-session progress on the bench web UI
+    available: yes
+  bench-wifi-scan:
+    what: WiFi scan from the bench radio
+    available: yes
+  bench-ble-scan:
+    what: BLE scan from the bench
+    available: yes
+  slot4-gpio-reset:
+    what: EN/BOOT reset and download mode via bench GPIO on SLOT4
+    available: no
+    # Bench reports gpio_wired=false for SLOT4 (EN pulse produced no reset).
+    # Consequence: no GPIO recovery of a crash-looping or wedged DUT; recovery
+    # is USB reset, or an operator holding BOOT (GPIO 0) while replugging USB-C.
+  bench-wifi-scan-bssid:
+    what: WiFi scan that reports each network's BSSID, so the DUT's MAC can be recognised
+    available: no
+    # /api/wifi/scan returns ssid, rssi, auth, channel only (2026-10-23).
+    # Bench gap: SensorsIot/Embedded-AI-Harness#50.
+  seam-lcd-fault-injection:
+    what: "Test build whose LCD interface returns a chosen esp_err_t at init or the k-th draw, logging `lcdfi: call`"
+    available: unproven
+    # Carried from tdisplay-s3-hello (tests/target/lcd_fault/, CI job lcd-fault);
+    # not yet built by this repo's CI.
+  release-verification:
+    what: Tag-triggered journey run against the released artifact
+    available: unproven
+    # Needs a registered `testbench` runner for this repo (.devcontainer/register-runner.sh).
+    # An absent bench at verify time is an unmet precondition (not done), never a failure.
+  dut-tdisplay-s3-slot4:
+    what: The board in SLOT4 is a T-Display-S3 with 16 MB flash; a CI-built image flashes over USB and its log reaches SLOT4's monitor
+    available: unproven
+    # Proven for tdisplay-s3-hello on 2026-10-23 (its test-plan.yaml); this
+    # repo's evidence must come from this repo's CI artefacts.
+  lcd-st7789:
+    what: The built-in ST7789 lights correctly with the T-Display-S3 pin map, GPIO 15 power, GPIO 38 backlight, 10 MHz i80 clock and offset 35
+    available: unproven
+    # Proven for tdisplay-s3-hello on 2026-10-23: invert_color(true),
+    # swap_xy(true), mirror(false, true), set_gap(0, 35), RGB order, RGB565
+    # bytes swapped. Re-observe here with this repo's commissioning/lcd-probe.
+  operator-at-bench:
+    what: A person at the bench answers operator prompts and can see the T-Display-S3 panel, held USB-C to the right
+    available: unproven
+    # An answer counts only when given on the Pi display and the bench logs
+    # "Human confirmed".
+
+# ── Gate verdicts ────────────────────────────────────────────────────────
+gates: []
+
+# ── Tests ────────────────────────────────────────────────────────────────
+# None declared: the FSD has no requirements yet (/define, then /build).
+tests: []
