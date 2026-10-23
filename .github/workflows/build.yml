@@ -92,6 +92,7 @@ jobs:
             cp "build/$f" coldflash/ || { echo "FATAL: missing build/$f"; exit 1; }
           done
           cp build/sdkconfig sdkconfig.generated
+          cp dependencies.lock dependencies.lock.generated 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -100,6 +101,7 @@ jobs:
             firmware_v*.bin
             firmware_v*.elf
             sdkconfig.generated
+            dependencies.lock.generated
             coldflash/
 
   # LCD fault-injection test builds (FSD §5.6): test artefacts for the

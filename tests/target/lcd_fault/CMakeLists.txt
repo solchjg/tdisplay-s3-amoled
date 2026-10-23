@@ -7,7 +7,8 @@ set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
 set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_log
                          ${ROOT}/components/identity ${ROOT}/components/portal
                          ${ROOT}/components/status_http ${ROOT}/components/udp_log
-                         ${ROOT}/components/ota_rx ${ROOT}/components/button)
+                         ${ROOT}/components/ota_rx ${ROOT}/components/button
+                         ${ROOT}/components/mdns_name)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(tdisplay_webserver_lcdfault)

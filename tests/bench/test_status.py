@@ -55,3 +55,14 @@ def test_page_p95_within_500_ms(bench, ip):
         assert code == 200
     p95 = sorted(times)[94]
     assert p95 <= 0.5, f"p95 {p95 * 1000:.0f} ms over 100 GET / (relay time included)"
+
+
+# TC-MDNS-10 · FR-17.1 (needs bench-mdns-resolve, which the bench does not declare)
+def test_hostname_resolves_to_the_device(bench, ip):
+    import yaml
+    caps = yaml.safe_load(open("testing/test-plan.yaml"))["capabilities"]
+    if caps["bench-mdns-resolve"]["available"] is not True:
+        import pytest
+        pytest.skip("bench-mdns-resolve not available (FSD R-8): blocked")
+    code, body, _ = relay(bench, "GET", "http://tds3-71c734.local/api/status")
+    assert code == 200 and f'"ip":"{ip}"' in body.decode()

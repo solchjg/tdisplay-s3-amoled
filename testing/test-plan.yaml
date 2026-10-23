@@ -304,6 +304,10 @@ capabilities:
       "Human confirmed". Orientation must be stated as the USB-C cable side.
 
 # ── Gate verdicts ────────────────────────────────────────────────────────
+# Wave decisions (user, 2026-10-23): Wave 2 opens with Wave 1 green except the
+# tests blocked only by testbench faults (TC-NET-10, TC-NET-12: #54; TC-MDNS-10:
+# undeclared .local resolution). Those stay `not done` and still gate
+# Ready for shipment.
 gates:
   - gate: AI harnessed
     verdict: OPEN
@@ -1241,3 +1245,16 @@ tests:
     observable: "bench STA_CONNECT event for 34:85:18:71:c7:34 has hostname tds3-71c734"
     impl: tests/bench/test_connectivity.py::test_dhcp_hostname_reaches_the_bench
     result: {status: successful, commit: f831c48, firmware: 0.0.0-dev (f831c48, Build Firmware run 40030334418), date: 2026-10-23, evidence: "bench run, junit 13 passed in 223.2 s; operator long and short press on the Pi display"}
+
+  - id: TC-MDNS-10
+    title: "<hostname>.local resolves to the device"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-17.1]
+    needs: [bench-mdns-resolve, bench-http-relay, dut-wifi-slot4]
+    observable: "relay GET http://tds3-71c734.local/api/status -> 200 with the device's ip"
+    impl: tests/bench/test_status.py::test_hostname_resolves_to_the_device
+    result: {status: not done, reason: "blocked: bench-mdns-resolve = no (FSD R-8)"}

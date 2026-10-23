@@ -18,6 +18,7 @@
 #include "freertos/task.h"
 #include "identity.h"
 #include "lcd.h"
+#include "mdns_name.h"
 #include "net.h"
 #include "portal.h"
 #include "ota_rx.h"
@@ -236,6 +237,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     if (a & DL_C_STOP_SERVICES) {
         status_http_stop();
         udp_log_stop();
+        mdns_name_stop();
     }
     if (a & DL_C_START_SERVICES) {
         esp_err_t err = status_http_start(&status_source);
@@ -252,6 +254,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
             web_log_udp_logging(gw, UDP_LOG_PORT);
         } else {
             web_log_warn("udp log start", err);
+        }
+        err = mdns_name_start(hostname);
+        if (err != ESP_OK) {
+            web_log_warn("mdns start", err);
         }
     }
     if (a & DL_C_CONFIRM_IMAGE) {
