@@ -105,10 +105,18 @@ def test_download_succeeds_and_restarts_into_the_new_image(bench, dut, image):
 # TC-OTA-12 · FR-5.23
 def test_new_image_confirms_itself_online(bench, dut):
     assert run.get("new_slot"), "TC-OTA-11 did not restart into the new image"
-    lines = [e["text"] for e in bench.serial_output(dut, lines=1000, since=run["mark"])
-             .get("lines", [])]
-    k = [i for i, ln in enumerate(lines) if re.search(r"web: boot reason=.* fw=", ln)][-1]
-    tail = [m for _, _, m in web_lines(lines[k:])]
+    deadline = time.monotonic() + 10   # L13 follows T5 by milliseconds; the ring lags
+    while True:
+        lines = [e["text"] for e in bench.serial_output(dut, lines=1000, since=run["mark"])
+                 .get("lines", [])]
+        k = [i for i, ln in enumerate(lines) if re.search(r"web: boot reason=.* fw=", ln)][-1]
+        tail = [m for _, _, m in web_lines(lines[k:])]
+        if "ota confirmed" in tail or time.monotonic() > deadline:
+            break
+        time.sleep(0.5)
+    save_evidence("ota-confirm", lines[k:])
     assert "state=ONLINE" in tail, "new image did not reach ONLINE"
     assert "ota confirmed" in tail, "L13 missing: image not confirmed on entering ONLINE"
+    on, ok = tail.index("state=ONLINE"), tail.index("ota confirmed")
+    assert ok > on, "confirmed before entering ONLINE"
     assert not any(m.startswith("ota not confirmed") for m in tail)

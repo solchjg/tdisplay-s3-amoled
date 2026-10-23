@@ -36,9 +36,16 @@ def test_jrn_01_2_portal_open(bench, dut, flashed):
     assert "state=CONNECTING" not in msgs
     assert f"AP mode: SSID='{SOFTAP_SSID}'" in msgs, "K2 missing or another SSID"
     stop_bench_ap(bench)   # the bench radio cannot scan while its AP beacons
-    nets = bench.scan().get("networks", [])
-    ours = [n for n in nets if n.get("ssid") == SOFTAP_SSID]
-    assert ours, f"bench scan does not see {SOFTAP_SSID}"
+    # One scan can miss a beacon, and the first after an AP teardown can come
+    # back partial (TestbenchDriver.scan note): up to three scans.
+    ours, seen = [], []
+    for _ in range(3):
+        nets = bench.scan().get("networks", [])
+        seen.append(sorted({n.get("ssid") for n in nets}))
+        ours = [n for n in nets if n.get("ssid") == SOFTAP_SSID]
+        if ours:
+            break
+    assert ours, f"three bench scans do not see {SOFTAP_SSID}: {seen}"
     assert str(ours[0].get("auth", "")).lower() in ("open", "none", "0", ""), ours[0]
     run["portal"] = True
 
