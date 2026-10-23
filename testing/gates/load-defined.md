@@ -52,7 +52,7 @@ git ls-files docs | sort
 - Pick three contracts at random, one of them full YAML. Could a competent stranger
   build a rig from each **without reading any code**? Quote the stimulus and the
   observable.
-- Do the recovery contracts (NFR-5.2, FR-5.19, FR-5.24, FR-5.29, FR-15.11,
+- Do the recovery contracts (NFR-5.2, FR-5.19, FR-5.24, FR-5.28, FR-15.11,
   FR-19.1) each prohibit the outcome that would fake a pass (an unexpected boot
   line, PROVISIONING, the other slot)? Quote it.
 - Does the OTA chapter (§15) match the testbench's OTA flow (`POST /ota` with

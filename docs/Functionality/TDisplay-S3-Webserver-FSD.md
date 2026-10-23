@@ -362,7 +362,8 @@ reset (60).
   DC / RT / IC: impossible — the station is off. × OS / OF: impossible — the
   portal has no `/ota` route (FR-13.6 answers it with a redirect). × 60 without
   image pending verify: ignored.
-- CONNECTING × CR: impossible (read once, in BOOT). × CS: impossible (no portal).
+- CONNECTING × DC: an attempt failed (§5.3 definition) — T6. × CR: impossible
+  (read once, in BOOT). × CS: impossible (no portal).
   × IC: impossible (no address yet; the first address is IP). × OS / OF:
   impossible (no station server). × RT: impossible (timer armed only in
   WIFI_LOST). × 60 without image pending verify: ignored.
@@ -1409,7 +1410,7 @@ Build-time constants:
 | HTTP port | 80 | [user] |
 | `GET /` p95 | ≤ 500 ms | [user] |
 | OTA max image | 0x400000 bytes | [user] |
-| Restart after OTA success / factory reset | ≤ 2 s | [user] |
+| Restart after OTA success / factory reset / missed confirm deadline (T10, T11, T13) | ≤ 2 s | [user] |
 | OTA URL max length | 256 characters | [user] |
 | OTA download stall timeout | 30 s | [user] |
 | Heartbeat (`alive`) period | 10 s ± 1 s | [user, testbench compatibility contract] |
@@ -1448,7 +1449,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.3.1
+fsd_version: 0.3.2
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1465,6 +1466,7 @@ change_history:
   - 0.2.1 2026-10-23 OTA URL limit (256 characters) and download stall timeout (30 s) accepted by the user
   - 0.3.0 2026-10-23 hello world and uptime removed: FR-14.1/14.2 superseded by FR-14.7/14.8 (no uptime_s); FR-5.31 (no Hello, world! or Up: on screen) and FR-7.30 (no hello log tag) added
   - 0.3.1 2026-10-23 Load-defined findings: FR-5.22, FR-6.5, FR-6.6, FR-15.5 superseded by FR-5.32, FR-6.9, FR-6.10, FR-15.12 (meaning had changed); completeness lists made explicit; NFR-5.3, NFR-15.1, NFR-15.2, NFR-19.1 and the + 3 s tolerance state numbers contracts used; FR-5.24 requires L16; FR-17.2 observed via bench WiFi events; R-6 restated
+  - 0.3.2 2026-10-23 CONNECTING × disconnected listed (counts as AF, T6); Appendix A restart row names T13
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5]
 open_decisions: []
 related_test_baseline: none yet
