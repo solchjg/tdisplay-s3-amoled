@@ -165,6 +165,14 @@ capabilities:
     # Bench reports gpio_wired=false for SLOT4 (EN pulse produced no reset).
     # Consequence: no GPIO recovery of a crash-looping or wedged DUT; recovery
     # is USB reset, or an operator holding BOOT (GPIO 0) while replugging USB-C.
+  bench-scan-while-ap:
+    what: Scan WiFi while the bench AP is running (needed by the ONLINE part of FR-9.4)
+    available: no
+    observed: 2026-10-23
+    # /api/wifi/scan answers 503 "cannot scan while the AP is running: this
+    # radio cannot beacon and survey at once".
+    # Consequence: FR-9.4's ONLINE part is blocked; CONNECTING/WIFI_LOST parts
+    # are verified (TC-SEC-12, TC-NET-11, TC-REC-13).
   bench-wifi-scan-bssid:
     what: WiFi scan that reports each network's BSSID, so the DUT's MAC can be recognised
     available: no
@@ -1497,4 +1505,147 @@ tests:
     needs: [bench-http-relay, bench-firmware-hosting, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "100 requests plus a full OTA download: OTA succeeded, no reason=TASK_WDT"
     impl: tests/bench/test_watchdog.py::test_no_watchdog_reset_under_load_or_ota
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-20
+    title: "Start failure leaves the network running"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 1
+    tier: bench
+    verifies: [FR-5.27, FR-5.28, FR-7.12]
+    needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot4]
+    observable: "lcdfault-init: one lcdfi call start before L8 E ESP_ERR_TIMEOUT, no LCD call after, ONLINE, 12 requests counted, one boot"
+    impl: tests/bench/test_lcd_fault.py::test_start_failure_leaves_the_network_running
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-21
+    title: "Write failure leaves the network running"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 1
+    tier: bench
+    verifies: [FR-5.27, FR-5.28, FR-7.13]
+    needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot4]
+    observable: "lcdfault-write5: L9 E ESP_ERR_INVALID_STATE once, no draw after, ONLINE, 12 requests counted, one boot"
+    impl: tests/bench/test_lcd_fault.py::test_write_failure_leaves_the_network_running
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-HTTP-20
+    title: "Other routes answer 404"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-14.4]
+    needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    observable: "GET /nope 404; DELETE /api/status 404"
+    impl: tests/bench/test_negative.py::test_other_routes_answer_404
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-OTA-30
+    title: "Non-http URL refused 400"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-15.9]
+    needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    observable: "POST /ota {url: ftp://x} -> 400, L12, no download"
+    impl: tests/bench/test_negative.py::test_non_http_url_refused_400
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-OTA-31
+    title: "Bad downloads fail without restart"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-15.11, NFR-15.2]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "random 300 kB, cut image, 4 MB+1 file, 404 URL: each 202 then K11 within 63 s, fw_version unchanged, no K10, no restart"
+    impl: tests/bench/test_negative.py::test_bad_downloads_fail_without_restart
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-OTA-32
+    title: "A download cut by WiFi loss changes nothing"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-15.13]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "AP stopped 3 s into a download, back 20 s later: K11, WIFI_LOST, ONLINE with the same fw_version, no K10, no restart"
+    impl: tests/bench/test_negative.py::test_download_cut_by_wifi_loss_changes_nothing
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-PORT-12
+    title: "Invalid submission refused on the device"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.14]
+    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
+    observable: "33-byte SSID: 400 naming ssid; a reset still enters PROVISIONING"
+    impl: tests/bench/test_negative.py::test_invalid_submission_refused_on_the_device
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-SEC-10
+    title: "WiFi password never output"
+    shape: atomic
+    kind: security
+    wave: 3
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-9.3]
+    needs: [bench-flash-erase, bench-enter-portal, bench-udp-log, bench-http-relay, dut-wifi-slot4]
+    observable: "provisioned with marker pw-<12 hex>: marker absent from serial, UDP and both HTTP bodies"
+    impl: tests/bench/test_security.py::test_password_never_output
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-SEC-11
+    title: "Only TCP port 80 open in ONLINE"
+    shape: atomic
+    kind: security
+    wave: 3
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-9.5]
+    needs: [bench-portscan, dut-wifi-slot4]
+    observable: "port scan 1-65535 of the DUT: open = [80]"
+    impl: tests/bench/test_security.py::test_only_port_80_open
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-SEC-12
+    title: "No SoftAP while CONNECTING or WIFI_LOST"
+    shape: atomic
+    kind: security
+    wave: 3
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-9.4]
+    needs: [bench-wifi-scan, bench-wifi-ap, dut-wifi-slot4]
+    observable: "bench AP down 60 s, a scan every 5 s: no TDS3-71C734 (ONLINE part blocked: bench-scan-while-ap = no)"
+    impl: tests/bench/test_security.py::test_no_softap_while_connecting_or_lost
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-SEC-13
+    title: "No BLE advertiser at the derived MACs"
+    shape: atomic
+    kind: security
+    wave: 3
+    fsd_phase: 1
+    tier: bench
+    verifies: [FR-9.2]
+    needs: [bench-ble-scan, dut-tdisplay-s3-slot4]
+    observable: "bench BLE scan: no advertiser at base MAC + 0..3"
+    impl: tests/bench/test_security.py::test_no_ble_advertiser
     result: {status: not done, reason: not yet run against this commit}
