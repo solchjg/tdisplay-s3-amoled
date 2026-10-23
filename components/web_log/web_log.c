@@ -173,3 +173,18 @@ void web_log_ota_not_confirmed(void)
 {
     ESP_LOGE(TAG, "ota not confirmed, restarting");  // L16
 }
+
+void web_log_button_held(void)
+{
+    ESP_LOGW(TAG, "button held, release to reset");  // L17b
+}
+
+void web_log_factory_reset(void)
+{
+    ESP_LOGW(TAG, "factory reset");  // L15
+}
+
+void web_log_creds_erased(void)
+{
+    ESP_LOGW(TAG, "WiFi credentials erased");  // K8
+}

@@ -1163,3 +1163,81 @@ tests:
     observable: "after the OTA boot: state=ONLINE then ota confirmed; no ota not confirmed"
     impl: tests/bench/test_ota.py::test_new_image_confirms_itself_online
     result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
+
+  - id: TC-BTN-01
+    title: "Reset only at release after >= 5 s; nothing while held"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-18.3, FR-18.4, FR-7.32]
+    needs: []
+    observable: "4.9 s: nothing; 5.0 s and 12 s: one reset at release; threshold once at 5 s; 30 s held without release: nothing"
+    impl: tests/host/test_button.py::test_reset_only_at_release_after_5_s
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-BTN-10
+    title: "Long press resets on release"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-5.21, FR-18.3, FR-18.4, FR-7.16, FR-7.25, FR-7.32]
+    needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot4]
+    observable: "~12 s hold: L17b, then >= 3 s later L15, K8, boot within 2 s, state=PROVISIONING; no download-mode banner"
+    impl: tests/bench/test_button.py::test_long_press_resets_on_release
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-BTN-11
+    title: "Short press changes nothing"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-18.2]
+    needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot4]
+    observable: "~2 s press: no L17b/L15, no boot line, /api/status 200 10 s later"
+    impl: tests/bench/test_button.py::test_short_press_changes_nothing
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-PORT-10
+    title: "Portal serves the form"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-13.2]
+    needs: [bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
+    observable: "joined to TDS3-71C734: GET / 200 text/html, form method=post action=/connect, fields ssid and password"
+    impl: tests/bench/test_button.py::test_portal_serves_the_form
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-HTTP-12
+    title: "Page p95 within 500 ms"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [NFR-14.1]
+    needs: [bench-http-relay, bench-wifi-ap, dut-wifi-slot4]
+    observable: "100 sequential GET / through the relay: p95 <= 500 ms"
+    impl: tests/bench/test_status.py::test_page_p95_within_500_ms
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-NET-13
+    title: "DHCP hostname reaches the bench"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-17.2]
+    needs: [bench-wifi-events, bench-wifi-ap, dut-wifi-slot4]
+    observable: "bench STA_CONNECT event for 34:85:18:71:c7:34 has hostname tds3-71c734"
+    impl: tests/bench/test_connectivity.py::test_dhcp_hostname_reaches_the_bench
+    result: {status: not done, reason: not yet run against this commit}

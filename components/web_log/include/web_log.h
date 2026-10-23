@@ -54,3 +54,8 @@ void web_log_ota_refused(int status, const char *reason);
 void web_log_ota_confirmed(void);
 void web_log_rolled_back(const char *invalid_label);
 void web_log_ota_not_confirmed(void);
+
+// L17b once per hold (FR-7.32); L15 (FR-7.16) and K8 (FR-7.25) on T10.
+void web_log_button_held(void);
+void web_log_factory_reset(void);
+void web_log_creds_erased(void);

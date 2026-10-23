@@ -42,3 +42,16 @@ def test_page_shows_every_field_and_agrees_with_the_json(bench, ip):
     for label in ("Free heap", "RSSI", "Requests"):
         assert label in page
     assert "uptime" not in page.lower() and "Up:" not in page
+
+
+# TC-HTTP-12 · NFR-14.1
+def test_page_p95_within_500_ms(bench, ip):
+    import time
+    times = []
+    for _ in range(100):
+        t0 = time.monotonic()
+        code, _, _ = relay(bench, "GET", f"http://{ip}/")
+        times.append(time.monotonic() - t0)
+        assert code == 200
+    p95 = sorted(times)[94]
+    assert p95 <= 0.5, f"p95 {p95 * 1000:.0f} ms over 100 GET / (relay time included)"

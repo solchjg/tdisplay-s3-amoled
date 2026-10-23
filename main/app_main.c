@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "button.h"
 #include "device_logic.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
@@ -115,6 +116,11 @@ static void on_ota(bool ok, const esp_partition_t *slot)
 {
     downloaded = slot;
     post_conn(ok ? DL_EV_OTA_SUCCEEDED : DL_EV_OTA_FAILED);
+}
+
+static void on_button_reset(void)
+{
+    post_conn(DL_EV_FACTORY_RESET);
 }
 
 static void on_submit(const pc_creds_t *c)
@@ -261,7 +267,13 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         }
     }
     if (a & DL_C_ERASE_CREDS) {
-        net_creds_erase();
+        web_log_factory_reset();
+        esp_err_t err = net_creds_erase();
+        if (err == ESP_OK) {
+            web_log_creds_erased();
+        } else {
+            web_log_warn("credentials erase", err);
+        }
     }
     if (a & DL_C_RESTART) {
         if (e->ev == DL_EV_CONFIRM_DEADLINE) {
@@ -351,6 +363,10 @@ void app_main(void)
     // T1/T2: credentials read.
     app_event_t cr = {.kind = APP_CONN, .ev = DL_EV_CREDS_READ, .guard = net_creds_load(&stored)};
     conn_event(&cr);
+    err = button_start(on_button_reset);  // sampled only after BOOT exits (§18.1)
+    if (err != ESP_OK) {
+        web_log_warn("button start", err);
+    }
 
     esp_timer_start_periodic(tick_timer, TICK_US);
     for (uint32_t tick = 0, alive = 0;;) {

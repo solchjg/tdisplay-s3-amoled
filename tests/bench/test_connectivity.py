@@ -69,3 +69,12 @@ def test_power_cycle_keeps_the_credentials(bench, dut, provisioned):
     out = m.get("output") or []
     assert not any("state=PROVISIONING" in ln for ln in out), "portal after power cycle"
     assert not re.search(r"enter-portal", " ".join(out))
+
+
+# TC-NET-13 · FR-17.2
+def test_dhcp_hostname_reaches_the_bench(bench, dut, online_ip):
+    from conftest import MAC
+    events = bench._api_get("/api/wifi/events").get("events", [])
+    ours = [e for e in events if e.get("type") == "STA_CONNECT" and e.get("mac", "").lower() == MAC]
+    assert ours, "no STA_CONNECT event for the DUT"
+    assert ours[-1].get("hostname") == "tds3-71c734", ours[-1]
