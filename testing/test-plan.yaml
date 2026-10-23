@@ -340,7 +340,7 @@ tests:
     needs: [bench-flash, bench-flash-erase, dut-tdisplay-s3-slot4]
     observable: flash with erase reports success for every image in flash_args
     impl: tests/bench/test_journey.py::test_jrn_01_1_erase_and_flash
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: JRN-01.2
     title: First boot opens the provisioning portal
@@ -353,7 +353,7 @@ tests:
     needs: [bench-usb-reset, bench-serial-monitor, bench-wifi-scan, dut-tdisplay-s3-slot4, dut-wifi-slot4]
     observable: "`web: state=PROVISIONING` and `AP mode: SSID='TDS3-71C734'` on serial; the bench scan sees open SSID TDS3-71C734"
     impl: tests/bench/test_journey.py::test_jrn_01_2_portal_open
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: JRN-01.3
     title: The bench provisions credentials through the portal
@@ -366,7 +366,7 @@ tests:
     needs: [bench-enter-portal, bench-serial-monitor, dut-wifi-slot4]
     observable: "`Credentials saved` and `web: provisioned ssid=<bench SSID>` on serial, with no boot line after them"
     impl: tests/bench/test_journey.py::test_jrn_01_3_provisioned
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: JRN-01.4
     title: The device joins the bench AP
@@ -379,7 +379,7 @@ tests:
     needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "`STA got IP` and `web: online ip=<a.b.c.d>`; the bench AP station list holds the DUT's MAC with that IP"
     impl: tests/bench/test_journey.py::test_jrn_01_4_online
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: JRN-01.5
     title: The status API answers with the flashed version
@@ -392,7 +392,7 @@ tests:
     needs: [bench-http-relay, dut-wifi-slot4]
     observable: "relay GET http://<ip>/api/status → 200, JSON with exactly the 6 keys (no uptime_s), fw_version equal to the artefact's version, ip equal to step 4's"
     impl: tests/bench/test_journey.py::test_jrn_01_5_status
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: JRN-01.6
     title: The display mirrors IP and request count
@@ -405,7 +405,7 @@ tests:
     needs: [bench-serial-monitor, bench-http-relay, lcd-st7789, dut-wifi-slot4]
     observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
     impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: TC-BUILD-01
     title: Build targets esp32s3
@@ -418,7 +418,7 @@ tests:
     needs: []
     observable: "sdkconfig CONFIG_IDF_TARGET=\"esp32s3\""
     impl: tests/host/test_build.py::test_target_is_esp32s3
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-02
     title: Image built with ESP-IDF v6.0.2
@@ -431,7 +431,7 @@ tests:
     needs: []
     observable: "esp_app_desc idf_ver = v6.0.2"
     impl: tests/host/test_build.py::test_idf_version_is_v6_0_2
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-03
     title: 16 MB flash size stated
@@ -444,7 +444,7 @@ tests:
     needs: []
     observable: "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y and no other size"
     impl: tests/host/test_build.py::test_flash_size_is_stated_16mb
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-06
     title: Partition table is exactly C-10.6
@@ -457,7 +457,7 @@ tests:
     needs: []
     observable: "parsed partition-table.bin equals the five C-10.6 rows"
     impl: tests/host/test_build.py::test_partition_table_is_exactly_the_stated_one
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-07
     title: Application image fits a 4 MB slot
@@ -470,7 +470,7 @@ tests:
     needs: []
     observable: "app .bin <= 0x400000 bytes"
     impl: tests/host/test_build.py::test_app_fits_an_ota_slot
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-08
     title: Bootloader rollback enabled
@@ -483,7 +483,7 @@ tests:
     needs: []
     observable: "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y"
     impl: tests/host/test_build.py::test_bootloader_rollback_enabled
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-SEC-02
     title: No BLE controller linked
@@ -496,7 +496,7 @@ tests:
     needs: []
     observable: "no esp_bt_controller_init in the ELF symbol table"
     impl: tests/host/test_build.py::test_no_ble_controller_linked
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-LCD-01
     title: LCD configuration states the FSD values
@@ -509,7 +509,7 @@ tests:
     needs: []
     observable: "pins, 10 MHz clock and offset 35 from the firmware's own configuration"
     impl: tests/host/test_lcd_text.py::test_configuration_states_the_fsd_values
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LCD-02
     title: Fixed 16x32 font covering 0x20-0x7E
@@ -522,7 +522,7 @@ tests:
     needs: []
     observable: "cell 16x32, glyphs 0x20-0x7E"
     impl: tests/host/test_lcd_text.py::test_font_is_fixed_16x32
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LCD-05
     title: Three text lines stacked inside the visible area
@@ -535,7 +535,7 @@ tests:
     needs: []
     observable: "3 non-overlapping line boxes inside 320x170; 20-char renders stay inside"
     impl: tests/host/test_lcd_text.py::test_three_lines_are_stacked_inside_the_visible_area
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LCD-06
     title: A 20-character line fits one row
@@ -548,7 +548,7 @@ tests:
     needs: []
     observable: "width 320 px, rightmost pixel <= 319, 20th character drawn, one row"
     impl: tests/host/test_lcd_text.py::test_twenty_characters_fit_one_row
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LCD-07
     title: A redraw overwrites the whole row
@@ -561,7 +561,7 @@ tests:
     needs: []
     observable: "line box 320 px wide; render of Req: 5 over Req: 1000 equals a fresh render"
     impl: tests/host/test_lcd_text.py::test_redraw_overwrites_the_whole_row
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LCD-03
     title: Two text lines stacked inside the visible area (base project)
@@ -587,7 +587,7 @@ tests:
     needs: []
     observable: "dl_screen gives the FSD 5.4 lines exactly, incl. Req counts 0 .. 4294967295"
     impl: tests/host/test_device_logic.py::test_screen_content_per_state
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-02
     title: Displayed SSID sanitised and cut to 20
@@ -600,7 +600,7 @@ tests:
     needs: []
     observable: "bytes outside 0x20-0x7E become ?; 20-character cut; used on the CONNECTING screen"
     impl: tests/host/test_device_logic.py::test_ssid_is_sanitised_and_cut
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-03
     title: "No Hello, world! and no Up: on any screen"
@@ -613,7 +613,7 @@ tests:
     needs: []
     observable: "no line equals Hello, world!; none starts Up:; none wider than 20"
     impl: tests/host/test_device_logic.py::test_no_hello_and_no_uptime_on_any_screen
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-04
     title: "D1: start ok enters LCD_OK, backlight on"
@@ -626,7 +626,7 @@ tests:
     needs: []
     observable: "next LCD_OK, actions = BACKLIGHT_ON"
     impl: tests/host/test_device_logic.py::test_d1_start_ok_enters_lcd_ok_with_backlight
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-05
     title: "D3: unchanged tick draws nothing"
@@ -639,7 +639,7 @@ tests:
     needs: []
     observable: "next LCD_OK, no action, no draw"
     impl: tests/host/test_device_logic.py::test_d3_unchanged_tick_draws_nothing
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-06
     title: "D4: changed tick redraws and mirrors"
@@ -652,7 +652,7 @@ tests:
     needs: []
     observable: "draws on the tick; next LCD_OK; actions = LOG_LINES"
     impl: tests/host/test_device_logic.py::test_d4_changed_tick_redraws_and_mirrors
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-07
     title: "D2: start failure enters LCD_FAILED, no retry"
@@ -704,7 +704,7 @@ tests:
     needs: []
     observable: "boot reason=USB fw=0.1.0 slot=ota_0"
     impl: tests/host/test_web_log.py::test_boot_line
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-11
     title: L7 display mirror format
@@ -717,7 +717,7 @@ tests:
     needs: []
     observable: "lcd line<k>=\"<text>\""
     impl: tests/host/test_web_log.py::test_lcd_line_mirror
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-12
     title: L8/L9 display failure line formats
@@ -730,7 +730,7 @@ tests:
     needs: []
     observable: "lcd init failed: <ERR>, lcd write failed: <ERR>"
     impl: tests/host/test_web_log.py::test_lcd_failure_lines
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-13
     title: K12 heartbeat format
@@ -743,7 +743,7 @@ tests:
     needs: []
     observable: "alive <N>"
     impl: tests/host/test_web_log.py::test_alive_line
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-14
     title: Image carries no hello
@@ -756,7 +756,7 @@ tests:
     needs: []
     observable: "app .bin has the web tag, no hello tag, no Hello, world!"
     impl: tests/host/test_build.py::test_image_carries_no_hello
-    result: {status: successful, commit: a0e46ab, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "Build Firmware run 40021150644 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-LOG-20
     title: Init marker once, after startup
@@ -769,7 +769,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "exactly one Init complete, running event-driven, after the app_init lines"
     impl: tests/bench/test_log.py::test_init_marker_once_after_startup
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: TC-LOG-21
     title: Boot line first and once
@@ -782,7 +782,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "first web: line is boot reason=<NAME> fw=.. slot=ota_0|ota_1, once"
     impl: tests/bench/test_log.py::test_boot_line_first_and_once
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: TC-LOG-22
     title: "Every web: line has the ESP-IDF prefix"
@@ -795,7 +795,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "each web: line matches <L> (<ms>) web: "
     impl: tests/bench/test_log.py::test_every_web_line_has_the_esp_idf_prefix
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: TC-LOG-23
     title: Heartbeat every 10 s from 0
@@ -808,7 +808,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "70 s capture: >= 6 alive lines, N = 0,1,2,..., gaps 9 - 11 s"
     impl: tests/bench/test_log.py::test_alive_every_10_s_counting_from_0
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: TC-LCD-10
     title: Operator sees the PROVISIONING screen upright, white on black, lit
@@ -847,7 +847,7 @@ tests:
     needs: []
     observable: "next PROVISIONING, action START_SOFTAP only"
     impl: tests/host/test_device_logic.py::test_t1_no_credentials_enters_provisioning
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-11
     title: "T2: stored credentials enter CONNECTING without SoftAP"
@@ -860,7 +860,7 @@ tests:
     needs: []
     observable: "next CONNECTING, action START_ATTEMPT only"
     impl: tests/host/test_device_logic.py::test_t2_stored_credentials_enter_connecting_without_softap
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-12
     title: "T3: valid submission stores and connects without restart"
@@ -873,7 +873,7 @@ tests:
     needs: []
     observable: "next CONNECTING; STORE_CREDS, STOP_SOFTAP, START_ATTEMPT; no RESTART"
     impl: tests/host/test_device_logic.py::test_t3_valid_submission_stores_and_connects_without_restart
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-DL-13
     title: "T5: IP enters ONLINE, n reset, image confirmed if pending"
@@ -886,7 +886,7 @@ tests:
     needs: []
     observable: "next ONLINE, n = 0, START_SERVICES (+ CONFIRM_IMAGE when pending)"
     impl: tests/host/test_device_logic.py::test_t5_ip_enters_online
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-ID-01
     title: "SoftAP SSID and hostname from the base MAC"
@@ -899,7 +899,7 @@ tests:
     needs: []
     observable: "TDS3-ABCDEF / tds3-abcdef; TDS3-71C734 / tds3-71c734"
     impl: tests/host/test_identity.py::test_names_from_the_base_mac
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-PORT-01
     title: "Valid portal form accepted and decoded"
@@ -912,7 +912,7 @@ tests:
     needs: []
     observable: "bench body, any field order, + and %XX, open network and 32/63-byte bounds accepted verbatim"
     impl: tests/host/test_portal.py::test_valid_form_is_accepted_and_decoded
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-15
     title: "L2 state line format"
@@ -925,7 +925,7 @@ tests:
     needs: []
     observable: "state=<S>"
     impl: tests/host/test_web_log.py::test_state_line
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-16
     title: "L3-L6 connectivity line formats"
@@ -938,7 +938,7 @@ tests:
     needs: []
     observable: "portal ssid=.. ip=192.168.4.1; provisioned ssid=..; online ip=.. rssi=..; retry in <ms> ms attempt=<n>"
     impl: tests/host/test_web_log.py::test_connectivity_lines
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-17
     title: "K2 and K5 testbench lines"
@@ -951,7 +951,7 @@ tests:
     needs: []
     observable: "AP mode: SSID='..'; STA mode, connecting to '..'"
     impl: tests/host/test_web_log.py::test_testbench_contract_lines
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-HTTP-01
     title: "JSON has exactly the six keys"
@@ -964,7 +964,7 @@ tests:
     needs: []
     observable: "valid JSON, 6 keys, values verbatim for 0 and 2^32-1, no uptime_s"
     impl: tests/host/test_status_http.py::test_json_has_exactly_the_six_keys
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-HTTP-02
     title: "HTML page shows every field and no uptime"
@@ -977,7 +977,7 @@ tests:
     needs: []
     observable: "every value on the page; no uptime / Up:"
     impl: tests/host/test_status_http.py::test_html_page_shows_every_field_and_no_uptime
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-18
     title: "L10 http line format"
@@ -990,7 +990,7 @@ tests:
     needs: []
     observable: "http GET /api/status 200 n=17"
     impl: tests/host/test_web_log.py::test_http_line
-    result: {status: successful, commit: a0e46ab, date: 2026-10-23, evidence: "host tests + lint run 40021147585 (tests/host: 60 passed)"}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-HTTP-10
     title: "Request count rises by one per request"
@@ -1003,7 +1003,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
     observable: "3 sequential GET /api/status give requests k, k+1, k+2"
     impl: tests/bench/test_status.py::test_request_count_rises_by_one_per_request
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: daacf05, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run with online_ip precondition: 3 passed in 16 s; UDP datagrams equal serial text"}
 
   - id: TC-HTTP-11
     title: "Page shows every field and agrees with the JSON"
@@ -1016,7 +1016,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
     observable: "200 text/html; fw_version, ip, hostname equal the JSON; labels present; no uptime"
     impl: tests/bench/test_status.py::test_page_shows_every_field_and_agrees_with_the_json
-    result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+    result: {status: successful, commit: daacf05, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run with online_ip precondition: 3 passed in 16 s; UDP datagrams equal serial text"}
 
   - id: TC-UDP-01
     title: "Only web lines at I/W/E, stripped of prefix and colour"
@@ -1029,7 +1029,7 @@ tests:
     needs: []
     observable: "web: text from web: to end; D level and other tags not selected"
     impl: tests/host/test_udp_log.py::test_only_web_lines_at_info_or_above_without_prefix
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-LOG-19
     title: "K9 UDP logging line format"
@@ -1042,7 +1042,7 @@ tests:
     needs: []
     observable: "UDP logging -> 192.168.4.1:5555"
     impl: tests/host/test_web_log.py::test_udp_logging_line
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: fd7b45c, date: 2026-10-23, evidence: "host tests + lint run 40024568104 (tests/host: 68 passed)"}
 
   - id: TC-UDP-10
     title: "web lines arrive as datagrams equal to serial"
@@ -1055,7 +1055,7 @@ tests:
     needs: [bench-udp-log, bench-http-relay, dut-wifi-slot4]
     observable: "5 GET /api/status give 5 datagrams 'web: http GET /api/status 200 n=k' from the DUT, equal to the serial text"
     impl: tests/bench/test_udp.py::test_web_lines_arrive_as_datagrams_equal_to_serial
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: daacf05, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run with online_ip precondition: 3 passed in 16 s; UDP datagrams equal serial text"}
 
   - id: TC-NET-10
     title: "Reset reaches ONLINE within 10 s without the portal"
@@ -1068,7 +1068,7 @@ tests:
     needs: [bench-wifi-ap, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4, dut-tdisplay-s3-slot4, bench-ap-rejoin-after-reset]
     observable: "5 JTAG resets: CONNECTING, no PROVISIONING, web: online at <= 10000 ms each"
     impl: tests/bench/test_connectivity.py::test_reset_reaches_online_within_10_s_without_portal
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: not done, reason: "blocked by bench-ap-rejoin-after-reset = no (bench fault, product exonerated by the wifi-probe positive control); first run at fd7b45c: run 0 online at 2306 ms, runs 1-4 auth -> init"}
 
   - id: TC-NET-11
     title: "Stored credentials never open the SoftAP"
@@ -1081,7 +1081,7 @@ tests:
     needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4]
     observable: "bench AP down, reset: CONNECTING, 3 scans over 30 s without TDS3-71C734, rejoins when the AP returns"
     impl: tests/bench/test_connectivity.py::test_stored_credentials_never_open_the_softap
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
 
   - id: TC-NET-12
     title: "Power cycle keeps the credentials"
@@ -1094,4 +1094,4 @@ tests:
     needs: [bench-wifi-ap, bench-operator-prompt, operator-at-bench, bench-serial-monitor, dut-wifi-slot4, bench-ap-rejoin-after-reset]
     observable: "operator power cycle (P-POWERCYCLE): web: online again, no PROVISIONING"
     impl: tests/bench/test_connectivity.py::test_power_cycle_keeps_the_credentials
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: not done, reason: "blocked by bench-ap-rejoin-after-reset = no (bench fault, product exonerated by the wifi-probe positive control); first run at fd7b45c: run 0 online at 2306 ms, runs 1-4 auth -> init"}
