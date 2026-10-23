@@ -6,7 +6,7 @@ menu "LCD fault injection (test build only)"
         config LCD_FAULT_AT_INIT
             bool "initialisation (lcd_start)"
         config LCD_FAULT_AT_WRITE
-            bool "the k-th lcd_draw_line after T1"
+            bool "the k-th lcd_draw_line"
     endchoice
 
     config LCD_FAULT_WRITE_N

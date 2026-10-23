@@ -17,8 +17,7 @@ SLOT = "SLOT4"
 CHIP = "esp32s3"
 MAC = "34:85:18:71:c7:34"   # testing/test-plan.yaml dut_record
 
-LOG_LINE = re.compile(r"^([IEWD]) \((\d+)\) hello: (.*)$")
-UP = re.compile(r"^up=(\d+)$")
+LOG_LINE = re.compile(r"([IEWD]) \((\d+)\) web: (.*)$")
 
 
 @pytest.fixture(scope="session")
@@ -150,16 +149,10 @@ def save_evidence(name, lines):
             fh.write("\n".join(lines) + "\n")
 
 
-def hello_lines(output):
-    """(level, ms, message) for every `hello:` log line in a capture."""
-    return [m.groups() for m in (LOG_LINE.match(ln.strip()) for ln in output) if m]
+def web_lines(output):
+    """(level, ms, message) for every `web:` log line in a capture (FSD §7.2).
 
-
-def up_values(output):
-    """(ms, N) for every `hello: up=<N>` line in a capture."""
-    out = []
-    for _, ms, msg in hello_lines(output):
-        m = UP.match(msg)
-        if m:
-            out.append((int(ms), int(m.group(1))))
-    return out
+    Searched, not anchored: the monitor may deliver colour codes or a partial
+    line before the level letter (test-plan bench-serial-monitor note).
+    """
+    return [m.groups() for m in (LOG_LINE.search(ln.strip()) for ln in output) if m]

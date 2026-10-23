@@ -556,3 +556,237 @@ tests:
     superseded_by: TC-LCD-06
     verifies: [FR-6.6]
     impl: none (removed with FR-6.6's supersession)
+
+  - id: TC-DL-01
+    title: Screen content of every connectivity state
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.25]
+    needs: []
+    observable: "dl_screen gives the FSD 5.4 lines exactly, incl. Req counts 0 .. 4294967295"
+    impl: tests/host/test_device_logic.py::test_screen_content_per_state
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-02
+    title: Displayed SSID sanitised and cut to 20
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.29]
+    needs: []
+    observable: "bytes outside 0x20-0x7E become ?; 20-character cut; used on the CONNECTING screen"
+    impl: tests/host/test_device_logic.py::test_ssid_is_sanitised_and_cut
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-03
+    title: "No Hello, world! and no Up: on any screen"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.31]
+    needs: []
+    observable: "no line equals Hello, world!; none starts Up:; none wider than 20"
+    impl: tests/host/test_device_logic.py::test_no_hello_and_no_uptime_on_any_screen
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-04
+    title: "D1: start ok enters LCD_OK, backlight on"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.25, FR-6.7]
+    needs: []
+    observable: "next LCD_OK, actions = BACKLIGHT_ON"
+    impl: tests/host/test_device_logic.py::test_d1_start_ok_enters_lcd_ok_with_backlight
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-05
+    title: "D3: unchanged tick draws nothing"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.26]
+    needs: []
+    observable: "next LCD_OK, no action, no draw"
+    impl: tests/host/test_device_logic.py::test_d3_unchanged_tick_draws_nothing
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-06
+    title: "D4: changed tick redraws and mirrors"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.26, FR-7.11]
+    needs: []
+    observable: "draws on the tick; next LCD_OK; actions = LOG_LINES"
+    impl: tests/host/test_device_logic.py::test_d4_changed_tick_redraws_and_mirrors
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-07
+    title: "D2: start failure enters LCD_FAILED, no retry"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.27, FR-7.12]
+    needs: []
+    observable: "next LCD_FAILED, actions = LOG_INIT_FAILED only"
+    impl: none (Wave 3)
+    result: {status: not done, reason: Wave 3 (negatives locked)}
+
+  - id: TC-DL-08
+    title: "D5: write failure enters LCD_FAILED"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.27, FR-7.13]
+    needs: []
+    observable: "next LCD_FAILED, actions = LOG_WRITE_FAILED"
+    impl: none (Wave 3)
+    result: {status: not done, reason: Wave 3 (negatives locked)}
+
+  - id: TC-DL-09
+    title: "D6: LCD_FAILED never touches the display"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-5.27]
+    needs: []
+    observable: "100 ticks: no draw, no transition"
+    impl: none (Wave 3)
+    result: {status: not done, reason: Wave 3 (negatives locked)}
+
+  - id: TC-LOG-10
+    title: L1 boot line format
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-7.7]
+    needs: []
+    observable: "boot reason=USB fw=0.1.0 slot=ota_0"
+    impl: tests/host/test_web_log.py::test_boot_line
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-11
+    title: L7 display mirror format
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-7.11]
+    needs: []
+    observable: "lcd line<k>=\"<text>\""
+    impl: tests/host/test_web_log.py::test_lcd_line_mirror
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-12
+    title: L8/L9 display failure line formats
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-7.12, FR-7.13]
+    needs: []
+    observable: "lcd init failed: <ERR>, lcd write failed: <ERR>"
+    impl: tests/host/test_web_log.py::test_lcd_failure_lines
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-13
+    title: K12 heartbeat format
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-7.29]
+    needs: []
+    observable: "alive <N>"
+    impl: tests/host/test_web_log.py::test_alive_line
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-14
+    title: Image carries no hello
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-7.30, FR-5.31]
+    needs: []
+    observable: "app .bin has the web tag, no hello tag, no Hello, world!"
+    impl: tests/host/test_build.py::test_image_carries_no_hello
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-20
+    title: Init marker once, after startup
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: target
+    verifies: [FR-7.6]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    observable: "exactly one Init complete, running event-driven, after the app_init lines"
+    impl: tests/bench/test_log.py::test_init_marker_once_after_startup
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-21
+    title: Boot line first and once
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: target
+    verifies: [FR-7.7]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    observable: "first web: line is boot reason=<NAME> fw=.. slot=ota_0|ota_1, once"
+    impl: tests/bench/test_log.py::test_boot_line_first_and_once
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-22
+    title: "Every web: line has the ESP-IDF prefix"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: target
+    verifies: [FR-7.5]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    observable: "each web: line matches <L> (<ms>) web: "
+    impl: tests/bench/test_log.py::test_every_web_line_has_the_esp_idf_prefix
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-23
+    title: Heartbeat every 10 s from 0
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: target
+    verifies: [FR-7.29]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    observable: "70 s capture: >= 6 alive lines, N = 0,1,2,..., gaps 9 - 11 s"
+    impl: tests/bench/test_log.py::test_alive_every_10_s_counting_from_0
+    result: {status: not done, reason: not yet run against this commit}

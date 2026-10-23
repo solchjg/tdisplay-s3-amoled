@@ -149,3 +149,12 @@ def test_no_ble_controller_linked(app_elf):
     symbols = _defined_symbols(app_elf)
     assert "app_main" in symbols, "symbol table not read (positive control)"
     assert "esp_bt_controller_init" not in symbols
+
+
+# TC-LOG-14 · FR-7.30, FR-5.31 (image)
+def test_image_carries_no_hello(app_bin):
+    with open(app_bin, "rb") as fh:
+        image = fh.read()
+    assert b"web\0" in image, "the web tag is not in the image (positive control)"
+    assert b"hello\0" not in image, "the hello log tag is in the image"
+    assert b"Hello, world!" not in image

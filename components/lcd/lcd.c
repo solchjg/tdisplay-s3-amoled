@@ -90,7 +90,7 @@ void lcd_backlight(bool on)
         }                            \
     } while (0)
 
-esp_err_t lcd_start(const char *line1, const char *line2)
+esp_err_t lcd_start(void)
 {
     out_pin(LCD_PIN_PWR, 1);
     out_pin(LCD_PIN_RD, 1);
@@ -137,11 +137,9 @@ esp_err_t lcd_start(const char *line1, const char *line2)
     TRY(esp_lcd_panel_init(panel));
     TRY(esp_lcd_panel_invert_color(panel, true));
     TRY(esp_lcd_panel_swap_xy(panel, true));
-    TRY(esp_lcd_panel_mirror(panel, false, true));
+    TRY(esp_lcd_panel_mirror(panel, true, false));
     TRY(esp_lcd_panel_set_gap(panel, 0, LCD_GAP_Y));
     TRY(esp_lcd_panel_disp_on_off(panel, true));
 
-    TRY(clear());
-    TRY(lcd_draw_line(0, line1));
-    return lcd_draw_line(1, line2);
+    return clear();
 }
