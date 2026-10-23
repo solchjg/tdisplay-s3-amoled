@@ -192,8 +192,8 @@ testbench.
 - **Scope.** New partition table and rollback-enabled bootloader, LCD carried over,
   the boot screen, the new serial log lines, task watchdog. No WiFi.
 - **Deliverables.** C-10.1 – C-10.3, C-10.5 – C-10.8; §6 (FR-6.x, C-6.x) against
-  the BOOT screen; FR-5.25 (BOOT row), FR-5.27, FR-5.29, FR-7.5 – FR-7.7,
-  FR-7.11 – FR-7.13, FR-7.29; FR-19.1; FR-9.2; the LCD fault build and the hang build
+  the BOOT screen; FR-5.25 (BOOT row), FR-5.27, FR-5.29, FR-5.31 (core),
+  FR-7.5 – FR-7.7, FR-7.11 – FR-7.13, FR-7.29, FR-7.30 (image check); FR-19.1; FR-9.2; the LCD fault build and the hang build
   (variant `app`) of §12.0.
 - **Exit criteria.** On SLOT4, after a USB flash of the CI artefact and a USB
   reset: the boot line of FR-7.7 and `Init complete, running event-driven` appear;
@@ -207,7 +207,7 @@ testbench.
 - **Scope.** §5 connectivity state machine, the portal (§13), credential storage,
   reconnect with backoff, the screen content of every state.
 - **Deliverables.** FR-5.11 – FR-5.20, FR-5.25, FR-5.30, NFR-5.1, NFR-5.2; §13;
-  FR-7.8 – FR-7.10, FR-7.17 – FR-7.25; FR-9.3 (serial part), FR-9.4.
+  FR-7.8 – FR-7.10, FR-7.17 – FR-7.25, FR-7.30 (wire); FR-9.3 (serial part), FR-9.4.
 - **Exit criteria.** From an erased NVS, the testbench `enter-portal` procedure
   provisions the device through `POST /connect`; the device joins the bench AP and
   logs `web: online`; after a USB reset it rejoins without the portal; after the
@@ -219,7 +219,7 @@ testbench.
 
 - **Scope.** Status page, JSON API, request counter, UDP log, mDNS, identity,
   HTTP-handler watchdog, display failure under network load.
-- **Deliverables.** §14, §16, §17, §20, FR-5.26, FR-5.28, FR-7.14, FR-7.26, FR-9.3 (UDP and
+- **Deliverables.** §14, §16, §17, §20, FR-5.26, FR-5.28, FR-5.31 (bench), FR-7.14, FR-7.26, FR-9.3 (UDP and
   HTTP parts), FR-9.5, FR-19.2; the hang build variant `http`.
 - **Exit criteria.** Through the bench HTTP relay: `GET /` and `GET /api/status`
   answer per §14 with consistent values; the LCD request count follows (FR-5.25,
@@ -459,6 +459,8 @@ Display:
   (D2, D5, D6).
 - **FR-5.28** [Must] [derived, carried from base FR-5.10] An LCD error shall cause
   neither a restart nor any change in the connectivity region.
+- **FR-5.31** [Must] [user] In no state shall the screen show `Hello, world!` or a
+  line beginning `Up:`.
 - **FR-5.29** [Must] [derived from FR-6.2's glyph range] A displayed SSID shall
   render each byte outside 0x20 – 0x7E as `?` and be cut to its first 20
   characters.
@@ -491,6 +493,8 @@ Compact form:
 | FR-5.25 (core) | Screen function for every state, with sample SSID/IP/n/hostname | The §5.4 strings exactly | Any other string | n/a | host |
 | FR-5.26 | ONLINE; one `GET /api/status` | FR-7.11 line `line2="Req: <n>"` with the new n | No mirror line | ≤ 2 s after the response | bench |
 | FR-5.27 | LCD fault build failing at start; USB reset; 30 s capture | Exactly one `lcdfi: call` before `web: lcd init failed:` | Any `lcdfi: call` after it | 30 s window | target |
+| FR-5.31 (core) | Screen function for every §5.3 state and every display-region state | No line equals `Hello, world!`; no line starts `Up:` | Either text in any state | n/a | host |
+| FR-5.31 | Shipped build, JRN-01 run from erase to ONLINE with 3 requests; operator prompted at PROVISIONING and ONLINE | No FR-7.11 mirror line with either text; operator confirms neither is on the panel | `Hello, world!` or `Up:` on the panel or in a mirror line | n/a | bench (operator) |
 | FR-5.29 (core) | SSIDs: 32 × `A`; `Caf\xc3\xa9`; empty | `AAAAAAAAAAAAAAAAAAAA`; `Caf??`; empty line | Wider than 20; raw non-ASCII byte | n/a | host |
 | NFR-5.1 | Provisioned; bench AP up; USB reset; 5 runs | `web: online` log timestamp ≤ 10000 ms in every run | A run over 10000 ms; PROVISIONING | ≤ 10 s | bench |
 
@@ -766,6 +770,7 @@ Each line requirement is one row of §7.2:
 - **FR-7.16** [Must] [derived from FR-5.21] T10 shall log L15 before restarting.
 - **FR-7.17** [Must] [derived from FR-5.18] T6 and T7 shall log L6 with the delay
   actually armed.
+- **FR-7.30** [Must] [user] The device shall log no line with the tag `hello`.
 
 ### 7.3a Testbench compatibility lines
 
@@ -824,6 +829,8 @@ concerned, `<ip>` the destination of FR-16.1.
 | FR-7.11 | ONLINE; one request | L7 `line2="Req: <n>"` | Text differing from the drawn line | bench |
 | FR-7.12, FR-7.13 | LCD fault build at start / 5th write | L8 `ESP_ERR_TIMEOUT` / L9 `ESP_ERR_INVALID_STATE` at level E, once | Level I/W; numeric code; repeated | target |
 | FR-7.14 | ONLINE; `GET /nope` | `web: http GET /nope 404 n=<count>` | Missing | bench |
+| FR-7.30 | Inspect the shipped application image (`.bin`) | No NUL-terminated string `hello` (the tag) and no `Hello, world!` in it | Either byte string present | host |
+| FR-7.30 (wire) | JRN-01 run, serial capture from reset to ONLINE plus 30 s | No line matching `[IEWD] \([0-9]+\) hello: ` | Any such line | bench |
 | FR-7.15 – FR-7.17 | Covered by the FR-5.21, FR-5.24, FR-15.x and FR-5.18 runs | Lines as tabled | Missing | bench |
 | FR-7.18 – FR-7.22 | Provisioning run (FR-5.13) from erased NVS | K1, K2 with the FR-13.1 SSID, K3, K4, K5 with the bench SSID, in that order | A string missing, reworded or out of order | bench |
 | FR-7.23, FR-7.26 | As above, to ONLINE | K6, then K9 with the bench gateway | Missing; K6 before an IP exists | bench |
@@ -911,7 +918,6 @@ on the station address.
 | Key | Type | Unit / format | Meaning |
 |-----|------|---------------|---------|
 | `fw_version` | string | FR-20.3 | Running image version |
-| `uptime_s` | integer | seconds | Since boot |
 | `free_heap` | integer | bytes | Current free heap |
 | `rssi_dbm` | integer | dBm | Station RSSI |
 | `ip` | string | dotted quad | Station IPv4 address |
@@ -920,11 +926,11 @@ on the station address.
 
 ### 14.3 Requirements
 
-- **FR-14.1** [Must] [user] In ONLINE, `GET /` shall answer 200 with an HTML page
-  showing every §14.2 field.
-- **FR-14.2** [Must] [user] In ONLINE, `GET /api/status` shall answer 200 with a
-  JSON object having exactly the §14.2 keys and types.
-- **FR-14.3** [Must] [derived from FR-14.1/14.2] The HTML page and the JSON object
+- **FR-14.7** [Must] [user] In ONLINE, `GET /` shall answer 200 with an HTML page
+  showing every §14.2 field and no uptime.
+- **FR-14.8** [Must] [user] In ONLINE, `GET /api/status` shall answer 200 with a
+  JSON object having exactly the six §14.2 keys and their types.
+- **FR-14.3** [Must] [derived from FR-14.7/14.8] The HTML page and the JSON object
   shall report the same `fw_version`, `ip` and `hostname`.
 - **FR-14.4** [Must] [derived] Any other method/path combination than §14.2 shall
   answer 404.
@@ -940,10 +946,11 @@ on the station address.
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| FR-14.1 | ONLINE; relay `GET /` | 200, `text/html`, page contains each value from a `/api/status` taken right after | A missing field | bench |
-| FR-14.2 | ONLINE; relay `GET /api/status` | Parses as JSON; exactly the 7 keys with the tabled types; `ip` equals the bench-assigned address | Extra/missing key; string where integer | bench |
-| FR-14.2 (core) | Render the JSON with sample values incl. 0 and 2³² − 1 | Valid JSON, values verbatim | Truncation; invalid JSON | host |
-| FR-14.3 | As FR-14.1 | Equal values | Any difference | bench |
+| FR-14.7 | ONLINE; relay `GET /` | 200, `text/html`, page contains each value from a `/api/status` taken right after | A missing field; any uptime value or label (`uptime`, `Up:`) | bench |
+| FR-14.7 (core) | Render the HTML page with sample values | Every §14.2 value present | `uptime` or `Up:` anywhere in the page | host |
+| FR-14.8 | ONLINE; relay `GET /api/status` | Parses as JSON; exactly the 6 keys with the tabled types; `ip` equals the bench-assigned address | Extra key (incl. `uptime_s`); missing key; string where integer | bench |
+| FR-14.8 (core) | Render the JSON with sample values incl. 0 and 2³² − 1 | Valid JSON with the 6 keys, values verbatim | `uptime_s`; truncation; invalid JSON | host |
+| FR-14.3 | As FR-14.7 | Equal values | Any difference | bench |
 | FR-14.4 | `GET /nope`; `DELETE /api/status` | 404 each | 200; 500 | bench |
 | FR-14.5 (core) | Transition function over every §5.3 row | Server-start action only in T5; server-stop action in T7; none elsewhere | A start in any other row; no stop in T7 | host |
 | FR-14.5 | PROVISIONING; bench joined to the SoftAP; bench port scan of 192.168.4.1 | Port 80 is the portal (§13.2), and `GET /api/status` answers 302 (FR-13.6), not the status JSON | The status JSON outside ONLINE | bench |
@@ -1397,6 +1404,7 @@ Build-time constants:
 | FR-7.1 – FR-7.4 | `hello:` log lines | FR-7.7 – FR-7.13 |
 | FR-9.1 | No WiFi or BLE radio | FR-9.2 (BLE), FR-9.4, FR-9.5 |
 | C-10.4 | 1 MB single-app partition | C-10.6, C-10.7 |
+| FR-14.1, FR-14.2 | Status page and JSON including uptime (`uptime_s`, 7 keys) | FR-14.7, FR-14.8 (6 keys, no uptime) |
 | FR-15.2 – FR-15.4, FR-15.6, FR-15.7 | OTA by pushed image body (411, 413, 400, 200 answers; broken upload) | FR-15.8 – FR-15.11 (OTA by URL pull, matching the testbench's OTA flow) |
 
 FR-6.1 – FR-6.7 keep their IDs with state names updated to §5.3's display region;
@@ -1404,7 +1412,7 @@ FR-6.6 now covers a 20-character line.
 
 ```yaml
 document_status: draft
-fsd_version: 0.2.1
+fsd_version: 0.3.0
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1419,7 +1427,8 @@ change_history:
   - 0.1.1 2026-10-23 all proposed values accepted by the user (Appendix A)
   - 0.2.0 2026-10-23 OTA by URL pull (testbench OTA flow), FR-15.2-15.4/15.6/15.7 superseded by FR-15.8-15.11, FR-5.22 and T11/T12 restated; testbench compatibility log lines K1-K12 (FR-7.18-7.29); R-6 restated
   - 0.2.1 2026-10-23 OTA URL limit (256 characters) and download stall timeout (30 s) accepted by the user
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7]
+  - 0.3.0 2026-10-23 hello world and uptime removed: FR-14.1/14.2 superseded by FR-14.7/14.8 (no uptime_s); FR-5.31 (no Hello, world! or Up: on screen) and FR-7.30 (no hello log tag) added
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2]
 open_decisions: []
 related_test_baseline: none yet
 ```

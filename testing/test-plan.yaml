@@ -356,9 +356,9 @@ tests:
     wave: 1
     fsd_phase: 3
     tier: bench
-    verifies: [FR-14.2, FR-20.3]
+    verifies: [FR-14.8, FR-20.3]
     needs: [bench-http-relay, dut-wifi-slot4]
-    observable: "relay GET http://<ip>/api/status → 200, JSON with the 7 keys, fw_version equal to the artefact's version, ip equal to step 4's"
+    observable: "relay GET http://<ip>/api/status → 200, JSON with exactly the 6 keys (no uptime_s), fw_version equal to the artefact's version, ip equal to step 4's"
     impl: tests/bench/test_journey.py::test_jrn_01_5_status
     result: {status: not done, reason: not yet implemented}
 
