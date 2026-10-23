@@ -19,3 +19,18 @@ def test_operator_sees_the_boot_screen(bench, dut, flashed):
         "screen facing you. Press DONE only if ALL hold: the top line reads exactly "
         "'Starting', upright and left to right; white text on a black background; the "
         "backlight is on (text clearly lit). Otherwise press CANCEL.", timeout=300)
+
+
+# TC-LCD-11 · FR-6.4 (P-POWERCYCLE: random panel RAM after a cold start)
+def test_cold_start_leaves_no_stray_pixels(bench, dut, flashed):
+    assert flashed.get("ok"), "shipped build not flashed"
+    assert bench.human_interaction(
+        "TC-LCD-11 step 1 of 2: unplug the T-Display-S3's USB-C cable, wait 5 s, plug it "
+        "back in WITHOUT touching any button, then press DONE.", timeout=300)
+    up = bench.serial_monitor(dut, pattern="web: alive", timeout=40)
+    assert up.get("matched"), "device not running after the power cycle"
+    assert bench.human_interaction(
+        "TC-LCD-11 step 2 of 2: USB-C cable on your RIGHT. Press DONE only if the screen "
+        "is black everywhere except the word 'Starting': no band of noise or coloured "
+        "pixels along ANY edge, nothing between or below the lines. Otherwise CANCEL.",
+        timeout=300)

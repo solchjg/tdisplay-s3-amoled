@@ -803,3 +803,16 @@ tests:
     observable: "operator confirms 'Starting' on the top line, upright with USB-C on the right, white on black, backlight on"
     impl: tests/bench/test_display.py::test_operator_sees_the_boot_screen
     result: {status: successful, commit: c6c3099, firmware: 0.0.0-dev (2b866f5, Build Firmware run 40017636168), date: 2026-10-23, evidence: "bench run, junit 1 passed in 86.2 s; operator prompt Human confirmed"}
+
+  - id: TC-LCD-11
+    title: Cold start leaves no stray pixels
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: bench
+    verifies: [FR-6.4]
+    needs: [bench-operator-prompt, operator-at-bench, bench-serial-monitor, lcd-st7789, dut-tdisplay-s3-slot4]
+    observable: "after an operator power cycle (P-POWERCYCLE), operator confirms black everywhere except 'Starting', no edge noise"
+    impl: tests/bench/test_display.py::test_cold_start_leaves_no_stray_pixels
+    result: {status: not done, reason: not yet run against this commit}
