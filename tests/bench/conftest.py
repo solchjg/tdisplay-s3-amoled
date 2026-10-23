@@ -171,3 +171,16 @@ def enter_portal(bench, portal_ssid, ssid, password):
     """
     return bench._api_post_raw("/api/enter-portal", {
         "portal_ssid": portal_ssid, "ssid": ssid, "password": password}, timeout=15)
+
+
+def relay(bench, method, url, body=None, headers=None, timeout=8):
+    """One HTTP exchange through the bench radio: (status, body bytes, headers)."""
+    import base64
+    payload = base64.b64encode(body).decode() if body is not None else None
+    r = bench.wifi_http(url, method=method, headers=headers, body=payload, timeout=timeout)
+    return r.get("status"), base64.b64decode(r.get("body") or ""), r.get("headers") or {}
+
+
+def ring_lines(bench, slot, lines=2000):
+    """The bench's serial ring for the slot, oldest first, as text lines."""
+    return [e.get("text", "") for e in bench.serial_output(slot, lines=lines).get("lines", [])]

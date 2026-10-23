@@ -43,6 +43,9 @@ int main(int argc, char **argv)
         wl_fmt_ap_mode(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "sta_mode") == 0) {
         wl_fmt_sta_mode(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "http") == 0) {
+        wl_fmt_http(line, sizeof line, argv[2], argv[3], atoi(argv[4]),
+                    (uint32_t)strtoul(argv[5], NULL, 10));
     }
     fputs(line, stdout);
     return 0;
@@ -107,3 +110,8 @@ def test_connectivity_lines(fmt):
 def test_testbench_contract_lines(fmt):
     assert fmt("ap_mode", "TDS3-71C734") == "AP mode: SSID='TDS3-71C734'"
     assert fmt("sta_mode", "tds3-bench") == "STA mode, connecting to 'tds3-bench'"
+
+
+# TC-LOG-18 · FR-7.14 (core): L10
+def test_http_line(fmt):
+    assert fmt("http", "GET", "/api/status", "200", "17") == "http GET /api/status 200 n=17"

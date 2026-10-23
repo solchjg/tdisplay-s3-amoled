@@ -38,3 +38,6 @@ void web_log_retry(uint32_t ms, uint32_t n);
 
 // Any other condition worth a line, at warning level.
 void web_log_warn(const char *what, esp_err_t err);
+
+// L10 for each status-server answer (FR-7.14).
+void web_log_http(const char *method, const char *path, int status, uint32_t n);

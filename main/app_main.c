@@ -18,6 +18,7 @@
 #include "lcd.h"
 #include "net.h"
 #include "portal.h"
+#include "status_http.h"
 #include "web_log.h"
 
 static const char *TAG = "main";
@@ -43,6 +44,9 @@ static esp_timer_handle_t tick_timer, retry_timer, attempt_timer;
 static dl_view_t view;
 static char softap_ssid[ID_NAME_MAX], hostname[ID_NAME_MAX], ip[16];
 static pc_creds_t stored;
+
+static const status_http_source_t status_source = {.ip = ip, .hostname = hostname,
+                                                   .rssi = net_rssi};
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
@@ -137,6 +141,7 @@ static void execute_disp(unsigned actions, esp_err_t err)
 
 static dl_disp_t disp_tick(dl_disp_t disp)
 {
+    view.requests = status_http_requests();
     char want[DL_LINES][DL_LINE_MAX];
     dl_screen(&view, want);
     bool changed = memcmp(want, shown, sizeof shown) != 0;
@@ -196,8 +201,14 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         esp_timer_stop(retry_timer);
         esp_timer_start_once(retry_timer, (uint64_t)ms * 1000);
     }
+    if (a & DL_C_STOP_SERVICES) {
+        status_http_stop();
+    }
     if (a & DL_C_START_SERVICES) {
-        // Status server, mDNS and UDP log arrive with FSD Phase 3.
+        esp_err_t err = status_http_start(&status_source);
+        if (err != ESP_OK) {
+            web_log_warn("status server start", err);
+        }
     }
     if (a & DL_C_CONFIRM_IMAGE) {
         if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {

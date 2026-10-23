@@ -120,3 +120,10 @@ void web_log_warn(const char *what, esp_err_t err)
 {
     ESP_LOGW(TAG, "%s: %s", what, esp_err_to_name(err));
 }
+
+void web_log_http(const char *method, const char *path, int status, uint32_t n)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_http(line, sizeof line, method, path, status, n);
+    ESP_LOGI(TAG, "%s", line);
+}

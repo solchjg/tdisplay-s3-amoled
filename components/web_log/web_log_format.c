@@ -62,3 +62,9 @@ void wl_fmt_sta_mode(char *buf, size_t len, const char *ssid)
 {
     snprintf(buf, len, "STA mode, connecting to '%s'", ssid);
 }
+
+void wl_fmt_http(char *buf, size_t len, const char *method, const char *path, int status,
+                 uint32_t n)
+{
+    snprintf(buf, len, "http %s %s %d n=%" PRIu32, method, path, status, n);
+}

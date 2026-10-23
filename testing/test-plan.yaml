@@ -933,3 +933,68 @@ tests:
     observable: "AP mode: SSID='..'; STA mode, connecting to '..'"
     impl: tests/host/test_web_log.py::test_testbench_contract_lines
     result: {status: successful, commit: abf6fac, date: 2026-10-23, evidence: "host tests + lint run 40019770366 (tests/host: 55 passed)"}
+
+  - id: TC-HTTP-01
+    title: "JSON has exactly the six keys"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: host
+    verifies: [FR-14.8]
+    needs: []
+    observable: "valid JSON, 6 keys, values verbatim for 0 and 2^32-1, no uptime_s"
+    impl: tests/host/test_status_http.py::test_json_has_exactly_the_six_keys
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-HTTP-02
+    title: "HTML page shows every field and no uptime"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: host
+    verifies: [FR-14.7]
+    needs: []
+    observable: "every value on the page; no uptime / Up:"
+    impl: tests/host/test_status_http.py::test_html_page_shows_every_field_and_no_uptime
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-18
+    title: "L10 http line format"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: host
+    verifies: [FR-7.14]
+    needs: []
+    observable: "http GET /api/status 200 n=17"
+    impl: tests/host/test_web_log.py::test_http_line
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-HTTP-10
+    title: "Request count rises by one per request"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-14.6]
+    needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
+    observable: "3 sequential GET /api/status give requests k, k+1, k+2"
+    impl: tests/bench/test_status.py::test_request_count_rises_by_one_per_request
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-HTTP-11
+    title: "Page shows every field and agrees with the JSON"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-14.7, FR-14.3]
+    needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
+    observable: "200 text/html; fw_version, ip, hostname equal the JSON; labels present; no uptime"
+    impl: tests/bench/test_status.py::test_page_shows_every_field_and_agrees_with_the_json
+    result: {status: not done, reason: not yet run against this commit}

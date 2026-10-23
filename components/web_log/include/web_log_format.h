@@ -41,3 +41,7 @@ void wl_fmt_retry(char *buf, size_t len, uint32_t ms, uint32_t n);
 // K2: "AP mode: SSID='<SSID>'" and K5: "STA mode, connecting to '<SSID>'"
 void wl_fmt_ap_mode(char *buf, size_t len, const char *ssid);
 void wl_fmt_sta_mode(char *buf, size_t len, const char *ssid);
+
+// L10: "http <METHOD> <path> <status> n=<count>"
+void wl_fmt_http(char *buf, size_t len, const char *method, const char *path, int status,
+                 uint32_t n);
