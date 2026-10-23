@@ -14,7 +14,7 @@ bench answers only — never memory, transcripts, or the author's account.
 | 4 | WiFi on this board proven | capability `dut-wifi-slot4` | `available: yes`, CI-built probe run id, the bench AP station list entry with the DUT's MAC and IP |
 | 5 | BOOT button proven | capability `dut-boot-button` | `available: yes`, operator answer timestamp, probe log lines low/high |
 | 6 | Operator proven | capability `operator-at-bench` | `available: yes` plus one answered prompt with timestamp |
-| 7 | Test builds and peers resolved | capabilities `seam-lcd-fault-injection`, `seam-no-confirm-build`, `seam-hang-build`, `stall-http-peer` | each `available: yes` with its CI run id or observation, or `available: no` with a `consequence:` naming exactly which tests it blocks and who unblocks it |
+| 7 | Test builds and peers resolved | capabilities `seam-lcd-fault-injection`, `seam-no-network-build`, `seam-hang-build`, `stall-http-peer` | each `available: yes` with its CI run id or observation, or `available: no` with a `consequence:` naming exactly which tests it blocks and who unblocks it |
 | 8 | Debugging agenda empty of project-side items | `testing/debugging-agenda.md` | No open rows |
 | 9 | Every JRN-01 step is unblocked | plan | No `needs:` entry of a JRN-01 step is `unproven` or `no` |
 

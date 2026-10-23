@@ -209,7 +209,7 @@ testbench.
 - **Scope.** §5 connectivity state machine, the portal (§13), credential storage,
   reconnect with backoff, the screen content of every state.
 - **Deliverables.** FR-5.11 – FR-5.20, FR-5.25, FR-5.30, NFR-5.1 – NFR-5.3; §13;
-  FR-7.8 – FR-7.10, FR-7.17 – FR-7.25, FR-7.30 (wire); FR-9.3 (serial part), FR-9.4.
+  FR-7.8 – FR-7.10, FR-7.17 – FR-7.24, FR-7.30 (wire); FR-9.3 (serial part), FR-9.4.
 - **Exit criteria.** From an erased NVS, the testbench `enter-portal` procedure
   provisions the device through `POST /connect`; the device joins the bench AP and
   logs `web: online`; after a USB reset it rejoins without the portal; after the
@@ -232,12 +232,12 @@ testbench.
 ### 3.4 Phase 4: OTA and factory reset
 
 - **Scope.** OTA download, confirm and rollback; BOOT-button factory reset.
-- **Deliverables.** §15, §18, FR-5.21, FR-5.23, FR-5.24, FR-5.32, FR-7.15, FR-7.16, FR-7.27, FR-7.28; the test build
+- **Deliverables.** §15, §18, FR-5.21, FR-5.23, FR-5.24, FR-5.32, FR-7.15, FR-7.16, FR-7.25, FR-7.27, FR-7.28; the test build
   §12.0 names for rollback.
 - **Exit criteria.** A valid image hosted on the bench and requested through
   `POST /ota` boots and confirms; an invalid, oversized or unreachable image
   fails without restart; the
-  never-confirming test image is rolled back; an operator-held BOOT button returns
+  no-network test image is rolled back; an operator-held BOOT button returns
   the device to the portal.
 - **Dependencies.** Phase 3 (the station HTTP server carries `POST /ota`);
   Phase 2 (portal and NVS for the factory reset); bench firmware hosting
@@ -258,8 +258,8 @@ testbench.
 | R-4 | Wrong mirror, colour-inversion or offset settings produce an image every serial-only test misses | Medium | Medium | Operator checks FR-6.1, FR-6.3, FR-6.4 each name the defect to look for |
 | R-5 | SLOT4 is shared with `esp32-oled-hello` | Certain | Low | Every bench test first confirms the chip and MAC recorded in `testing/test-plan.yaml` |
 | R-6 | The device downloads images from the bench's firmware route on port 8080; reachability from the bench AP network is the bench's declaration, not yet exercised by this project | Medium | Medium | Depended on as declared; if FR-15.10's first bench run disproves it, the fault is filed against the testbench, never worked around here |
-| R-7 | The captive-DNS check (FR-13.5) assumes the bench's HTTP relay resolves names through the DUT's SoftAP DNS | Medium | Low | FR-13.5 is a Should; prove the relay's resolver path during commissioning |
-| R-8 | The mDNS check (FR-17.1) assumes the bench Pi resolves `.local` names on its AP network | Medium | Low | FR-17.1 is a Should; prove resolution during commissioning |
+| R-7 | The captive-DNS check (FR-13.5) assumes the bench's HTTP relay resolves names through the DUT's SoftAP DNS | Medium | Low | FR-13.5 is a Should; the bench does not declare this ability, so its bench test is blocked until it does (testbench change request, never a project workaround) |
+| R-8 | The mDNS check (FR-17.1) assumes the bench Pi resolves `.local` names on its AP network | Medium | Low | FR-17.1 is a Should; the bench does not declare this ability, so its bench test is blocked until it does (testbench change request, never a project workaround) |
 | R-9 | BOOT (GPIO 0) is not wired on SLOT4: factory reset can only be tested by an operator; holding BOOT while the chip resets enters the ROM download mode instead | Certain | Low | FR-18.x contracts are operator-tier and press only while the device is running |
 | R-10 | Credentials that can never connect (wrong password, AP gone for good) leave the device retrying forever, because it never returns to the portal on its own (FR-5.19) | Certain | Medium | Accepted [user]: the BOOT-button factory reset (§18) is the recovery path |
 | R-11 | The bench AP and the device SoftAP both use 192.168.4.1 | Certain | Low | The bench's provisioning procedure leaves the device SoftAP before it starts its own AP; the device's SoftAP is gone in every state but PROVISIONING (FR-9.4) |
@@ -485,8 +485,10 @@ Display:
 Test builds named here (how they are built is HOW):
 - **LCD fault build** — the shipped firmware with an LCD that fails at start or at
   the k-th write (exists: `tests/target/lcd_fault/`).
-- **No-confirm build** — a valid image identical to the shipped one except that it
-  never marks itself valid.
+- **No-network build** — a valid image identical to the shipped one except that it
+  never starts a station attempt: with stored credentials it stays in CONNECTING
+  (T2), so it never reaches ONLINE and never confirms — the failure FR-5.24 exists
+  for.
 
 Compact form:
 
@@ -498,7 +500,7 @@ Compact form:
 | FR-5.13 | PROVISIONING; bench `enter-portal` submits valid credentials | `web: provisioned ssid=<s>`, then `web: state=CONNECTING`; no boot line between | A boot line (restart); `state=PROVISIONING` again | SoftAP gone from scan ≤ 5 s after the 200 | bench |
 | FR-5.14 | PROVISIONING; bench joins SoftAP, POSTs a 33-byte SSID | 400; device still PROVISIONING; a following USB reset enters PROVISIONING again | 200; NVS write (CONNECTING after reset) | n/a | bench |
 | FR-5.14 (core) | Transition function: PROVISIONING, submitted, invalid | Next = PROVISIONING; no store action | Store action | n/a | host |
-| FR-5.15 | CONNECTING, bench AP up | `web: state=ONLINE` after `web: online ip=` | ONLINE before an IP line | n/a | bench |
+| FR-5.15 | CONNECTING, bench AP up | `web: state=ONLINE` and `web: online ip=<a.b.c.d>` (either order) in the same boot, the IP equal to the bench AP's station entry | `web: state=ONLINE` with no IP line; a state other than ONLINE | n/a | bench |
 | FR-5.16, FR-5.17, FR-5.30 (core) | Transition function: CONNECTING failed; ONLINE disconnected; WIFI_LOST retry | T6, T7, T8 as tabled | Any other next state; PROVISIONING | n/a | host |
 | FR-5.18 (core) | Delay function n = 1 … 8 | 1, 2, 4, 8, 15, 15, 15, 15 s | Any other value; unbounded growth | n/a | host |
 | FR-5.18 | ONLINE; bench AP stopped for 90 s | L6 lines announce 1, 2, 4, 8, 15, 15 … s; each following `web: state=CONNECTING` comes that delay after its L6 line, by log timestamps | A gap > 16.5 s; retries stop; a delay differing from its L6 line by > 10 % | ± 10 % | bench |
@@ -612,7 +614,7 @@ verification:
 id: FR-5.24
 verification:
   preconditions:
-    - Shipped build A running, confirmed and ONLINE; no-confirm build B available.
+    - Shipped build A running, confirmed and ONLINE; no-network build B available (credentials stay stored; the bench AP stays up).
   stimulus:
     - Host build B on the bench (/api/firmware/upload) and POST /ota with its URL.
   expected_observations:
@@ -1067,7 +1069,7 @@ verification:
   prohibited_outcomes:
     - K11 before 30 s (stall timeout too short).
     - A restart.
-    - No K11 within 45 s (download hangs forever).
+    - K11 later than 33 s after the last byte, or none within 45 s (download hangs).
     - 409 for the following request (receiver stuck "in progress").
   tier: bench
   evidence:
@@ -1211,7 +1213,7 @@ product uses, and not reflecting portal input as markup (FR-13.7).
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-9.2 | Inspect the linked ELF | No `esp_bt_controller_init` symbol | Symbol present | host |
-| FR-9.2 (air) | Device running; bench BLE scan | No advertiser at base MAC + 0 … + 3 | Such an advertiser | bench |
+| FR-9.2 (air) | Device running; bench BLE scan | No advertiser at any of the ESP32-S3's derived MAC addresses: base MAC + 0 … + 3 (station, SoftAP, BT, Ethernet; chip property) | Such an advertiser | bench |
 | FR-9.3 | Provision with password `pw-<random 12 hex>`; capture serial and UDP through ONLINE; fetch `/` and `/api/status` | The marker appears nowhere | The marker in any capture or body | bench |
 | FR-9.4 | ONLINE, CONNECTING and WIFI_LOST each held 30 s; bench scans | No FR-13.1 SSID | The SSID seen | bench |
 | FR-9.5 | ONLINE; bench port scan TCP 1 – 65535 of the device | Open: 80 only | Any other open port | bench |
@@ -1357,12 +1359,12 @@ hang restarts the device by itself (§19). Step-by-step instructions:
 |------|---------|-------------|
 | **host** | Dev machine / CI, plain C compiler | §5 transition functions, retry delay, screen content; formatting, validation, escaping and JSON cores of §7, §13, §14, §16, §18, §20; layout of §6; configuration, partition-table and ELF inspection |
 | **target** | T-Display-S3 in SLOT4, no network peer; shipped or test build | Log formats and order, LCD failure path (LCD fault build), watchdog (hang build) |
-| **bench** | T-Display-S3 + testbench WiFi AP/station, HTTP relay, UDP log, scans, operator | Provisioning, connectivity and recovery, HTTP API, OTA and rollback (no-confirm build), mDNS, security scans, display content, button |
+| **bench** | T-Display-S3 + testbench WiFi AP/station, HTTP relay, UDP log, scans, operator | Provisioning, connectivity and recovery, HTTP API, OTA and rollback (no-network build), mDNS, security scans, display content, button |
 
 Layer mapping: L2 (§5) at host as pure functions, transitions end to end at
 bench; L1 pure cores at host, wire at target/bench; L0 (§8) transitively.
 
-Test builds (never released): LCD fault build (§5.6), no-confirm build (§5.6),
+Test builds (never released): LCD fault build (§5.6), no-network build (§5.6),
 hang build (§19.3). Operator-confirmed checks use the testbench's blocking
 operator prompt; the answer and timestamp are the evidence.
 
@@ -1371,7 +1373,7 @@ operator prompt; the answer and timestamp are the evidence.
 One bench run on the shipped build: erase and flash → FR-5.11 → provision via
 `enter-portal` (FR-5.13, FR-13.x) → ONLINE (NFR-5.1, FR-7.8 – 7.10) → status API,
 page and counter (§14, FR-5.26) → AP outage (NFR-5.2) → OTA of a version-bumped
-build hosted on the bench (FR-15.8, FR-15.10, FR-5.32, FR-5.23) → no-confirm build (FR-5.24) → operator factory reset
+build hosted on the bench (FR-15.8, FR-15.10, FR-5.32, FR-5.23) → no-network build (FR-5.24) → operator factory reset
 (FR-5.21) → re-provision. Then the LCD fault and hang builds. Reflash the shipped
 build and leave the device ONLINE at the end.
 
@@ -1449,7 +1451,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.3.2
+fsd_version: 0.3.3
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1467,6 +1469,7 @@ change_history:
   - 0.3.0 2026-10-23 hello world and uptime removed: FR-14.1/14.2 superseded by FR-14.7/14.8 (no uptime_s); FR-5.31 (no Hello, world! or Up: on screen) and FR-7.30 (no hello log tag) added
   - 0.3.1 2026-10-23 Load-defined findings: FR-5.22, FR-6.5, FR-6.6, FR-15.5 superseded by FR-5.32, FR-6.9, FR-6.10, FR-15.12 (meaning had changed); completeness lists made explicit; NFR-5.3, NFR-15.1, NFR-15.2, NFR-19.1 and the + 3 s tolerance state numbers contracts used; FR-5.24 requires L16; FR-17.2 observed via bench WiFi events; R-6 restated
   - 0.3.2 2026-10-23 CONNECTING × disconnected listed (counts as AF, T6); Appendix A restart row names T13
+  - 0.3.3 2026-10-23 FR-5.24 test build is a no-network build (reaching ONLINE confirms, by T5; user decision); FR-7.25 moved to Phase 4; FR-5.15 contract needs no line order; FR-15.11 stall prohibits late K11; FR-9.2 air MAC range stated; R-7/R-8 defer to the bench declaration
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5]
 open_decisions: []
 related_test_baseline: none yet

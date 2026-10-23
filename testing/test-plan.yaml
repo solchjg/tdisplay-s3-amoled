@@ -79,6 +79,9 @@ capabilities:
   bench-wifi-scan:
     what: WiFi scan from the bench radio
     available: yes
+  bench-wifi-events:
+    what: Station connect/disconnect events on the bench AP with MAC, IP and DHCP hostname (Harness /api/wifi/events)
+    available: yes
   bench-ble-scan:
     what: BLE scan from the bench
     available: yes
@@ -141,12 +144,12 @@ capabilities:
     # Consequence: nothing is blocked. SoftAP presence (FR-5.11, FR-9.4,
     # FR-13.1) is matched by the DUT's own SSID TDS3-<MAC suffix>, which it
     # also logs (FR-7.9, K2); FSD R-12.
-  seam-no-confirm-build:
-    what: "Test build identical to the shipped one except that it never marks itself valid (FSD FR-5.24, §5.6)"
+  seam-no-network-build:
+    what: "Test build identical to the shipped one except that it never starts a station attempt, so it never reaches ONLINE (FSD FR-5.24, §5.6)"
     available: no
     observed: 2026-10-23
     consequence: >
-      It cannot exist before the product confirms images (FSD Phase 4). /build
+      It is only meaningful once the product confirms images (FSD Phase 4). /build
       writes it with that feature and flips this to yes when its CI job is
       green; until then FR-5.24's test is blocked, nothing else.
   seam-hang-build:

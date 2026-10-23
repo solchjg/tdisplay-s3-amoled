@@ -65,10 +65,11 @@ table relative to the project); never a table of its own.
 Kconfig option. The stub returns a configured `esp_err_t` at init or at the k-th
 draw, and logs `lcdfi: call` on every call it receives (FSD §5.6).
 
-### No-confirm build (FSD FR-5.24)
+### No-network build (FSD FR-5.24)
 
-`tests/target/no_confirm/`: the shipped `main/` with a test-only Kconfig option
-that skips marking the image valid in T5. Its embedded version differs from the
+`tests/target/no_network/`: the shipped `main/` with a test-only Kconfig option
+that skips starting the station attempt in T2, so the image stays in CONNECTING,
+never reaches T5, and is rolled back by T13. Its embedded version differs from the
 shipped build's so the bench can tell the two apart in the boot line.
 
 ### Hang build (FSD §19.3)
