@@ -84,6 +84,13 @@ static void on_attempt_timeout(void *arg)
     post_conn(DL_EV_ATTEMPT_FAILED);
 }
 
+static bool image_pending_verify(void)
+{
+    esp_ota_img_states_t st;
+    return esp_ota_get_state_partition(esp_ota_get_running_partition(), &st) == ESP_OK &&
+           st == ESP_OTA_IMG_PENDING_VERIFY;
+}
+
 static void on_net(net_event_t ev, const char *addr)
 {
     app_event_t e = {.kind = APP_CONN};
@@ -95,13 +102,6 @@ static void on_net(net_event_t ev, const char *addr)
         e.ev = DL_EV_DISCONNECTED;
     }
     post(&e);
-}
-
-static bool image_pending_verify(void)
-{
-    esp_ota_img_states_t st;
-    return esp_ota_get_state_partition(esp_ota_get_running_partition(), &st) == ESP_OK &&
-           st == ESP_OTA_IMG_PENDING_VERIFY;
 }
 
 static void on_confirm_deadline(void *arg)
