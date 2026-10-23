@@ -790,3 +790,16 @@ tests:
     observable: "70 s capture: >= 6 alive lines, N = 0,1,2,..., gaps 9 - 11 s"
     impl: tests/bench/test_log.py::test_alive_every_10_s_counting_from_0
     result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-10
+    title: Operator sees the BOOT screen upright, white on black, lit
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: bench
+    verifies: [FR-5.25, FR-6.1, FR-6.3, FR-6.7]
+    needs: [bench-jtag-reset, bench-operator-prompt, operator-at-bench, lcd-st7789, dut-tdisplay-s3-slot4]
+    observable: "operator confirms 'Starting' on the top line, upright with USB-C on the right, white on black, backlight on"
+    impl: tests/bench/test_display.py::test_operator_sees_the_boot_screen
+    result: {status: not done, reason: not yet run against this commit}
