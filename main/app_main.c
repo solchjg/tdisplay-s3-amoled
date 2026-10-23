@@ -9,6 +9,7 @@
 #include "device_logic.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_system.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -18,6 +19,7 @@
 #include "lcd.h"
 #include "net.h"
 #include "portal.h"
+#include "ota_rx.h"
 #include "status_http.h"
 #include "udp_log.h"
 #include "web_log.h"
@@ -28,6 +30,8 @@ static const char *TAG = "main";
 #define ALIVE_TICKS 10                      // K12 every 10 s (FR-7.29)
 #define ATTEMPT_TIMEOUT_US (15 * 1000000LL)  // FSD §5.3: no IP 15 s after the start
 #define ANSWER_FLUSH_MS 1000                // T3: let the 200 reach the client
+#define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
+#define LEAVE_MS 200                          // a planned restart leaves the AP first
 
 typedef enum { APP_TICK, APP_CONN } app_kind_t;
 
@@ -40,7 +44,8 @@ typedef struct {
 } app_event_t;
 
 static QueueHandle_t queue;
-static esp_timer_handle_t tick_timer, retry_timer, attempt_timer;
+static esp_timer_handle_t tick_timer, retry_timer, attempt_timer, confirm_timer;
+static const esp_partition_t *downloaded;  // the slot a successful OTA wrote (T11)
 
 static dl_view_t view;
 static char softap_ssid[ID_NAME_MAX], hostname[ID_NAME_MAX], ip[16];
@@ -85,14 +90,31 @@ static void on_net(net_event_t ev, const char *addr)
     if (ev == NET_EV_GOT_IP) {
         e.ev = view.conn == DL_ONLINE ? DL_EV_IP_CHANGED : DL_EV_IP;
         strncpy(e.ip, addr, sizeof e.ip - 1);
-        const esp_partition_t *running = esp_ota_get_running_partition();
-        esp_ota_img_states_t st;
-        e.guard = esp_ota_get_state_partition(running, &st) == ESP_OK &&
-                  st == ESP_OTA_IMG_PENDING_VERIFY;
+        e.guard = image_pending_verify();
     } else {
         e.ev = DL_EV_DISCONNECTED;
     }
     post(&e);
+}
+
+static bool image_pending_verify(void)
+{
+    esp_ota_img_states_t st;
+    return esp_ota_get_state_partition(esp_ota_get_running_partition(), &st) == ESP_OK &&
+           st == ESP_OTA_IMG_PENDING_VERIFY;
+}
+
+static void on_confirm_deadline(void *arg)
+{
+    app_event_t e = {.kind = APP_CONN, .ev = DL_EV_CONFIRM_DEADLINE,
+                     .guard = image_pending_verify()};
+    post(&e);
+}
+
+static void on_ota(bool ok, const esp_partition_t *slot)
+{
+    downloaded = slot;
+    post_conn(ok ? DL_EV_OTA_SUCCEEDED : DL_EV_OTA_FAILED);
 }
 
 static void on_submit(const pc_creds_t *c)
@@ -202,12 +224,18 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         esp_timer_stop(retry_timer);
         esp_timer_start_once(retry_timer, (uint64_t)ms * 1000);
     }
+    if (a & DL_C_ABORT_OTA) {
+        ota_rx_abort();  // FR-15.13
+    }
     if (a & DL_C_STOP_SERVICES) {
         status_http_stop();
         udp_log_stop();
     }
     if (a & DL_C_START_SERVICES) {
         esp_err_t err = status_http_start(&status_source);
+        if (err == ESP_OK) {
+            err = ota_rx_register(status_http_handle(), on_ota, status_http_note);
+        }
         if (err != ESP_OK) {
             web_log_warn("status server start", err);
         }
@@ -222,8 +250,26 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     }
     if (a & DL_C_CONFIRM_IMAGE) {
         if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
-            ESP_LOGI("web", "ota confirmed");  // L13
+            web_log_ota_confirmed();
+            esp_timer_stop(confirm_timer);
         }
+    }
+    if (a & DL_C_SELECT_SLOT) {
+        esp_err_t err = downloaded ? esp_ota_set_boot_partition(downloaded) : ESP_FAIL;
+        if (err != ESP_OK) {
+            web_log_warn("select new slot", err);
+        }
+    }
+    if (a & DL_C_ERASE_CREDS) {
+        net_creds_erase();
+    }
+    if (a & DL_C_RESTART) {
+        if (e->ev == DL_EV_CONFIRM_DEADLINE) {
+            web_log_ota_not_confirmed();
+        }
+        net_sta_stop();  // leave the AP (deauth) before a planned restart
+        vTaskDelay(pdMS_TO_TICKS(LEAVE_MS));
+        esp_restart();
     }
 }
 
@@ -255,6 +301,10 @@ static void conn_event(const app_event_t *e)
 void app_main(void)
 {
     web_log_boot();
+    const esp_partition_t *invalid = esp_ota_get_last_invalid_partition();
+    if (invalid) {
+        web_log_rolled_back(invalid->label);  // L14
+    }
     queue = xQueueCreate(16, sizeof(app_event_t));
 
     uint8_t mac[6];
@@ -282,6 +332,12 @@ void app_main(void)
     esp_timer_create(&tick_args, &tick_timer);
     esp_timer_create(&retry_args, &retry_timer);
     esp_timer_create(&attempt_args, &attempt_timer);
+    const esp_timer_create_args_t confirm_args = {.callback = on_confirm_deadline,
+                                                  .name = "confirm"};
+    esp_timer_create(&confirm_args, &confirm_timer);
+    if (image_pending_verify()) {
+        esp_timer_start_once(confirm_timer, CONFIRM_DEADLINE_US);  // T13
+    }
 
     err = net_init(on_net, hostname);
     if (err != ESP_OK) {

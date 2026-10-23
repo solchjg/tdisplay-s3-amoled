@@ -73,3 +73,13 @@ void wl_fmt_udp_logging(char *buf, size_t len, const char *ip, int port)
 {
     snprintf(buf, len, "UDP logging -> %s:%d", ip, port);
 }
+
+void wl_fmt_ota_downloaded(char *buf, size_t len, uint32_t n)
+{
+    snprintf(buf, len, "ota downloaded bytes=%" PRIu32, n);
+}
+
+void wl_fmt_ota_failed(char *buf, size_t len, const char *reason)
+{
+    snprintf(buf, len, "OTA failed: %s", reason);
+}

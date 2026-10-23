@@ -43,6 +43,10 @@ int main(int argc, char **argv)
         wl_fmt_ap_mode(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "sta_mode") == 0) {
         wl_fmt_sta_mode(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "ota_downloaded") == 0) {
+        wl_fmt_ota_downloaded(line, sizeof line, (uint32_t)strtoul(argv[2], NULL, 10));
+    } else if (strcmp(argv[1], "ota_failed") == 0) {
+        wl_fmt_ota_failed(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "udp") == 0) {
         wl_fmt_udp_logging(line, sizeof line, argv[2], atoi(argv[3]));
     } else if (strcmp(argv[1], "http") == 0) {
@@ -122,3 +126,9 @@ def test_http_line(fmt):
 # TC-LOG-19 · FR-7.26 (core): K9
 def test_udp_logging_line(fmt):
     assert fmt("udp", "192.168.4.1", "5555") == "UDP logging -> 192.168.4.1:5555"
+
+
+# TC-LOG-24 · FR-7.27, FR-7.28, FR-7.31 (core): L11, K11
+def test_ota_lines(fmt):
+    assert fmt("ota_downloaded", "1048576") == "ota downloaded bytes=1048576"
+    assert fmt("ota_failed", "HTTP 404") == "OTA failed: HTTP 404"

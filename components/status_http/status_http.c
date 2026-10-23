@@ -87,3 +87,13 @@ uint32_t status_http_requests(void)
 {
     return requests;
 }
+
+httpd_handle_t status_http_handle(void)
+{
+    return server;
+}
+
+void status_http_note(const char *method, const char *uri, int status)
+{
+    web_log_http(method, uri, status, ++requests);
+}

@@ -44,3 +44,13 @@ void web_log_http(const char *method, const char *path, int status, uint32_t n);
 
 // K9 when the UDP log starts (FR-7.26).
 void web_log_udp_logging(const char *ip, int port);
+
+// OTA outcomes (FR-7.27, FR-7.28, FR-7.31): K10, K11 (error), L11, L12 (warning),
+// L13, L14 (warning), L16 (error).
+void web_log_ota_succeeded(void);
+void web_log_ota_failed(const char *reason);
+void web_log_ota_downloaded(uint32_t bytes);
+void web_log_ota_refused(int status, const char *reason);
+void web_log_ota_confirmed(void);
+void web_log_rolled_back(const char *invalid_label);
+void web_log_ota_not_confirmed(void);

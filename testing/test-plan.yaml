@@ -1098,3 +1098,68 @@ tests:
     observable: "operator power cycle (P-POWERCYCLE): web: online again, no PROVISIONING"
     impl: tests/bench/test_connectivity.py::test_power_cycle_keeps_the_credentials
     result: {status: not done, reason: "blocked by bench-ap-rejoin-after-reset = no (bench fault, product exonerated by the wifi-probe positive control); first run at fd7b45c: run 0 online at 2306 ms, runs 1-4 auth -> init"}
+
+  - id: TC-OTA-01
+    title: "Valid OTA request yields the URL"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-15.8]
+    needs: []
+    observable: "url extracted with whitespace, other keys, exactly 256 characters"
+    impl: tests/host/test_ota_rx.py::test_valid_request_yields_the_url
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-24
+    title: "L11 and K11 OTA line formats"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-7.27, FR-7.28, FR-7.31]
+    needs: []
+    observable: "ota downloaded bytes=<n>; OTA failed: <reason>"
+    impl: tests/host/test_web_log.py::test_ota_lines
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-OTA-10
+    title: "OTA request answered 202 within 2 s"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-15.8, NFR-15.1]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "POST /ota {url} -> 202 {ok:true} within 2 s (+ relay slack)"
+    impl: tests/bench/test_ota.py::test_ota_request_answered_202_within_2_s
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-OTA-11
+    title: "Download succeeds and restarts into the new image"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-15.10, FR-7.27, FR-5.32, FR-15.1]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "OTA succeeded, restart (reason SW) within 2 s, boot line fw = hosted image version, slot switched"
+    impl: tests/bench/test_ota.py::test_download_succeeds_and_restarts_into_the_new_image
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-OTA-12
+    title: "New image confirms itself on reaching ONLINE"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-5.23]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "after the OTA boot: state=ONLINE then ota confirmed; no ota not confirmed"
+    impl: tests/bench/test_ota.py::test_new_image_confirms_itself_online
+    result: {status: not done, reason: not yet run against this commit}

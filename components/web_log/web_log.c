@@ -134,3 +134,42 @@ void web_log_udp_logging(const char *ip, int port)
     wl_fmt_udp_logging(line, sizeof line, ip, port);
     ESP_LOGI(TAG, "%s", line);
 }
+
+void web_log_ota_succeeded(void)
+{
+    ESP_LOGI(TAG, "OTA succeeded");  // K10
+}
+
+void web_log_ota_failed(const char *reason)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ota_failed(line, sizeof line, reason);
+    ESP_LOGE(TAG, "%s", line);  // K11
+}
+
+void web_log_ota_downloaded(uint32_t bytes)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ota_downloaded(line, sizeof line, bytes);
+    ESP_LOGI(TAG, "%s", line);  // L11
+}
+
+void web_log_ota_refused(int status, const char *reason)
+{
+    ESP_LOGW(TAG, "ota refused %d: %s", status, reason);  // L12
+}
+
+void web_log_ota_confirmed(void)
+{
+    ESP_LOGI(TAG, "ota confirmed");  // L13
+}
+
+void web_log_rolled_back(const char *invalid_label)
+{
+    ESP_LOGW(TAG, "rolled back, invalid=%s", invalid_label);  // L14
+}
+
+void web_log_ota_not_confirmed(void)
+{
+    ESP_LOGE(TAG, "ota not confirmed, restarting");  // L16
+}

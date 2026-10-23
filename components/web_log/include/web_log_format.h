@@ -48,3 +48,9 @@ void wl_fmt_http(char *buf, size_t len, const char *method, const char *path, in
 
 // K9: "UDP logging -> <ip>:<port>"
 void wl_fmt_udp_logging(char *buf, size_t len, const char *ip, int port);
+
+// L11: "ota downloaded bytes=<n>"
+void wl_fmt_ota_downloaded(char *buf, size_t len, uint32_t n);
+
+// K11: "OTA failed: <reason>"
+void wl_fmt_ota_failed(char *buf, size_t len, const char *reason);
