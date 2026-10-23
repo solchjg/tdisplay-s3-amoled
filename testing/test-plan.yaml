@@ -82,6 +82,42 @@ capabilities:
   bench-ble-scan:
     what: BLE scan from the bench
     available: yes
+  bench-flash-erase:
+    what: Erase the whole flash of SLOT4 before writing (Harness /api/flash, field erase)
+    available: yes
+  bench-wifi-ap:
+    what: Start and stop a WPA2 access point on the bench radio, with DHCP and a station list (Harness /api/wifi/ap_start, ap_stop, ap_status)
+    available: yes
+  bench-wifi-sta:
+    what: Join and leave a DUT's SoftAP as a station (Harness /api/wifi/sta_join, sta_leave)
+    available: yes
+  bench-enter-portal:
+    what: "Join a DUT's open SoftAP, POST credentials to http://192.168.4.1/connect (fields ssid, password), leave, start the bench AP with those credentials (Harness /api/enter-portal)"
+    available: yes
+  bench-http-relay:
+    what: HTTP request from the bench radio to a device on the bench Wi-Fi network (Harness /api/wifi/http)
+    available: yes
+  bench-udp-log:
+    what: Receive and list UDP log lines on port 5555, with source address (Harness /api/udplog)
+    available: yes
+  bench-portscan:
+    what: TCP port scan of a device on the bench Wi-Fi network (Harness /api/net/portscan)
+    available: yes
+  bench-firmware-hosting:
+    what: Host an image (/api/firmware/upload) and serve it at http://<bench>:8080/firmware/<project>/<file>
+    available: yes
+    # Whether a client on the bench AP network reaches port 8080 is FSD R-6.
+    # It is the bench's declaration, not this project's to prove; a
+    # disproof by DUT evidence is filed against the bench.
+  bench-mdns-resolve:
+    what: Bench resolves <name>.local on its AP network (needed by FR-17.1)
+    available: no
+    # Not among the bench's declared capabilities (FSD R-8). Tests needing it
+    # are blocked until the bench declares it.
+  bench-relay-dns-via-dut:
+    what: The HTTP relay resolves names through the DNS of the SoftAP it has joined (needed by FR-13.5)
+    available: no
+    # Not among the bench's declared capabilities (FSD R-7).
   slot4-gpio-reset:
     what: EN/BOOT reset and download mode via bench GPIO on SLOT4
     available: no
@@ -93,6 +129,18 @@ capabilities:
     available: no
     # /api/wifi/scan returns ssid, rssi, auth, channel only (2026-10-23).
     # Bench gap: SensorsIot/Embedded-AI-Harness#50.
+  seam-no-confirm-build:
+    what: "Test build identical to the shipped one except that it never marks itself valid (FSD FR-5.24, §5.6)"
+    available: unproven
+    # Does not exist yet; proven by its CI job going green.
+  seam-hang-build:
+    what: "Test build that blocks the application task 20 s after startup (variant app) or an HTTP handler on GET /hang (variant http) (FSD §19.3)"
+    available: unproven
+    # Does not exist yet; proven by its CI job going green for both variants.
+  stall-http-peer:
+    what: "HTTP server reachable from the bench AP network that sends headers and 100 kB of an image, then holds the connection silent (FSD FR-15.11 stall contract)"
+    available: unproven
+    # No such peer exists. Owner: this project (a peer it brings), proven in /commission.
   seam-lcd-fault-injection:
     what: "Test build whose LCD interface returns a chosen esp_err_t at init or the k-th draw, logging `lcdfi: call`"
     available: unproven
@@ -114,6 +162,13 @@ capabilities:
     # Proven for tdisplay-s3-hello on 2026-10-23: invert_color(true),
     # swap_xy(true), mirror(false, true), set_gap(0, 35), RGB order, RGB565
     # bytes swapped. Re-observe here with this repo's commissioning/lcd-probe.
+  dut-wifi-slot4:
+    what: The T-Display-S3 in SLOT4 associates with the bench AP and obtains a DHCP lease
+    available: unproven
+    # This board's radio and antenna have never been seen working here.
+  dut-boot-button:
+    what: Firmware on the T-Display-S3 in SLOT4 reads GPIO 0 low while an operator holds BOOT, high on release
+    available: unproven
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the T-Display-S3 panel, held USB-C to the right
     available: unproven
@@ -124,5 +179,84 @@ capabilities:
 gates: []
 
 # ── Tests ────────────────────────────────────────────────────────────────
-# None declared: the FSD has no requirements yet (/define, then /build).
-tests: []
+# JRN-01 is the standard run (one ordinary successful use, end to end), one
+# test per step. It gates every hardware session and runs on every release
+# tag. Atomic tests (TC-<area>-<nn>) are declared by /build per wave.
+tests:
+  - id: JRN-01.1
+    title: Erase SLOT4 and flash the firmware over USB
+    shape: workflow
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: bench
+    verifies: [C-10.5]
+    needs: [bench-flash, bench-flash-erase, dut-tdisplay-s3-slot4]
+    observable: flash with erase reports success for every image in flash_args
+    impl: tests/bench/test_journey.py::test_jrn_01_1_erase_and_flash
+    result: {status: not done, reason: not yet implemented}
+
+  - id: JRN-01.2
+    title: First boot opens the provisioning portal
+    shape: workflow
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.11, FR-13.1, FR-7.18, FR-7.19]
+    needs: [bench-usb-reset, bench-serial-monitor, bench-wifi-scan, dut-tdisplay-s3-slot4, dut-wifi-slot4]
+    observable: "`web: state=PROVISIONING` and `AP mode: SSID='TDS3-71C734'` on serial; the bench scan sees open SSID TDS3-71C734"
+    impl: tests/bench/test_journey.py::test_jrn_01_2_portal_open
+    result: {status: not done, reason: not yet implemented}
+
+  - id: JRN-01.3
+    title: The bench provisions credentials through the portal
+    shape: workflow
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.13, FR-13.3, FR-7.21]
+    needs: [bench-enter-portal, bench-serial-monitor, dut-wifi-slot4]
+    observable: "`Credentials saved` and `web: provisioned ssid=<bench SSID>` on serial, with no boot line after them"
+    impl: tests/bench/test_journey.py::test_jrn_01_3_provisioned
+    result: {status: not done, reason: not yet implemented}
+
+  - id: JRN-01.4
+    title: The device joins the bench AP
+    shape: workflow
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.15, FR-7.10, FR-7.23]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "`STA got IP` and `web: online ip=<a.b.c.d>`; the bench AP station list holds the DUT's MAC with that IP"
+    impl: tests/bench/test_journey.py::test_jrn_01_4_online
+    result: {status: not done, reason: not yet implemented}
+
+  - id: JRN-01.5
+    title: The status API answers with the flashed version
+    shape: workflow
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-14.2, FR-20.3]
+    needs: [bench-http-relay, dut-wifi-slot4]
+    observable: "relay GET http://<ip>/api/status → 200, JSON with the 7 keys, fw_version equal to the artefact's version, ip equal to step 4's"
+    impl: tests/bench/test_journey.py::test_jrn_01_5_status
+    result: {status: not done, reason: not yet implemented}
+
+  - id: JRN-01.6
+    title: The display mirrors IP and request count
+    shape: workflow
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-5.25, FR-5.26, FR-7.11]
+    needs: [bench-serial-monitor, bench-http-relay, lcd-st7789, dut-wifi-slot4]
+    observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
+    impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
+    result: {status: not done, reason: not yet implemented}

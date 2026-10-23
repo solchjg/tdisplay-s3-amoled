@@ -7,10 +7,10 @@ never edits anything. The verdict is recorded under `gates:` in
 
 | Gate | File | Closes |
 |------|------|--------|
-| Load defined | `load-defined.md` (not yet written) | Phase 0 Definition |
-| AI harnessed | `ai-harnessed.md` (not yet written) | Phase 1 Harness |
-| DUT ready | `dut-ready.md` (not yet written) | Phase 2 Commissioning |
-| Ready for shipment | `ready-for-shipment.md` (not yet written) | Phase 3 Build |
+| Load defined | [`load-defined.md`](load-defined.md) | Phase 0 Definition |
+| AI harnessed | [`ai-harnessed.md`](ai-harnessed.md) | Phase 1 Harness |
+| DUT ready | [`dut-ready.md`](dut-ready.md) | Phase 2 Commissioning |
+| Ready for shipment | [`ready-for-shipment.md`](ready-for-shipment.md) | Phase 3 Build |
 | Shipped | [`shipped.md`](shipped.md) | Release |
 
 **Standing exclusion (every gate):** evidence is committed artefacts and live
