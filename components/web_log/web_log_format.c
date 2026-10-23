@@ -27,3 +27,38 @@ void wl_fmt_alive(char *buf, size_t len, uint32_t n)
 {
     snprintf(buf, len, "alive %" PRIu32, n);
 }
+
+void wl_fmt_state(char *buf, size_t len, const char *state)
+{
+    snprintf(buf, len, "state=%s", state);
+}
+
+void wl_fmt_portal(char *buf, size_t len, const char *softap_ssid)
+{
+    snprintf(buf, len, "portal ssid=%s ip=192.168.4.1", softap_ssid);
+}
+
+void wl_fmt_provisioned(char *buf, size_t len, const char *ssid)
+{
+    snprintf(buf, len, "provisioned ssid=%s", ssid);
+}
+
+void wl_fmt_online(char *buf, size_t len, const char *ip, int rssi)
+{
+    snprintf(buf, len, "online ip=%s rssi=%d", ip, rssi);
+}
+
+void wl_fmt_retry(char *buf, size_t len, uint32_t ms, uint32_t n)
+{
+    snprintf(buf, len, "retry in %" PRIu32 " ms attempt=%" PRIu32, ms, n);
+}
+
+void wl_fmt_ap_mode(char *buf, size_t len, const char *ssid)
+{
+    snprintf(buf, len, "AP mode: SSID='%s'", ssid);
+}
+
+void wl_fmt_sta_mode(char *buf, size_t len, const char *ssid)
+{
+    snprintf(buf, len, "STA mode, connecting to '%s'", ssid);
+}

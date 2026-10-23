@@ -792,7 +792,7 @@ tests:
     result: {status: successful, commit: 2b866f5, firmware: 0.0.0-dev (2b866f5, Build Firmware run 40017636168), date: 2026-10-23, evidence: "bench run, junit 5 passed in 129.5 s; boot capture: web: boot reason=SW fw=0.0.0-dev slot=ota_0, Init complete at 335 ms, alive 0..6 at 10335..70335 ms"}
 
   - id: TC-LCD-10
-    title: Operator sees the BOOT screen upright, white on black, lit
+    title: Operator sees the PROVISIONING screen upright, white on black, lit
     shape: atomic
     kind: standard
     wave: 1
@@ -800,8 +800,8 @@ tests:
     tier: bench
     verifies: [FR-5.25, FR-6.1, FR-6.3, FR-6.7]
     needs: [bench-jtag-reset, bench-operator-prompt, operator-at-bench, lcd-st7789, dut-tdisplay-s3-slot4]
-    observable: "operator confirms 'Starting' on the top line, upright with USB-C on the right, white on black, backlight on"
-    impl: tests/bench/test_display.py::test_operator_sees_the_boot_screen
+    observable: "operator confirms 'Setup WiFi' / 'TDS3-71C734' / '192.168.4.1', upright with USB-C on the right, white on black, backlight on"
+    impl: tests/bench/test_display.py::test_operator_sees_the_provisioning_screen
     result: {status: successful, commit: c6c3099, firmware: 0.0.0-dev (2b866f5, Build Firmware run 40017636168), date: 2026-10-23, evidence: "bench run, junit 1 passed in 86.2 s; operator prompt Human confirmed"}
 
   - id: TC-LCD-11
@@ -813,6 +813,123 @@ tests:
     tier: bench
     verifies: [FR-6.4]
     needs: [bench-operator-prompt, operator-at-bench, bench-serial-monitor, lcd-st7789, dut-tdisplay-s3-slot4]
-    observable: "after an operator power cycle (P-POWERCYCLE), operator confirms black everywhere except 'Starting', no edge noise"
+    observable: "after an operator power cycle (P-POWERCYCLE), operator confirms black everywhere except the text lines, no edge noise"
     impl: tests/bench/test_display.py::test_cold_start_leaves_no_stray_pixels
     result: {status: successful, commit: a1ec7b9, firmware: 0.0.0-dev (2b866f5, Build Firmware run 40017636168), date: 2026-10-23, evidence: "bench run, junit 1 passed in 149.5 s; operator power cycle, web: alive seen after replug, operator confirmed a clean panel"}
+
+  - id: TC-DL-10
+    title: "T1: no credentials enters PROVISIONING"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.11]
+    needs: []
+    observable: "next PROVISIONING, action START_SOFTAP only"
+    impl: tests/host/test_device_logic.py::test_t1_no_credentials_enters_provisioning
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-11
+    title: "T2: stored credentials enter CONNECTING without SoftAP"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.12]
+    needs: []
+    observable: "next CONNECTING, action START_ATTEMPT only"
+    impl: tests/host/test_device_logic.py::test_t2_stored_credentials_enter_connecting_without_softap
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-12
+    title: "T3: valid submission stores and connects without restart"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.13]
+    needs: []
+    observable: "next CONNECTING; STORE_CREDS, STOP_SOFTAP, START_ATTEMPT; no RESTART"
+    impl: tests/host/test_device_logic.py::test_t3_valid_submission_stores_and_connects_without_restart
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-DL-13
+    title: "T5: IP enters ONLINE, n reset, image confirmed if pending"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.15, FR-5.23]
+    needs: []
+    observable: "next ONLINE, n = 0, START_SERVICES (+ CONFIRM_IMAGE when pending)"
+    impl: tests/host/test_device_logic.py::test_t5_ip_enters_online
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-ID-01
+    title: "SoftAP SSID and hostname from the base MAC"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-13.1, FR-20.1, FR-20.2]
+    needs: []
+    observable: "TDS3-ABCDEF / tds3-abcdef; TDS3-71C734 / tds3-71c734"
+    impl: tests/host/test_identity.py::test_names_from_the_base_mac
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-PORT-01
+    title: "Valid portal form accepted and decoded"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-13.3, FR-13.4]
+    needs: []
+    observable: "bench body, any field order, + and %XX, open network and 32/63-byte bounds accepted verbatim"
+    impl: tests/host/test_portal.py::test_valid_form_is_accepted_and_decoded
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-15
+    title: "L2 state line format"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-7.8]
+    needs: []
+    observable: "state=<S>"
+    impl: tests/host/test_web_log.py::test_state_line
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-16
+    title: "L3-L6 connectivity line formats"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-7.9, FR-7.10, FR-7.17]
+    needs: []
+    observable: "portal ssid=.. ip=192.168.4.1; provisioned ssid=..; online ip=.. rssi=..; retry in <ms> ms attempt=<n>"
+    impl: tests/host/test_web_log.py::test_connectivity_lines
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-17
+    title: "K2 and K5 testbench lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-7.19, FR-7.22]
+    needs: []
+    observable: "AP mode: SSID='..'; STA mode, connecting to '..'"
+    impl: tests/host/test_web_log.py::test_testbench_contract_lines
+    result: {status: not done, reason: not yet run against this commit}

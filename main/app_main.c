@@ -1,5 +1,6 @@
-// Composition root: wires the 1 s tick, the Device Logic (FSD §5) and the
-// interfaces (§6, §7). The logic decides; this file executes its actions.
+// Composition root: turns ESP-IDF and interface events into Device Logic events
+// (FSD §5), executes the actions the logic returns, and keeps the screen and the
+// log in step with the state. The logic decides; this file performs.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -7,19 +8,95 @@
 
 #include "device_logic.h"
 #include "esp_log.h"
+#include "esp_ota_ops.h"
 #include "esp_task_wdt.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
+#include "identity.h"
 #include "lcd.h"
+#include "net.h"
+#include "portal.h"
 #include "web_log.h"
 
 static const char *TAG = "main";
 
-#define TICK_MS 1000
-#define ALIVE_TICKS 10  // K12 every 10 s (FR-7.29)
+#define TICK_US (1000 * 1000)
+#define ALIVE_TICKS 10                      // K12 every 10 s (FR-7.29)
+#define ATTEMPT_TIMEOUT_US (15 * 1000000LL)  // FSD §5.3: no IP 15 s after the start
+#define ANSWER_FLUSH_MS 1000                // T3: let the 200 reach the client
+
+typedef enum { APP_TICK, APP_CONN } app_kind_t;
+
+typedef struct {
+    app_kind_t kind;
+    dl_conn_event_t ev;
+    bool guard;
+    pc_creds_t creds;  // DL_EV_CREDS_SUBMITTED
+    char ip[16];       // DL_EV_IP
+} app_event_t;
+
+static QueueHandle_t queue;
+static esp_timer_handle_t tick_timer, retry_timer, attempt_timer;
+
+static dl_view_t view;
+static char softap_ssid[ID_NAME_MAX], hostname[ID_NAME_MAX], ip[16];
+static pc_creds_t stored;
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
+
+static void post(const app_event_t *e)
+{
+    xQueueSend(queue, e, 0);
+}
+
+static void post_conn(dl_conn_event_t ev)
+{
+    app_event_t e = {.kind = APP_CONN, .ev = ev};
+    post(&e);
+}
+
+static void on_tick(void *arg)
+{
+    app_event_t e = {.kind = APP_TICK};
+    post(&e);
+}
+
+static void on_retry(void *arg)
+{
+    post_conn(DL_EV_RETRY);
+}
+
+static void on_attempt_timeout(void *arg)
+{
+    post_conn(DL_EV_ATTEMPT_FAILED);
+}
+
+static void on_net(net_event_t ev, const char *addr)
+{
+    app_event_t e = {.kind = APP_CONN};
+    if (ev == NET_EV_GOT_IP) {
+        e.ev = view.conn == DL_ONLINE ? DL_EV_IP_CHANGED : DL_EV_IP;
+        strncpy(e.ip, addr, sizeof e.ip - 1);
+        const esp_partition_t *running = esp_ota_get_running_partition();
+        esp_ota_img_states_t st;
+        e.guard = esp_ota_get_state_partition(running, &st) == ESP_OK &&
+                  st == ESP_OTA_IMG_PENDING_VERIFY;
+    } else {
+        e.ev = DL_EV_DISCONNECTED;
+    }
+    post(&e);
+}
+
+static void on_submit(const pc_creds_t *c)
+{
+    app_event_t e = {.kind = APP_CONN, .ev = DL_EV_CREDS_SUBMITTED, .guard = true, .creds = *c};
+    post(&e);
+}
+
+// ── Display region ───────────────────────────────────────────────────────
 
 // Draw the lines of `want` that differ from `shown`; stop at the first error.
 static esp_err_t draw_changed(char want[DL_LINES][DL_LINE_MAX])
@@ -38,7 +115,7 @@ static esp_err_t draw_changed(char want[DL_LINES][DL_LINE_MAX])
     return ESP_OK;
 }
 
-static void execute(unsigned actions, esp_err_t err)
+static void execute_disp(unsigned actions, esp_err_t err)
 {
     if (actions & DL_ACT_BACKLIGHT_ON) {
         lcd_backlight(true);
@@ -58,51 +135,159 @@ static void execute(unsigned actions, esp_err_t err)
     }
 }
 
-static bool screen_changed(char want[DL_LINES][DL_LINE_MAX])
+static dl_disp_t disp_tick(dl_disp_t disp)
 {
-    return memcmp(want, shown, sizeof shown) != 0;
+    char want[DL_LINES][DL_LINE_MAX];
+    dl_screen(&view, want);
+    bool changed = memcmp(want, shown, sizeof shown) != 0;
+    esp_err_t err = ESP_OK;
+    if (dl_disp_tick_draws(disp, changed)) {
+        err = draw_changed(want);
+    }
+    dl_disp_step_t step = dl_disp_step(disp, DL_EV_TICK, changed, err == ESP_OK);
+    execute_disp(step.actions, err);
+    return step.next;
+}
+
+// ── Connectivity region ──────────────────────────────────────────────────
+
+static void start_attempt(void)
+{
+    web_log_sta_mode(stored.ssid);
+    esp_err_t err = net_sta_start(&stored);
+    if (err != ESP_OK) {
+        web_log_warn("station start", err);
+    }
+    esp_timer_stop(attempt_timer);
+    esp_timer_start_once(attempt_timer, ATTEMPT_TIMEOUT_US);
+}
+
+static void execute_conn(const app_event_t *e, dl_conn_step_t step)
+{
+    unsigned a = step.actions;
+    if (a & DL_C_STORE_CREDS) {
+        stored = e->creds;
+        esp_err_t err = net_creds_store(&stored);
+        if (err != ESP_OK) {
+            web_log_warn("credentials store", err);
+        }
+        web_log_provisioned(stored.ssid);
+    }
+    if (a & DL_C_STOP_SOFTAP) {
+        vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));
+        portal_stop();  // the SoftAP itself goes down with the station start below
+    }
+    if (a & DL_C_START_SOFTAP) {
+        web_log_portal(softap_ssid);
+        esp_err_t err = net_softap_start(softap_ssid);
+        if (err == ESP_OK) {
+            err = portal_start(on_submit);
+        }
+        if (err != ESP_OK) {
+            web_log_warn("portal start", err);
+        }
+    }
+    if (a & DL_C_START_ATTEMPT) {
+        start_attempt();
+    }
+    if (a & DL_C_ARM_RETRY) {
+        uint32_t ms = dl_retry_delay_s(step.n) * 1000;
+        web_log_retry(ms, step.n);
+        esp_timer_stop(retry_timer);
+        esp_timer_start_once(retry_timer, (uint64_t)ms * 1000);
+    }
+    if (a & DL_C_START_SERVICES) {
+        // Status server, mDNS and UDP log arrive with FSD Phase 3.
+    }
+    if (a & DL_C_CONFIRM_IMAGE) {
+        if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+            ESP_LOGI("web", "ota confirmed");  // L13
+        }
+    }
+}
+
+static void conn_event(const app_event_t *e)
+{
+    if (e->ev == DL_EV_IP || e->ev == DL_EV_IP_CHANGED || e->ev == DL_EV_DISCONNECTED) {
+        esp_timer_stop(attempt_timer);
+    }
+    if (e->ev == DL_EV_ATTEMPT_FAILED && view.conn == DL_CONNECTING) {
+        net_sta_stop();  // a timed-out attempt is abandoned before T6 arms the retry
+    }
+    static uint32_t n;  // failed attempts since the last ONLINE (FR-5.18)
+    dl_conn_t before = view.conn;
+    dl_conn_step_t step = dl_conn_step(before, e->ev, e->guard, n);
+    n = step.n;
+    if (step.next != before) {
+        view.conn = step.next;
+        web_log_state(dl_conn_name(step.next));
+    }
+    if (e->ev == DL_EV_IP || e->ev == DL_EV_IP_CHANGED) {
+        strncpy(ip, e->ip, sizeof ip - 1);
+        if (step.next == DL_ONLINE) {
+            web_log_online(ip, net_rssi());
+        }
+    }
+    execute_conn(e, step);
 }
 
 void app_main(void)
 {
     web_log_boot();
+    queue = xQueueCreate(16, sizeof(app_event_t));
 
-    // Connectivity arrives in FSD Phase 2; until then the device stays in BOOT.
-    dl_view_t view = {.conn = DL_BOOT};
-    char want[DL_LINES][DL_LINE_MAX];
-    dl_screen(&view, want);
+    uint8_t mac[6];
+    net_base_mac(mac);
+    id_softap_ssid(mac, softap_ssid);
+    id_hostname(mac, hostname);
+    view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
+                       .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname};
 
     // D1/D2: start, clear, and the first draw of the BOOT screen.
+    char want[DL_LINES][DL_LINE_MAX];
+    dl_screen(&view, want);
     esp_err_t err = lcd_start();
     if (err == ESP_OK) {
         err = draw_changed(want);
     }
-    dl_disp_step_t step = dl_disp_step(DL_LCD_START, DL_EV_START_DONE, false, err == ESP_OK);
-    execute(step.actions, err);
-    dl_disp_t disp = step.next;
+    dl_disp_step_t dstep = dl_disp_step(DL_LCD_START, DL_EV_START_DONE, false, err == ESP_OK);
+    execute_disp(dstep.actions, err);
+    dl_disp_t disp = dstep.next;
 
-    // FR-19.1: this task is watched; the tick below feeds it.
+    const esp_timer_create_args_t tick_args = {.callback = on_tick, .name = "tick"};
+    const esp_timer_create_args_t retry_args = {.callback = on_retry, .name = "retry"};
+    const esp_timer_create_args_t attempt_args = {.callback = on_attempt_timeout,
+                                                  .name = "attempt"};
+    esp_timer_create(&tick_args, &tick_timer);
+    esp_timer_create(&retry_args, &retry_timer);
+    esp_timer_create(&attempt_args, &attempt_timer);
+
+    err = net_init(on_net, hostname);
+    if (err != ESP_OK) {
+        web_log_warn("network init", err);
+    }
+
+    // FR-19.1: this task is watched; the 1 s tick below feeds it.
     esp_task_wdt_add(NULL);
-
     ESP_LOGI(TAG, "Init complete, running event-driven");
 
-    // Absolute-time delay: the period does not drift with the work per tick.
-    TickType_t last = xTaskGetTickCount();
-    for (uint32_t tick = 1, alive = 0;; tick++) {
-        xTaskDelayUntil(&last, pdMS_TO_TICKS(TICK_MS));
-        esp_task_wdt_reset();
+    // T1/T2: credentials read.
+    app_event_t cr = {.kind = APP_CONN, .ev = DL_EV_CREDS_READ, .guard = net_creds_load(&stored)};
+    conn_event(&cr);
 
-        dl_screen(&view, want);
-        bool changed = screen_changed(want);
-        err = ESP_OK;
-        if (dl_disp_tick_draws(disp, changed)) {
-            err = draw_changed(want);
+    esp_timer_start_periodic(tick_timer, TICK_US);
+    for (uint32_t tick = 0, alive = 0;;) {
+        app_event_t e;
+        if (xQueueReceive(queue, &e, portMAX_DELAY) != pdTRUE) {
+            continue;
         }
-        step = dl_disp_step(disp, DL_EV_TICK, changed, err == ESP_OK);
-        execute(step.actions, err);
-        disp = step.next;
-
-        if (tick % ALIVE_TICKS == 0) {
+        if (e.kind == APP_CONN) {
+            conn_event(&e);
+            continue;
+        }
+        esp_task_wdt_reset();
+        disp = disp_tick(disp);
+        if (++tick % ALIVE_TICKS == 0) {
             web_log_alive(alive++);
         }
     }

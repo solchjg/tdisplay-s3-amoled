@@ -14,6 +14,11 @@ import pytest
 from testbench_driver import TestbenchDriver, TestbenchError
 
 SLOT = "SLOT4"
+# The bench AP the journey provisions the device onto (isolated bench network;
+# the passphrase protects nothing, FSD §9.1).
+BENCH_SSID = "tds3-bench"
+BENCH_PASS = "bench-0441-pass"
+SOFTAP_SSID = "TDS3-71C734"   # FR-13.1 for the recorded MAC 34:85:18:71:c7:34
 CHIP = "esp32s3"
 MAC = "34:85:18:71:c7:34"   # testing/test-plan.yaml dut_record
 
@@ -156,3 +161,13 @@ def web_lines(output):
     line before the level letter (test-plan bench-serial-monitor note).
     """
     return [m.groups() for m in (LOG_LINE.search(ln.strip()) for ln in output) if m]
+
+
+def enter_portal(bench, portal_ssid, ssid, password):
+    """POST /api/enter-portal with the fields the bench API declares.
+
+    TestbenchDriver.enter_portal() sends a different body (slot, resets); the
+    REST contract is the declaration this project depends on.
+    """
+    return bench._api_post_raw("/api/enter-portal", {
+        "portal_ssid": portal_ssid, "ssid": ssid, "password": password}, timeout=15)

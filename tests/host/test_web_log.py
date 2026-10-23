@@ -26,8 +26,23 @@ int main(int argc, char **argv)
         wl_fmt_lcd_init_failed(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "write_failed") == 0) {
         wl_fmt_lcd_write_failed(line, sizeof line, argv[2]);
-    } else {
+    } else if (strcmp(argv[1], "alive") == 0) {
         wl_fmt_alive(line, sizeof line, (uint32_t)strtoul(argv[2], NULL, 10));
+    } else if (strcmp(argv[1], "state") == 0) {
+        wl_fmt_state(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "portal") == 0) {
+        wl_fmt_portal(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "provisioned") == 0) {
+        wl_fmt_provisioned(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "online") == 0) {
+        wl_fmt_online(line, sizeof line, argv[2], atoi(argv[3]));
+    } else if (strcmp(argv[1], "retry") == 0) {
+        wl_fmt_retry(line, sizeof line, (uint32_t)strtoul(argv[2], NULL, 10),
+                     (uint32_t)strtoul(argv[3], NULL, 10));
+    } else if (strcmp(argv[1], "ap_mode") == 0) {
+        wl_fmt_ap_mode(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "sta_mode") == 0) {
+        wl_fmt_sta_mode(line, sizeof line, argv[2]);
     }
     fputs(line, stdout);
     return 0;
@@ -72,3 +87,23 @@ def test_lcd_failure_lines(fmt):
 @pytest.mark.parametrize("n", ["0", "1", "4294967295"])
 def test_alive_line(fmt, n):
     assert fmt("alive", n) == f"alive {n}"
+
+
+# TC-LOG-15 · FR-7.8 (core): L2
+@pytest.mark.parametrize("state", ["PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
+def test_state_line(fmt, state):
+    assert fmt("state", state) == f"state={state}"
+
+
+# TC-LOG-16 · FR-7.9, FR-7.10 (core): L3, L4, L5, L6
+def test_connectivity_lines(fmt):
+    assert fmt("portal", "TDS3-71C734") == "portal ssid=TDS3-71C734 ip=192.168.4.1"
+    assert fmt("provisioned", "tds3-bench") == "provisioned ssid=tds3-bench"
+    assert fmt("online", "192.168.4.6", "-59") == "online ip=192.168.4.6 rssi=-59"
+    assert fmt("retry", "4000", "3") == "retry in 4000 ms attempt=3"
+
+
+# TC-LOG-17 · FR-7.19, FR-7.22 (core): K2, K5 with their SSIDs
+def test_testbench_contract_lines(fmt):
+    assert fmt("ap_mode", "TDS3-71C734") == "AP mode: SSID='TDS3-71C734'"
+    assert fmt("sta_mode", "tds3-bench") == "STA mode, connecting to 'tds3-bench'"

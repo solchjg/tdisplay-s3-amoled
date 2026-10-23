@@ -67,3 +67,56 @@ void web_log_alive(uint32_t n)
     wl_fmt_alive(line, sizeof line, n);
     ESP_LOGI(TAG, "%s", line);
 }
+
+void web_log_state(const char *state)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_state(line, sizeof line, state);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_portal(const char *softap_ssid)
+{
+    char line[WL_LINE_MAX];
+    ESP_LOGI(TAG, "No WiFi credentials");  // K1
+    wl_fmt_ap_mode(line, sizeof line, softap_ssid);
+    ESP_LOGI(TAG, "%s", line);              // K2
+    wl_fmt_portal(line, sizeof line, softap_ssid);
+    ESP_LOGI(TAG, "%s", line);              // L3
+}
+
+void web_log_provisioned(const char *ssid)
+{
+    char line[WL_LINE_MAX];
+    ESP_LOGI(TAG, "Credentials saved");     // K4
+    wl_fmt_provisioned(line, sizeof line, ssid);
+    ESP_LOGI(TAG, "%s", line);              // L4
+}
+
+void web_log_sta_mode(const char *ssid)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_sta_mode(line, sizeof line, ssid);
+    ESP_LOGI(TAG, "%s", line);              // K5
+}
+
+void web_log_online(const char *ip, int rssi)
+{
+    char line[WL_LINE_MAX];
+    ESP_LOGI(TAG, "STA got IP");            // K6
+    wl_fmt_online(line, sizeof line, ip, rssi);
+    ESP_LOGI(TAG, "%s", line);              // L5
+}
+
+void web_log_retry(uint32_t ms, uint32_t n)
+{
+    char line[WL_LINE_MAX];
+    ESP_LOGW(TAG, "STA disconnect, retry"); // K7
+    wl_fmt_retry(line, sizeof line, ms, n);
+    ESP_LOGW(TAG, "%s", line);              // L6
+}
+
+void web_log_warn(const char *what, esp_err_t err)
+{
+    ESP_LOGW(TAG, "%s: %s", what, esp_err_to_name(err));
+}

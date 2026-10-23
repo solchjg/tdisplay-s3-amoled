@@ -49,6 +49,19 @@ int main(int argc, char **argv)
         char out[DL_LINE_MAX];
         dl_sanitize_ssid(argv[2], out);
         fputs(out, stdout);
+    } else if (strcmp(argv[1], "conn") == 0) {
+        // conn <state> <event> <guard> <n>
+        static const char *ev[] = {"CR", "CS", "IP", "AF", "DC", "RT", "IC", "FR", "OS",
+                                   "OF", "60"};
+        int e = 0;
+        while (strcmp(ev[e], argv[3]) != 0) {
+            e++;
+        }
+        uint32_t n = (uint32_t)strtoul(argv[5], NULL, 10);
+        dl_conn_step_t r = dl_conn_step(conn(argv[2]), (dl_conn_event_t)e, atoi(argv[4]) != 0, n);
+        static const char *names[] = {"BOOT", "PROVISIONING", "CONNECTING", "ONLINE",
+                                      "WIFI_LOST"};
+        printf("%s %u %u", names[r.next], r.actions, r.n);
     } else {
         // disp <state> <start|tick> <changed> <ok>
         dl_disp_t s = strcmp(argv[2], "LCD_START") == 0 ? DL_LCD_START
@@ -88,13 +101,22 @@ def screen(run, state, *view):
     return run("screen", state, *(view or ONLINE[1:])).split("\n")[:3]
 
 
-def actions(run, *names):
-    """Bitmask from the header's DL_ACT_* values, so the test never hardcodes bits."""
-    bits = dict(re.findall(r"(DL_ACT_\w+)\s*=\s*(1u?\s*<<\s*\d+|\d+)", run.header))
+def actions(run, *names, prefix="DL_ACT_"):
+    """Bitmask from the header's action values, so the test never hardcodes bits."""
+    bits = dict(re.findall(rf"({prefix}\w+)\s*=\s*(1u?\s*<<\s*\d+|\d+)", run.header))
     val = 0
     for n in names:
-        val |= eval(bits[f"DL_ACT_{n}"].replace("u", ""))  # noqa: S307 — header constants
+        val |= eval(bits[f"{prefix}{n}"].replace("u", ""))  # noqa: S307 — header constants
     return val
+
+
+def conn(run, state, event, guard=0, n=0):
+    nxt, acts, n_out = run("conn", state, event, guard, n).split()
+    return nxt, int(acts), int(n_out)
+
+
+def cacts(run, *names):
+    return actions(run, *names, prefix="DL_C_")
 
 
 # TC-DL-01 · FR-5.25 (core)
@@ -162,3 +184,33 @@ def test_d4_changed_tick_redraws_and_mirrors(run):
     assert nxt == "LCD_OK"
     assert draws == "1", "a changed screen must be drawn on this tick"
     assert int(acts) == actions(run, "LOG_LINES")
+
+
+# TC-DL-10 · T1 (FR-5.11)
+def test_t1_no_credentials_enters_provisioning(run):
+    assert conn(run, "BOOT", "CR", guard=0) == ("PROVISIONING", cacts(run, "START_SOFTAP"), 0)
+
+
+# TC-DL-11 · T2 (FR-5.12)
+def test_t2_stored_credentials_enter_connecting_without_softap(run):
+    nxt, acts, _ = conn(run, "BOOT", "CR", guard=1)
+    assert nxt == "CONNECTING"
+    assert acts == cacts(run, "START_ATTEMPT"), "T2 starts an attempt and nothing else"
+
+
+# TC-DL-12 · T3 (FR-5.13)
+def test_t3_valid_submission_stores_and_connects_without_restart(run):
+    nxt, acts, _ = conn(run, "PROVISIONING", "CS", guard=1)
+    assert nxt == "CONNECTING"
+    assert acts == cacts(run, "STORE_CREDS", "STOP_SOFTAP", "START_ATTEMPT")
+    assert not acts & cacts(run, "RESTART"), "T3 must not restart (FR-5.13)"
+
+
+# TC-DL-13 · T5 (FR-5.15)
+@pytest.mark.parametrize("pending,confirm", [(0, False), (1, True)])
+def test_t5_ip_enters_online(run, pending, confirm):
+    nxt, acts, n = conn(run, "CONNECTING", "IP", guard=pending, n=3)
+    assert nxt == "ONLINE"
+    assert n == 0, "T5 resets the retry count"
+    want = cacts(run, "START_SERVICES") | (cacts(run, "CONFIRM_IMAGE") if confirm else 0)
+    assert acts == want

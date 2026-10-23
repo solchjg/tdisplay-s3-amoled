@@ -7,18 +7,19 @@ operator reporting the defect: the test fails (docs/Method/standards/testing.md)
 from conftest import reset_and_follow, save_evidence
 
 
-# TC-LCD-10 · FR-5.25 (BOOT row), FR-6.1, FR-6.3, FR-6.7
-def test_operator_sees_the_boot_screen(bench, dut, flashed):
+# TC-LCD-10 · FR-5.25 (PROVISIONING row), FR-6.1, FR-6.3, FR-6.7
+def test_operator_sees_the_provisioning_screen(bench, dut, flashed):
     assert flashed.get("ok"), "shipped build not flashed"
     lines = reset_and_follow(bench, dut, seconds=3)
     save_evidence("display-boot", lines)
-    assert any("Init complete, running event-driven" in ln for ln in lines), "device not up"
+    assert any("state=PROVISIONING" in ln for ln in lines), "not in PROVISIONING (erased flash)"
     assert not any("lcd init failed" in ln for ln in lines), "D2: the display failed to start"
     assert bench.human_interaction(
         "TC-LCD-10: turn the board so its USB-C cable leaves the board on your RIGHT, "
-        "screen facing you. Press DONE only if ALL hold: the top line reads exactly "
-        "'Starting', upright and left to right; white text on a black background; the "
-        "backlight is on (text clearly lit). Otherwise press CANCEL.", timeout=300)
+        "screen facing you. Press DONE only if ALL hold: three lines reading exactly "
+        "'Setup WiFi', 'TDS3-71C734', '192.168.4.1', upright and left to right; white "
+        "text on a black background; the backlight is on (text clearly lit). "
+        "Otherwise press CANCEL.", timeout=300)
 
 
 # TC-LCD-11 · FR-6.4 (P-POWERCYCLE: random panel RAM after a cold start)
@@ -31,6 +32,6 @@ def test_cold_start_leaves_no_stray_pixels(bench, dut, flashed):
     assert up.get("matched"), "device not running after the power cycle"
     assert bench.human_interaction(
         "TC-LCD-11 step 2 of 2: USB-C cable on your RIGHT. Press DONE only if the screen "
-        "is black everywhere except the word 'Starting': no band of noise or coloured "
+        "is black everywhere except its white text lines: no band of noise or coloured "
         "pixels along ANY edge, nothing between or below the lines. Otherwise CANCEL.",
         timeout=300)
