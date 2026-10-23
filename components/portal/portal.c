@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "captive_dns.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 
@@ -89,11 +90,13 @@ esp_err_t portal_start(portal_submit_cb_t on_submit)
     httpd_register_uri_handler(server, &root);
     httpd_register_uri_handler(server, &conn);
     httpd_register_uri_handler(server, &other);
+    captive_dns_start();  // FR-13.5
     return ESP_OK;
 }
 
 void portal_stop(void)
 {
+    captive_dns_stop();
     if (server) {
         httpd_stop(server);
         server = NULL;

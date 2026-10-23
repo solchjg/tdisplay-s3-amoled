@@ -58,3 +58,17 @@ def test_other_paths_lead_to_the_portal_not_the_status(bench, dut, provisioning)
         assert code == 200, f"{path}: {code} (404/204 means no redirect)"
         assert 'action="/connect"' in page, f"{path} did not land on the portal form"
         assert '"fw_version"' not in page, f"{path}: status JSON outside ONLINE (FR-14.5)"
+
+
+# TC-PORT-13 · FR-13.5 (needs bench-relay-dns-via-dut, which the bench does not declare)
+def test_any_name_resolves_to_the_portal(bench, dut, provisioning):
+    import yaml
+    caps = yaml.safe_load(open("testing/test-plan.yaml"))["capabilities"]
+    if caps["bench-relay-dns-via-dut"]["available"] is not True:
+        pytest.skip("bench-relay-dns-via-dut not available (FSD R-7): blocked")
+    bench.sta_join(SOFTAP_SSID, timeout=30)
+    try:
+        code, body, _ = relay(bench, "GET", "http://example.com/")
+    finally:
+        bench.sta_leave()
+    assert code == 200 and b'action="/connect"' in body

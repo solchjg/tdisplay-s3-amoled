@@ -165,6 +165,13 @@ capabilities:
     # Bench reports gpio_wired=false for SLOT4 (EN pulse produced no reset).
     # Consequence: no GPIO recovery of a crash-looping or wedged DUT; recovery
     # is USB reset, or an operator holding BOOT (GPIO 0) while replugging USB-C.
+  bench-udp-listener-off:
+    what: Stop the bench's UDP log listener on port 5555 (needed by FR-16.3)
+    available: no
+    observed: 2026-10-23
+    # The listener is part of the portal and always runs; no API stops it.
+    # Consequence: FR-16.3 (no receiver leaves logging and HTTP unaffected) has
+    # no bench run. MSG_DONTWAIT sends make it hold by construction (udp_log.c).
   bench-scan-while-ap:
     what: Scan WiFi while the bench AP is running (needed by the ONLINE part of FR-9.4)
     available: no
@@ -1649,3 +1656,42 @@ tests:
     observable: "bench BLE scan: no advertiser at base MAC + 0..3"
     impl: tests/bench/test_security.py::test_no_ble_advertiser
     result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+
+  - id: TC-PORT-04
+    title: Every A query answered with the portal address
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-13.5]
+    needs: []
+    observable: "A/IN query -> reply id kept, QR+AA, ANCOUNT 1, 192.168.4.1; AAAA -> NOERROR, no answer; short packet dropped"
+    impl: tests/host/test_captive_dns.py::test_every_a_query_is_answered_with_the_portal
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-PORT-13
+    title: Any name resolves to the portal over the SoftAP
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-13.5]
+    needs: [bench-relay-dns-via-dut, bench-wifi-sta, bench-http-relay, dut-wifi-slot4]
+    observable: "joined to TDS3-71C734: GET http://example.com/ lands on the portal form"
+    impl: tests/bench/test_portal.py::test_any_name_resolves_to_the_portal
+    result: {status: not done, reason: "blocked: bench-relay-dns-via-dut = no (FSD R-7)"}
+
+  - id: TC-UDP-11
+    title: No receiver leaves logging and HTTP unaffected
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-16.3]
+    needs: [bench-udp-listener-off, bench-http-relay, dut-wifi-slot4]
+    observable: "bench UDP listener stopped; 20 GET /api/status: 20 answers 200, 20 serial L10 lines, no restart"
+    impl: none (blocked before it can run)
+    result: {status: not done, reason: "blocked: bench-udp-listener-off = no"}
