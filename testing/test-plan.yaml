@@ -181,11 +181,21 @@ capabilities:
       against the new composition root.
   release-verification:
     what: Tag-triggered journey run against the released artifact
-    available: unproven
-    # Needs a registered `testbench` runner for this repo (.devcontainer/register-runner.sh).
-    # The owner registers it (a standing grant); proven when the runner is
-    # listed under the repo's Actions runners.
-    # An absent bench at verify time is an unmet precondition (not done), never a failure.
+    available: no
+    observed: 2026-10-23
+    evidence: >
+      The owner started .devcontainer/register-runner.sh and it reported
+      "Listening for Jobs", but at 18:59:51Z, 19:00:33Z and 19:05:21Z GitHub
+      listed no runner on this repo (total_count 0), none on any other
+      solchjg repo, and the account has no organisations. The listening
+      runner is registered somewhere other than this repo.
+    consequence: >
+      No v*.*.* tag can be released: the verify job would wait for a
+      `testbench` runner that never picks it up. Development and every
+      non-release test are unaffected. Before the first tag, re-register the
+      runner for this repo (fresh registration token, then
+      `gh api repos/solchjg/tdisplay-s3-webserver/actions/runners` lists it)
+      and flip this to yes. The Shipped gate cannot open until then.
   dut-tdisplay-s3-slot4:
     what: The board in SLOT4 is a T-Display-S3 with 16 MB flash; a CI-built image flashes over USB and its log reaches SLOT4's monitor
     available: yes

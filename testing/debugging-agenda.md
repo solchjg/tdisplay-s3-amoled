@@ -8,4 +8,7 @@ leaves this table. The testbench is not on this list.
 
 | Part | Capability | Unproven because | Proven by |
 |------|------------|------------------|-----------|
-| Release verification | `release-verification` | No `testbench` runner registered for this repo | `.devcontainer/register-runner.sh` run by the repo owner; runner listed under the repo's Actions runners |
+
+No project-side item is open. `release-verification` is resolved `no` with its
+consequence (no tag can be released until a runner is registered for this
+repo); see the capability.
