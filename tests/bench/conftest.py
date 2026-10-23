@@ -193,3 +193,22 @@ def relay(bench, method, url, body=None, headers=None, timeout=8):
 def ring_lines(bench, slot, lines=2000):
     """The bench's serial ring for the slot, oldest first, as text lines."""
     return [e.get("text", "") for e in bench.serial_output(slot, lines=lines).get("lines", [])]
+
+
+@pytest.fixture(scope="module")
+def online_ip(bench, dut):
+    """The DUT's address once it is ONLINE on the bench AP (precondition, not a test).
+
+    Needs credentials for BENCH_SSID in the DUT (the journey stores them). Starts
+    the bench AP if it is down and waits for `web: online`.
+    """
+    if not bench.ap_status().get("active"):
+        bench.ap_start(BENCH_SSID, BENCH_PASS)
+    for ln in reversed(ring_lines(bench, dut)[-200:]):
+        m = re.search(r"web: online ip=(\d+\.\d+\.\d+\.\d+)", ln)
+        if m and any(s.get("ip") == m.group(1) for s in bench.ap_status().get("stations", [])):
+            return m.group(1)
+    m = bench.serial_monitor(dut, pattern="web: online ip=", timeout=60)
+    if not m.get("matched"):
+        pytest.skip("DUT not ONLINE on the bench AP (not provisioned for it?)")
+    return re.search(r"online ip=(\d+\.\d+\.\d+\.\d+)", m["line"]).group(1)

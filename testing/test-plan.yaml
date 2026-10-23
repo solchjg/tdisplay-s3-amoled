@@ -97,6 +97,25 @@ capabilities:
     # it at once. The body field for the passphrase is `pass`. Candidate bench
     # fault: file it with the bench owner if a test sees it again (never
     # worked around in this project's tests).
+  bench-ap-rejoin-after-reset:
+    what: The bench AP lets a station that reset without a deauth (JTAG/USB reset, power cycle) authenticate again
+    available: no
+    observed: 2026-10-23
+    evidence: >
+      Product firmware fd7b45c: after a JTAG reset of a joined DUT, every
+      auth attempt ends `wifi:state: auth -> init (0x200)` for > 100 s while
+      ap_status keeps listing the old station (ap_max_inactivity 20 s not
+      applied). Positive control, commissioning wifi-probe (run 40004940061):
+      first join to a fresh AP got 192.168.4.6, then after each of two JTAG
+      resets 8 x `disconnected reason=2` (AUTH_EXPIRE) in 20 s, no IP. A
+      fresh ap_start always admits the station. Same family as the
+      bench-wifi-ap note of 18:42Z.
+    consequence: >
+      Bench fault (testbench change request drafted; to be filed by the
+      owner). Tests that reset a provisioned DUT and expect it back on the
+      same AP are blocked: TC-NET-10 (NFR-5.1, FR-5.20 reset), TC-NET-12
+      (FR-5.20 power cycle), and later NFR-5.2/FR-5.19 style recoveries that
+      keep the AP up across a DUT reset. Never worked around in this project.
   bench-wifi-sta:
     what: Join and leave a DUT's SoftAP as a station (Harness /api/wifi/sta_join, sta_leave)
     available: yes
@@ -1046,7 +1065,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [NFR-5.1, FR-5.20]
-    needs: [bench-wifi-ap, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4, dut-tdisplay-s3-slot4]
+    needs: [bench-wifi-ap, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4, dut-tdisplay-s3-slot4, bench-ap-rejoin-after-reset]
     observable: "5 JTAG resets: CONNECTING, no PROVISIONING, web: online at <= 10000 ms each"
     impl: tests/bench/test_connectivity.py::test_reset_reaches_online_within_10_s_without_portal
     result: {status: not done, reason: not yet run against this commit}
@@ -1072,7 +1091,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.20]
-    needs: [bench-wifi-ap, bench-operator-prompt, operator-at-bench, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-wifi-ap, bench-operator-prompt, operator-at-bench, bench-serial-monitor, dut-wifi-slot4, bench-ap-rejoin-after-reset]
     observable: "operator power cycle (P-POWERCYCLE): web: online again, no PROVISIONING"
     impl: tests/bench/test_connectivity.py::test_power_cycle_keeps_the_credentials
     result: {status: not done, reason: not yet run against this commit}

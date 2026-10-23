@@ -6,20 +6,15 @@ session); otherwise the tests skip.
 
 import html
 import json
-import re
 
 import pytest
 
-from conftest import relay, ring_lines
+from conftest import relay
 
 
 @pytest.fixture(scope="module")
-def ip(bench, dut):
-    for ln in reversed(ring_lines(bench, dut)):
-        m = re.search(r"web: online ip=(\d+\.\d+\.\d+\.\d+)", ln)
-        if m:
-            return m.group(1)
-    pytest.skip("device not ONLINE in this session (run the journey first)")
+def ip(online_ip):
+    return online_ip
 
 
 def status(bench, ip):
