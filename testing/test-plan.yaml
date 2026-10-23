@@ -210,6 +210,13 @@ capabilities:
       hashes verified (18:41:52Z). Serial monitor matched `OFF` (18:41:56Z);
       serial reset capture showed the five-row table, "Loaded app from
       partition at offset 0x20000", then ON/OFF.
+      Product image: Build Firmware run 40003952313 (08fa152, success),
+      artefact firmware-v0.0.0-harness coldflash/, flashed with its own
+      flash_args (0x0 / 0x8000 / 0xf000 ota_data_initial / 0x20000
+      tdisplay_webserver.bin), then a bench serial reset (~19:20Z). The boot it
+      caused: "Loaded app from partition at offset 0x20000", "App version:
+      0.0.0-harness", `I (294) main: Init complete, running event-driven`.
+      The shipped build is left flashed on SLOT4.
     consequence: >
       The CI → artefact → flash_args offsets → boot → observation pipeline is
       above suspicion, on the product's own partition layout.
