@@ -192,12 +192,12 @@ capabilities:
       ONLINE, and was rolled back by T13 (TC-OTA-20).
   seam-hang-build:
     what: "Test build that blocks the application task 20 s after startup (variant app) or an HTTP handler on GET /hang (variant http) (FSD §19.3)"
-    available: no
+    available: yes
     observed: 2026-10-23
-    consequence: >
-      Variant app needs the product's application task (FSD Phase 1), variant
-      http its HTTP server (Phase 3). /build writes each with that phase and
-      flips this when CI builds both; until then FR-19.1/FR-19.2 tests are blocked.
+    evidence: >
+      tests/target/hang, Build Firmware run 40035493595 jobs hang (app) and
+      hang (http) success. On SLOT4 both hung as designed and were restarted
+      by the task watchdog with reason TASK_WDT (TC-WDT-10, TC-WDT-11).
   stall-http-peer:
     what: "HTTP server reachable from the bench AP network that sends headers and 100 kB of an image, then holds the connection silent (FSD FR-15.11 stall contract)"
     available: no

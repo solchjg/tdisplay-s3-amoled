@@ -207,8 +207,17 @@ def online_ip(bench, dut):
         bench.ap_start(BENCH_SSID, BENCH_PASS)
     for ln in reversed(ring_lines(bench, dut)[-200:]):
         m = re.search(r"web: online ip=(\d+\.\d+\.\d+\.\d+)", ln)
-        if m and any(s.get("ip") == m.group(1) for s in bench.ap_status().get("stations", [])):
-            return m.group(1)
+        if m:
+            try:   # proven by an answer, not by a log line or a station entry
+                if relay(bench, "GET", f"http://{m.group(1)}/api/status", timeout=4)[0] == 200:
+                    return m.group(1)
+            except TestbenchError:
+                pass
+            break
+    # Not reachable: a fresh AP (a DUT reset while the AP ran leaves a stale
+    # station the bench AP will not re-admit, SensorsIot/Embedded-AI-Harness#54).
+    stop_bench_ap(bench)
+    bench.ap_start(BENCH_SSID, BENCH_PASS)
     m = bench.serial_monitor(dut, pattern="web: online ip=", timeout=60)
     if not m.get("matched"):
         pytest.skip("DUT not ONLINE on the bench AP (not provisioned for it?)")
