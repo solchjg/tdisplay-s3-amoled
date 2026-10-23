@@ -972,7 +972,7 @@ the log (K10, K11) and, on success, by the restart (T11).
 - **FR-15.5** [Must] [derived] A `POST /ota` while a download is in progress
   shall answer 409.
 - **FR-15.8** [Must] [user] A `POST /ota` whose body is a JSON object with a `url`
-  string starting `http://` and at most 256 [proposed] characters long shall
+  string starting `http://` and at most 256 characters long shall
   answer 202 with body `{"ok":true}` and then start the download.
 - **FR-15.9** [Must] [derived] A `POST /ota` whose body is not such an object
   shall answer 400 and start no download.
@@ -980,7 +980,7 @@ the log (K10, K11) and, on success, by the restart (T11).
   ESP32-S3 application image of at most 0x400000 bytes shall select that image
   for the next boot and log K10 (then T11).
 - **FR-15.11** [Must] [user] A download that answers other than 200, breaks off,
-  receives no byte for 30 s [proposed], exceeds 0x400000 bytes, or yields an image
+  receives no byte for 30 s, exceeds 0x400000 bytes, or yields an image
   that fails ESP-IDF validation shall log K11, leave the boot slot unchanged, and
   not restart the device (T12).
 
@@ -1376,8 +1376,8 @@ Build-time constants:
 | `GET /` p95 | ≤ 500 ms | [user] |
 | OTA max image | 0x400000 bytes | [user] |
 | Restart after OTA success / factory reset | ≤ 2 s | [user] |
-| OTA URL max length | 256 characters | [proposed] |
-| OTA download stall timeout | 30 s | [proposed] |
+| OTA URL max length | 256 characters | [user] |
+| OTA download stall timeout | 30 s | [user] |
 | Heartbeat (`alive`) period | 10 s ± 1 s | [user, testbench compatibility contract] |
 | OTA confirm deadline | 60 s from reset | [user] |
 | Factory-reset hold | 5 s | [user] |
@@ -1404,13 +1404,13 @@ FR-6.6 now covers a 20-character line.
 
 ```yaml
 document_status: draft
-fsd_version: 0.2.0
+fsd_version: 0.2.1
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: all requirements approved; two values [proposed] (open_decisions)
+approval_status: all requirements and values approved by the user
 created: 2026-10-23
 last_updated: 2026-10-23
 change_history:
@@ -1418,9 +1418,8 @@ change_history:
   - 0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS
   - 0.1.1 2026-10-23 all proposed values accepted by the user (Appendix A)
   - 0.2.0 2026-10-23 OTA by URL pull (testbench OTA flow), FR-15.2-15.4/15.6/15.7 superseded by FR-15.8-15.11, FR-5.22 and T11/T12 restated; testbench compatibility log lines K1-K12 (FR-7.18-7.29); R-6 restated
+  - 0.2.1 2026-10-23 OTA URL limit (256 characters) and download stall timeout (30 s) accepted by the user
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7]
-open_decisions:
-  - FR-15.8 URL length limit 256 characters [proposed]
-  - FR-15.11 download stall timeout 30 s [proposed]
+open_decisions: []
 related_test_baseline: none yet
 ```
