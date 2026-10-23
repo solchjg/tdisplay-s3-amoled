@@ -1222,7 +1222,7 @@ tests:
     needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
     observable: "erased device; joined to TDS3-71C734: GET / 200 text/html, form method=post action=/connect, fields ssid and password; K3 Portal page requested logged"
     impl: tests/bench/test_portal.py::test_portal_serves_the_form
-    result: {status: successful, commit: 8306978, firmware: 0.0.0-dev (f831c48, Build Firmware run 40030334418), date: 2026-10-23, evidence: "bench run, 1 passed in 99.3 s; form served, K3 logged, re-provisioned"}
+    result: {status: successful, commit: 0caf619, firmware: 0.0.0-dev (946e5e7, Build Firmware run 40033728057), date: 2026-10-23, evidence: "bench run, junit 3 passed in 141.4 s"}
 
   - id: TC-HTTP-12
     title: "Page p95 within 500 ms"
@@ -1391,7 +1391,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "A re-installs its own image: first POST 202, second within 1.5 s 409, L12 ota refused 409, exactly one OTA succeeded, ONLINE after the restart"
     impl: tests/bench/test_ota_busy.py::test_second_request_while_downloading_is_refused_409
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: 0caf619, firmware: 0.0.0-dev (946e5e7, Build Firmware run 40033728057), date: 2026-10-23, evidence: "bench run, junit 3 passed in 141.4 s"}
     # FR-15.12 (core) row: the busy state lives in the receiver glue, not a pure
     # core; the bench row carries the requirement.
 
@@ -1406,4 +1406,4 @@ tests:
     needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, dut-wifi-slot4]
     observable: "PROVISIONING: /generate_204, /api/status, /hotspot-detect.html all land on the portal form (relay follows the 302); never status JSON, 404 or 204"
     impl: tests/bench/test_portal.py::test_other_paths_lead_to_the_portal_not_the_status
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: 0caf619, firmware: 0.0.0-dev (946e5e7, Build Firmware run 40033728057), date: 2026-10-23, evidence: "bench run, junit 3 passed in 141.4 s"}
