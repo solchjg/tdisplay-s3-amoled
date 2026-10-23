@@ -387,3 +387,172 @@ tests:
     observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
     impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
     result: {status: not done, reason: not yet implemented}
+
+  - id: TC-BUILD-01
+    title: Build targets esp32s3
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [C-10.1]
+    needs: []
+    observable: "sdkconfig CONFIG_IDF_TARGET=\"esp32s3\""
+    impl: tests/host/test_build.py::test_target_is_esp32s3
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-BUILD-02
+    title: Image built with ESP-IDF v6.0.2
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [C-10.2]
+    needs: []
+    observable: "esp_app_desc idf_ver = v6.0.2"
+    impl: tests/host/test_build.py::test_idf_version_is_v6_0_2
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-BUILD-03
+    title: 16 MB flash size stated
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [C-10.3]
+    needs: []
+    observable: "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y and no other size"
+    impl: tests/host/test_build.py::test_flash_size_is_stated_16mb
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-BUILD-06
+    title: Partition table is exactly C-10.6
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [C-10.6]
+    needs: []
+    observable: "parsed partition-table.bin equals the five C-10.6 rows"
+    impl: tests/host/test_build.py::test_partition_table_is_exactly_the_stated_one
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-BUILD-07
+    title: Application image fits a 4 MB slot
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [C-10.7]
+    needs: []
+    observable: "app .bin <= 0x400000 bytes"
+    impl: tests/host/test_build.py::test_app_fits_an_ota_slot
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-BUILD-08
+    title: Bootloader rollback enabled
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [C-10.8]
+    needs: []
+    observable: "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y"
+    impl: tests/host/test_build.py::test_bootloader_rollback_enabled
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-SEC-02
+    title: No BLE controller linked
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-9.2]
+    needs: []
+    observable: "no esp_bt_controller_init in the ELF symbol table"
+    impl: tests/host/test_build.py::test_no_ble_controller_linked
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-01
+    title: LCD configuration states the FSD values
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [C-6.1, C-6.2, C-6.3, C-6.4, C-6.5]
+    needs: []
+    observable: "pins, 10 MHz clock and offset 35 from the firmware's own configuration"
+    impl: tests/host/test_lcd_text.py::test_configuration_states_the_fsd_values
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-02
+    title: Fixed 16x32 font covering 0x20-0x7E
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-6.2]
+    needs: []
+    observable: "cell 16x32, glyphs 0x20-0x7E"
+    impl: tests/host/test_lcd_text.py::test_font_is_fixed_16x32
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-05
+    title: Three text lines stacked inside the visible area
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-6.9]
+    needs: []
+    observable: "3 non-overlapping line boxes inside 320x170; 20-char renders stay inside"
+    impl: tests/host/test_lcd_text.py::test_three_lines_are_stacked_inside_the_visible_area
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-06
+    title: A 20-character line fits one row
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-6.10]
+    needs: []
+    observable: "width 320 px, rightmost pixel <= 319, 20th character drawn, one row"
+    impl: tests/host/test_lcd_text.py::test_twenty_characters_fit_one_row
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-07
+    title: A redraw overwrites the whole row
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 1
+    tier: host
+    verifies: [FR-6.8]
+    needs: []
+    observable: "line box 320 px wide; render of Req: 5 over Req: 1000 equals a fresh render"
+    impl: tests/host/test_lcd_text.py::test_redraw_overwrites_the_whole_row
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LCD-03
+    title: Two text lines stacked inside the visible area (base project)
+    status: superseded
+    superseded_by: TC-LCD-05
+    verifies: [FR-6.5]
+    impl: none (removed with FR-6.5's supersession)
+  - id: TC-LCD-04
+    title: The 16-character uptime line fits one row (base project)
+    status: superseded
+    superseded_by: TC-LCD-06
+    verifies: [FR-6.6]
+    impl: none (removed with FR-6.6's supersession)

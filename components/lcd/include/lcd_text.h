@@ -20,7 +20,10 @@ typedef struct {
     int x, y, w, h;
 } lcd_rect_t;
 
-// The box a text line is drawn into: line 0 or 1, in landscape coordinates.
+#define LCD_TEXT_LINES 3  // FSD §5.4
+
+// The box a text line is drawn into: line 0 .. LCD_TEXT_LINES - 1, in landscape
+// coordinates. Each box spans the whole row (FR-6.8).
 lcd_rect_t lcd_text_line_rect(int line);
 
 // Width in pixels of s in the fixed-width font.
