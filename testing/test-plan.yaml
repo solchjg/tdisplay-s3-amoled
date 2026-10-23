@@ -111,8 +111,7 @@ capabilities:
       fresh ap_start always admits the station. Same family as the
       bench-wifi-ap note of 18:42Z.
     consequence: >
-      Bench fault (testbench change request drafted; to be filed by the
-      owner). Tests that reset a provisioned DUT and expect it back on the
+      Bench fault: SensorsIot/Embedded-AI-Harness#54. Tests that reset a provisioned DUT and expect it back on the
       same AP are blocked: TC-NET-10 (NFR-5.1, FR-5.20 reset), TC-NET-12
       (FR-5.20 power cycle), and later NFR-5.2/FR-5.19 style recoveries that
       keep the AP up across a DUT reset. Never worked around in this project.
@@ -122,6 +121,10 @@ capabilities:
   bench-enter-portal:
     what: "Join a DUT's open SoftAP, POST credentials to http://192.168.4.1/connect (fields ssid, password), leave, start the bench AP with those credentials (Harness /api/enter-portal)"
     available: yes
+    # Usage note (2026-10-23): TestbenchDriver.enter_portal() sends {slot, resets},
+    # not the REST fields; tests post {portal_ssid, ssid, password} directly
+    # (tests/bench/conftest.py enter_portal). Driver fault:
+    # SensorsIot/Embedded-AI-Harness#56.
   bench-http-relay:
     what: HTTP request from the bench radio to a device on the bench Wi-Fi network (Harness /api/wifi/http)
     available: yes
@@ -186,7 +189,7 @@ capabilities:
     consequence: >
       Only the bench Pi is on the bench AP network, so a project peer cannot
       reach the DUT. A testbench change request (a stall mode on the
-      /firmware/ route) is drafted for the owner to file; until the bench
+      /firmware/ route) is filed as SensorsIot/Embedded-AI-Harness#55; until the bench
       declares it, the FR-15.11 (stall) contract is blocked. The other
       FR-15.11 failure modes (bad image, oversize, 404) need only
       bench-firmware-hosting.

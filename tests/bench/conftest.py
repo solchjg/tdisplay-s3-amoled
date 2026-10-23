@@ -175,8 +175,9 @@ def web_lines(output):
 def enter_portal(bench, portal_ssid, ssid, password):
     """POST /api/enter-portal with the fields the bench API declares.
 
-    TestbenchDriver.enter_portal() sends a different body (slot, resets); the
-    REST contract is the declaration this project depends on.
+    TestbenchDriver.enter_portal() sends a different body (slot, resets),
+    SensorsIot/Embedded-AI-Harness#56; the REST contract is the declaration
+    this project depends on.
     """
     return bench._api_post_raw("/api/enter-portal", {
         "portal_ssid": portal_ssid, "ssid": ssid, "password": password}, timeout=15)
