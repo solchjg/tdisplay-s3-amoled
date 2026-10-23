@@ -59,17 +59,17 @@ IP address, its hostname, and the number of HTTP requests it has answered.
 A device with no stored WiFi credentials opens its own open access point with a
 captive provisioning portal; credentials entered there are stored in flash and
 used from then on. A long press of the on-board BOOT button erases them and
-returns the device to the portal. New firmware is uploaded over HTTP to the
-device itself; an image that does not reach the network after its first boot is
-rolled back automatically.
+returns the device to the portal. New firmware is installed by telling the
+device, over HTTP, a URL to download it from; an image that does not reach the
+network after its first boot is rolled back automatically.
 
 **Goals.** A network-attached status device that can be provisioned, observed,
 updated and recovered without a USB cable, and whose every behaviour can be
 verified on the Harness testbench.
 
 **Non-goals.** Authentication, TLS, BLE, MQTT, a WiFi network list in the portal,
-static IP addressing, IPv6, time synchronisation, OTA by URL pull, more than one
-stored network, touch, the second user button (GPIO 14), battery measurement,
+static IP addressing, IPv6, time synchronisation, OTA by pushed image body,
+HTTPS downloads, more than one stored network, touch, the second user button (GPIO 14), battery measurement,
 PSRAM use, backlight dimming.
 
 **Users.** Someone on the trusted LAN who opens the status page; the person who
@@ -79,7 +79,7 @@ the testbench, with a bench operator for the display and button checks.
 **High-level flow.** Reset → start the LCD → no credentials: open the portal and
 wait for credentials | credentials: connect → online: serve status page, API and
 OTA, answer mDNS, mirror logs over UDP, show IP and request count → WiFi lost:
-retry with backoff until it returns → OTA upload: restart into the new image,
+retry with backoff until it returns → OTA request: download, restart into the new image,
 which confirms itself on reaching the network or is rolled back → BOOT held 5 s:
 erase credentials and return to the portal.
 
@@ -100,7 +100,7 @@ erase credentials and return to the portal.
                     │                     ▼    │                                                │
                     │  Provisioning Portal (§13) ◄── SoftAP clients (PROVISIONING only) ──────┼─ WiFi AP
                     │  Status HTTP Server (§14) ◄─── LAN clients (ONLINE only) ───────────────┼─ WiFi STA
-                    │  OTA Receiver (§15) ◄───────── LAN clients (ONLINE only) ───────────────┤
+                    │  OTA Receiver (§15) ◄── LAN clients; ──► image server (ONLINE only) ────┤
                     │  mDNS Responder (§17) ◄──────── LAN (ONLINE only) ──────────────────────┘
                     └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -142,7 +142,7 @@ size limit, rollback, console) are stated as constraints in §10.
   read credentials from NVS → PROVISIONING or CONNECTING (§5.3).
 - **Persistence.** Only the WiFi credentials persist (NVS, Appendix A). Everything
   else — state, request counter, retry count — restarts at boot.
-- **Update model.** HTTP upload into the non-running slot (§15); restart into it;
+- **Update model.** HTTP download from a given URL into the non-running slot (§15); restart into it;
   the new image confirms itself on reaching ONLINE, otherwise the bootloader rolls
   back on the next restart (FR-5.23, FR-5.24, C-10.8).
 
@@ -171,7 +171,7 @@ size limit, rollback, console) are stated as constraints in §10.
   state, the retry schedule, and the confirm-or-roll-back decision. Pure
   functions; no I/O.
 - **L1 interfaces** own their wire formats: the HTTP routes and bodies, the portal
-  form and its validation, the OTA upload rules, the log line formats, the
+  form and its validation, the OTA request and download rules, the log line formats, the
   datagram format, the mDNS name, the button's hold timing, and the panel.
   Each one's pure core (validation, formatting, escaping, schema rendering) is
   separable for the host tier.
@@ -193,7 +193,7 @@ testbench.
   the boot screen, the new serial log lines, task watchdog. No WiFi.
 - **Deliverables.** C-10.1 – C-10.3, C-10.5 – C-10.8; §6 (FR-6.x, C-6.x) against
   the BOOT screen; FR-5.25 (BOOT row), FR-5.27, FR-5.29, FR-7.5 – FR-7.7,
-  FR-7.11 – FR-7.13; FR-19.1; FR-9.2; the LCD fault build and the hang build
+  FR-7.11 – FR-7.13, FR-7.29; FR-19.1; FR-9.2; the LCD fault build and the hang build
   (variant `app`) of §12.0.
 - **Exit criteria.** On SLOT4, after a USB flash of the CI artefact and a USB
   reset: the boot line of FR-7.7 and `Init complete, running event-driven` appear;
@@ -207,7 +207,7 @@ testbench.
 - **Scope.** §5 connectivity state machine, the portal (§13), credential storage,
   reconnect with backoff, the screen content of every state.
 - **Deliverables.** FR-5.11 – FR-5.20, FR-5.25, FR-5.30, NFR-5.1, NFR-5.2; §13;
-  FR-7.8 – FR-7.10, FR-7.17; FR-9.3 (serial part), FR-9.4.
+  FR-7.8 – FR-7.10, FR-7.17 – FR-7.25; FR-9.3 (serial part), FR-9.4.
 - **Exit criteria.** From an erased NVS, the testbench `enter-portal` procedure
   provisions the device through `POST /connect`; the device joins the bench AP and
   logs `web: online`; after a USB reset it rejoins without the portal; after the
@@ -219,7 +219,7 @@ testbench.
 
 - **Scope.** Status page, JSON API, request counter, UDP log, mDNS, identity,
   HTTP-handler watchdog, display failure under network load.
-- **Deliverables.** §14, §16, §17, §20, FR-5.26, FR-5.28, FR-7.14, FR-9.3 (UDP and
+- **Deliverables.** §14, §16, §17, §20, FR-5.26, FR-5.28, FR-7.14, FR-7.26, FR-9.3 (UDP and
   HTTP parts), FR-9.5, FR-19.2; the hang build variant `http`.
 - **Exit criteria.** Through the bench HTTP relay: `GET /` and `GET /api/status`
   answer per §14 with consistent values; the LCD request count follows (FR-5.25,
@@ -229,16 +229,18 @@ testbench.
 
 ### 3.4 Phase 4: OTA and factory reset
 
-- **Scope.** OTA upload, confirm and rollback; BOOT-button factory reset.
-- **Deliverables.** §15, §18, FR-5.21 – FR-5.24, FR-7.15, FR-7.16; the test build
+- **Scope.** OTA download, confirm and rollback; BOOT-button factory reset.
+- **Deliverables.** §15, §18, FR-5.21 – FR-5.24, FR-7.15, FR-7.16, FR-7.27, FR-7.28; the test build
   §12.0 names for rollback.
-- **Exit criteria.** A valid image uploaded through the bench relay boots and
-  confirms; an invalid or oversized image is refused without restart; the
+- **Exit criteria.** A valid image hosted on the bench and requested through
+  `POST /ota` boots and confirms; an invalid, oversized or unreachable image
+  fails without restart; the
   never-confirming test image is rolled back; an operator-held BOOT button returns
   the device to the portal.
 - **Dependencies.** Phase 3 (the station HTTP server carries `POST /ota`);
-  Phase 2 (portal and NVS for the factory reset); the bench relay's ability to
-  carry a multi-megabyte body (R-6).
+  Phase 2 (portal and NVS for the factory reset); bench firmware hosting
+  (`/api/firmware/upload`, served at `/firmware/<project>/<file>`) reachable from
+  the bench AP network (R-6).
 
 ---
 
@@ -253,7 +255,7 @@ testbench.
 | R-3 | Boot deadlines are read from the device's own log timestamp, which counts from chip reset, not from the bench's reset command | Certain | Low | Accepted: the device clock is the only clock that sees both the reset and the line |
 | R-4 | Wrong mirror, colour-inversion or offset settings produce an image every serial-only test misses | Medium | Medium | Operator checks FR-6.1, FR-6.3, FR-6.4 each name the defect to look for |
 | R-5 | SLOT4 is shared with `esp32-oled-hello` | Certain | Low | Every bench test first confirms the chip and MAC recorded in `testing/test-plan.yaml` |
-| R-6 | The testbench's `/api/ota` speaks only ArduinoOTA (espota); this firmware's HTTP upload must be driven through the bench HTTP relay, whose largest carried request body is unproven | Medium | High | Debugging-agenda item: prove the relay carries a ≥ 1.5 MB body before Phase 4; otherwise a bench-side capability is needed |
+| R-6 | The device downloads images from the bench's firmware route on port 8080; that a client on the bench AP network reaches it is unproven | Medium | Medium | Prove reachability from the bench AP network during commissioning, before Phase 4 |
 | R-7 | The captive-DNS check (FR-13.5) assumes the bench's HTTP relay resolves names through the DUT's SoftAP DNS | Medium | Low | FR-13.5 is a Should; prove the relay's resolver path during commissioning |
 | R-8 | The mDNS check (FR-17.1) assumes the bench Pi resolves `.local` names on its AP network | Medium | Low | FR-17.1 is a Should; prove resolution during commissioning |
 | R-9 | BOOT (GPIO 0) is not wired on SLOT4: factory reset can only be tested by an operator; holding BOOT while the chip resets enters the ROM download mode instead | Certain | Low | FR-18.x contracts are operator-tier and press only while the device is running |
@@ -273,8 +275,8 @@ testbench.
   encryption (§9.1). [user]
 - BLE, MQTT, IPv6, NTP, static IP, more than one stored network, a network scan
   list in the portal, a portal timeout. [user]
-- OTA by URL pull, OTA progress on the LCD, OTA of the bootloader or partition
-  table. [user]
+- OTA by pushed image body, HTTPS or authenticated downloads, OTA progress on
+  the LCD, OTA of the bootloader or partition table. [user]
 - mDNS service records (`_http._tcp`); only the hostname A record is answered.
 - Recovering the display after a driver error; the display stays failed until
   reset (FR-5.27).
@@ -342,9 +344,9 @@ has no IP address 15 s after the attempt started.
 | T7 | ONLINE | disconnected | — | WIFI_LOST | Stop status server, mDNS, UDP log; n := 1; arm retry timer with delay(1) | — |
 | T8 | WIFI_LOST | retry timer | — | CONNECTING | Start station attempt | — |
 | T9 | ONLINE | IP changed | — | ONLINE | Update the shown IP; log `web: online` again | — |
-| T10 | PROVISIONING, CONNECTING, ONLINE, WIFI_LOST | factory reset (§18) | — | restart → BOOT | Abort any OTA upload; erase credentials; restart | restart ≤ 2 s after the event |
-| T11 | ONLINE | OTA image accepted (§15) | — | restart → BOOT | Answer 200; select new slot; restart | restart ≤ 2 s after the answer |
-| T12 | ONLINE | OTA image refused (§15) | — | ONLINE | Answer 4xx; boot slot unchanged | — |
+| T10 | PROVISIONING, CONNECTING, ONLINE, WIFI_LOST | factory reset (§18) | — | restart → BOOT | Abort any OTA download; erase credentials; restart | restart ≤ 2 s after the event |
+| T11 | ONLINE | OTA download succeeded (FR-15.10) | — | restart → BOOT | Select new slot; restart | restart ≤ 2 s after `OTA succeeded` |
+| T12 | ONLINE | OTA download failed (FR-15.11) | — | ONLINE | Boot slot unchanged | — |
 | T13 | BOOT, PROVISIONING, CONNECTING, WIFI_LOST | 60 s since reset | image pending verify | restart → BOOT | Log; restart without confirming (bootloader rolls back) | restart ≤ 2 s after the deadline |
 
 **Completeness.**
@@ -358,8 +360,10 @@ has no IP address 15 s after the attempt started.
   server). × retry: impossible (timer armed only in WIFI_LOST).
 - ONLINE × submitted: impossible. × attempt failed / retry: impossible (no attempt
   in progress, timer cancelled on T5).
-- WIFI_LOST × submitted / OTA: impossible. × IP acquired: impossible (no attempt
-  in progress). × disconnected: ignored.
+- WIFI_LOST × submitted / OTA succeeded: impossible (a download cannot complete
+  without the station). × OTA failed (a download cut by T7): logged, otherwise
+  ignored; boot slot unchanged. × IP acquired: impossible (no attempt in
+  progress). × disconnected: ignored.
 - Any state × reset or watchdog reset (§19): restart into BOOT; only credentials
   persist.
 - **Prohibited:** any transition into PROVISIONING other than T1 after T10's
@@ -430,8 +434,8 @@ Connectivity:
   cycle.
 - **FR-5.21** [Must] [pack:esp32] On a factory-reset event (§18), the device shall
   erase the stored credentials and restart within 2 s (T10).
-- **FR-5.22** [Must] [user] When the OTA receiver accepts an image (§15), the
-  device shall restart into it within 2 s of answering the upload (T11).
+- **FR-5.22** [Must] [user] When an OTA download succeeds (FR-15.10), the device
+  shall restart into the new image within 2 s of logging `OTA succeeded` (T11).
 - **FR-5.23** [Must] [user] An image booted pending verification shall mark itself
   valid on entering ONLINE (T5).
 - **FR-5.24** [Must] [user] An image booted pending verification that has not
@@ -481,7 +485,7 @@ Compact form:
 | FR-5.16, FR-5.17, FR-5.30 (core) | Transition function: CONNECTING failed; ONLINE disconnected; WIFI_LOST retry | T6, T7, T8 as tabled | Any other next state; PROVISIONING | n/a | host |
 | FR-5.18 (core) | Delay function n = 1 … 8 | 1, 2, 4, 8, 15, 15, 15, 15 s | Any other value; unbounded growth | n/a | host |
 | FR-5.18 | ONLINE; bench AP stopped for 90 s | L6 lines announce 1, 2, 4, 8, 15, 15 … s; each following `web: state=CONNECTING` comes that delay after its L6 line, by log timestamps | A gap > 16.5 s; retries stop; a delay differing from its L6 line by > 10 % | ± 10 % | bench |
-| FR-5.22 | ONLINE; upload a valid image (FR-15.4) | 200, then a boot line with the new `fw=` | No restart; old `fw=` after the restart | restart ≤ 2 s after 200 | bench |
+| FR-5.22 | ONLINE; request a valid hosted image (FR-15.10) | `OTA succeeded`, then a boot line with the new `fw=` | No restart; old `fw=` after the restart | restart ≤ 2 s after `OTA succeeded` | bench |
 | FR-5.23 | After FR-5.22 | `web: ota confirmed` once ONLINE; a further USB reset boots the same `fw=` | Rollback on the next reset | n/a | bench |
 | FR-5.25 | Each connectivity state reached on the bench; operator prompted per state | Operator confirms the §5.4 lines; the FR-7.11 mirror lines match them | Missing, stale or extra text | n/a | bench (operator) |
 | FR-5.25 (core) | Screen function for every state, with sample SSID/IP/n/hostname | The §5.4 strings exactly | Any other string | n/a | host |
@@ -590,7 +594,7 @@ verification:
   preconditions:
     - Shipped build A running, confirmed and ONLINE; no-confirm build B available.
   stimulus:
-    - Upload the no-confirm build B through POST /ota.
+    - Host build B on the bench (/api/firmware/upload) and POST /ota with its URL.
   expected_observations:
     - A boot line with fw=B.
     - Within 60 s of that boot, a restart and a boot line with fw=A.
@@ -729,8 +733,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L8 | D2 | `web: lcd init failed: <ERR>` | E |
 | L9 | D5 | `web: lcd write failed: <ERR>` | E |
 | L10 | Status-server answer | `web: http <METHOD> <path> <status> n=<count>` | I |
-| L11 | OTA accepted | `web: ota accepted bytes=<n>` | I |
-| L12 | OTA refused | `web: ota refused <status>: <reason>` | W |
+| L11 | OTA download succeeded | `web: ota downloaded bytes=<n>` | I |
+| L12 | OTA request refused (400, 409) | `web: ota refused <status>: <reason>` | W |
 | L13 | T5 with image pending verify | `web: ota confirmed` | I |
 | L14 | Boot after a rollback | `web: rolled back, invalid=<partition label>` | W |
 | L15 | T10 | `web: factory reset` | W |
@@ -763,6 +767,51 @@ Each line requirement is one row of §7.2:
 - **FR-7.17** [Must] [derived from FR-5.18] T6 and T7 shall log L6 with the delay
   actually armed.
 
+### 7.3a Testbench compatibility lines
+
+The testbench's skills recognise device events by searching the log, unanchored,
+for these exact strings. Each line is logged in addition to the `web:` line of the
+same event; tag and level are free except where stated. `<SSID>` is the SSID
+concerned, `<ip>` the destination of FR-16.1.
+
+| # | Event | String the line contains |
+|---|-------|--------------------------|
+| K1 | T1 | `No WiFi credentials` |
+| K2 | SoftAP started (T1) | `AP mode: SSID='<SoftAP SSID>'` |
+| K3 | Portal `GET /` answered | `Portal page requested` |
+| K4 | T3 | `Credentials saved` |
+| K5 | Station attempt started (T2, T3, T8) | `STA mode, connecting to '<SSID>'` |
+| K6 | T5 | `STA got IP` |
+| K7 | T6, T7 | `STA disconnect, retry` |
+| K8 | T10, after the erase | `WiFi credentials erased` |
+| K9 | UDP log started (T5) | `UDP logging -> <ip>:5555` |
+| K10 | OTA download succeeded | `OTA succeeded` |
+| K11 | OTA download failed (level E) | `OTA failed: <reason>` |
+| K12 | Every 10 s from the end of startup | `alive <N>`, N = 0, 1, 2, … |
+
+- **FR-7.18** [Must] [user, testbench compatibility contract] T1 shall log K1.
+- **FR-7.19** [Must] [user, testbench compatibility contract] Starting the SoftAP
+  shall log K2.
+- **FR-7.20** [Must] [user, testbench compatibility contract] Each portal `GET /`
+  shall log K3.
+- **FR-7.21** [Must] [user, testbench compatibility contract] T3 shall log K4.
+- **FR-7.22** [Must] [user, testbench compatibility contract] Each station attempt
+  shall log K5 when it starts.
+- **FR-7.23** [Must] [user, testbench compatibility contract] T5 shall log K6.
+- **FR-7.24** [Must] [user, testbench compatibility contract] T6 and T7 shall log
+  K7.
+- **FR-7.25** [Must] [user, testbench compatibility contract] T10 shall log K8
+  after erasing the credentials and before restarting.
+- **FR-7.26** [Should] [user, testbench compatibility contract] Starting the UDP
+  log shall log K9.
+- **FR-7.27** [Must] [user, testbench compatibility contract] A successful OTA
+  download shall log K10 before T11.
+- **FR-7.28** [Must] [user, testbench compatibility contract] A failed OTA
+  download shall log K11 at error level.
+- **FR-7.29** [Must] [user, testbench compatibility contract] From the end of
+  startup, the device shall log K12 every 10 s ± 1 s, N increasing by 1 per line
+  from 0.
+
 ### 7.4 Verification contracts
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
@@ -776,6 +825,13 @@ Each line requirement is one row of §7.2:
 | FR-7.12, FR-7.13 | LCD fault build at start / 5th write | L8 `ESP_ERR_TIMEOUT` / L9 `ESP_ERR_INVALID_STATE` at level E, once | Level I/W; numeric code; repeated | target |
 | FR-7.14 | ONLINE; `GET /nope` | `web: http GET /nope 404 n=<count>` | Missing | bench |
 | FR-7.15 – FR-7.17 | Covered by the FR-5.21, FR-5.24, FR-15.x and FR-5.18 runs | Lines as tabled | Missing | bench |
+| FR-7.18 – FR-7.22 | Provisioning run (FR-5.13) from erased NVS | K1, K2 with the FR-13.1 SSID, K3, K4, K5 with the bench SSID, in that order | A string missing, reworded or out of order | bench |
+| FR-7.23, FR-7.26 | As above, to ONLINE | K6, then K9 with the bench gateway | Missing; K6 before an IP exists | bench |
+| FR-7.24 | NFR-5.2 run | K7 for each failed attempt | Missing | bench |
+| FR-7.25 | FR-5.21 run | K8 between L15 and the boot line | Missing; after the boot line | bench (operator) |
+| FR-7.27, FR-7.28 | FR-15.10 and FR-15.11 runs | K10 / K11 as tabled | Missing; K10 for a failed download | bench |
+| FR-7.29 | USB reset; 65 s capture after L17 | 6 or 7 `alive` lines, gaps 9 – 11 s, N = 0, 1, 2, … | A gap outside 9 – 11 s; N skipping | target |
+| FR-7.18 – FR-7.29 (core) | Format each K line with sample values | The tabled strings exactly | Any other spelling | host |
 
 ---
 
@@ -900,85 +956,93 @@ on the station address.
 
 ### 15.1 Purpose & peer
 
-Receives a new application image over HTTP from a LAN client. Route `POST /ota` on
-the status server (§14), ONLINE only. Body: the raw application image
-(`application/octet-stream`), length given by `Content-Length`.
+Installs a new application image that a LAN client names by URL. Peers: the
+requesting client (route `POST /ota` on the status server, §14, ONLINE only) and
+the HTTP server holding the image (on the bench, the testbench's firmware route
+`http://<gateway>:8080/firmware/<project>/<file>`).
+
+Request: `application/json`, body `{"url":"http://<host>[:<port>]/<path>"}`. The
+answer is immediate; the download runs afterwards and its outcome is reported in
+the log (K10, K11) and, on success, by the restart (T11).
 
 ### 15.2 Requirements
 
 - **FR-15.1** [Must] [user] The receiver shall write the image only to the
   application slot that is not running.
-- **FR-15.2** [Must] [derived] A request without `Content-Length` shall answer
-  411 before any flash write.
-- **FR-15.7** [Must] [derived from C-10.7] A request whose `Content-Length`
-  exceeds 0x400000 shall answer 413 before any flash write.
-- **FR-15.3** [Must] [user] A body that is not a valid ESP32-S3 application image
-  (ESP-IDF image validation fails) shall answer 400, leave the boot slot unchanged,
-  and not restart the device.
-- **FR-15.4** [Must] [user] A valid image shall answer 200 with body
-  `{"ok":true}` before T11.
-- **FR-15.5** [Must] [derived] A second `POST /ota` while an upload is in progress
+- **FR-15.5** [Must] [derived] A `POST /ota` while a download is in progress
   shall answer 409.
-- **FR-15.6** [Must] [derived] An upload whose connection closes before
-  `Content-Length` bytes arrive shall leave the boot slot unchanged and not restart
-  the device.
+- **FR-15.8** [Must] [user] A `POST /ota` whose body is a JSON object with a `url`
+  string starting `http://` and at most 256 [proposed] characters long shall
+  answer 202 with body `{"ok":true}` and then start the download.
+- **FR-15.9** [Must] [derived] A `POST /ota` whose body is not such an object
+  shall answer 400 and start no download.
+- **FR-15.10** [Must] [user] A download that answers 200 and yields a valid
+  ESP32-S3 application image of at most 0x400000 bytes shall select that image
+  for the next boot and log K10 (then T11).
+- **FR-15.11** [Must] [user] A download that answers other than 200, breaks off,
+  receives no byte for 30 s [proposed], exceeds 0x400000 bytes, or yields an image
+  that fails ESP-IDF validation shall log K11, leave the boot slot unchanged, and
+  not restart the device (T12).
 
 ### 15.3 Verification contracts
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| FR-15.1 | Note L1's `slot=`; upload a valid image; then upload it again | After each upload, L1's `slot=` is the other slot (`ota_0` ↔ `ota_1`), each boot ONLINE and confirmed | The same slot after an upload; an L14 line | bench |
-| FR-15.2 | Raw TCP `POST /ota` with a chunked body and no `Content-Length` | 411; L12; no restart | 200; restart | bench |
-| FR-15.7 | Upload with `Content-Length: 4194305` | 413; L12; no restart | 200; restart | bench |
-| FR-15.4 | Upload the CI artefact of a version-bumped build | 200 `{"ok":true}`; FR-5.22 follows | Other body | bench |
-| FR-15.5 (core) | Upload state machine: second begin while busy | Refused with 409 | Accepted | host |
+| FR-15.1 | Note L1's `slot=`; request a valid hosted image; then request it again | After each OTA, L1's `slot=` is the other slot (`ota_0` ↔ `ota_1`), each boot ONLINE and confirmed | The same slot after an OTA; an L14 line | bench |
+| FR-15.5 | Host a 3 MB image; request it; request again within 1 s | Second answer 409; first download completes | Two downloads; the second answered 202 | bench |
+| FR-15.5 (core) | Download state machine: second start while busy | Refused with 409 | Accepted | host |
+| FR-15.8 | ONLINE; `POST /ota` with a hosted image URL | 202 `{"ok":true}` within 2 s; the bench activity log shows the device fetching the file | 200 with a delayed answer after the download; no fetch | bench |
+| FR-15.9 (core) | Parse bodies: not JSON; `{}`; `{"url":5}`; `https://…`; 257-character URL; valid | 400 for each invalid; accepted only for the valid one | Any invalid body accepted | host |
+| FR-15.9 | ONLINE; `POST /ota` with `{"url":"ftp://x"}` | 400; L12; no fetch | 202 | bench |
+| FR-15.10 | Host the CI artefact of a version-bumped build; request it | K10, then FR-5.22's restart into the new `fw=` | K11; old `fw=` | bench |
 
 Full form:
 
 ```yaml
-id: FR-15.3
+id: FR-15.11
 verification:
   preconditions:
-    - Device ONLINE running build A.
+    - Device ONLINE running build A; bench hosts (1) 300 kB of random bytes, (2) build A's image cut to its first 300 kB, (3) a 4194305-byte file starting with a valid image header.
   stimulus:
-    - POST /ota with 300 kB of random bytes; then POST /ota with build A's image truncated to its first 300 kB but a correct Content-Length for the truncated body; then USB reset.
+    - Request each of (1), (2), (3) in turn with POST /ota; then request a URL that answers 404; then USB reset.
   expected_observations:
-    - 400 for each upload, each with an L12 line.
-    - "web: online" continues; GET /api/status still answers with fw_version = A.
-    - After the USB reset, the boot line shows fw=A and no L14 line.
-  timing: answers within 30 s of the last body byte
+    - Each request answered 202, followed by K11 for each download.
+    - "web: online" continues; GET /api/status still answers with fw_version = A after every attempt.
+    - After the USB reset, the boot line shows fw=A on the same slot, and no L14 line.
+  timing: K11 within 60 s of each request
   tolerance: none
   prohibited_outcomes:
     - Any restart before the USB reset.
-    - A boot into the other slot, or L14 after the USB reset (the slot was switched).
-    - 200 for either upload.
+    - K10 for any of the four.
+    - A boot into the other slot, or L14, after the USB reset (the slot was switched).
   tier: bench
   evidence:
-    - Relay responses; serial capture through the USB reset.
+    - Bench activity log of the four fetches; serial capture through the USB reset.
   cleanup:
-    - Device running build A, ONLINE.
+    - Device running build A, ONLINE; hosted test files deleted.
 ```
 
 ```yaml
-id: FR-15.6
+id: FR-15.11 (stall)
 verification:
   preconditions:
-    - Device ONLINE running build A.
+    - Device ONLINE running build A; a bench-side HTTP server that sends the headers and 100 kB of build B, then holds the connection open without sending.
   stimulus:
-    - Open a raw TCP connection to port 80, send POST /ota with Content-Length of build B, send the first 500 kB of B, close the connection.
+    - POST /ota with that server's URL; wait 45 s.
   expected_observations:
-    - The device stays ONLINE; GET /api/status answers with fw_version = A.
-    - A following complete upload of B is accepted (FR-15.4), proving the receiver recovered.
-  timing: status answered within 10 s of the close
-  tolerance: none
+    - K11 between 30 s and 33 s after the last byte was sent.
+    - A following valid request (FR-15.10) is accepted with 202, proving the receiver recovered.
+  timing: 30 s stall detection
+  tolerance: + 3 s
   prohibited_outcomes:
     - A restart.
-    - 409 for the following complete upload (receiver stuck "in progress").
+    - No K11 within 45 s (download hangs forever).
+    - 409 for the following request (receiver stuck "in progress").
   tier: bench
   evidence:
-    - Serial capture; relay responses.
+    - Serial capture; bench-side server log with the last-byte timestamp.
   cleanup:
-    - Re-upload build A; device ONLINE and confirmed.
+    - Device running build A, ONLINE and confirmed.
 ```
 
 ---
@@ -1088,12 +1152,13 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | HTTP on port 80 (status, OTA) in ONLINE; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs |
+| Remote exposure | HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
 | Credentials | One WiFi password, stored in NVS; never output by the device (FR-9.3) |
 
-Accepted risks [user]: unauthenticated OTA; open portal SoftAP (anyone in radio
+Accepted risks [user]: unauthenticated OTA (anyone on the LAN can make the device
+download and run any image from any HTTP URL); open portal SoftAP (anyone in radio
 range during PROVISIONING can submit credentials or read submitted ones);
 plaintext HTTP and logs; unencrypted NVS. The profile justifies these protections
 only: never disclosing the password, keeping the radio surface to what the
@@ -1210,7 +1275,7 @@ verification:
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-19.2 | Hang build, variant http; ONLINE; relay `GET /hang` | Boot line `reason=TASK_WDT` 10 – 15 s later; ONLINE again | No restart; reason ≠ TASK_WDT | bench |
-| FR-19.1 (negative) | Shipped build; ONLINE; 100 requests plus a full OTA upload | No `TASK_WDT` boot | A watchdog reset during normal load or OTA | bench |
+| FR-19.1 (negative) | Shipped build; ONLINE; 100 requests plus a full OTA download | No `TASK_WDT` boot | A watchdog reset during normal load or OTA | bench |
 
 ---
 
@@ -1243,9 +1308,9 @@ verification:
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
 USB (C-10.5) → first boot enters the portal (FR-5.11) → join `TDS3-…` and submit
 credentials (§13) → the device joins the network and shows its IP (§5.4) → open
-`http://<ip>/` or `http://tds3-….local/` (§14, §17) → update by uploading an image
-to `/ota` (§15; a bad image is refused, an image that never reaches the network is
-rolled back) → to change networks, hold BOOT 5 s (§18) and provision again → a
+`http://<ip>/` or `http://tds3-….local/` (§14, §17) → update by posting an image URL
+to `/ota` (§15; a bad download changes nothing, an image that never reaches the
+network is rolled back) → to change networks, hold BOOT 5 s (§18) and provision again → a
 hang restarts the device by itself (§19). Step-by-step instructions:
 [User Manual](../UserDocumentation/User-Manual.md).
 
@@ -1271,7 +1336,7 @@ operator prompt; the answer and timestamp are the evidence.
 One bench run on the shipped build: erase and flash → FR-5.11 → provision via
 `enter-portal` (FR-5.13, FR-13.x) → ONLINE (NFR-5.1, FR-7.8 – 7.10) → status API,
 page and counter (§14, FR-5.26) → AP outage (NFR-5.2) → OTA of a version-bumped
-build (FR-5.22, FR-5.23) → no-confirm build (FR-5.24) → operator factory reset
+build hosted on the bench (FR-15.8, FR-15.10, FR-5.22, FR-5.23) → no-confirm build (FR-5.24) → operator factory reset
 (FR-5.21) → re-provision. Then the LCD fault and hang builds. Reflash the shipped
 build and leave the device ONLINE at the end.
 
@@ -1310,7 +1375,10 @@ Build-time constants:
 | HTTP port | 80 | [user] |
 | `GET /` p95 | ≤ 500 ms | [user] |
 | OTA max image | 0x400000 bytes | [user] |
-| Restart after OTA accept / factory reset | ≤ 2 s | [user] |
+| Restart after OTA success / factory reset | ≤ 2 s | [user] |
+| OTA URL max length | 256 characters | [proposed] |
+| OTA download stall timeout | 30 s | [proposed] |
+| Heartbeat (`alive`) period | 10 s ± 1 s | [user, testbench compatibility contract] |
 | OTA confirm deadline | 60 s from reset | [user] |
 | Factory-reset hold | 5 s | [user] |
 | Watchdog timeout | 10 s | [user] |
@@ -1329,27 +1397,30 @@ Build-time constants:
 | FR-7.1 – FR-7.4 | `hello:` log lines | FR-7.7 – FR-7.13 |
 | FR-9.1 | No WiFi or BLE radio | FR-9.2 (BLE), FR-9.4, FR-9.5 |
 | C-10.4 | 1 MB single-app partition | C-10.6, C-10.7 |
+| FR-15.2 – FR-15.4, FR-15.6, FR-15.7 | OTA by pushed image body (411, 413, 400, 200 answers; broken upload) | FR-15.8 – FR-15.11 (OTA by URL pull, matching the testbench's OTA flow) |
 
 FR-6.1 – FR-6.7 keep their IDs with state names updated to §5.3's display region;
 FR-6.6 now covers a 20-character line.
 
 ```yaml
 document_status: draft
-fsd_version: 0.1.1
+fsd_version: 0.2.0
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: requirements tagged [user], [derived] and [pack:esp32] approved; values tagged open
+approval_status: all requirements approved; two values [proposed] (open_decisions)
 created: 2026-10-23
 last_updated: 2026-10-23
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - 0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS
   - 0.1.1 2026-10-23 all proposed values accepted by the user (Appendix A)
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4]
+  - 0.2.0 2026-10-23 OTA by URL pull (testbench OTA flow), FR-15.2-15.4/15.6/15.7 superseded by FR-15.8-15.11, FR-5.22 and T11/T12 restated; testbench compatibility log lines K1-K12 (FR-7.18-7.29); R-6 restated
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7]
 open_decisions:
-  - Every value marked (Appendix A lists them): deadlines, retry schedule, watchdog timeout, hold time, SSID/hostname prefixes, SoftAP channel, UDP destination
+  - FR-15.8 URL length limit 256 characters [proposed]
+  - FR-15.11 download stall timeout 30 s [proposed]
 related_test_baseline: none yet
 ```

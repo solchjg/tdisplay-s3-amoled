@@ -9,7 +9,7 @@
 | L1 | Serial Log Interface (FSD §7) | `components/web_log/` (line formatting core pure; emit via esp_log) | esp_log |
 | L1 | Provisioning Portal (FSD §13) | `components/portal/` (form validation and HTML escaping core pure; SoftAP, httpd and DNS glue) | esp_wifi, esp_netif, esp_http_server, lwIP |
 | L1 | Status HTTP Server (FSD §14) | `components/status_http/` (JSON and HTML rendering core pure) | esp_http_server |
-| L1 | OTA Receiver (FSD §15) | `components/ota_rx/` (upload state core pure); registers its handler on the server handle the composition root passes in | app_update, esp_http_server |
+| L1 | OTA Receiver (FSD §15) | `components/ota_rx/` (request parsing and download state core pure; download via esp_http_client into the other slot); registers its handler on the server handle the composition root passes in | app_update, esp_http_client, esp_http_server |
 | L1 | UDP Log (FSD §16) | `components/udp_log/` (prefix-stripping core pure) | lwIP |
 | L1 | mDNS Responder (FSD §17) | `components/mdns_name/` | managed `espressif/mdns` |
 | L1 | BOOT Button (FSD §18) | `components/button/` (hold detector core pure) | GPIO driver |

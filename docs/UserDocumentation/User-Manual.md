@@ -38,16 +38,18 @@ network can read it.
 
 *Not yet available.*
 
-Send the new application image as the body of `POST /ota`, for example:
+Put the new application image on any HTTP server the device can reach, then
+tell the device its URL:
 
 ```bash
-curl --data-binary @tdisplay-s3-webserver.bin \
-     -H 'Content-Type: application/octet-stream' http://<IP address>/ota
+curl -H 'Content-Type: application/json' \
+     -d '{"url":"http://<server>/tdisplay-s3-webserver.bin"}' http://<IP address>/ota
 ```
 
-The device answers `{"ok":true}` and restarts into the new image. If the new image
+The device answers `{"ok":true}`, downloads the image, and restarts into it. If
+the download fails it keeps running the current firmware. If the new image
 cannot reach your network within about a minute, the device returns to the
-previous firmware by itself. Anyone on your network can upload firmware; use it
+previous firmware by itself. Anyone on your network can make it install firmware; use it
 only on a network you trust.
 
 ## 5. Changing networks (factory reset)
