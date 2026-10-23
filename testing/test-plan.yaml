@@ -1382,4 +1382,4 @@ tests:
     needs: [seam-no-network-build, bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "A ONLINE; OTA to no-network build B: one boot of B, L16 at 60-63 s of B's uptime, restart, A boots with 'rolled back, invalid=<B slot>', not PROVISIONING, ONLINE again"
     impl: tests/bench/test_rollback.py::test_never_online_image_is_rolled_back
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: 6b87b72, firmware: "A 0.0.0-dev / B 0.0.0-no-network (946e5e7, Build Firmware run 40033728057)", date: 2026-10-23, evidence: "bench run, 1 passed in 162 s (second run; first run read the ring twice-written boot line as two boots). One B boot, L16 at 60.5 s of its uptime, A booted with rolled back, invalid=ota_1, ONLINE again"}
