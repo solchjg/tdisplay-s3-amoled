@@ -4,11 +4,9 @@ Precondition: the device is ONLINE with stored credentials. The test ends by
 re-provisioning it through the bench, as the contract's cleanup requires.
 """
 
-import re
 import time
 
-from conftest import (BENCH_PASS, BENCH_SSID, SOFTAP_SSID, enter_portal, relay,
-                      save_evidence, stop_bench_ap, web_lines)
+from conftest import relay, save_evidence, web_lines
 
 run = {}
 
@@ -59,22 +57,3 @@ def test_long_press_resets_on_release(bench, dut, online_ip):
     assert ts["web: boot reason="] - ts["web: factory reset"] <= 3.0
     assert not any("waiting for download" in ln for ln in lines), "reset with BOOT held"
     run["reset"] = True
-
-
-# TC-PORT-10 · FR-13.2 (the portal form), on the PROVISIONING device the reset left
-def test_portal_serves_the_form(bench, dut):
-    assert run.get("reset"), "TC-BTN-10 did not return the device to the portal"
-    stop_bench_ap(bench)
-    bench.sta_join(SOFTAP_SSID, timeout=30)
-    try:
-        code, body, hdr = relay(bench, "GET", "http://192.168.4.1/")
-        page = body.decode()
-        assert code == 200 and "text/html" in hdr.get("Content-Type", hdr.get("content-type", ""))
-        form = re.search(r"<form[^>]*>", page).group(0)
-        assert 'method="post"' in form and 'action="/connect"' in form, form
-        assert 'name="ssid"' in page and 'name="password"' in page
-    finally:
-        bench.sta_leave()
-    res = enter_portal(bench, SOFTAP_SSID, BENCH_SSID, BENCH_PASS)   # cleanup: re-provision
-    assert res.get("ok"), res
-    assert bench.serial_monitor(dut, pattern="web: online ip=", timeout=90).get("matched")

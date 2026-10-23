@@ -1210,10 +1210,10 @@ tests:
     wave: 1
     fsd_phase: 2
     tier: bench
-    verifies: [FR-13.2]
-    needs: [bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
-    observable: "joined to TDS3-71C734: GET / 200 text/html, form method=post action=/connect, fields ssid and password"
-    impl: tests/bench/test_button.py::test_portal_serves_the_form
+    verifies: [FR-13.2, FR-7.20]
+    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
+    observable: "erased device; joined to TDS3-71C734: GET / 200 text/html, form method=post action=/connect, fields ssid and password; K3 Portal page requested logged"
+    impl: tests/bench/test_portal.py::test_portal_serves_the_form
     result: {status: successful, commit: f831c48, firmware: 0.0.0-dev (f831c48, Build Firmware run 40030334418), date: 2026-10-23, evidence: "bench run, junit 13 passed in 223.2 s; operator long and short press on the Pi display"}
 
   - id: TC-HTTP-12
