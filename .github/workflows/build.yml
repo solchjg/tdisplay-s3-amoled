@@ -119,6 +119,10 @@ jobs:
         working-directory: /
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
+      # The shipped sdkconfig.defaults names partitions.csv relative to the
+      # project directory; the test build uses the shipped table (C-10.6).
+      - name: Use the shipped partition table
+        run: cp "$GITHUB_WORKSPACE/partitions.csv" .
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null

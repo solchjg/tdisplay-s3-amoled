@@ -54,6 +54,9 @@ requirements first need them, never earlier.
 ## Test builds
 
 Each is built by CI as a test artefact under `tests/target/` and never released.
+Each uses the shipped `sdkconfig.defaults` and the shipped `partitions.csv`,
+copied into its project directory before the build (the defaults name the
+table relative to the project); never a table of its own.
 
 ### LCD fault build
 
