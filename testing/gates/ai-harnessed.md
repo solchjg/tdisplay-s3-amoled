@@ -68,6 +68,9 @@ gh api repos/solchjg/tdisplay-s3-webserver/actions/permissions/fork-pr-contribut
   asserting product behaviour is.
 - The verify job silently passing with zero bench tests: it must fail
   (`pytest` exit 5), so no release can be published before the journey exists.
+- The verify job passing because every journey step **skipped** (wrong DUT, no
+  `FIRMWARE_DIR`, a debug hold): pytest exits 0 on skips, so the job must count
+  passed steps against the JRN-01 entries in the plan and fail on any skip.
 - A green build that never ran `set-target esp32s3`, or that still used the
   single-app partition table.
 

@@ -160,8 +160,22 @@ jobs:
         run: curl -fsS --max-time 10 "$TESTBENCH_URL/api/info"
         env:
           TESTBENCH_URL: http://192.168.2.230:8080
+      # A skipped step is `not done`, which is not a pass: the release needs
+      # every JRN-01 step declared in the plan to have run and passed.
       - name: Journey on the released bytes
-        run: pytest tests/bench -m journey -q
+        run: |
+          pytest tests/bench -m journey -q -rs --junitxml=journey.xml
+          python3 - <<'PY'
+          import re, xml.etree.ElementTree as ET
+          plan = open("testing/test-plan.yaml").read()
+          want = len(re.findall(r"^\s*- id: JRN-01\.", plan, re.M))
+          s = ET.parse("journey.xml").getroot()
+          s = s if s.tag == "testsuite" else s.find("testsuite")
+          ran = int(s.get("tests")) - int(s.get("skipped")) - int(s.get("failures")) - int(s.get("errors"))
+          print(f"journey: {ran} passed of {want} declared")
+          assert int(s.get("skipped")) == 0, "a journey step was skipped (not done)"
+          assert ran == want, "journey incomplete"
+          PY
         env:
           TESTBENCH_URL: http://192.168.2.230:8080
           FIRMWARE_DIR: ${{ github.workspace }}/artifact/coldflash
