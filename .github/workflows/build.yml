@@ -66,13 +66,13 @@ jobs:
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
 
-      - name: Check the image fits the 1 MB factory partition (FSD C-10.4)
+      - name: Check the image fits a 4 MB OTA slot (FSD C-10.7)
         run: |
           SIZE=$(stat -c %s build/tdisplay_webserver.bin)
           echo "app image: $SIZE bytes"
-          [ "$SIZE" -le 1048576 ] || { echo "FATAL: image exceeds 1 MB"; exit 1; }
+          [ "$SIZE" -le 4194304 ] || { echo "FATAL: image exceeds 4 MB"; exit 1; }
 
-      # Host-tier inspection of this build (FSD C-10.1 – C-10.4, FR-9.1);
+      # Host-tier inspection of this build (FSD C-10.1 – C-10.3, C-10.6 – C-10.8, FR-9.2);
       # in ci.yml these tests skip for want of a build.
       - name: Inspect the build (tests/host/test_build.py)
         run: |
@@ -102,7 +102,7 @@ jobs:
             sdkconfig.generated
             coldflash/
 
-  # Fault-injection test builds (FSD §5.5): test artefacts for Wave 3's
+  # LCD fault-injection test builds (FSD §5.6): test artefacts for the
   # negative tests. `release` never downloads them.
   lcd-fault:
     runs-on: ubuntu-latest

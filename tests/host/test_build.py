@@ -1,8 +1,9 @@
 """Host tier: inspect a build's outputs against FSD §10 and §9.
 
-Reads BUILD_OUTPUT: a build directory (sdkconfig, tdisplay_webserver.bin/.elf) or
-a CI artefact (sdkconfig.generated, firmware_v*.bin/.elf). Without it the
-tests skip, which is `not done`, never a pass.
+Reads BUILD_OUTPUT: a build directory (sdkconfig, tdisplay_webserver.bin/.elf,
+partition_table/partition-table.bin) or a CI artefact (sdkconfig.generated,
+firmware_v*.bin/.elf, coldflash/partition-table.bin). Without it the tests
+skip, which is `not done`, never a pass.
 """
 
 import glob
@@ -12,7 +13,16 @@ import struct
 import pytest
 
 APP_DESC_MAGIC = 0xABCD5432
-FACTORY_SIZE = 0x100000  # default single-app table: 1 MB factory partition
+OTA_SLOT_SIZE = 0x400000  # C-10.7
+PART_MAGIC = b"\xaa\x50"
+# C-10.6: (label, type, subtype, offset, size); app=0, data=1
+PARTITIONS = [
+    ("nvs", 1, 0x02, 0x9000, 0x6000),
+    ("otadata", 1, 0x00, 0xF000, 0x2000),
+    ("phy_init", 1, 0x01, 0x11000, 0x1000),
+    ("ota_0", 0, 0x10, 0x20000, 0x400000),
+    ("ota_1", 0, 0x11, 0x420000, 0x400000),
+]
 
 
 def _output_dir():
@@ -45,6 +55,26 @@ def app_bin():
 @pytest.fixture(scope="module")
 def app_elf():
     return _one(_output_dir(), "tdisplay_webserver.elf", "firmware_v*.elf")
+
+
+@pytest.fixture(scope="module")
+def partition_table():
+    return _one(_output_dir(), "partition_table/partition-table.bin",
+                "coldflash/partition-table.bin")
+
+
+def _partitions(path):
+    """(label, type, subtype, offset, size) rows of an ESP partition table binary."""
+    with open(path, "rb") as fh:
+        blob = fh.read()
+    rows = []
+    for off in range(0, len(blob), 32):
+        entry = blob[off:off + 32]
+        if entry[:2] != PART_MAGIC:
+            break  # 0xEBEB MD5 entry or 0xFF padding ends the table
+        ptype, subtype, start, size = struct.unpack_from("<BBII", entry, 2)
+        rows.append((entry[12:28].split(b"\0")[0].decode(), ptype, subtype, start, size))
+    return rows
 
 
 def _app_desc(path):
@@ -98,16 +128,24 @@ def test_flash_size_is_stated_16mb(sdkconfig):
     assert not others, others
 
 
-# TC-BUILD-04 · C-10.4
-def test_app_fits_default_single_app_partition(sdkconfig, app_bin):
-    assert "CONFIG_PARTITION_TABLE_SINGLE_APP=y" in sdkconfig
-    assert "CONFIG_PARTITION_TABLE_CUSTOM=y" not in sdkconfig
-    assert os.path.getsize(app_bin) <= FACTORY_SIZE
+# TC-BUILD-06 · C-10.6
+def test_partition_table_is_exactly_the_stated_one(sdkconfig, partition_table):
+    assert "CONFIG_PARTITION_TABLE_CUSTOM=y" in sdkconfig
+    assert _partitions(partition_table) == PARTITIONS
 
 
-# TC-SEC-01 · FR-9.1
-def test_no_radio_initialisation_linked(app_elf):
+# TC-BUILD-07 · C-10.7
+def test_app_fits_an_ota_slot(app_bin):
+    assert os.path.getsize(app_bin) <= OTA_SLOT_SIZE
+
+
+# TC-BUILD-08 · C-10.8
+def test_bootloader_rollback_enabled(sdkconfig):
+    assert "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y" in sdkconfig
+
+
+# TC-SEC-02 · FR-9.2
+def test_no_ble_controller_linked(app_elf):
     symbols = _defined_symbols(app_elf)
     assert "app_main" in symbols, "symbol table not read (positive control)"
-    linked = symbols & {"esp_wifi_init", "esp_bt_controller_init"}
-    assert not linked, f"radio init linked: {sorted(linked)}"
+    assert "esp_bt_controller_init" not in symbols
