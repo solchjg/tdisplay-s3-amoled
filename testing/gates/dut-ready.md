@@ -22,7 +22,7 @@ bench answers only — never memory, transcripts, or the author's account.
 
 ```bash
 grep -c 'available: unproven' testing/test-plan.yaml                   # expect 0
-gh api repos/solchjg/tdisplay-s3-webserver/actions/runners -q '.runners[] | {name, status, labels: [.labels[].name]}'   # a runner labelled testbench
+gh api repos/solchjg/tdisplay-s3-webserver/actions/runners -q '.runners[] | {name, status, labels: [.labels[].name]}'   # a runner labelled testbench, unless release-verification is resolved `no` with its consequence
 curl -fsS http://192.168.2.230:8080/api/devices | jq '.slots[] | select(.label=="SLOT4") | {present, detected_chip}'
 ```
 
