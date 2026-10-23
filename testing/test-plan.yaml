@@ -343,7 +343,7 @@ tests:
     needs: [bench-flash, bench-flash-erase, dut-tdisplay-s3-slot4]
     observable: flash with erase reports success for every image in flash_args
     impl: tests/bench/test_journey.py::test_jrn_01_1_erase_and_flash
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: JRN-01.2
     title: First boot opens the provisioning portal
@@ -356,7 +356,7 @@ tests:
     needs: [bench-usb-reset, bench-serial-monitor, bench-wifi-scan, dut-tdisplay-s3-slot4, dut-wifi-slot4]
     observable: "`web: state=PROVISIONING` and `AP mode: SSID='TDS3-71C734'` on serial; the bench scan sees open SSID TDS3-71C734"
     impl: tests/bench/test_journey.py::test_jrn_01_2_portal_open
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: JRN-01.3
     title: The bench provisions credentials through the portal
@@ -369,7 +369,7 @@ tests:
     needs: [bench-enter-portal, bench-serial-monitor, dut-wifi-slot4]
     observable: "`Credentials saved` and `web: provisioned ssid=<bench SSID>` on serial, with no boot line after them"
     impl: tests/bench/test_journey.py::test_jrn_01_3_provisioned
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: JRN-01.4
     title: The device joins the bench AP
@@ -382,7 +382,7 @@ tests:
     needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "`STA got IP` and `web: online ip=<a.b.c.d>`; the bench AP station list holds the DUT's MAC with that IP"
     impl: tests/bench/test_journey.py::test_jrn_01_4_online
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: JRN-01.5
     title: The status API answers with the flashed version
@@ -395,7 +395,7 @@ tests:
     needs: [bench-http-relay, dut-wifi-slot4]
     observable: "relay GET http://<ip>/api/status → 200, JSON with exactly the 6 keys (no uptime_s), fw_version equal to the artefact's version, ip equal to step 4's"
     impl: tests/bench/test_journey.py::test_jrn_01_5_status
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: JRN-01.6
     title: The display mirrors IP and request count
@@ -408,7 +408,7 @@ tests:
     needs: [bench-serial-monitor, bench-http-relay, lcd-st7789, dut-wifi-slot4]
     observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
     impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: TC-BUILD-01
     title: Build targets esp32s3
@@ -421,7 +421,7 @@ tests:
     needs: []
     observable: "sdkconfig CONFIG_IDF_TARGET=\"esp32s3\""
     impl: tests/host/test_build.py::test_target_is_esp32s3
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-02
     title: Image built with ESP-IDF v6.0.2
@@ -434,7 +434,7 @@ tests:
     needs: []
     observable: "esp_app_desc idf_ver = v6.0.2"
     impl: tests/host/test_build.py::test_idf_version_is_v6_0_2
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-03
     title: 16 MB flash size stated
@@ -447,7 +447,7 @@ tests:
     needs: []
     observable: "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y and no other size"
     impl: tests/host/test_build.py::test_flash_size_is_stated_16mb
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-06
     title: Partition table is exactly C-10.6
@@ -460,7 +460,7 @@ tests:
     needs: []
     observable: "parsed partition-table.bin equals the five C-10.6 rows"
     impl: tests/host/test_build.py::test_partition_table_is_exactly_the_stated_one
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-07
     title: Application image fits a 4 MB slot
@@ -473,7 +473,7 @@ tests:
     needs: []
     observable: "app .bin <= 0x400000 bytes"
     impl: tests/host/test_build.py::test_app_fits_an_ota_slot
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-08
     title: Bootloader rollback enabled
@@ -486,7 +486,7 @@ tests:
     needs: []
     observable: "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y"
     impl: tests/host/test_build.py::test_bootloader_rollback_enabled
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-SEC-02
     title: No BLE controller linked
@@ -499,7 +499,7 @@ tests:
     needs: []
     observable: "no esp_bt_controller_init in the ELF symbol table"
     impl: tests/host/test_build.py::test_no_ble_controller_linked
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-LCD-01
     title: LCD configuration states the FSD values
@@ -759,7 +759,7 @@ tests:
     needs: []
     observable: "app .bin has the web tag, no hello tag, no Hello, world!"
     impl: tests/host/test_build.py::test_image_carries_no_hello
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "Build Firmware run 40024571526 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), date: 2026-10-23, evidence: "Build Firmware run 40028038664 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-LOG-20
     title: Init marker once, after startup
@@ -772,7 +772,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "exactly one Init complete, running event-driven, after the app_init lines"
     impl: tests/bench/test_log.py::test_init_marker_once_after_startup
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
 
   - id: TC-LOG-21
     title: Boot line first and once
@@ -785,7 +785,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "first web: line is boot reason=<NAME> fw=.. slot=ota_0|ota_1, once"
     impl: tests/bench/test_log.py::test_boot_line_first_and_once
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
 
   - id: TC-LOG-22
     title: "Every web: line has the ESP-IDF prefix"
@@ -798,7 +798,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "each web: line matches <L> (<ms>) web: "
     impl: tests/bench/test_log.py::test_every_web_line_has_the_esp_idf_prefix
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
 
   - id: TC-LOG-23
     title: Heartbeat every 10 s from 0
@@ -811,7 +811,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "70 s capture: >= 6 alive lines, N = 0,1,2,..., gaps 9 - 11 s"
     impl: tests/bench/test_log.py::test_alive_every_10_s_counting_from_0
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
 
   - id: TC-LCD-10
     title: Operator sees the PROVISIONING screen upright, white on black, lit
@@ -1006,7 +1006,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
     observable: "3 sequential GET /api/status give requests k, k+1, k+2"
     impl: tests/bench/test_status.py::test_request_count_rises_by_one_per_request
-    result: {status: successful, commit: daacf05, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run with online_ip precondition: 3 passed in 16 s; UDP datagrams equal serial text"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
 
   - id: TC-HTTP-11
     title: "Page shows every field and agrees with the JSON"
@@ -1019,7 +1019,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
     observable: "200 text/html; fw_version, ip, hostname equal the JSON; labels present; no uptime"
     impl: tests/bench/test_status.py::test_page_shows_every_field_and_agrees_with_the_json
-    result: {status: successful, commit: daacf05, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run with online_ip precondition: 3 passed in 16 s; UDP datagrams equal serial text"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
 
   - id: TC-UDP-01
     title: "Only web lines at I/W/E, stripped of prefix and colour"
@@ -1058,7 +1058,7 @@ tests:
     needs: [bench-udp-log, bench-http-relay, dut-wifi-slot4]
     observable: "5 GET /api/status give 5 datagrams 'web: http GET /api/status 200 n=k' from the DUT, equal to the serial text"
     impl: tests/bench/test_udp.py::test_web_lines_arrive_as_datagrams_equal_to_serial
-    result: {status: successful, commit: daacf05, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run with online_ip precondition: 3 passed in 16 s; UDP datagrams equal serial text"}
+    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
 
   - id: TC-NET-10
     title: "Reset reaches ONLINE within 10 s without the portal"
@@ -1110,7 +1110,7 @@ tests:
     needs: []
     observable: "url extracted with whitespace, other keys, exactly 256 characters"
     impl: tests/host/test_ota_rx.py::test_valid_request_yields_the_url
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: ca55807, date: 2026-10-23, evidence: "local host run (tests/host: 73 passed); CI host tests + lint run 40027513315"}
 
   - id: TC-LOG-24
     title: "L11 and K11 OTA line formats"
@@ -1123,7 +1123,7 @@ tests:
     needs: []
     observable: "ota downloaded bytes=<n>; OTA failed: <reason>"
     impl: tests/host/test_web_log.py::test_ota_lines
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: ca55807, date: 2026-10-23, evidence: "local host run (tests/host: 73 passed); CI host tests + lint run 40027513315"}
 
   - id: TC-OTA-10
     title: "OTA request answered 202 within 2 s"
@@ -1136,7 +1136,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "POST /ota {url} -> 202 {ok:true} within 2 s (+ relay slack)"
     impl: tests/bench/test_ota.py::test_ota_request_answered_202_within_2_s
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: TC-OTA-11
     title: "Download succeeds and restarts into the new image"
@@ -1149,7 +1149,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "OTA succeeded, restart (reason SW) within 2 s, boot line fw = hosted image version, slot switched"
     impl: tests/bench/test_ota.py::test_download_succeeds_and_restarts_into_the_new_image
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
 
   - id: TC-OTA-12
     title: "New image confirms itself on reaching ONLINE"
@@ -1162,4 +1162,4 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "after the OTA boot: state=ONLINE then ota confirmed; no ota not confirmed"
     impl: tests/bench/test_ota.py::test_new_image_confirms_itself_online
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
