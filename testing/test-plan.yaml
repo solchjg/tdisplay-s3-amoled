@@ -344,6 +344,16 @@ gates:
     commit: c6897a0
     checker: fresh subagent, gate file + repo only (sixth round after the 0.3.0 delta; rounds 1-5 SHUT, findings fixed in FSD 0.3.1-0.3.5)
     carried: none (folded into FSD 0.3.6)
+  - gate: Load defined
+    verdict: OPEN
+    date: 2026-10-23
+    commit: eaa48f6
+    checker: fresh subagent, gate file + repo only (FSD 0.3.7; the 0.3.6 round was SHUT, findings fixed)
+    carried: >
+      Non-blocking notes for the next /define delta: add §4.1 risk rows for
+      bench #54 (AP rejoin after reset) and for one bench radio not scanning
+      while it beacons (FR-9.4 ONLINE part, FR-5.13 SoftAP-gone timing); put
+      the bench clock's +-1 s resolution in Appendix A; order R-12 before R-13.
   - gate: DUT ready
     verdict: OPEN
     date: 2026-10-23
@@ -1695,3 +1705,16 @@ tests:
     observable: "bench UDP listener stopped; 20 GET /api/status: 20 answers 200, 20 serial L10 lines, no restart"
     impl: none (blocked before it can run)
     result: {status: not done, reason: "blocked: bench-udp-listener-off = no"}
+
+  - id: TC-OTA-33
+    title: A stalled download fails after 30 s
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-15.11]
+    needs: [stall-http-peer, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    observable: "the FSD FR-15.11 (stall) contract: K11 30-33 s after the last byte; a following valid request answered 202; no restart before it"
+    impl: none (blocked before it can run)
+    result: {status: not done, reason: "blocked: stall-http-peer = no (SensorsIot/Embedded-AI-Harness#55)"}
