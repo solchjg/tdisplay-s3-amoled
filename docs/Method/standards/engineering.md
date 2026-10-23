@@ -15,7 +15,7 @@
   passes.
 - **Errors fail loudly** — every `esp_err_t` is checked; a display error is
   reported to the state machine, never ignored, and never escalated to
-  `ESP_ERROR_CHECK` (which aborts and violates FR-5.10).
+  `ESP_ERROR_CHECK` (which aborts and violates FR-5.28).
 - **Component requirements only for what is included today** — ESP-IDF resolves
   `REQUIRES`/`PRIV_REQUIRES` at configure time; a speculative entry breaks the build.
 - **Commits** — imperative subject line; never commit `build/`,
