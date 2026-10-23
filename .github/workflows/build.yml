@@ -173,6 +173,43 @@ jobs:
           name: nonetwork
           path: tests/target/no_network/build/tdisplay_webserver_nonetwork.bin
 
+  # Hang test builds (FSD §19.3, FR-19.1/19.2): watchdog test artefacts, never released.
+  hang:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    strategy:
+      matrix:
+        variant: [app, http]
+    defaults:
+      run:
+        shell: bash
+        working-directory: tests/target/hang
+    steps:
+      - name: Trust the workspace
+        working-directory: /
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+      - name: Use the shipped partition table
+        run: cp "$GITHUB_WORKSPACE/partitions.csv" .
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig -DHANG_VARIANT=${{ matrix.variant }} \
+                -DSDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/sdkconfig.defaults"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+      - name: Collect flash set from flash_args
+        run: |
+          mkdir -p out
+          cp build/flash_args out/
+          awk '$1 ~ /^0x/ {print $2}' build/flash_args | while read -r f; do
+            cp "build/$f" out/ || { echo "FATAL: missing build/$f"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hang-${{ matrix.variant }}
+          path: tests/target/hang/out/
+
   verify:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')

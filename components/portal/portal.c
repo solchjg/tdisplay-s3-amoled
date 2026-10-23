@@ -21,22 +21,6 @@ static const char FORM[] =
     "<p><label>Password <input name=\"password\" type=\"password\" maxlength=\"63\"></label></p>"
     "<p><button type=\"submit\">Save and connect</button></p></form></body></html>";
 
-// FR-13.7: the five HTML-special characters, escaped.
-static void escape(const char *in, char *out, size_t cap)
-{
-    size_t n = 0;
-    for (; *in && n + 7 < cap; in++) {
-        const char *rep = *in == '&' ? "&amp;" : *in == '<' ? "&lt;" : *in == '>' ? "&gt;"
-                        : *in == '"' ? "&quot;" : *in == '\'' ? "&#39;" : NULL;
-        if (rep) {
-            n += (size_t)snprintf(out + n, cap - n, "%s", rep);
-        } else {
-            out[n++] = *in;
-        }
-    }
-    out[n] = '\0';
-}
-
 static esp_err_t get_root(httpd_req_t *req)
 {
     ESP_LOGI(TAG, "Portal page requested");  // K3
@@ -69,7 +53,7 @@ static esp_err_t post_connect(httpd_req_t *req)
                                                           : "invalid field: password");
     }
     char esc[6 * PC_SSID_MAX + 1], page[512];
-    escape(creds.ssid, esc, sizeof esc);
+    pc_html_escape(creds.ssid, esc, sizeof esc);
     snprintf(page, sizeof page,
              "<!doctype html><html><head><meta charset=\"utf-8\"><title>TDS3 setup</title>"
              "</head><body><p>Saved. Connecting to %s.</p></body></html>", esc);

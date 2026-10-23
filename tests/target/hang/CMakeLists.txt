@@ -1,0 +1,19 @@
+# Hang test build (FSD §19.3, seam-hang-build): the shipped
+# composition root and components with a test-only hang: variant app blocks the
+# application task 20 s after startup, variant http adds GET /hang, which never
+# returns. The task watchdog must restart the device (FR-19.1, FR-19.2). A test artefact;
+# never released.
+cmake_minimum_required(VERSION 3.22)
+
+set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
+set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_log
+                         ${ROOT}/components/identity ${ROOT}/components/portal
+                         ${ROOT}/components/status_http ${ROOT}/components/udp_log
+                         ${ROOT}/components/ota_rx ${ROOT}/components/button
+                         ${ROOT}/components/mdns_name ${ROOT}/components/lcd)
+# Distinct from every shipped version, so the bench can tell the boots apart.
+set(HANG_VARIANT app CACHE STRING "Hang test variant: app or http")
+set(PROJECT_VER "0.0.0-hang-${HANG_VARIANT}")
+
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(tdisplay_webserver_hang)

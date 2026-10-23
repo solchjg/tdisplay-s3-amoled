@@ -675,7 +675,7 @@ tests:
     verifies: [FR-5.27, FR-7.12]
     needs: []
     observable: "next LCD_FAILED, actions = LOG_INIT_FAILED only"
-    impl: none (Wave 3)
+    impl: tests/host/test_device_logic.py::test_d2_start_failure_enters_lcd_failed_without_retry
     result: {status: not done, reason: Wave 3 (negatives locked)}
 
   - id: TC-DL-08
@@ -688,7 +688,7 @@ tests:
     verifies: [FR-5.27, FR-7.13]
     needs: []
     observable: "next LCD_FAILED, actions = LOG_WRITE_FAILED"
-    impl: none (Wave 3)
+    impl: tests/host/test_device_logic.py::test_d5_write_failure_enters_lcd_failed
     result: {status: not done, reason: Wave 3 (negatives locked)}
 
   - id: TC-DL-09
@@ -701,7 +701,7 @@ tests:
     verifies: [FR-5.27]
     needs: []
     observable: "100 ticks: no draw, no transition"
-    impl: none (Wave 3)
+    impl: tests/host/test_device_logic.py::test_d6_lcd_failed_never_touches_the_display
     result: {status: not done, reason: Wave 3 (negatives locked)}
 
   - id: TC-LOG-10
@@ -1407,3 +1407,94 @@ tests:
     observable: "PROVISIONING: /generate_204, /api/status, /hotspot-detect.html all land on the portal form (relay follows the 302); never status JSON, 404 or 204"
     impl: tests/bench/test_portal.py::test_other_paths_lead_to_the_portal_not_the_status
     result: {status: successful, commit: 0caf619, firmware: 0.0.0-dev (946e5e7, Build Firmware run 40033728057), date: 2026-10-23, evidence: "bench run, junit 3 passed in 141.4 s"}
+
+  - id: TC-DL-18
+    title: "T4: invalid submission stays and stores nothing"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-5.14]
+    needs: []
+    observable: "PROVISIONING x CS(invalid) -> PROVISIONING, no action"
+    impl: tests/host/test_device_logic.py::test_t4_invalid_submission_stays_and_stores_nothing
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-PORT-02
+    title: "Every invalid portal submission is refused"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-13.4, FR-5.14]
+    needs: []
+    observable: "empty/missing/33-byte SSID, 7/64-byte or missing password, malformed escape: refused"
+    impl: tests/host/test_portal.py::test_invalid_submission_is_refused
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-PORT-03
+    title: "HTML-special characters escaped"
+    shape: atomic
+    kind: security
+    wave: 3
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-13.7]
+    needs: []
+    observable: "<b>&\"' -> &lt;b&gt;&amp;&quot;&#39;"
+    impl: tests/host/test_portal.py::test_html_special_characters_are_escaped
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-OTA-02
+    title: "Every other OTA body refused"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-15.9]
+    needs: []
+    observable: "not JSON, {}, non-string, https/ftp, 257 characters, escapes, other key, array, empty: refused"
+    impl: tests/host/test_ota_rx.py::test_invalid_request_is_refused
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-WDT-10
+    title: "Blocked application task restarts via watchdog"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 1
+    tier: target
+    verifies: [FR-19.1, NFR-19.1]
+    needs: [seam-hang-build, bench-flash, bench-serial-monitor, dut-tdisplay-s3-slot4]
+    observable: "hang build app: restart 10-15 s (+3) after the hang, reason TASK_WDT, then CONNECTING not PROVISIONING"
+    impl: tests/bench/test_watchdog.py::test_blocked_application_task_restarts_via_watchdog
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-WDT-11
+    title: "Blocked HTTP handler restarts via watchdog"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-19.2, NFR-19.1]
+    needs: [seam-hang-build, bench-flash, bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    observable: "hang build http: GET /hang, restart 10-15 s (+3) later, reason TASK_WDT"
+    impl: tests/bench/test_watchdog.py::test_blocked_http_handler_restarts_via_watchdog
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-WDT-12
+    title: "No watchdog reset under load or OTA"
+    shape: atomic
+    kind: negative
+    wave: 3
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-19.1]
+    needs: [bench-http-relay, bench-firmware-hosting, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "100 requests plus a full OTA download: OTA succeeded, no reason=TASK_WDT"
+    impl: tests/bench/test_watchdog.py::test_no_watchdog_reset_under_load_or_ota
+    result: {status: not done, reason: not yet run against this commit}

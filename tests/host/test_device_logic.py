@@ -259,3 +259,33 @@ def test_t13_restarts_only_a_pending_image_outside_online(run):
         assert acts == cacts(run, "RESTART") and not acts & cacts(run, "CONFIRM_IMAGE"), state
         assert conn(run, state, "60", guard=0)[1] == 0, f"{state}: restart without a pending image"
     assert conn(run, "ONLINE", "60", guard=1)[1] == 0, "ONLINE x 60 must be ignored"
+
+
+# ── Wave 3: negatives ────────────────────────────────────────────────────
+
+# TC-DL-07 · D2 (FR-5.27, FR-7.12)
+def test_d2_start_failure_enters_lcd_failed_without_retry(run):
+    nxt, acts, draws = run("disp", "LCD_START", "start", 0, 0).split()
+    assert nxt == "LCD_FAILED" and int(acts) == actions(run, "LOG_INIT_FAILED")
+
+
+# TC-DL-08 · D5 (FR-5.27, FR-7.13)
+def test_d5_write_failure_enters_lcd_failed(run):
+    nxt, acts, draws = run("disp", "LCD_OK", "tick", 1, 0).split()
+    assert draws == "1" and nxt == "LCD_FAILED"
+    assert int(acts) == actions(run, "LOG_WRITE_FAILED")
+
+
+# TC-DL-09 · D6 (FR-5.27)
+def test_d6_lcd_failed_never_touches_the_display(run):
+    for changed in (0, 1):
+        for _ in range(50):
+            nxt, acts, draws = run("disp", "LCD_FAILED", "tick", changed, 1).split()
+            assert (nxt, int(acts), draws) == ("LCD_FAILED", 0, "0")
+    nxt, acts, _ = run("disp", "LCD_FAILED", "start", 0, 1).split()
+    assert nxt == "LCD_FAILED" and int(acts) == 0, "a second start is impossible, not a retry"
+
+
+# TC-DL-18 · T4 (FR-5.14)
+def test_t4_invalid_submission_stays_and_stores_nothing(run):
+    assert conn(run, "PROVISIONING", "CS", guard=0) == ("PROVISIONING", 0, 0)

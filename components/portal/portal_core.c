@@ -68,3 +68,23 @@ pc_result_t pc_parse_form(const char *body, size_t len, pc_creds_t *out)
     }
     return PC_OK;
 }
+
+void pc_html_escape(const char *in, char *out, size_t cap)
+{
+    size_t n = 0;
+    for (; *in; in++) {
+        const char *rep = *in == '&' ? "&amp;" : *in == '<' ? "&lt;" : *in == '>' ? "&gt;"
+                        : *in == '"' ? "&quot;" : *in == '\'' ? "&#39;" : NULL;
+        size_t len = rep ? strlen(rep) : 1;
+        if (n + len + 1 > cap) {
+            break;
+        }
+        if (rep) {
+            memcpy(out + n, rep, len);
+        } else {
+            out[n] = *in;
+        }
+        n += len;
+    }
+    out[n] = '\0';
+}

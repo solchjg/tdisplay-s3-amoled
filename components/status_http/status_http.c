@@ -2,6 +2,7 @@
 
 #include "esp_app_desc.h"
 #include "esp_system.h"
+#include "esp_task_wdt.h"
 #include "esp_http_server.h"
 #include "status_core.h"
 #include "web_log.h"
@@ -30,22 +31,39 @@ static esp_err_t answer(httpd_req_t *req, const char *type, const char *body, ui
     return err;
 }
 
+// FR-19.2: a handler is watched while it runs; one blocked for 10 s restarts the device.
+static void watch(void)
+{
+    esp_task_wdt_add(NULL);
+}
+
+static void unwatch(void)
+{
+    esp_task_wdt_delete(NULL);
+}
+
 static esp_err_t get_root(httpd_req_t *req)
 {
+    watch();
     static char page[SC_PAGE_MAX];
     sc_status_t st;
     collect(&st);
     sc_render_html(&st, page, sizeof page);
-    return answer(req, "text/html; charset=utf-8", page, st.requests);
+    esp_err_t err = answer(req, "text/html; charset=utf-8", page, st.requests);
+    unwatch();
+    return err;
 }
 
 static esp_err_t get_status(httpd_req_t *req)
 {
+    watch();
     static char body[SC_PAGE_MAX];
     sc_status_t st;
     collect(&st);
     sc_render_json(&st, body, sizeof body);
-    return answer(req, "application/json", body, st.requests);
+    esp_err_t err = answer(req, "application/json", body, st.requests);
+    unwatch();
+    return err;
 }
 
 // FR-14.4: anything else is 404, and still counted (FR-14.6).

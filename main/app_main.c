@@ -124,6 +124,20 @@ static void on_button_reset(void)
     post_conn(DL_EV_FACTORY_RESET);
 }
 
+#ifdef TDS3_TEST_HANG_HTTP
+// Hang test build, variant http (FSD §19.3): GET /hang blocks its handler for good,
+// watched like every handler (FR-19.2).
+static esp_err_t get_hang(httpd_req_t *req)
+{
+    esp_task_wdt_add(NULL);
+    ESP_LOGW(TAG, "hang: http handler blocked");
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    return ESP_OK;
+}
+#endif
+
 static void on_submit(const pc_creds_t *c)
 {
     app_event_t e = {.kind = APP_CONN, .ev = DL_EV_CREDS_SUBMITTED, .guard = true, .creds = *c};
@@ -249,6 +263,11 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err == ESP_OK) {
             err = ota_rx_register(status_http_handle(), on_ota, status_http_note);
         }
+#ifdef TDS3_TEST_HANG_HTTP
+        static const httpd_uri_t hang = {.uri = "/hang", .method = HTTP_GET,
+                                         .handler = get_hang};
+        httpd_register_uri_handler(status_http_handle(), &hang);
+#endif
         if (err != ESP_OK) {
             web_log_warn("status server start", err);
         }
@@ -390,6 +409,15 @@ void app_main(void)
             continue;
         }
         esp_task_wdt_reset();
+#ifdef TDS3_TEST_HANG_APP
+        // Hang test build, variant app (FSD §19.3): block 20 s after startup (FR-19.1).
+        if (tick == 20) {
+            ESP_LOGW(TAG, "hang: application task blocked");
+            for (;;) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+        }
+#endif
         disp = disp_tick(disp);
         if (++tick % ALIVE_TICKS == 0) {
             web_log_alive(alive++);

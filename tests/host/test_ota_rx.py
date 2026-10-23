@@ -56,3 +56,13 @@ URL = "http://192.168.4.1:8080/firmware/tdisplay-s3-webserver/ota-0.0.2.bin"
 def test_valid_request_yields_the_url(parse, body):
     want = URL if URL in body else "http://h/" + "a" * (256 - 9)
     assert parse(body) == want
+
+
+# TC-OTA-02 · FR-15.9 (core): every other body is refused
+@pytest.mark.parametrize("body", [
+    "not json", "{}", '{"url":5}', '{"url":"https://h/x.bin"}', '{"url":"ftp://h/x"}',
+    '{"url":"http://h/' + "a" * (257 - 9) + '"}',        # 257 characters
+    '{"url":"http://h/a\\"b"}', '{"uri":"http://h/x"}', '["http://h/x"]', "",
+])
+def test_invalid_request_is_refused(parse, body):
+    assert parse(body) is None, f"accepted {body!r}"

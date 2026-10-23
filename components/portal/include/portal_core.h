@@ -20,3 +20,6 @@ typedef enum {
 // Decode an application/x-www-form-urlencoded body with fields `ssid` and
 // `password` (any order, '+' and %XX decoded) and validate them (FR-13.4).
 pc_result_t pc_parse_form(const char *body, size_t len, pc_creds_t *out);
+
+// FR-13.7: copy `in` to `out` with & < > " ' escaped; cut to fit `cap`.
+void pc_html_escape(const char *in, char *out, size_t cap);

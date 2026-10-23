@@ -16,6 +16,12 @@ HARNESS = r"""
 
 int main(int argc, char **argv)
 {
+    if (argc > 2 && strcmp(argv[2], "escape") == 0) {
+        char out[256];
+        pc_html_escape(argv[1], out, sizeof out);
+        fputs(out, stdout);
+        return 0;
+    }
     pc_creds_t c;
     pc_result_t r = pc_parse_form(argv[1], strlen(argv[1]), &c);
     printf("%d|%s|%s", (int)r, c.ssid, c.password);
@@ -55,3 +61,29 @@ def parse(tmp_path_factory):
 ])
 def test_valid_form_is_accepted_and_decoded(parse, body, ssid, pw):
     assert parse(body) == (True, ssid, pw)
+
+
+# ── Wave 3: negatives and security ───────────────────────────────────────
+
+# TC-PORT-02 · FR-13.4, FR-5.14 (core): every invalid submission is refused
+@pytest.mark.parametrize("body", [
+    "ssid=&password=",                            # empty SSID
+    "password=12345678",                          # SSID missing
+    "ssid=" + "S" * 33 + "&password=",            # 33-byte SSID
+    "ssid=a&password=1234567",                    # 7-byte password
+    "ssid=a&password=" + "p" * 64,                # 64-byte password
+    "ssid=a",                                     # password field missing
+    "ssid=%G1&password=",                         # malformed escape
+    "ssid=Caf%C3%A9" + "x" * 28 + "&password=",   # 33 bytes once decoded
+])
+def test_invalid_submission_is_refused(parse, body):
+    ok, _, _ = parse(body)
+    assert not ok, f"accepted {body!r}"
+
+
+# TC-PORT-03 · FR-13.7 (core)
+def test_html_special_characters_are_escaped(tmp_path_factory, parse):
+    import subprocess as sp
+    exe = next(tmp_path_factory.getbasetemp().rglob("pc"))
+    out = sp.run([str(exe), "<b>&\"'", "escape"], capture_output=True, text=True).stdout
+    assert out == "&lt;b&gt;&amp;&quot;&#39;"
