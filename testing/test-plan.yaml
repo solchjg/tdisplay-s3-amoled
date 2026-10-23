@@ -182,7 +182,13 @@ capabilities:
     # "Human confirmed".
 
 # ── Gate verdicts ────────────────────────────────────────────────────────
-gates: []
+gates:
+  - gate: AI harnessed
+    verdict: OPEN
+    date: 2026-10-23
+    commit: 08fa152
+    checker: fresh subagent, gate file + repo only (third round; rounds 1-2 SHUT, findings fixed)
+    ci: [Build Firmware 40003952313 success, host tests + lint 40003948865 success]
 
 # ── Tests ────────────────────────────────────────────────────────────────
 # JRN-01 is the standard run (one ordinary successful use, end to end), one
