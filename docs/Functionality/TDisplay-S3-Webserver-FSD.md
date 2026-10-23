@@ -232,7 +232,7 @@ testbench.
 ### 3.4 Phase 4: OTA and factory reset
 
 - **Scope.** OTA download, confirm and rollback; BOOT-button factory reset.
-- **Deliverables.** §15, §18, FR-5.21, FR-5.23, FR-5.24, FR-5.32, FR-7.15, FR-7.16, FR-7.25, FR-7.27, FR-7.28 (§15 includes FR-15.13); the test build
+- **Deliverables.** §15, §18, FR-5.21, FR-5.23, FR-5.24, FR-5.32, FR-7.16, FR-7.25, FR-7.31, FR-7.32, FR-7.27, FR-7.28 (§15 includes FR-15.13); the test build
   §12.0 names for rollback.
 - **Exit criteria.** A valid image hosted on the bench and requested through
   `POST /ota` boots and confirms; an invalid, oversized or unreachable image
@@ -263,6 +263,7 @@ testbench.
 | R-9 | BOOT (GPIO 0) is not wired on SLOT4: factory reset can only be tested by an operator; holding BOOT while the chip resets enters the ROM download mode instead | Certain | Low | FR-18.x contracts are operator-tier and press only while the device is running |
 | R-10 | Credentials that can never connect (wrong password, AP gone for good) leave the device retrying forever, because it never returns to the portal on its own (FR-5.19) | Certain | Medium | Accepted [user]: the BOOT-button factory reset (§18) is the recovery path |
 | R-11 | The bench AP and the device SoftAP both use 192.168.4.1 | Certain | Low | The bench's provisioning procedure leaves the device SoftAP before it starts its own AP; the device's SoftAP is gone in every state but PROVISIONING (FR-9.4) |
+| R-13 | No peer on the bench AP network can stall a download (the bench declares no such mode), so the stall clause of FR-15.11 has no bench run | Certain | Medium | Its logic is verified at host tier against a fake clock (FR-15.11 stall core row); the bench run is blocked until the testbench declares a stall mode (change request drafted) |
 | R-12 | The bench WiFi scan reports no BSSID | Certain | Low | SoftAP presence is matched by the device's own SSID (FR-13.1), which the device logs (FR-7.9) |
 
 ### 4.2 Assumptions
@@ -592,9 +593,10 @@ verification:
   preconditions:
     - Device provisioned and ONLINE; operator at the bench.
   stimulus:
-    - Operator holds the BOOT button for 7 s, then releases it.
+    - Operator holds the BOOT button for about 7 s, then releases it (P-BUTTON).
   expected_observations:
-    - "web: factory reset", then a boot line, then "web: state=PROVISIONING".
+    - L17b ("web: button held, release to reset") about 5 s into the hold.
+    - After the release, "web: factory reset", then a boot line, then "web: state=PROVISIONING".
     - The FR-13.1 SSID appears in a bench scan.
     - A further USB reset enters PROVISIONING again (credentials are gone, not merely ignored).
   timing: boot line within 2 s of "web: factory reset" by log order and bench capture time
@@ -602,6 +604,7 @@ verification:
   prohibited_outcomes:
     - "web: state=CONNECTING" after the restart.
     - No restart (PROVISIONING reached without the boot line is not this behaviour).
+    - A reset while BOOT was still held (ROM "waiting for download" banner, no boot line).
   tier: bench (operator)
   evidence:
     - Operator prompt answer with timestamps; serial capture; bench scan result.
@@ -760,6 +763,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L13 | T5 with image pending verify | `web: ota confirmed` | I |
 | L14 | Every boot while the bootloader records an invalid (rolled-back) slot | `web: rolled back, invalid=<partition label>` | W |
 | L15 | T10 | `web: factory reset` | W |
+| L17b | BOOT button held 5 s (FR-18.3 threshold reached) | `web: button held, release to reset` | W |
 | L16 | T13 | `web: ota not confirmed, restarting` | E |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
@@ -783,8 +787,12 @@ Each line requirement is one row of §7.2:
 - **FR-7.12** [Must] [derived from D2] D2 shall log L8 at error level.
 - **FR-7.13** [Must] [derived from D5] D5 shall log L9 at error level.
 - **FR-7.14** [Must] [derived from FR-14.6] Each status-server answer shall log L10.
-- **FR-7.15** [Must] [derived from §15, FR-5.23, FR-5.24] OTA outcomes shall log
-  L11, L12, L13, L14 and L16 as tabled.
+- **FR-7.31** [Must] [derived from §15, FR-5.23, FR-5.24] OTA outcomes shall log
+  L11 (download succeeded), L12 (request refused), L13 (image confirmed), L14
+  (every boot while a slot is recorded invalid) and L16 (confirm deadline
+  missed), at the levels tabled.
+- **FR-7.32** [Must] [derived from FR-18.3] When the BOOT button has been held for
+  5 s, the device shall log L17b once per hold.
 - **FR-7.16** [Must] [derived from FR-5.21] T10 shall log L15 before restarting.
 - **FR-7.17** [Must] [derived from FR-5.18] T6 and T7 shall log L6 with the delay
   actually armed.
@@ -849,7 +857,7 @@ concerned, `<ip>` the destination of FR-16.1.
 | FR-7.14 | ONLINE; `GET /nope` | `web: http GET /nope 404 n=<count>` | Missing | bench |
 | FR-7.30 | Inspect the shipped application image (`.bin`) | No NUL-terminated string `hello` (the tag) and no `Hello, world!` in it | Either byte string present | host |
 | FR-7.30 (wire) | JRN-01 run, serial capture from reset to ONLINE plus 30 s | No line matching `[IEWD] \([0-9]+\) hello: ` | Any such line | bench |
-| FR-7.15 – FR-7.17 | Covered by the FR-5.21, FR-5.24, FR-15.x and FR-5.18 runs | Lines as tabled | Missing | bench |
+| FR-7.16, FR-7.17, FR-7.31, FR-7.32 | Covered by the FR-5.21, FR-18.4, FR-5.24, FR-15.x and FR-5.18 runs | Lines as tabled | Missing; L17b repeated within one hold | bench |
 | FR-7.18 – FR-7.22 | Provisioning run (FR-5.13) from erased NVS | K1, K2 with the FR-13.1 SSID, K3, K4, K5 with the bench SSID, in that order | A string missing, reworded or out of order | bench |
 | FR-7.23, FR-7.26 | As above, to ONLINE | K6, then K9 with the bench gateway | Missing; K6 before an IP exists | bench |
 | FR-7.24 | NFR-5.2 run | K7 for each failed attempt | Missing | bench |
@@ -1021,9 +1029,10 @@ the log (K10, K11) and, on success, by the restart (T11).
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-15.1 | Note L1's `slot=`; request a valid hosted image; then request it again | After each OTA, L1's `slot=` is the other slot (`ota_0` ↔ `ota_1`), each boot ONLINE and confirmed | The same slot after an OTA; a boot with `fw=` other than the requested build | bench |
-| FR-15.12 | Host a 3 MB image; request it; request again within 1 s | Second answer 409; first download completes | Two downloads; the second answered 202 | bench |
+| FR-15.11 (stall, core) | Download state core with a fake clock: bytes arrive, then none for 29.9 s; then none for 30.0 s | No failure at 29.9 s; failure (K11 action) at 30.0 s | Failure before 30 s; no failure at 30 s | host |
+| FR-15.12 | ONLINE running build A; host build A's own 3 MB-or-larger image; request it; request again within 1 s | Second answer 409; first download completes and re-installs fw=A (T11) | Two downloads; the second answered 202 | bench |
 | FR-15.12 (core) | Download state machine: second start while busy | Refused with 409 | Accepted | host |
-| FR-15.13 | ONLINE running build A; host a 3 MB build B; request it; stop the bench AP 2 s after the bench log shows the fetch starting; restart the AP after 20 s | K11 and `web: state=WIFI_LOST`; after the AP returns, `web: online` with `fw_version` = A, and a following USB reset boots `fw=A` on the same `slot=` | K10; a restart into B; `OTA succeeded` after the disconnect | bench |
+| FR-15.13 | ONLINE running build A; host a 3 MB build B; request it; stop the bench AP 2 s after the bench log shows the fetch starting; restart the AP after 20 s | K11 and `web: state=WIFI_LOST`; after the AP returns, `web: online`, `/api/status` reports `fw_version` = A, and a following USB reset boots `fw=A` on the same `slot=` | K10; a restart into B; `OTA succeeded` after the disconnect | bench |
 | NFR-15.1 | ONLINE; 5 × `POST /ota` (valid URL, then 4 invalid bodies of FR-15.9) | Each answered ≤ 2 s after sending, by relay timing | An answer after 2 s; an answer only after the download | bench |
 | FR-15.8 | ONLINE; `POST /ota` with a hosted image URL | 202 `{"ok":true}` (NFR-15.1 timing); the bench activity log shows the device fetching the file | 200 with a delayed answer after the download; no fetch | bench |
 | FR-15.9 (core) | Parse bodies: not JSON; `{}`; `{"url":5}`; `https://…`; 257-character URL; valid | 400 for each invalid; accepted only for the valid one | Any invalid body accepted | host |
@@ -1140,12 +1149,16 @@ component. Active in ONLINE only.
 ### 18.1 Purpose & peer
 
 The on-board BOOT button (GPIO 0, active low) is the only local control; a long
-press requests a factory reset. Sampled only after BOOT exits.
+press requests a factory reset, which happens on release, so the button is never
+held while the chip resets (R-9). Sampled only after BOOT exits.
 
 ### 18.2 Requirements
 
-- **FR-18.1** [Must] [pack:esp32] Holding the button continuously for 5 s
-  shall raise exactly one factory-reset event (§5.3 T10).
+- **FR-18.3** [Must] [user] Releasing the button after holding it continuously
+  for at least 5 s shall raise exactly one factory-reset event (§5.3 T10), at the
+  release.
+- **FR-18.4** [Must] [derived from FR-18.3] While the button is held, the device
+  shall raise no factory-reset event and shall not restart.
 - **FR-18.2** [Must] [derived] Releasing the button before 5 s shall
   raise no event and change nothing.
 
@@ -1153,8 +1166,9 @@ press requests a factory reset. Sampled only after BOOT exits.
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| FR-18.1 | See FR-5.21 (full form) | — | — | bench (operator) |
-| FR-18.1 (core) | Hold detector fed samples: low for 4.9 s; low for 5.0 s; low for 12 s | No event; one event; one event | An event under 5 s; two events in one hold | host |
+| FR-18.3 | See FR-5.21 (full form) | L17b, then L15 and a boot line after release | A reset while held (ROM download-mode banner, no boot line) | bench (operator) |
+| FR-18.3 (core) | Hold detector fed samples: low 4.9 s then high; low 5.0 s then high; low 12 s then high; low 30 s with no release | No event; one event at the release; one event at the release; no event | An event while still low; an event under 5 s; two events for one hold | host |
+| FR-18.4 | ONLINE; operator holds BOOT for ~12 s, then releases | L17b about 5 s into the hold; no L15 and no boot line before the release (operator confirms the release time) | L15 or a restart while held | bench (operator) |
 | FR-18.2 | ONLINE; operator presses BOOT for ~2 s | No L15, no boot line, still ONLINE 10 s later | Factory reset; restart | bench (operator) |
 
 ---
@@ -1218,7 +1232,7 @@ product uses, and not reflecting portal input as markup (FR-13.7).
 | FR-9.2 | Inspect the linked ELF | No `esp_bt_controller_init` symbol | Symbol present | host |
 | FR-9.2 (air) | Device running; bench BLE scan | No advertiser at any of the ESP32-S3's derived MAC addresses: base MAC + 0 … + 3 (station, SoftAP, BT, Ethernet; chip property) | Such an advertiser | bench |
 | FR-9.3 | Provision with password `pw-<random 12 hex>`; capture serial and UDP through ONLINE; fetch `/` and `/api/status` | The marker appears nowhere | The marker in any capture or body | bench |
-| FR-9.4 | ONLINE, CONNECTING and WIFI_LOST each held 30 s; bench scans | No FR-13.1 SSID | The SSID seen | bench |
+| FR-9.4 | ONLINE for 30 s, then a 60 s bench-AP outage (the device alternates CONNECTING and WIFI_LOST); a bench scan every 5 s throughout | No FR-13.1 SSID in any scan | The SSID seen | bench |
 | FR-9.5 | ONLINE; bench port scan TCP 1 – 65535 of the device | Open: 80 only | Any other open port | bench |
 
 ---
@@ -1313,7 +1327,7 @@ verification:
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| NFR-19.1 | As FR-19.1 and FR-19.2 | Restart 10 s – 15 s after the hang | Earlier than 10 s; later than 15 s + 3 s | target |
+| NFR-19.1 | As FR-19.1 (target) and FR-19.2 (bench) | Restart 10 s – 15 s after the hang | Earlier than 10 s; later than 15 s + 3 s | target, bench |
 | FR-19.2 | Hang build, variant http; ONLINE; relay `GET /hang` | Boot line `reason=TASK_WDT` 10 – 15 s later (NFR-19.1); ONLINE again | No restart; reason ≠ TASK_WDT | bench |
 | FR-19.1 (negative) | Shipped build; ONLINE; 100 requests plus a full OTA download | No `TASK_WDT` boot | A watchdog reset during normal load or OTA | bench |
 
@@ -1420,7 +1434,7 @@ Build-time constants:
 | OTA download stall timeout | 30 s | [user] |
 | Heartbeat (`alive`) period | 10 s ± 1 s | [user, testbench compatibility contract] |
 | OTA confirm deadline | 60 s from reset | [user] |
-| Factory-reset hold | 5 s | [user] |
+| Factory-reset hold (minimum, reset on release) | 5 s | [user] |
 | Watchdog timeout | 10 s | [user] |
 | Watchdog restart after timeout | ≤ 5 s | [user] |
 | ONLINE: AP loss to WIFI_LOST | ≤ 15 s | [user] |
@@ -1445,6 +1459,8 @@ Build-time constants:
 | FR-5.22 | Restart after the OTA receiver accepts an uploaded image | FR-5.32 (restart after a successful download) |
 | FR-6.5 | Two text lines stacked inside the visible area | FR-6.9 (three lines) |
 | FR-6.6 | The 16-character uptime line fits one row | FR-6.10 (any 20-character line) |
+| FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
+| FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
 | FR-15.5 | 409 while an upload is in progress | FR-15.12 (while a download is in progress) |
 | FR-14.1, FR-14.2 | Status page and JSON including uptime (`uptime_s`, 7 keys) | FR-14.7, FR-14.8 (6 keys, no uptime) |
 | FR-15.2 – FR-15.4, FR-15.6, FR-15.7 | OTA by pushed image body (411, 413, 400, 200 answers; broken upload) | FR-15.8 – FR-15.11 (OTA by URL pull, matching the testbench's OTA flow) |
@@ -1454,7 +1470,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.3.4
+fsd_version: 0.3.5
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1474,7 +1490,8 @@ change_history:
   - 0.3.2 2026-10-23 CONNECTING × disconnected listed (counts as AF, T6); Appendix A restart row names T13
   - 0.3.3 2026-10-23 FR-5.24 test build is a no-network build (reaching ONLINE confirms, by T5; user decision); FR-7.25 moved to Phase 4; FR-5.15 contract needs no line order; FR-15.11 stall prohibits late K11; FR-9.2 air MAC range stated; R-7/R-8 defer to the bench declaration
   - 0.3.4 2026-10-23 FR-15.13 (T7 aborts an OTA download; derived from §15.1) closes OS/OF outside ONLINE; L14 logged on every boot while a slot is recorded invalid, contracts check slot= instead of L14's absence; FR-15.11 stall follow-up re-installs A; FR-19.1 evidence fits target tier
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5]
+  - 0.3.5 2026-10-23 factory reset on release (user decision): FR-18.1 superseded by FR-18.3/18.4, L17b and FR-7.32 added; FR-7.15 superseded by FR-7.31; R-13 and a host stall row for FR-15.11; FR-9.4 contract reachable under §5.3; FR-15.12/15.13/NFR-19.1 contract fixes
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
 open_decisions: []
 related_test_baseline: none yet
 ```

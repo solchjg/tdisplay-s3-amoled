@@ -52,7 +52,9 @@ Anything else needs a profile change in the FSD first.
 **Needs** testbench serial on SLOT4. **Before** confirm the DUT is present in the
 device list with `detected_chip: esp32s3` (SLOT4 is shared with another project).
 **Steps** issue the testbench serial reset for SLOT4; EN/BOOT GPIOs are not wired,
-so no GPIO reset exists. **After** confirm a `web:` line arrives (positive
+so no GPIO reset exists. Where a contract prohibits an extra boot, reset through
+the JTAG reset instead (capability `bench-jtag-reset`): the plain serial reset of
+this native-USB part resets it a second time when the bench reopens the port. **After** confirm a `web:` line arrives (positive
 control) before timing anything else.
 
 ## P-POWERCYCLE — cold start (FSD FR-6.4, FR-5.20)

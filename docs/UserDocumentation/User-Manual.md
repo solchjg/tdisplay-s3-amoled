@@ -56,7 +56,8 @@ only on a network you trust.
 
 *Not yet available.*
 
-While the device is running, hold the BOOT button for 5 seconds. The stored WiFi
+While the device is running, hold the BOOT button for at least 5 seconds, then
+release it. Nothing happens while you hold it; on release the stored WiFi
 credentials are erased, the device restarts, and it shows the setup screen of
 chapter 2 again. Do not hold BOOT while plugging the board in: that starts the
 chip's download mode instead.
