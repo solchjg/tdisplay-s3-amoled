@@ -34,7 +34,7 @@ other security case; adding one requires a profile change first.
 
 - **Capture evidence before resetting anything.**
 - **A timeout is a failure, not an absent result.** Require a completion marker
-  (`hello: up=` lines for target/bench runs).
+  (the `web: state=` or `web: online` line the run waits for).
 - **A null observation accuses the instrument first.** Before concluding the DUT is
   silent, show a positive control in the same session — the serial monitor reading
   a known line. On the native-USB S3, a monitor that opens the port with DTR/RTS
@@ -50,21 +50,21 @@ other security case; adding one requires a profile change first.
 **Needs** testbench serial on SLOT4. **Before** confirm the DUT is present in the
 device list with `detected_chip: esp32s3` (SLOT4 is shared with another project).
 **Steps** issue the testbench serial reset for SLOT4; EN/BOOT GPIOs are not wired,
-so no GPIO reset exists. **After** confirm a `hello:` line arrives (positive
+so no GPIO reset exists. **After** confirm a `web:` line arrives (positive
 control) before timing anything else.
 
 ## P-POWERCYCLE — cold start for FR-6.4
 
 **Needs** P-OPERATOR. **Steps** prompt the operator to unplug the USB-C cable for
-5 s and replug it, confirm. **After** confirm SLOT4 re-enumerates and a `hello:`
+5 s and replug it, confirm. **After** confirm SLOT4 re-enumerates and a `web:`
 line arrives.
 
 ## P-OPERATOR — operator-confirmed display check
 
 **Needs** the testbench operator prompt. **Before** record the latest
-`hello: up=<N>`. **Steps** raise a blocking prompt naming exactly what to check
+`web: lcd line<k>=` mirror lines (FSD FR-7.11). **Steps** raise a blocking prompt naming exactly what to check
 and the defect to look for (text, orientation with USB-C on the right, white on
-black, edge noise, backlight, value of N). **After** store the answer and its
+black, edge noise, backlight, the mirrored line text). **After** store the answer and its
 timestamp as evidence; a cancelled prompt is `not done`.
 
 ## P-FAULT — fault-injection run
