@@ -45,3 +45,6 @@ void wl_fmt_sta_mode(char *buf, size_t len, const char *ssid);
 // L10: "http <METHOD> <path> <status> n=<count>"
 void wl_fmt_http(char *buf, size_t len, const char *method, const char *path, int status,
                  uint32_t n);
+
+// K9: "UDP logging -> <ip>:<port>"
+void wl_fmt_udp_logging(char *buf, size_t len, const char *ip, int port);

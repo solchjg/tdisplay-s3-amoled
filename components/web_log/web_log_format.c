@@ -68,3 +68,8 @@ void wl_fmt_http(char *buf, size_t len, const char *method, const char *path, in
 {
     snprintf(buf, len, "http %s %s %d n=%" PRIu32, method, path, status, n);
 }
+
+void wl_fmt_udp_logging(char *buf, size_t len, const char *ip, int port)
+{
+    snprintf(buf, len, "UDP logging -> %s:%d", ip, port);
+}

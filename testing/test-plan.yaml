@@ -998,3 +998,81 @@ tests:
     observable: "200 text/html; fw_version, ip, hostname equal the JSON; labels present; no uptime"
     impl: tests/bench/test_status.py::test_page_shows_every_field_and_agrees_with_the_json
     result: {status: successful, commit: 2d62c2b, firmware: 0.0.0-dev (a0e46ab, Build Firmware run 40021150644), date: 2026-10-23, evidence: "bench run, junit 12 passed in 178.5 s (journey, status, log)"}
+
+  - id: TC-UDP-01
+    title: "Only web lines at I/W/E, stripped of prefix and colour"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: host
+    verifies: [FR-16.1, FR-16.2]
+    needs: []
+    observable: "web: text from web: to end; D level and other tags not selected"
+    impl: tests/host/test_udp_log.py::test_only_web_lines_at_info_or_above_without_prefix
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-LOG-19
+    title: "K9 UDP logging line format"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: host
+    verifies: [FR-7.26]
+    needs: []
+    observable: "UDP logging -> 192.168.4.1:5555"
+    impl: tests/host/test_web_log.py::test_udp_logging_line
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-UDP-10
+    title: "web lines arrive as datagrams equal to serial"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: bench
+    verifies: [FR-16.1, FR-16.2]
+    needs: [bench-udp-log, bench-http-relay, dut-wifi-slot4]
+    observable: "5 GET /api/status give 5 datagrams 'web: http GET /api/status 200 n=k' from the DUT, equal to the serial text"
+    impl: tests/bench/test_udp.py::test_web_lines_arrive_as_datagrams_equal_to_serial
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-NET-10
+    title: "Reset reaches ONLINE within 10 s without the portal"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [NFR-5.1, FR-5.20]
+    needs: [bench-wifi-ap, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4, dut-tdisplay-s3-slot4]
+    observable: "5 JTAG resets: CONNECTING, no PROVISIONING, web: online at <= 10000 ms each"
+    impl: tests/bench/test_connectivity.py::test_reset_reaches_online_within_10_s_without_portal
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-NET-11
+    title: "Stored credentials never open the SoftAP"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.12]
+    needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4]
+    observable: "bench AP down, reset: CONNECTING, 3 scans over 30 s without TDS3-71C734, rejoins when the AP returns"
+    impl: tests/bench/test_connectivity.py::test_stored_credentials_never_open_the_softap
+    result: {status: not done, reason: not yet run against this commit}
+
+  - id: TC-NET-12
+    title: "Power cycle keeps the credentials"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-5.20]
+    needs: [bench-wifi-ap, bench-operator-prompt, operator-at-bench, bench-serial-monitor, dut-wifi-slot4]
+    observable: "operator power cycle (P-POWERCYCLE): web: online again, no PROVISIONING"
+    impl: tests/bench/test_connectivity.py::test_power_cycle_keeps_the_credentials
+    result: {status: not done, reason: not yet run against this commit}

@@ -23,3 +23,4 @@ esp_err_t net_softap_start(const char *ssid);
 esp_err_t net_sta_start(const pc_creds_t *c);  // stops any SoftAP, starts one attempt
 void net_sta_stop(void);                       // abandons the current attempt
 int net_rssi(void);
+void net_gateway(char out[16]);  // the station's default gateway, dotted quad

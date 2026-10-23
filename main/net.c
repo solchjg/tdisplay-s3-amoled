@@ -152,6 +152,13 @@ void net_sta_stop(void)
     esp_wifi_disconnect();
 }
 
+void net_gateway(char out[16])
+{
+    esp_netif_ip_info_t info = {0};
+    esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &info);
+    esp_ip4addr_ntoa(&info.gw, out, 16);
+}
+
 int net_rssi(void)
 {
     wifi_ap_record_t ap;

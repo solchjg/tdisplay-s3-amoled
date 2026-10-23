@@ -127,3 +127,10 @@ void web_log_http(const char *method, const char *path, int status, uint32_t n)
     wl_fmt_http(line, sizeof line, method, path, status, n);
     ESP_LOGI(TAG, "%s", line);
 }
+
+void web_log_udp_logging(const char *ip, int port)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_udp_logging(line, sizeof line, ip, port);
+    ESP_LOGI(TAG, "%s", line);
+}

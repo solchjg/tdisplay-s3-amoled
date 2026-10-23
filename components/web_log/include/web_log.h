@@ -41,3 +41,6 @@ void web_log_warn(const char *what, esp_err_t err);
 
 // L10 for each status-server answer (FR-7.14).
 void web_log_http(const char *method, const char *path, int status, uint32_t n);
+
+// K9 when the UDP log starts (FR-7.26).
+void web_log_udp_logging(const char *ip, int port);

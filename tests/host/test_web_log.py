@@ -43,6 +43,8 @@ int main(int argc, char **argv)
         wl_fmt_ap_mode(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "sta_mode") == 0) {
         wl_fmt_sta_mode(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "udp") == 0) {
+        wl_fmt_udp_logging(line, sizeof line, argv[2], atoi(argv[3]));
     } else if (strcmp(argv[1], "http") == 0) {
         wl_fmt_http(line, sizeof line, argv[2], argv[3], atoi(argv[4]),
                     (uint32_t)strtoul(argv[5], NULL, 10));
@@ -115,3 +117,8 @@ def test_testbench_contract_lines(fmt):
 # TC-LOG-18 · FR-7.14 (core): L10
 def test_http_line(fmt):
     assert fmt("http", "GET", "/api/status", "200", "17") == "http GET /api/status 200 n=17"
+
+
+# TC-LOG-19 · FR-7.26 (core): K9
+def test_udp_logging_line(fmt):
+    assert fmt("udp", "192.168.4.1", "5555") == "UDP logging -> 192.168.4.1:5555"

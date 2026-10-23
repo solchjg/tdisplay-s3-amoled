@@ -19,6 +19,7 @@
 #include "net.h"
 #include "portal.h"
 #include "status_http.h"
+#include "udp_log.h"
 #include "web_log.h"
 
 static const char *TAG = "main";
@@ -203,11 +204,20 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     }
     if (a & DL_C_STOP_SERVICES) {
         status_http_stop();
+        udp_log_stop();
     }
     if (a & DL_C_START_SERVICES) {
         esp_err_t err = status_http_start(&status_source);
         if (err != ESP_OK) {
             web_log_warn("status server start", err);
+        }
+        char gw[16];
+        net_gateway(gw);
+        err = udp_log_start(gw);
+        if (err == ESP_OK) {
+            web_log_udp_logging(gw, UDP_LOG_PORT);
+        } else {
+            web_log_warn("udp log start", err);
         }
     }
     if (a & DL_C_CONFIRM_IMAGE) {
