@@ -289,6 +289,16 @@ gates:
     commit: 08fa152
     checker: fresh subagent, gate file + repo only (third round; rounds 1-2 SHUT, findings fixed)
     ci: [Build Firmware 40003952313 success, host tests + lint 40003948865 success]
+  - gate: Load defined
+    verdict: OPEN
+    date: 2026-10-23
+    commit: c6897a0
+    checker: fresh subagent, gate file + repo only (sixth round after the 0.3.0 delta; rounds 1-5 SHUT, findings fixed in FSD 0.3.1-0.3.5)
+    carried: >
+      Non-blocking observations to fold into the next /define delta: the §5.3
+      "Prohibited" line should read "while credentials are stored"; the
+      no-network build should carry a version distinct from the shipped one;
+      the >= 3 MB image used by FR-15.12/FR-15.13 should be a named test build.
   - gate: DUT ready
     verdict: OPEN
     date: 2026-10-23
