@@ -286,6 +286,11 @@ gates:
     commit: 08fa152
     checker: fresh subagent, gate file + repo only (third round; rounds 1-2 SHUT, findings fixed)
     ci: [Build Firmware 40003952313 success, host tests + lint 40003948865 success]
+  - gate: DUT ready
+    verdict: OPEN
+    date: 2026-10-23
+    commit: 57aaed5
+    checker: fresh subagent, gate file + repo + read-only bench calls (second round; round 1 SHUT on the missing product-image marker, fixed)
 
 # ── Tests ────────────────────────────────────────────────────────────────
 # JRN-01 is the standard run (one ordinary successful use, end to end), one
