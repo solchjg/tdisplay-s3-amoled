@@ -1274,7 +1274,7 @@ tests:
     needs: []
     observable: "AF/DC in CONNECTING -> WIFI_LOST n+1; ONLINE DC -> WIFI_LOST n=1 with ABORT_OTA, STOP_SERVICES, ARM_RETRY; RT -> CONNECTING"
     impl: tests/host/test_device_logic.py::test_t6_t7_t8_loss_and_retry
-    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 82 passed)"}
+    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 79 passed, 8 skipped)"}
 
   - id: TC-DL-15
     title: "Retry delay schedule"
@@ -1287,7 +1287,7 @@ tests:
     needs: []
     observable: "delay(1..8) = 1, 2, 4, 8, 15, 15, 15, 15 s"
     impl: tests/host/test_device_logic.py::test_retry_delay_schedule
-    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 82 passed)"}
+    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 79 passed, 8 skipped)"}
 
   - id: TC-DL-16
     title: "T9, T12, and no way back to the portal"
@@ -1300,7 +1300,7 @@ tests:
     needs: []
     observable: "IC -> LOG_ONLINE; OF -> nothing; no event leads CONNECTING/ONLINE/WIFI_LOST to PROVISIONING"
     impl: tests/host/test_device_logic.py::test_t9_t12_and_no_way_back_to_the_portal
-    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 82 passed)"}
+    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 79 passed, 8 skipped)"}
 
   - id: TC-DL-17
     title: "T13 restarts only a pending image outside ONLINE"
@@ -1313,7 +1313,7 @@ tests:
     needs: []
     observable: "60 with pending image -> RESTART in BOOT/PROVISIONING/CONNECTING/WIFI_LOST; nothing without; ignored in ONLINE"
     impl: tests/host/test_device_logic.py::test_t13_restarts_only_a_pending_image_outside_online
-    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 82 passed)"}
+    result: {status: successful, commit: 9347e23, date: 2026-10-23, evidence: "local host run (tests/host: 79 passed, 8 skipped)"}
 
   - id: TC-REC-10
     title: "AP loss enters WIFI_LOST within 15 s"
