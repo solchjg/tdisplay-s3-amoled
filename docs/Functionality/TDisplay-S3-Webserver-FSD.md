@@ -329,23 +329,23 @@ for a state are logged at debug level and discarded.
 | **WIFI_LOST** | Between failed attempts, waiting for the retry delay |
 
 A connection attempt **fails** when the station reports a disconnect, or when it
-has no IP address 15 s [proposed] after the attempt started.
+has no IP address 15 s after the attempt started.
 
 | # | Current | Event | Guard | Next | Action | Limit |
 |---|---------|-------|-------|------|--------|-------|
-| T1 | BOOT | credentials read | none stored | PROVISIONING | Start SoftAP, portal, captive DNS | `web: state=PROVISIONING` ≤ 3000 ms after reset [proposed] |
-| T2 | BOOT | credentials read | stored | CONNECTING | Start station attempt; no SoftAP | `web: state=CONNECTING` ≤ 3000 ms after reset [proposed] |
-| T3 | PROVISIONING | credentials submitted | valid (FR-13.4) | CONNECTING | Store in NVS; answer 200; stop SoftAP; start station attempt | SoftAP gone ≤ 5 s after the answer [proposed] |
+| T1 | BOOT | credentials read | none stored | PROVISIONING | Start SoftAP, portal, captive DNS | `web: state=PROVISIONING` ≤ 3000 ms after reset |
+| T2 | BOOT | credentials read | stored | CONNECTING | Start station attempt; no SoftAP | `web: state=CONNECTING` ≤ 3000 ms after reset |
+| T3 | PROVISIONING | credentials submitted | valid (FR-13.4) | CONNECTING | Store in NVS; answer 200; stop SoftAP; start station attempt | SoftAP gone ≤ 5 s after the answer |
 | T4 | PROVISIONING | credentials submitted | invalid | PROVISIONING | Answer 400; NVS unchanged | — |
 | T5 | CONNECTING | IP acquired | — | ONLINE | n := 0; start status server, mDNS, UDP log; if image pending verify, confirm it | — |
 | T6 | CONNECTING | attempt failed | — | WIFI_LOST | n := n + 1; arm retry timer with delay(n) | — |
 | T7 | ONLINE | disconnected | — | WIFI_LOST | Stop status server, mDNS, UDP log; n := 1; arm retry timer with delay(1) | — |
 | T8 | WIFI_LOST | retry timer | — | CONNECTING | Start station attempt | — |
 | T9 | ONLINE | IP changed | — | ONLINE | Update the shown IP; log `web: online` again | — |
-| T10 | PROVISIONING, CONNECTING, ONLINE, WIFI_LOST | factory reset (§18) | — | restart → BOOT | Abort any OTA upload; erase credentials; restart | restart ≤ 2 s after the event [proposed] |
-| T11 | ONLINE | OTA image accepted (§15) | — | restart → BOOT | Answer 200; select new slot; restart | restart ≤ 2 s after the answer [proposed] |
+| T10 | PROVISIONING, CONNECTING, ONLINE, WIFI_LOST | factory reset (§18) | — | restart → BOOT | Abort any OTA upload; erase credentials; restart | restart ≤ 2 s after the event |
+| T11 | ONLINE | OTA image accepted (§15) | — | restart → BOOT | Answer 200; select new slot; restart | restart ≤ 2 s after the answer |
 | T12 | ONLINE | OTA image refused (§15) | — | ONLINE | Answer 4xx; boot slot unchanged | — |
-| T13 | BOOT, PROVISIONING, CONNECTING, WIFI_LOST | 60 s [proposed] since reset | image pending verify | restart → BOOT | Log; restart without confirming (bootloader rolls back) | restart ≤ 2 s after the deadline |
+| T13 | BOOT, PROVISIONING, CONNECTING, WIFI_LOST | 60 s since reset | image pending verify | restart → BOOT | Log; restart without confirming (bootloader rolls back) | restart ≤ 2 s after the deadline |
 
 **Completeness.**
 - BOOT × submitted / IP / disconnect / failed / retry / OTA: impossible — no
@@ -375,10 +375,10 @@ has no IP address 15 s [proposed] after the attempt started.
 
 | # | Current | Event | Guard | Next | Action | Limit |
 |---|---------|-------|-------|------|--------|-------|
-| D1 | LCD_START | start done | ok | LCD_OK | Clear to black; draw the BOOT screen; backlight on | 3000 ms after reset [proposed] |
-| D2 | LCD_START | start done | failed | LCD_FAILED | Log `web: lcd init failed: <ERR>` | 3000 ms after reset [proposed] |
-| D3 | LCD_OK | 1 s tick | screen unchanged | LCD_OK | none | 1000 ± 100 ms period [proposed] |
-| D4 | LCD_OK | 1 s tick | changed, write ok | LCD_OK | Redraw each changed line; log FR-7.11 for each | 1000 ± 100 ms period [proposed] |
+| D1 | LCD_START | start done | ok | LCD_OK | Clear to black; draw the BOOT screen; backlight on | 3000 ms after reset |
+| D2 | LCD_START | start done | failed | LCD_FAILED | Log `web: lcd init failed: <ERR>` | 3000 ms after reset |
+| D3 | LCD_OK | 1 s tick | screen unchanged | LCD_OK | none | 1000 ± 100 ms period |
+| D4 | LCD_OK | 1 s tick | changed, write ok | LCD_OK | Redraw each changed line; log FR-7.11 for each | 1000 ± 100 ms period |
 | D5 | LCD_OK | 1 s tick | changed, write failed | LCD_FAILED | Log `web: lcd write failed: <ERR>` | same tick |
 | D6 | LCD_FAILED | 1 s tick | — | LCD_FAILED | No LCD call | — |
 
@@ -422,26 +422,26 @@ Connectivity:
 - **FR-5.17** [Must] [user] When the retry timer expires in WIFI_LOST, the device
   shall start a new connection attempt with the stored credentials (T8).
 - **FR-5.18** [Must] [pack:esp32] The retry delay after the n-th consecutive failed
-  attempt shall be min(2ⁿ⁻¹, 15) s [proposed] (1, 2, 4, 8, 15, 15, … s), with a
-  tolerance of ± 10 % [proposed].
+  attempt shall be min(2ⁿ⁻¹, 15) s (1, 2, 4, 8, 15, 15, … s), with a
+  tolerance of ± 10 %.
 - **FR-5.19** [Must] [user] While credentials are stored, the device shall not
   enter PROVISIONING (only T10's erase leads back to it).
 - **FR-5.20** [Must] [user] Stored credentials shall survive a reset and a power
   cycle.
 - **FR-5.21** [Must] [pack:esp32] On a factory-reset event (§18), the device shall
-  erase the stored credentials and restart within 2 s [proposed] (T10).
+  erase the stored credentials and restart within 2 s (T10).
 - **FR-5.22** [Must] [user] When the OTA receiver accepts an image (§15), the
-  device shall restart into it within 2 s [proposed] of answering the upload (T11).
+  device shall restart into it within 2 s of answering the upload (T11).
 - **FR-5.23** [Must] [user] An image booted pending verification shall mark itself
   valid on entering ONLINE (T5).
 - **FR-5.24** [Must] [user] An image booted pending verification that has not
-  entered ONLINE within 60 s [proposed] of reset shall restart without confirming,
+  entered ONLINE within 60 s of reset shall restart without confirming,
   so that the bootloader boots the previous image (T13).
 - **NFR-5.1** [Must] [user] With credentials stored and the AP available, the
-  device shall log `web: online` within 10 s [proposed] of reset, by its own log
+  device shall log `web: online` within 10 s of reset, by its own log
   timestamp.
 - **NFR-5.2** [Must] [user] After the AP returns from an outage of up to 60 s, the
-  device shall log `web: online` within 30 s [proposed] of the AP becoming
+  device shall log `web: online` within 30 s of the AP becoming
   available, without restarting.
 
 Display:
@@ -449,7 +449,7 @@ Display:
 - **FR-5.25** [Must] [user] In LCD_OK, the screen shall show the lines of §5.4
   for the current connectivity state.
 - **FR-5.26** [Must] [user] In LCD_OK, a change of screen content shall be shown
-  within 2 s [proposed] of the change (one 1 s refresh plus tolerance).
+  within 2 s of the change (one 1 s refresh plus tolerance).
 - **FR-5.27** [Must] [derived, carried from base FR-5.6/5.8/5.9] After an LCD start
   or write error, the device shall make no further LCD call until the next reset
   (D2, D5, D6).
@@ -800,8 +800,8 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
 ### 13.3 Requirements
 
 - **FR-13.1** [Must] [user] In PROVISIONING the device shall run an open SoftAP
-  named `TDS3-<XXXXXX>` [proposed prefix], where `<XXXXXX>` is the last three bytes
-  of the base MAC in upper-case hex, at 192.168.4.1, on channel 1 [proposed].
+  named `TDS3-<XXXXXX>`, where `<XXXXXX>` is the last three bytes
+  of the base MAC in upper-case hex, at 192.168.4.1, on channel 1.
 - **FR-13.2** [Must] [user] `GET /` shall answer 200 with the form of §13.2.
 - **FR-13.3** [Must] [user] `POST /connect` with valid fields shall answer 200
   with a page naming the submitted SSID, before T3 stops the SoftAP.
@@ -878,7 +878,7 @@ on the station address.
   by exactly 1 for each answered request, whatever its status.
 - **NFR-14.1** [Must] [user] With one client issuing 100 sequential `GET /`
   requests, the 95th-percentile time from request to complete response shall be
-  ≤ 500 ms [proposed].
+  ≤ 500 ms.
 
 ### 14.4 Verification contracts
 
@@ -989,7 +989,7 @@ verification:
 
 Mirrors the `web:` log lines over the network so a bench run can observe the
 device without the serial port. Peer: the station's default gateway (on the bench,
-the testbench Pi), UDP port 5555 [proposed destination].
+the testbench Pi), UDP port 5555.
 
 ### 16.2 Requirements
 
@@ -1045,8 +1045,8 @@ press requests a factory reset. Sampled only after BOOT exits.
 ### 18.2 Requirements
 
 - **FR-18.1** [Must] [pack:esp32] Holding the button continuously for 5 s
-  [proposed] shall raise exactly one factory-reset event (§5.3 T10).
-- **FR-18.2** [Must] [derived] Releasing the button before 5 s [proposed] shall
+  shall raise exactly one factory-reset event (§5.3 T10).
+- **FR-18.2** [Must] [derived] Releasing the button before 5 s shall
   raise no event and change nothing.
 
 ### 18.3 Verification contracts
@@ -1173,9 +1173,9 @@ a site visit. Uses the ESP-IDF task watchdog.
 ### 19.2 Requirements
 
 - **FR-19.1** [Must] [pack:esp32] If the application task (§2.3) runs no loop
-  iteration for 10 s [proposed], the device shall restart with reset reason
+  iteration for 10 s, the device shall restart with reset reason
   `TASK_WDT`.
-- **FR-19.2** [Must] [pack:esp32] If an HTTP handler blocks for 10 s [proposed],
+- **FR-19.2** [Must] [pack:esp32] If an HTTP handler blocks for 10 s,
   the device shall restart with reset reason `TASK_WDT`.
 
 ### 19.3 Verification contracts
@@ -1218,9 +1218,8 @@ verification:
 
 ### 20.1 Requirements
 
-- **FR-20.1** [Must] [pack:esp32] The hostname shall be `tds3-<xxxxxx>` [proposed
-  prefix], where `<xxxxxx>` is the last three bytes of the base MAC in lower-case
-  hex.
+- **FR-20.1** [Must] [pack:esp32] The hostname shall be `tds3-<xxxxxx>`, where
+  `<xxxxxx>` is the last three bytes of the base MAC in lower-case hex.
 - **FR-20.2** [Must] [derived] The SoftAP SSID suffix (FR-13.1) and the hostname
   suffix shall come from the same base MAC bytes.
 - **FR-20.3** [Must] [user] The firmware version reported by L1 and `fw_version`
@@ -1299,23 +1298,23 @@ Build-time constants:
 | LCD pins, clock, offset | §2.2, C-6.1 – C-6.5 | [user]/[derived] |
 | Landscape area / font cell / colours | 320 × 170 / 16 × 32 / `0xFFFF` on `0x0000` | [user] |
 | Screen lines / max characters | 3 / 20 | [derived] |
-| LCD refresh period | 1000 ± 100 ms | [proposed] |
-| Boot to first state line | ≤ 3000 ms | [proposed] |
-| Boot to ONLINE | ≤ 10 s | [proposed] |
-| Connect attempt timeout | 15 s | [proposed] |
-| Retry delays | 1, 2, 4, 8, 15 s, ± 10 % | [proposed] |
-| Reconnect after AP return | ≤ 30 s | [proposed] |
-| SoftAP stop after accepted credentials | ≤ 5 s | [proposed] |
-| SoftAP SSID / channel / IP | `TDS3-<XXXXXX>` / 1 / 192.168.4.1 | [proposed] / [proposed] / [user] |
-| Hostname | `tds3-<xxxxxx>` | [proposed] |
+| LCD refresh period | 1000 ± 100 ms | [user] |
+| Boot to first state line | ≤ 3000 ms | [user] |
+| Boot to ONLINE | ≤ 10 s | [user] |
+| Connect attempt timeout | 15 s | [user] |
+| Retry delays | 1, 2, 4, 8, 15 s, ± 10 % | [user] |
+| Reconnect after AP return | ≤ 30 s | [user] |
+| SoftAP stop after accepted credentials | ≤ 5 s | [user] |
+| SoftAP SSID / channel / IP | `TDS3-<XXXXXX>` / 1 / 192.168.4.1 | [user] |
+| Hostname | `tds3-<xxxxxx>` | [user] |
 | HTTP port | 80 | [user] |
-| `GET /` p95 | ≤ 500 ms | [proposed] |
+| `GET /` p95 | ≤ 500 ms | [user] |
 | OTA max image | 0x400000 bytes | [user] |
-| Restart after OTA accept / factory reset | ≤ 2 s | [proposed] |
-| OTA confirm deadline | 60 s from reset | [proposed] |
-| Factory-reset hold | 5 s | [proposed] |
-| Watchdog timeout | 10 s | [proposed] |
-| UDP log destination | station gateway, port 5555 | [proposed] |
+| Restart after OTA accept / factory reset | ≤ 2 s | [user] |
+| OTA confirm deadline | 60 s from reset | [user] |
+| Factory-reset hold | 5 s | [user] |
+| Watchdog timeout | 10 s | [user] |
+| UDP log destination | station gateway, port 5555 | [user] |
 | Log tag | `web` | [derived] |
 
 ## Appendix B — Lifecycle Metadata
@@ -1336,20 +1335,21 @@ FR-6.6 now covers a 20-character line.
 
 ```yaml
 document_status: draft
-fsd_version: 0.1.0
+fsd_version: 0.1.1
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: requirements tagged [user], [derived] and [pack:esp32] approved; values tagged [proposed] open
+approval_status: requirements tagged [user], [derived] and [pack:esp32] approved; values tagged open
 created: 2026-10-23
 last_updated: 2026-10-23
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - 0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS
+  - 0.1.1 2026-10-23 all proposed values accepted by the user (Appendix A)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4]
 open_decisions:
-  - Every value marked [proposed] (Appendix A lists them): deadlines, retry schedule, watchdog timeout, hold time, SSID/hostname prefixes, SoftAP channel, UDP destination
+  - Every value marked (Appendix A lists them): deadlines, retry schedule, watchdog timeout, hold time, SSID/hostname prefixes, SoftAP channel, UDP destination
 related_test_baseline: none yet
 ```
