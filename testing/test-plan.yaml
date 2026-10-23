@@ -112,12 +112,15 @@ capabilities:
   bench-mdns-resolve:
     what: Bench resolves <name>.local on its AP network (needed by FR-17.1)
     available: no
-    # Not among the bench's declared capabilities (FSD R-8). Tests needing it
-    # are blocked until the bench declares it.
+    # Not among the bench's declared capabilities (FSD R-8).
+    # Consequence: FR-17.1's bench test (mDNS name resolution) is blocked until
+    # the bench declares it; FR-17.1 is a Should, so shipment needs a decision.
   bench-relay-dns-via-dut:
     what: The HTTP relay resolves names through the DNS of the SoftAP it has joined (needed by FR-13.5)
     available: no
     # Not among the bench's declared capabilities (FSD R-7).
+    # Consequence: FR-13.5's bench test (captive DNS) is blocked until the
+    # bench declares it; FR-13.5 is a Should, so shipment needs a decision.
   slot4-gpio-reset:
     what: EN/BOOT reset and download mode via bench GPIO on SLOT4
     available: no
@@ -129,6 +132,9 @@ capabilities:
     available: no
     # /api/wifi/scan returns ssid, rssi, auth, channel only (2026-10-23).
     # Bench gap: SensorsIot/Embedded-AI-Harness#50.
+    # Consequence: nothing is blocked. SoftAP presence (FR-5.11, FR-9.4,
+    # FR-13.1) is matched by the DUT's own SSID TDS3-<MAC suffix>, which it
+    # also logs (FR-7.9, K2); FSD R-12.
   seam-no-confirm-build:
     what: "Test build identical to the shipped one except that it never marks itself valid (FSD FR-5.24, §5.6)"
     available: unproven
