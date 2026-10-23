@@ -378,8 +378,9 @@ reset (60).
   verify: ignored.
 - Any state × reset or watchdog reset (§19): restart into BOOT; only credentials
   persist.
-- **Prohibited:** any transition into PROVISIONING other than T1 after T10's
-  erase (FR-5.19); any restart other than T10, T11, T13 and the watchdog.
+- **Prohibited:** while credentials are stored, any transition into
+  PROVISIONING (only T10's erase and restart lead back to it through T1,
+  FR-5.19); any restart other than T10, T11, T13 and the watchdog.
 
 #### Display region
 
@@ -485,7 +486,8 @@ Display:
 Test builds named here (how they are built is HOW):
 - **LCD fault build** — the shipped firmware with an LCD that fails at start or at
   the k-th write (exists: `tests/target/lcd_fault/`).
-- **No-network build** — a valid image identical to the shipped one except that it
+- **No-network build** — a valid image, with an embedded version different from
+  every shipped build's, identical to the shipped one except that it
   never starts a station attempt: with stored credentials it stays in CONNECTING
   (T2), so it never reaches ONLINE and never confirms — the failure FR-5.24 exists
   for.
@@ -1030,9 +1032,9 @@ the log (K10, K11) and, on success, by the restart (T11).
 |----|------------------------|----------------------|-----------------|------|
 | FR-15.1 | Note L1's `slot=`; request a valid hosted image; then request it again | After each OTA, L1's `slot=` is the other slot (`ota_0` ↔ `ota_1`), each boot ONLINE and confirmed | The same slot after an OTA; a boot with `fw=` other than the requested build | bench |
 | FR-15.11 (stall, core) | Download state core with a fake clock: bytes arrive, then none for 29.9 s; then none for 30.0 s | No failure at 29.9 s; failure (K11 action) at 30.0 s | Failure before 30 s; no failure at 30 s | host |
-| FR-15.12 | ONLINE running build A; host build A's own 3 MB-or-larger image; request it; request again within 1 s | Second answer 409; first download completes and re-installs fw=A (T11) | Two downloads; the second answered 202 | bench |
+| FR-15.12 | ONLINE running build A; host build A's own image (its download lasts longer than 1 s on the bench); request it; request again within 1 s | Second answer 409; first download completes and re-installs fw=A (T11) | Two downloads; the second answered 202 | bench |
 | FR-15.12 (core) | Download state machine: second start while busy | Refused with 409 | Accepted | host |
-| FR-15.13 | ONLINE running build A; host a 3 MB build B; request it; stop the bench AP 2 s after the bench log shows the fetch starting; restart the AP after 20 s | K11 and `web: state=WIFI_LOST`; after the AP returns, `web: online`, `/api/status` reports `fw_version` = A, and a following USB reset boots `fw=A` on the same `slot=` | K10; a restart into B; `OTA succeeded` after the disconnect | bench |
+| FR-15.13 | ONLINE running build A; host a build B whose download lasts longer than 2 s on the bench; request it; stop the bench AP 2 s after the bench log shows the fetch starting; restart the AP after 20 s | K11 and `web: state=WIFI_LOST`; after the AP returns, `web: online`, `/api/status` reports `fw_version` = A, and a following USB reset boots `fw=A` on the same `slot=` | K10; a restart into B; `OTA succeeded` after the disconnect | bench |
 | NFR-15.1 | ONLINE; 5 × `POST /ota` (valid URL, then 4 invalid bodies of FR-15.9) | Each answered ≤ 2 s after sending, by relay timing | An answer after 2 s; an answer only after the download | bench |
 | FR-15.8 | ONLINE; `POST /ota` with a hosted image URL | 202 `{"ok":true}` (NFR-15.1 timing); the bench activity log shows the device fetching the file | 200 with a delayed answer after the download; no fetch | bench |
 | FR-15.9 (core) | Parse bodies: not JSON; `{}`; `{"url":5}`; `https://…`; 257-character URL; valid | 400 for each invalid; accepted only for the valid one | Any invalid body accepted | host |
@@ -1470,7 +1472,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.3.5
+fsd_version: 0.3.6
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1491,6 +1493,7 @@ change_history:
   - 0.3.3 2026-10-23 FR-5.24 test build is a no-network build (reaching ONLINE confirms, by T5; user decision); FR-7.25 moved to Phase 4; FR-5.15 contract needs no line order; FR-15.11 stall prohibits late K11; FR-9.2 air MAC range stated; R-7/R-8 defer to the bench declaration
   - 0.3.4 2026-10-23 FR-15.13 (T7 aborts an OTA download; derived from §15.1) closes OS/OF outside ONLINE; L14 logged on every boot while a slot is recorded invalid, contracts check slot= instead of L14's absence; FR-15.11 stall follow-up re-installs A; FR-19.1 evidence fits target tier
   - 0.3.5 2026-10-23 factory reset on release (user decision): FR-18.1 superseded by FR-18.3/18.4, L17b and FR-7.32 added; FR-7.15 superseded by FR-7.31; R-13 and a host stall row for FR-15.11; FR-9.4 contract reachable under §5.3; FR-15.12/15.13/NFR-19.1 contract fixes
+  - 0.3.6 2026-10-23 carried Load-defined observations: §5.3 Prohibited line scoped to stored credentials; no-network build carries a distinct version; FR-15.12/FR-15.13 contracts state the download-duration need instead of a 3 MB size
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
 open_decisions: []
 related_test_baseline: none yet

@@ -328,11 +328,7 @@ gates:
     date: 2026-10-23
     commit: c6897a0
     checker: fresh subagent, gate file + repo only (sixth round after the 0.3.0 delta; rounds 1-5 SHUT, findings fixed in FSD 0.3.1-0.3.5)
-    carried: >
-      Non-blocking observations to fold into the next /define delta: the §5.3
-      "Prohibited" line should read "while credentials are stored"; the
-      no-network build should carry a version distinct from the shipped one;
-      the >= 3 MB image used by FR-15.12/FR-15.13 should be a named test build.
+    carried: none (folded into FSD 0.3.6)
   - gate: DUT ready
     verdict: OPEN
     date: 2026-10-23
@@ -1383,3 +1379,31 @@ tests:
     observable: "A ONLINE; OTA to no-network build B: one boot of B, L16 at 60-63 s of B's uptime, restart, A boots with 'rolled back, invalid=<B slot>', not PROVISIONING, ONLINE again"
     impl: tests/bench/test_rollback.py::test_never_online_image_is_rolled_back
     result: {status: successful, commit: 6b87b72, firmware: "A 0.0.0-dev / B 0.0.0-no-network (946e5e7, Build Firmware run 40033728057)", date: 2026-10-23, evidence: "bench run, 1 passed in 162 s (second run; first run read the ring twice-written boot line as two boots). One B boot, L16 at 60.5 s of its uptime, A booted with rolled back, invalid=ota_1, ONLINE again"}
+
+  - id: TC-OTA-21
+    title: A second OTA request during a download is refused 409
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-15.12, FR-7.31]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    observable: "A re-installs its own image: first POST 202, second within 1.5 s 409, L12 ota refused 409, exactly one OTA succeeded, ONLINE after the restart"
+    impl: tests/bench/test_ota_busy.py::test_second_request_while_downloading_is_refused_409
+    result: {status: not done, reason: not yet run against this commit}
+    # FR-15.12 (core) row: the busy state lives in the receiver glue, not a pure
+    # core; the bench row carries the requirement.
+
+  - id: TC-PORT-11
+    title: Other paths lead to the portal, never the status
+    shape: atomic
+    kind: deviation
+    wave: 2
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-13.6, FR-14.5]
+    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, dut-wifi-slot4]
+    observable: "PROVISIONING: /generate_204, /api/status, /hotspot-detect.html all land on the portal form (relay follows the 302); never status JSON, 404 or 204"
+    impl: tests/bench/test_portal.py::test_other_paths_lead_to_the_portal_not_the_status
+    result: {status: not done, reason: not yet run against this commit}

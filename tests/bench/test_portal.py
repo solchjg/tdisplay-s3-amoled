@@ -40,3 +40,21 @@ def test_portal_serves_the_form(bench, dut, provisioning):
     assert 'name="ssid"' in page and 'name="password"' in page
     ring = [e["text"] for e in bench.serial_output(dut, lines=500, since=mark).get("lines", [])]
     assert "Portal page requested" in [m for _, _, m in web_lines(ring)], "K3 missing (FR-7.20)"
+
+
+# TC-PORT-11 · FR-13.6, FR-14.5
+def test_other_paths_lead_to_the_portal_not_the_status(bench, dut, provisioning):
+    """The bench relay follows redirects, so the 302 itself is not visible: the
+    observable is where it lands (the portal form) and what it never is (the
+    status JSON, a 404, a 204)."""
+    bench.sta_join(SOFTAP_SSID, timeout=30)
+    try:
+        results = {p: relay(bench, "GET", f"http://192.168.4.1{p}")
+                   for p in ("/generate_204", "/api/status", "/hotspot-detect.html")}
+    finally:
+        bench.sta_leave()
+    for path, (code, body, _) in results.items():
+        page = body.decode(errors="replace")
+        assert code == 200, f"{path}: {code} (404/204 means no redirect)"
+        assert 'action="/connect"' in page, f"{path} did not land on the portal form"
+        assert '"fw_version"' not in page, f"{path}: status JSON outside ONLINE (FR-14.5)"
