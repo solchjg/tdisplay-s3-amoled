@@ -53,18 +53,20 @@ def firmware_dir():
     return d
 
 
-def flash_coldflash(base_url, slot, chip, directory):
+def flash_coldflash(base_url, slot, chip, directory, erase=False):
     """POST /api/flash with flash_args plus every image it names.
 
     Sending flash_args (not only bin@offset parts) makes the bench use the
     build's flash mode, frequency and size instead of its own defaults.
+    erase=True erases the whole flash first, so NVS holds no credentials.
     """
     with open(os.path.join(directory, "flash_args")) as fh:
         args = fh.read()
     images = [ln.split()[1] for ln in args.splitlines() if ln.startswith("0x")]
     boundary = "----tdh" + uuid.uuid4().hex
     parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
-             for k, v in (("slot", slot), ("chip", chip), ("baud", "460800"))]
+             for k, v in (("slot", slot), ("chip", chip), ("baud", "460800"))
+             + ((("erase", "1"),) if erase else ())]
     for name, path in [("flash_args", "flash_args")] + [(os.path.basename(i), i) for i in images]:
         with open(os.path.join(directory, os.path.basename(path)), "rb") as fh:
             blob = fh.read()
@@ -85,8 +87,8 @@ def flash_coldflash(base_url, slot, chip, directory):
 
 @pytest.fixture(scope="session")
 def flashed(bench, dut, firmware_dir):
-    """Flash FIRMWARE_DIR once per session; JRN-01.1 asserts the result."""
-    return flash_coldflash(bench.base_url, dut, CHIP, firmware_dir)
+    """Erase SLOT4 and flash FIRMWARE_DIR once per session; JRN-01.1 asserts it."""
+    return flash_coldflash(bench.base_url, dut, CHIP, firmware_dir, erase=True)
 
 
 def this_boot(output):
