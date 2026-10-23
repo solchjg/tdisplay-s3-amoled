@@ -815,4 +815,4 @@ tests:
     needs: [bench-operator-prompt, operator-at-bench, bench-serial-monitor, lcd-st7789, dut-tdisplay-s3-slot4]
     observable: "after an operator power cycle (P-POWERCYCLE), operator confirms black everywhere except 'Starting', no edge noise"
     impl: tests/bench/test_display.py::test_cold_start_leaves_no_stray_pixels
-    result: {status: not done, reason: not yet run against this commit}
+    result: {status: successful, commit: a1ec7b9, firmware: 0.0.0-dev (2b866f5, Build Firmware run 40017636168), date: 2026-10-23, evidence: "bench run, junit 1 passed in 149.5 s; operator power cycle, web: alive seen after replug, operator confirmed a clean panel"}
