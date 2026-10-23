@@ -32,7 +32,16 @@ def bench():
         drv.get_devices()
     except TestbenchError as e:
         pytest.skip(f"testbench unreachable: {e}")
-    return drv
+    stop_bench_ap(drv)   # a previous session's AP blocks scans (bench: one radio)
+    yield drv
+    stop_bench_ap(drv)   # leave the rig as found
+
+
+def stop_bench_ap(drv):
+    try:
+        drv.ap_stop()
+    except TestbenchError:
+        pass
 
 
 @pytest.fixture(scope="session")

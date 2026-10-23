@@ -11,7 +11,8 @@ import time
 import pytest
 
 from conftest import (BENCH_PASS, BENCH_SSID, MAC, SOFTAP_SSID, enter_portal, relay,
-                      reset_and_follow, ring_lines, save_evidence, web_lines)
+                      reset_and_follow, ring_lines, save_evidence, stop_bench_ap,
+                      web_lines)
 
 STATUS_KEYS = {"fw_version": str, "free_heap": int, "rssi_dbm": int, "ip": str,
                "hostname": str, "requests": int}
@@ -34,6 +35,7 @@ def test_jrn_01_2_portal_open(bench, dut, flashed):
     assert "state=PROVISIONING" in msgs, "FR-5.11: not in PROVISIONING after an erased boot"
     assert "state=CONNECTING" not in msgs
     assert f"AP mode: SSID='{SOFTAP_SSID}'" in msgs, "K2 missing or another SSID"
+    stop_bench_ap(bench)   # the bench radio cannot scan while its AP beacons
     nets = bench.scan().get("networks", [])
     ours = [n for n in nets if n.get("ssid") == SOFTAP_SSID]
     assert ours, f"bench scan does not see {SOFTAP_SSID}"
@@ -67,6 +69,7 @@ def test_jrn_01_4_online(bench, dut):
     assert any(s.get("mac", "").lower() == MAC and s.get("ip") == ip for s in stations), \
         f"bench AP lists no station {MAC} at {ip}: {stations}"
     run["ip"] = ip
+    run["online_at"] = time.monotonic()
 
 
 def get_status(bench, ip):
@@ -97,12 +100,17 @@ def test_jrn_01_5_status(bench, dut, firmware_dir):
 def test_jrn_01_6_display_mirror(bench, dut):
     assert "requests" in run, "step 5 got no status"
     ip = run["ip"]
-    assert any(f'lcd line1="IP {ip}"' in ln for ln in ring_lines(bench, dut)), \
-        f"no mirror line for `IP {ip}` in the serial ring"
+    # FR-5.26: the ONLINE screen within 2 s of entering ONLINE (step 4); + 1 s slack.
+    deadline = run["online_at"] + 3.0
+    while not any(f'lcd line1="IP {ip}"' in ln for ln in ring_lines(bench, dut)):
+        assert time.monotonic() < deadline, f"no mirror line for `IP {ip}` within 2 s"
+        time.sleep(0.25)
     found = {}
+    expect = run["requests"] + 1   # FR-14.6: the next answer counts one more
 
     def watch():
-        found.update(bench.serial_monitor(dut, pattern='lcd line2="Req: ', timeout=10))
+        found.update(bench.serial_monitor(dut, pattern=f'lcd line2="Req: {expect}"',
+                                          timeout=10))
         found["at"] = time.monotonic()
 
     t = threading.Thread(target=watch)
@@ -111,7 +119,6 @@ def test_jrn_01_6_display_mirror(bench, dut):
     obj, _ = get_status(bench, ip)
     answered = time.monotonic()
     t.join()
-    assert found.get("matched"), "no `lcd line2=` mirror within 10 s of the request"
-    assert found["line"].rstrip().endswith(f'"Req: {obj["requests"]}"') or \
-        f'Req: {obj["requests"]}"' in found["line"], found["line"]
+    assert obj["requests"] == expect, f"requests {obj['requests']}, expected {expect}"
+    assert found.get("matched"), f"no `lcd line2=\"Req: {expect}\"` within 10 s"
     assert found["at"] - answered <= 2.0 + 1.0, "FR-5.26: shown later than 2 s (+ relay slack)"
