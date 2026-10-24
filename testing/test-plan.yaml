@@ -857,7 +857,7 @@ tests:
     needs: [bench-jtag-reset, bench-operator-prompt, operator-at-bench, lcd-st7789, dut-tdisplay-s3-slot4]
     observable: "operator confirms 'Setup WiFi' / 'TDS3-71C734' / '192.168.4.1', upright with USB-C on the right, white on black, backlight on"
     impl: tests/bench/test_display.py::test_operator_sees_the_provisioning_screen
-    result: {status: successful, commit: abf6fac, firmware: "0.0.0-dev (abf6fac, Build Firmware run 40019774251)", date: 2026-10-23, evidence: "bench run, junit 10 passed in 261.1 s; operator confirmed Setup WiFi / TDS3-71C734 / 192.168.4.1"}
+    result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
 
   - id: TC-LCD-11
     title: Cold start leaves no stray pixels
@@ -870,7 +870,7 @@ tests:
     needs: [bench-operator-prompt, operator-at-bench, bench-serial-monitor, lcd-st7789, dut-tdisplay-s3-slot4]
     observable: "after an operator power cycle (P-POWERCYCLE), operator confirms black everywhere except the text lines, no edge noise"
     impl: tests/bench/test_display.py::test_cold_start_leaves_no_stray_pixels
-    result: {status: successful, commit: abf6fac, firmware: "0.0.0-dev (abf6fac, Build Firmware run 40019774251)", date: 2026-10-23, evidence: "bench run, junit 10 passed in 261.1 s; operator power cycle, clean panel confirmed"}
+    result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
 
   - id: TC-DL-10
     title: "T1: no credentials enters PROVISIONING"
@@ -1221,7 +1221,7 @@ tests:
     needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot4]
     observable: "~12 s hold: L17b, then >= 3 s later L15, K8, boot within 2 s, state=PROVISIONING; no download-mode banner"
     impl: tests/bench/test_button.py::test_long_press_resets_on_release
-    result: {status: successful, commit: f831c48, firmware: "0.0.0-dev (f831c48, Build Firmware run 40030334418)", date: 2026-10-23, evidence: "bench run, junit 13 passed in 223.2 s; operator long and short press on the Pi display"}
+    result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
 
   - id: TC-BTN-11
     title: "Short press changes nothing"
@@ -1234,7 +1234,7 @@ tests:
     needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot4]
     observable: "~2 s press: no L17b/L15, no boot line, /api/status 200 10 s later"
     impl: tests/bench/test_button.py::test_short_press_changes_nothing
-    result: {status: successful, commit: f831c48, firmware: "0.0.0-dev (f831c48, Build Firmware run 40030334418)", date: 2026-10-23, evidence: "bench run, junit 13 passed in 223.2 s; operator long and short press on the Pi display"}
+    result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
 
   - id: TC-PORT-10
     title: "Portal serves the form"
