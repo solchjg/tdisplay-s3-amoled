@@ -265,8 +265,11 @@ testbench.
 | R-9 | BOOT (GPIO 0) is not wired on SLOT4: factory reset can only be tested by an operator; holding BOOT while the chip resets enters the ROM download mode instead | Certain | Low | FR-18.x contracts are operator-tier and press only while the device is running |
 | R-10 | Credentials that can never connect (wrong password, AP gone for good) leave the device retrying forever, because it never returns to the portal on its own (FR-5.19) | Certain | Medium | Accepted [user]: the BOOT-button factory reset (§18) is the recovery path |
 | R-11 | The bench AP and the device SoftAP both use 192.168.4.1 | Certain | Low | The bench's provisioning procedure leaves the device SoftAP before it starts its own AP; the device's SoftAP is gone in every state but PROVISIONING (FR-9.4) |
-| R-13 | No peer on the bench AP network can stall a download (the bench declares no such mode), so the stall clause of FR-15.11 has no bench run | Certain | Medium | The stall timeout is ESP-IDF's HTTP client timeout (30 s), not a separate core; the stall clause is blocked until the testbench declares a stall mode (SensorsIot/Embedded-AI-Harness#55), never worked around in the project |
 | R-12 | The bench WiFi scan reports no BSSID | Certain | Low | SoftAP presence is matched by the device's own SSID (FR-13.1), which the device logs (FR-7.9) |
+| R-13 | No peer on the bench AP network can stall a download (the bench declares no such mode), so the stall clause of FR-15.11 has no bench run | Certain | Medium | The stall timeout is ESP-IDF's HTTP client timeout (30 s), not a separate core; the stall clause is blocked until the testbench declares a stall mode (SensorsIot/Embedded-AI-Harness#55), never worked around in the project |
+| R-14 | The bench AP does not re-admit a station that reset without a deauth (SensorsIot/Embedded-AI-Harness#54), so no test can reset or power-cycle a provisioned DUT and expect it back on the same AP | Certain | Medium | Waived for shipment (Appendix B, Verification waivers); a reset with the AP down and a fresh AP start is used wherever the requirement allows it |
+| R-15 | The bench has one radio, which cannot scan while its AP beacons, so nothing can be scanned while the DUT is ONLINE on the bench AP or right after enter-portal starts the AP | Certain | Low | FR-9.4's ONLINE part and FR-5.13's SoftAP-gone timing are waived (Appendix B); their other parts are verified with the AP stopped |
+| R-16 | The bench's UDP log listener cannot be stopped, so FR-16.3 (no receiver) has no bench run | Certain | Low | Waived (Appendix B); the non-blocking send holds it by construction |
 
 ### 4.2 Assumptions
 
@@ -1442,6 +1445,7 @@ Build-time constants:
 | Factory-reset hold (minimum, reset on release) | 5 s | [user] |
 | Watchdog timeout | 10 s | [user] |
 | Watchdog restart after timeout | ≤ 5 s | [user] |
+| Bench capture clock resolution (timing contracts read on it) | ± 1 s | [derived from the bench serial ring] |
 | ONLINE: AP loss to WIFI_LOST | ≤ 15 s | [user] |
 | `POST /ota` answer | ≤ 2 s | [user] |
 | Failed (non-stalled) OTA download to K11 | ≤ 60 s | [user] |
@@ -1450,6 +1454,24 @@ Build-time constants:
 | Log tag | `web` | [derived] |
 
 ## Appendix B — Lifecycle Metadata
+
+### Verification waivers
+
+Accepted by the user on 2026-10-24 for shipment: each part below is implemented
+but cannot be verified on this testbench. Every other part of these
+requirements is verified. A waiver is withdrawn, and the test run, as soon as
+the bench gains the capability.
+
+| Requirement | Unverified part | Blocked by | Verified in part by |
+|-------------|-----------------|------------|---------------------|
+| NFR-5.1 | Boot to `web: online` within 10 s after a reset with the AP up | R-14, SensorsIot/Embedded-AI-Harness#54 | Journey JRN-01.4 (first join from an erased boot) |
+| FR-5.20 | Credentials surviving a power cycle with the AP up | R-14, #54 | TC-REC-13, TC-NET-11 (a reset keeps the credentials; ONLINE once a fresh AP starts) |
+| FR-17.1 | `<hostname>.local` resolution | R-8: the bench declares no `.local` resolution | TC-NET-13 (the DHCP hostname, FR-17.2); implementation on espressif/mdns 1.14.0 |
+| FR-13.5 | Any name resolving to the portal over the SoftAP | R-7: the relay does not resolve through the DUT | TC-PORT-04 (the answer core, host) |
+| FR-16.3 | Logging and HTTP unaffected with no UDP receiver | R-16 | Non-blocking sends (udp_log.c, MSG_DONTWAIT) |
+| FR-15.11 | The stall clause (no byte for 30 s) | R-13, SensorsIot/Embedded-AI-Harness#55 | TC-OTA-31 (bad image, cut image, oversize, 404) |
+| FR-9.4 | No SoftAP while ONLINE | R-15 | TC-SEC-12, TC-NET-11, TC-REC-13 (CONNECTING and WIFI_LOST) |
+| FR-5.13 | SoftAP gone ≤ 5 s after the 200 | R-15 | JRN-01.3, JRN-01.4 (stored, CONNECTING without restart, ONLINE) |
 
 ### Superseded requirements (from the `tdisplay-s3-hello` base)
 
@@ -1475,7 +1497,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.3.7
+fsd_version: 0.3.8
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1483,7 +1505,7 @@ author: solchjg
 reviewers: []
 approval_status: all requirements and values approved by the user
 created: 2026-10-23
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - 0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS
@@ -1498,6 +1520,7 @@ change_history:
   - 0.3.5 2026-10-23 factory reset on release (user decision): FR-18.1 superseded by FR-18.3/18.4, L17b and FR-7.32 added; FR-7.15 superseded by FR-7.31; R-13 and a host stall row for FR-15.11; FR-9.4 contract reachable under §5.3; FR-15.12/15.13/NFR-19.1 contract fixes
   - 0.3.6 2026-10-23 carried Load-defined observations: §5.3 Prohibited line scoped to stored credentials; no-network build carries a distinct version; FR-15.12/FR-15.13 contracts state the download-duration need instead of a 3 MB size
   - 0.3.7 2026-10-23 Load-defined findings: R-13 no longer claims a host stall core (stall clause blocked on bench #55); hang build logs its anchor line and FR-19.1/NFR-19.1 timing states the bench clock resolution; NFR-5.2/NFR-5.3 tolerances aligned; FR-5.21 scans with the AP stopped; FR-5.28 resets through JTAG with the AP down; Phase 2 exit names bench #54; Appendix B parses as YAML
+  - 0.3.8 2026-10-24 verification waivers accepted by the user for shipment (Appendix B); R-14 (bench #54), R-15 (one bench radio), R-16 (UDP listener) added; bench clock resolution in Appendix A; R-12/R-13 order
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
 open_decisions: []
 related_test_baseline: none yet
