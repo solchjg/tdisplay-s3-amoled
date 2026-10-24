@@ -376,7 +376,7 @@ tests:
     needs: [bench-flash, bench-flash-erase, dut-tdisplay-s3-slot4]
     observable: flash with erase reports success for every image in flash_args
     impl: tests/bench/test_journey.py::test_jrn_01_1_erase_and_flash
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: JRN-01.2
     title: First boot opens the provisioning portal
@@ -389,7 +389,7 @@ tests:
     needs: [bench-usb-reset, bench-serial-monitor, bench-wifi-scan, dut-tdisplay-s3-slot4, dut-wifi-slot4]
     observable: "`web: state=PROVISIONING` and `AP mode: SSID='TDS3-71C734'` on serial; the bench scan sees open SSID TDS3-71C734"
     impl: tests/bench/test_journey.py::test_jrn_01_2_portal_open
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: JRN-01.3
     title: The bench provisions credentials through the portal
@@ -402,7 +402,7 @@ tests:
     needs: [bench-enter-portal, bench-serial-monitor, dut-wifi-slot4]
     observable: "`Credentials saved` and `web: provisioned ssid=<bench SSID>` on serial, with no boot line after them"
     impl: tests/bench/test_journey.py::test_jrn_01_3_provisioned
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: JRN-01.4
     title: The device joins the bench AP
@@ -415,7 +415,7 @@ tests:
     needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "`STA got IP` and `web: online ip=<a.b.c.d>`; the bench AP station list holds the DUT's MAC with that IP"
     impl: tests/bench/test_journey.py::test_jrn_01_4_online
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: JRN-01.5
     title: The status API answers with the flashed version
@@ -428,7 +428,7 @@ tests:
     needs: [bench-http-relay, dut-wifi-slot4]
     observable: "relay GET http://<ip>/api/status → 200, JSON with exactly the 6 keys (no uptime_s), fw_version equal to the artefact's version, ip equal to step 4's"
     impl: tests/bench/test_journey.py::test_jrn_01_5_status
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: JRN-01.6
     title: The display mirrors IP and request count
@@ -441,7 +441,7 @@ tests:
     needs: [bench-serial-monitor, bench-http-relay, lcd-st7789, dut-wifi-slot4]
     observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
     impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-BUILD-01
     title: Build targets esp32s3
@@ -805,7 +805,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "exactly one Init complete, running event-driven, after the app_init lines"
     impl: tests/bench/test_log.py::test_init_marker_once_after_startup
-    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-LOG-21
     title: Boot line first and once
@@ -818,7 +818,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "first web: line is boot reason=<NAME> fw=.. slot=ota_0|ota_1, once"
     impl: tests/bench/test_log.py::test_boot_line_first_and_once
-    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-LOG-22
     title: "Every web: line has the ESP-IDF prefix"
@@ -831,7 +831,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "each web: line matches <L> (<ms>) web: "
     impl: tests/bench/test_log.py::test_every_web_line_has_the_esp_idf_prefix
-    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-LOG-23
     title: Heartbeat every 10 s from 0
@@ -844,7 +844,7 @@ tests:
     needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
     observable: "70 s capture: >= 6 alive lines, N = 0,1,2,..., gaps 9 - 11 s"
     impl: tests/bench/test_log.py::test_alive_every_10_s_counting_from_0
-    result: {status: successful, commit: 698b28f, firmware: 0.0.0-dev / 0.0.2-ota (698b28f), date: 2026-10-23, evidence: "bench run, junit 15 passed (status, UDP, log)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-LCD-10
     title: Operator sees the PROVISIONING screen upright, white on black, lit
@@ -1039,7 +1039,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
     observable: "3 sequential GET /api/status give requests k, k+1, k+2"
     impl: tests/bench/test_status.py::test_request_count_rises_by_one_per_request
-    result: {status: successful, commit: a1e1600, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench regression run 2, junit 11 passed, 1 skipped (TC-MDNS-10 blocked)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-HTTP-11
     title: "Page shows every field and agrees with the JSON"
@@ -1052,7 +1052,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
     observable: "200 text/html; fw_version, ip, hostname equal the JSON; labels present; no uptime"
     impl: tests/bench/test_status.py::test_page_shows_every_field_and_agrees_with_the_json
-    result: {status: successful, commit: a1e1600, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench regression run 2, junit 11 passed, 1 skipped (TC-MDNS-10 blocked)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-UDP-01
     title: "Only web lines at I/W/E, stripped of prefix and colour"
@@ -1091,7 +1091,7 @@ tests:
     needs: [bench-udp-log, bench-http-relay, dut-wifi-slot4]
     observable: "5 GET /api/status give 5 datagrams 'web: http GET /api/status 200 n=k' from the DUT, equal to the serial text"
     impl: tests/bench/test_udp.py::test_web_lines_arrive_as_datagrams_equal_to_serial
-    result: {status: successful, commit: a1e1600, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench regression run 2, junit 11 passed, 1 skipped (TC-MDNS-10 blocked)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-NET-10
     title: "Reset reaches ONLINE within 10 s without the portal"
@@ -1117,7 +1117,7 @@ tests:
     needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4]
     observable: "bench AP down, reset: CONNECTING, 3 scans over 30 s without TDS3-71C734, rejoins when the AP returns"
     impl: tests/bench/test_connectivity.py::test_stored_credentials_never_open_the_softap
-    result: {status: successful, commit: fd7b45c, firmware: 0.0.0-dev (fd7b45c, Build Firmware run 40024571526), date: 2026-10-23, evidence: "bench run, junit: journey 6/6, TC-NET-11, log 4/4 passed"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-NET-12
     title: "Power cycle keeps the credentials"
@@ -1169,7 +1169,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "POST /ota {url} -> 202 {ok:true} within 2 s (+ relay slack)"
     impl: tests/bench/test_ota.py::test_ota_request_answered_202_within_2_s
-    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-OTA-11
     title: "Download succeeds and restarts into the new image"
@@ -1182,7 +1182,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "OTA succeeded, restart (reason SW) within 2 s, boot line fw = hosted image version, slot switched"
     impl: tests/bench/test_ota.py::test_download_succeeds_and_restarts_into_the_new_image
-    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-OTA-12
     title: "New image confirms itself on reaching ONLINE"
@@ -1195,7 +1195,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "after the OTA boot: state=ONLINE then ota confirmed; no ota not confirmed"
     impl: tests/bench/test_ota.py::test_new_image_confirms_itself_online
-    result: {status: successful, commit: 4dff94b, firmware: 0.0.0-dev (698b28f, Build Firmware run 40028038664), OTA image 0.0.2-ota (run 40028051595), date: 2026-10-23, evidence: "bench run, junit 9 passed in 131.7 s; OTA: 202, 953712 bytes, OTA succeeded, boot fw=0.0.2-ota slot=ota_1, online at 2379 ms, ota confirmed at 2459 ms; otadata ota_1 VALID"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-BTN-01
     title: "Reset only at release after >= 5 s; nothing while held"
@@ -1247,7 +1247,7 @@ tests:
     needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
     observable: "erased device; joined to TDS3-71C734: GET / 200 text/html, form method=post action=/connect, fields ssid and password; K3 Portal page requested logged"
     impl: tests/bench/test_portal.py::test_portal_serves_the_form
-    result: {status: successful, commit: 0caf619, firmware: 0.0.0-dev (946e5e7, Build Firmware run 40033728057), date: 2026-10-23, evidence: "bench run, junit 3 passed in 141.4 s"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-HTTP-12
     title: "Page p95 within 500 ms"
@@ -1260,7 +1260,7 @@ tests:
     needs: [bench-http-relay, bench-wifi-ap, dut-wifi-slot4]
     observable: "100 sequential GET / through the relay: p95 <= 500 ms"
     impl: tests/bench/test_status.py::test_page_p95_within_500_ms
-    result: {status: successful, commit: a1e1600, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench regression run 2, junit 11 passed, 1 skipped (TC-MDNS-10 blocked)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-NET-13
     title: "DHCP hostname reaches the bench"
@@ -1273,7 +1273,7 @@ tests:
     needs: [bench-wifi-events, bench-wifi-ap, dut-wifi-slot4]
     observable: "bench STA_CONNECT event for 34:85:18:71:c7:34 has hostname tds3-71c734"
     impl: tests/bench/test_connectivity.py::test_dhcp_hostname_reaches_the_bench
-    result: {status: successful, commit: a1e1600, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench regression run 2, junit 11 passed, 1 skipped (TC-MDNS-10 blocked)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-MDNS-10
     title: "<hostname>.local resolves to the device"
@@ -1351,7 +1351,7 @@ tests:
     needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "bench AP stopped: state=WIFI_LOST <= 15 s (+3), K7, no restart"
     impl: tests/bench/test_recovery.py::test_ap_loss_enters_wifi_lost_within_15_s
-    result: {status: successful, commit: 9347e23, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench run, junit 4 passed in 269.4 s; backoff 1000/2000/4000/8000/15000/15000/15000 ms on schedule; ONLINE ~1 s after AP return"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-REC-11
     title: "Retries follow the backoff schedule"
@@ -1364,7 +1364,7 @@ tests:
     needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "75 s outage: L6 delays 1000, 2000, 4000, 8000, 15000, 15000 ms; each CONNECTING its delay (+-10 %) after L6; attempt counts 1, 2, 3, ..."
     impl: tests/bench/test_recovery.py::test_retries_follow_the_backoff_schedule
-    result: {status: successful, commit: 9347e23, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench run, junit 4 passed in 269.4 s; backoff 1000/2000/4000/8000/15000/15000/15000 ms on schedule; ONLINE ~1 s after AP return"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-REC-12
     title: "Reconnects within 30 s of the AP returning"
@@ -1377,7 +1377,7 @@ tests:
     needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: ">= 60 s outage, AP back: web: online <= 30 s (+3); no restart, no PROVISIONING in the whole window"
     impl: tests/bench/test_recovery.py::test_reconnects_within_30_s_of_the_ap_returning
-    result: {status: successful, commit: 9347e23, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench run, junit 4 passed in 269.4 s; backoff 1000/2000/4000/8000/15000/15000/15000 ms on schedule; ONLINE ~1 s after AP return"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-REC-13
     title: "Reset with the AP down never opens the portal"
@@ -1390,7 +1390,7 @@ tests:
     needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4]
     observable: "AP down, reset, 120 s: CONNECTING/WIFI_LOST alternate, no PROVISIONING, TDS3-71C734 never scanned; ONLINE once the AP returns"
     impl: tests/bench/test_recovery.py::test_reset_with_the_ap_down_never_opens_the_portal
-    result: {status: successful, commit: 9347e23, firmware: 0.0.0-dev (a1e1600, Build Firmware run 40031629302), date: 2026-10-23, evidence: "bench run, junit 4 passed in 269.4 s; backoff 1000/2000/4000/8000/15000/15000/15000 ms on schedule; ONLINE ~1 s after AP return"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-OTA-20
     title: An image that never reaches the network is rolled back
@@ -1403,7 +1403,7 @@ tests:
     needs: [seam-no-network-build, bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "A ONLINE; OTA to no-network build B: one boot of B, L16 at 60-63 s of B's uptime, restart, A boots with 'rolled back, invalid=<B slot>', not PROVISIONING, ONLINE again"
     impl: tests/bench/test_rollback.py::test_never_online_image_is_rolled_back
-    result: {status: successful, commit: 6b87b72, firmware: "A 0.0.0-dev / B 0.0.0-no-network (946e5e7, Build Firmware run 40033728057)", date: 2026-10-23, evidence: "bench run, 1 passed in 162 s (second run; first run read the ring twice-written boot line as two boots). One B boot, L16 at 60.5 s of its uptime, A booted with rolled back, invalid=ota_1, ONLINE again"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-OTA-21
     title: A second OTA request during a download is refused 409
@@ -1416,7 +1416,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "A re-installs its own image: first POST 202, second within 1.5 s 409, L12 ota refused 409, exactly one OTA succeeded, ONLINE after the restart"
     impl: tests/bench/test_ota_busy.py::test_second_request_while_downloading_is_refused_409
-    result: {status: successful, commit: 0caf619, firmware: 0.0.0-dev (946e5e7, Build Firmware run 40033728057), date: 2026-10-23, evidence: "bench run, junit 3 passed in 141.4 s"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
     # FR-15.12 (core) row: the busy state lives in the receiver glue, not a pure
     # core; the bench row carries the requirement.
 
@@ -1431,7 +1431,7 @@ tests:
     needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, dut-wifi-slot4]
     observable: "PROVISIONING: /generate_204, /api/status, /hotspot-detect.html all land on the portal form (relay follows the 302); never status JSON, 404 or 204"
     impl: tests/bench/test_portal.py::test_other_paths_lead_to_the_portal_not_the_status
-    result: {status: successful, commit: 0caf619, firmware: 0.0.0-dev (946e5e7, Build Firmware run 40033728057), date: 2026-10-23, evidence: "bench run, junit 3 passed in 141.4 s"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-DL-18
     title: "T4: invalid submission stays and stores nothing"
@@ -1496,7 +1496,7 @@ tests:
     needs: [seam-hang-build, bench-flash, bench-serial-monitor, dut-tdisplay-s3-slot4]
     observable: "hang build app: restart 10-15 s (+3) after the hang, reason TASK_WDT, then CONNECTING not PROVISIONING"
     impl: tests/bench/test_watchdog.py::test_blocked_application_task_restarts_via_watchdog
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-WDT-11
     title: "Blocked HTTP handler restarts via watchdog"
@@ -1509,7 +1509,7 @@ tests:
     needs: [seam-hang-build, bench-flash, bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
     observable: "hang build http: GET /hang, restart 10-15 s (+3) later, reason TASK_WDT"
     impl: tests/bench/test_watchdog.py::test_blocked_http_handler_restarts_via_watchdog
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-WDT-12
     title: "No watchdog reset under load or OTA"
@@ -1522,7 +1522,7 @@ tests:
     needs: [bench-http-relay, bench-firmware-hosting, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "100 requests plus a full OTA download: OTA succeeded, no reason=TASK_WDT"
     impl: tests/bench/test_watchdog.py::test_no_watchdog_reset_under_load_or_ota
-    result: {status: successful, commit: eb3bd42, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "re-run after the instrument fixes: LCD fault 2 passed in 221.7 s; watchdog 3 passed"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-LCD-20
     title: "Start failure leaves the network running"
@@ -1535,7 +1535,7 @@ tests:
     needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot4]
     observable: "lcdfault-init: one lcdfi call start before L8 E ESP_ERR_TIMEOUT, no LCD call after, ONLINE, 12 requests counted, one boot"
     impl: tests/bench/test_lcd_fault.py::test_start_failure_leaves_the_network_running
-    result: {status: successful, commit: eb3bd42, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "re-run after the instrument fixes: LCD fault 2 passed in 221.7 s; watchdog 3 passed"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-LCD-21
     title: "Write failure leaves the network running"
@@ -1548,7 +1548,7 @@ tests:
     needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot4]
     observable: "lcdfault-write5: L9 E ESP_ERR_INVALID_STATE once, no draw after, ONLINE, 12 requests counted, one boot"
     impl: tests/bench/test_lcd_fault.py::test_write_failure_leaves_the_network_running
-    result: {status: successful, commit: eb3bd42, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "re-run after the instrument fixes: LCD fault 2 passed in 221.7 s; watchdog 3 passed"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-HTTP-20
     title: "Other routes answer 404"
@@ -1561,7 +1561,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
     observable: "GET /nope 404; DELETE /api/status 404"
     impl: tests/bench/test_negative.py::test_other_routes_answer_404
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-OTA-30
     title: "Non-http URL refused 400"
@@ -1574,7 +1574,7 @@ tests:
     needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
     observable: "POST /ota {url: ftp://x} -> 400, L12, no download"
     impl: tests/bench/test_negative.py::test_non_http_url_refused_400
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-OTA-31
     title: "Bad downloads fail without restart"
@@ -1587,7 +1587,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "random 300 kB, cut image, 4 MB+1 file, 404 URL: each 202 then K11 within 63 s, fw_version unchanged, no K10, no restart"
     impl: tests/bench/test_negative.py::test_bad_downloads_fail_without_restart
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-OTA-32
     title: "A download cut by WiFi loss changes nothing"
@@ -1600,7 +1600,7 @@ tests:
     needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
     observable: "AP stopped 3 s into a download, back 20 s later: K11, WIFI_LOST, ONLINE with the same fw_version, no K10, no restart"
     impl: tests/bench/test_negative.py::test_download_cut_by_wifi_loss_changes_nothing
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-PORT-12
     title: "Invalid submission refused on the device"
@@ -1613,7 +1613,7 @@ tests:
     needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
     observable: "33-byte SSID: 400 naming ssid; a reset still enters PROVISIONING"
     impl: tests/bench/test_negative.py::test_invalid_submission_refused_on_the_device
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-SEC-10
     title: "WiFi password never output"
@@ -1626,7 +1626,7 @@ tests:
     needs: [bench-flash-erase, bench-enter-portal, bench-udp-log, bench-http-relay, dut-wifi-slot4]
     observable: "provisioned with marker pw-<12 hex>: marker absent from serial, UDP and both HTTP bodies"
     impl: tests/bench/test_security.py::test_password_never_output
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-SEC-11
     title: "Only TCP port 80 open in ONLINE"
@@ -1639,7 +1639,7 @@ tests:
     needs: [bench-portscan, dut-wifi-slot4]
     observable: "port scan 1-65535 of the DUT: open = [80]"
     impl: tests/bench/test_security.py::test_only_port_80_open
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-SEC-12
     title: "No SoftAP while CONNECTING or WIFI_LOST"
@@ -1652,7 +1652,7 @@ tests:
     needs: [bench-wifi-scan, bench-wifi-ap, dut-wifi-slot4]
     observable: "bench AP down 60 s, a scan every 5 s: no TDS3-71C734 (ONLINE part blocked: bench-scan-while-ap = no)"
     impl: tests/bench/test_security.py::test_no_softap_while_connecting_or_lost
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-SEC-13
     title: "No BLE advertiser at the derived MACs"
@@ -1665,7 +1665,7 @@ tests:
     needs: [bench-ble-scan, dut-tdisplay-s3-slot4]
     observable: "bench BLE scan: no advertiser at base MAC + 0..3"
     impl: tests/bench/test_security.py::test_no_ble_advertiser
-    result: {status: successful, commit: f360a26, firmware: 0.0.0-dev and test builds (7b179e9, Build Firmware run 40035493595), date: 2026-10-23, evidence: "Wave 3 bench session, junit 18 of 20 passed in 928.6 s (these included)"}
+    result: {status: successful, commit: e5d36e3, firmware: 0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823), date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-PORT-04
     title: Every A query answered with the portal address
