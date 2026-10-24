@@ -622,7 +622,7 @@ tests:
     verifies: [FR-5.25]
     needs: []
     observable: "dl_screen gives the FSD 5.4 lines exactly, incl. Req counts 0 .. 4294967295"
-    impl: tests/host/test_device_logic.py::test_screen_content_per_state
+    impl: [tests/host/test_device_logic.py::test_screen_content_per_state, tests/host/test_device_logic.py::test_online_request_count]
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-DL-02
@@ -635,7 +635,7 @@ tests:
     verifies: [FR-5.29]
     needs: []
     observable: "bytes outside 0x20-0x7E become ?; 20-character cut; used on the CONNECTING screen"
-    impl: tests/host/test_device_logic.py::test_ssid_is_sanitised_and_cut
+    impl: [tests/host/test_device_logic.py::test_ssid_is_sanitised_and_cut, tests/host/test_device_logic.py::test_connecting_screen_sanitises_the_ssid]
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-DL-03
@@ -1207,7 +1207,7 @@ tests:
     verifies: [FR-18.3, FR-18.4, FR-7.32]
     needs: []
     observable: "4.9 s: nothing; 5.0 s and 12 s: one reset at release; threshold once at 5 s; 30 s held without release: nothing"
-    impl: tests/host/test_button.py::test_reset_only_at_release_after_5_s
+    impl: [tests/host/test_button.py::test_reset_only_at_release_after_5_s, tests/host/test_button.py::test_no_event_while_held]
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-BTN-10
@@ -1677,7 +1677,7 @@ tests:
     verifies: [FR-13.5]
     needs: []
     observable: "A/IN query -> reply id kept, QR+AA, ANCOUNT 1, 192.168.4.1; AAAA -> NOERROR, no answer; short packet dropped"
-    impl: tests/host/test_captive_dns.py::test_every_a_query_is_answered_with_the_portal
+    impl: [tests/host/test_captive_dns.py::test_every_a_query_is_answered_with_the_portal, tests/host/test_captive_dns.py::test_other_queries]
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-PORT-13
@@ -1718,3 +1718,25 @@ tests:
     observable: "the FSD FR-15.11 (stall) contract: K11 30-33 s after the last byte; a following valid request answered 202; no restart before it"
     impl: none (blocked before it can run)
     result: {status: not done, reason: "blocked: stall-http-peer = no (SensorsIot/Embedded-AI-Harness#55)"}
+
+  - id: TC-INF-01
+    title: The host tier builds and runs C
+    shape: atomic
+    kind: infrastructure
+    tier: host
+    verifies: []
+    needs: []
+    observable: "the host C compiler builds and runs a program returning 42"
+    impl: tests/host/test_tier.py::test_host_c_compiler_builds_and_runs
+    result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557"}
+
+  - id: TC-INF-02
+    title: The test plan parses with unique ids
+    shape: atomic
+    kind: infrastructure
+    tier: host
+    verifies: []
+    needs: []
+    observable: "testing/test-plan.yaml is valid YAML; test ids are unique"
+    impl: tests/host/test_plan.py::test_plan_is_valid_yaml_with_unique_ids
+    result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557"}
