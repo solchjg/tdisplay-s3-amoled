@@ -1322,7 +1322,7 @@ verification:
   timing: TASK_WDT reset 10 s – 15 s after the `hang:` line (NFR-19.1), both read on the bench capture clock
   tolerance: + 3 s late (Appendix A), never early; the bench capture clock resolves to ± 1 s, so a reset measured at 9 s or later counts as not early
   prohibited_outcomes:
-    - A restart before 10 s (timeout too short).
+    - A restart measured before 9 s (10 s less the ± 1 s clock resolution: timeout too short).
     - No restart within 18 s of the hang (watchdog absent or too slow).
     - Reset reason other than TASK_WDT (e.g. PANIC from a crash unrelated to the watchdog).
     - "web: state=PROVISIONING" after the restart.
@@ -1458,17 +1458,18 @@ Build-time constants:
 ### Verification waivers
 
 Accepted by the user on 2026-10-24 for shipment: each part below is implemented
-but cannot be verified on this testbench. Every other part of these
-requirements is verified. A waiver is withdrawn, and the test run, as soon as
+but cannot be verified on this testbench. Where the last column names tests,
+they verify the requirement's other parts; *none — fully waived* means no part
+of the requirement has a bench result. A waiver is withdrawn, and the test run, as soon as
 the bench gains the capability.
 
 | Requirement | Unverified part | Blocked by | Verified in part by |
 |-------------|-----------------|------------|---------------------|
-| NFR-5.1 | Boot to `web: online` within 10 s after a reset with the AP up | R-14, SensorsIot/Embedded-AI-Harness#54 | Journey JRN-01.4 (first join from an erased boot) |
+| NFR-5.1 | Boot to `web: online` within 10 s after a reset with the AP up | R-14, SensorsIot/Embedded-AI-Harness#54 | none — fully waived |
 | FR-5.20 | Credentials surviving a power cycle with the AP up | R-14, #54 | TC-REC-13, TC-NET-11 (a reset keeps the credentials; ONLINE once a fresh AP starts) |
-| FR-17.1 | `<hostname>.local` resolution | R-8: the bench declares no `.local` resolution | TC-NET-13 (the DHCP hostname, FR-17.2); implementation on espressif/mdns 1.14.0 |
+| FR-17.1 | `<hostname>.local` resolution | R-8: the bench declares no `.local` resolution | none — fully waived |
 | FR-13.5 | Any name resolving to the portal over the SoftAP | R-7: the relay does not resolve through the DUT | TC-PORT-04 (the answer core, host) |
-| FR-16.3 | Logging and HTTP unaffected with no UDP receiver | R-16 | Non-blocking sends (udp_log.c, MSG_DONTWAIT) |
+| FR-16.3 | Logging and HTTP unaffected with no UDP receiver | R-16 | none — fully waived |
 | FR-15.11 | The stall clause (no byte for 30 s) | R-13, SensorsIot/Embedded-AI-Harness#55 | TC-OTA-31 (bad image, cut image, oversize, 404) |
 | FR-9.4 | No SoftAP while ONLINE | R-15 | TC-SEC-12, TC-NET-11, TC-REC-13 (CONNECTING and WIFI_LOST) |
 | FR-5.13 | SoftAP gone ≤ 5 s after the 200 | R-15 | JRN-01.3, JRN-01.4 (stored, CONNECTING without restart, ONLINE) |
@@ -1497,7 +1498,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.3.8
+fsd_version: 0.3.9
 repository: https://github.com/solchjg/tdisplay-s3-webserver
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1521,6 +1522,7 @@ change_history:
   - 0.3.6 2026-10-23 carried Load-defined observations: §5.3 Prohibited line scoped to stored credentials; no-network build carries a distinct version; FR-15.12/FR-15.13 contracts state the download-duration need instead of a 3 MB size
   - 0.3.7 2026-10-23 Load-defined findings: R-13 no longer claims a host stall core (stall clause blocked on bench #55); hang build logs its anchor line and FR-19.1/NFR-19.1 timing states the bench clock resolution; NFR-5.2/NFR-5.3 tolerances aligned; FR-5.21 scans with the AP stopped; FR-5.28 resets through JTAG with the AP down; Phase 2 exit names bench #54; Appendix B parses as YAML
   - 0.3.8 2026-10-24 verification waivers accepted by the user for shipment (Appendix B); R-14 (bench #54), R-15 (one bench radio), R-16 (UDP listener) added; bench clock resolution in Appendix A; R-12/R-13 order
+  - 0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
 open_decisions: []
 related_test_baseline: none yet

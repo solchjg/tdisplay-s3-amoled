@@ -12,7 +12,7 @@ numbers are not reading order).
 | # | Must be true | Where to look | Evidence |
 |---|--------------|---------------|----------|
 | 1 | Every requirement bullet (`- **FR-…**`, `- **NFR-…**`, `- **C-…**`) has a verification contract | FSD | A table row whose first cell names the id (alone, in a list, or in an `A – B` range) or a YAML `id: <id>` |
-| 2 | Every contract has a non-empty *Must NOT happen* / `prohibited_outcomes` | FSD | Column "Must NOT happen" of each compact row (a row pointing to another contract, e.g. FR-18.1 → FR-5.21, is acceptable only if the target has one); `prohibited_outcomes:` in each YAML block |
+| 2 | Every contract has a non-empty *Must NOT happen* / `prohibited_outcomes` | FSD | Column "Must NOT happen" of each compact row (a row pointing to another contract, e.g. FR-18.3 → FR-5.21, is acceptable only if the target has one); `prohibited_outcomes:` in each YAML block |
 | 3 | Every requirement has a priority and a provenance tag | FSD | `[Must/Should/May]` then `[user…]`, `[derived…]` or `[pack:esp32]` |
 | 4 | Both state models are complete | FSD §5.3 | Connectivity T1 – T13 and display D1 – D6 tables, each followed by a completeness paragraph covering every state × event |
 | 5 | Security profile precedes the security requirements | FSD §9.1 before FR-9.2 – FR-9.5 | Profile table with accepted risks |
