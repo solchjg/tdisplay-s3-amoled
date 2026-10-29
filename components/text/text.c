@@ -1,22 +1,13 @@
-#include "lcd_text.h"
+#include "text.h"
 
 #include <string.h>
 
-#define LINE_X 16
-#define LINE_W (LCD_W - 2 * LINE_X)  // 288 px, room for 18 characters
-static const int line_y[2] = {40, 96};
-
-lcd_rect_t lcd_text_line_rect(int line)
-{
-    return (lcd_rect_t){LINE_X, line_y[line ? 1 : 0], LINE_W, FONT_H};
-}
-
-int lcd_text_width(const char *s)
+int text_width(const char *s)
 {
     return (int)strlen(s) * FONT_W;
 }
 
-void lcd_text_render(const char *s, uint16_t fg, uint16_t bg, uint16_t *buf, int w)
+void text_render(const char *s, uint16_t fg, uint16_t bg, uint16_t *buf, int w)
 {
     int n = (int)strlen(s);
     for (int y = 0; y < FONT_H; y++) {

@@ -4,14 +4,9 @@ Wave 1 covers the standard rows T1 and T3. The fault rows T2, T4 and T5 are
 negative tests and are written in Wave 3 (testing/test-plan.yaml).
 """
 
-import pathlib
-import shutil
-import subprocess
-
 import pytest
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-COMPONENT = ROOT / "components" / "hello_logic"
+from conftest import COMPONENTS
 
 HARNESS = r"""
 #include <stdio.h>
@@ -45,22 +40,10 @@ int main(int argc, char **argv)
 
 
 @pytest.fixture(scope="module")
-def run(tmp_path_factory):
-    src = COMPONENT / "hello_logic.c"
-    if not src.exists():
-        pytest.xfail("hello_logic not written yet")
-    cc = shutil.which("cc") or shutil.which("gcc")
-    d = tmp_path_factory.mktemp("hello_logic")
-    (d / "harness.c").write_text(HARNESS)
-    hdr = (COMPONENT / "include" / "hello_logic.h").read_text()
-    exe = d / "logic"
-    subprocess.run([cc, "-std=c11", "-Wall", "-Werror", f"-I{COMPONENT / 'include'}",
-                    str(src), str(d / "harness.c"), "-o", str(exe)], check=True)
-
-    def call(*args):
-        return subprocess.run([str(exe), *map(str, args)], capture_output=True,
-                              text=True, check=True).stdout
-    call.header = hdr
+def run(compile_harness):
+    call = compile_harness("hello_logic", HARNESS, ["hello_logic/hello_logic.c"],
+                           ["hello_logic/include"])
+    call.header = (COMPONENTS / "hello_logic" / "include" / "hello_logic.h").read_text()
     return call
 
 

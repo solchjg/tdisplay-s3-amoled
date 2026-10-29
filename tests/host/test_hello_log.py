@@ -1,13 +1,6 @@
 """Host tier: the Serial Log Interface's pure format core (FSD §7)."""
 
-import pathlib
-import shutil
-import subprocess
-
 import pytest
-
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-COMPONENT = ROOT / "components" / "hello_log"
 
 HARNESS = r"""
 #include <stdio.h>
@@ -29,18 +22,9 @@ int main(int argc, char **argv)
 
 
 @pytest.fixture(scope="module")
-def fmt(tmp_path_factory):
-    src = COMPONENT / "hello_log_format.c"
-    if not src.exists():
-        pytest.xfail("hello_log format core not written yet")
-    cc = shutil.which("cc") or shutil.which("gcc")
-    d = tmp_path_factory.mktemp("hello_log")
-    (d / "harness.c").write_text(HARNESS)
-    exe = d / "fmt"
-    subprocess.run([cc, "-std=c11", "-Wall", "-Werror", f"-I{COMPONENT / 'include'}",
-                    str(src), str(d / "harness.c"), "-o", str(exe)], check=True)
-    return lambda n: subprocess.run([str(exe), str(n)], capture_output=True,
-                                    text=True, check=True).stdout
+def fmt(compile_harness):
+    return compile_harness("hello_log", HARNESS, ["hello_log/hello_log_format.c"],
+                           ["hello_log/include"])
 
 
 # TC-LOG-01 · FR-7.3 (core)

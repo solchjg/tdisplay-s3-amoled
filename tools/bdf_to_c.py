@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Convert a 16x32 character-cell BDF font (ASCII 0x20-0x7E) to a C table.
 
-Usage: bdf_to_c.py ter-u32b.bdf > components/lcd/font16x32.c
+Usage: bdf_to_c.py ter-u32b.bdf > components/text/font16x32.c
 
 Each glyph is 32 rows of uint16_t, bit 15 = leftmost pixel. Only fonts whose
 every glyph fills the full 16x32 cell are accepted, so no glyph is offset.
@@ -40,7 +40,7 @@ def main(path):
     print("// terminus-font 4.49.1). Copyright (C) 2020 Dimitar Toshkov Zhekov.")
     print("// Licensed under the SIL Open Font License 1.1: see font/OFL.txt.")
     print("// Do not edit: regenerate instead.\n")
-    print('#include "lcd_text.h"\n')
+    print('#include "text.h"\n')
     print("const uint16_t font16x32[FONT_GLYPHS][FONT_H] = {")
     for c in range(FIRST, LAST + 1):
         rows = g.get(c)
