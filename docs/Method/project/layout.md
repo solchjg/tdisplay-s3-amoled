@@ -5,7 +5,11 @@
 | Layer | Component | Location | Depends on |
 |-------|-----------|----------|------------|
 | L2 | Device Logic (FSD §5) | `components/device_logic/` — pure C, no ESP-IDF headers: both transition functions, retry delay, screen content, SSID sanitising | nothing |
-| L1 | LCD Display Interface (FSD §6) | `components/lcd/` (layout and font core pure; panel I/O via esp_lcd) | esp_lcd, GPIO driver |
+| L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the three-line display; layout core (`lcd_layout.c`) pure | `st7789`, `text`, `tdisplay_s3` |
+| L0 | ST7789 panel driver | `components/st7789/` — board-agnostic i80 bring-up, DMA canvas, rectangle writes; configured by `st7789_config_t` | esp_lcd, GPIO driver, `esp_try` |
+| L0 | Text renderer | `components/text/` — 16 × 32 font and `text_render`/`text_width`, pure C | nothing |
+| L0 | Board support | `components/tdisplay_s3/` — header-only pin and panel constants, pure | nothing |
+| L0 | Error propagation | `components/esp_try/` — header-only `ESP_TRY` (return the error, never abort) | esp_err |
 | L1 | Serial Log Interface (FSD §7) | `components/web_log/` (line formatting core pure; emit via esp_log) | esp_log |
 | L1 | Provisioning Portal (FSD §13) | `components/portal/` (form validation and HTML escaping core pure; SoftAP, httpd and DNS glue) | esp_wifi, esp_netif, esp_http_server, lwIP |
 | L1 | Status HTTP Server (FSD §14) | `components/status_http/` (JSON and HTML rendering core pure) | esp_http_server |
@@ -15,7 +19,7 @@
 | L1 | BOOT Button (FSD §18) | `components/button/` (hold detector core pure) | GPIO driver |
 | L1 | Device Identity (FSD §20) | `components/identity/` (name formatting core pure) | esp_mac, esp_app_desc |
 | — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces | all of the above |
-| host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler | the pure cores only |
+| host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler; `test_lcd_text.py` uses the `compile_harness` fixture in `conftest.py` | the pure cores only |
 
 The `hello_logic` and `hello_log` components are the base project's; `/build`
 replaces them with `device_logic` and `web_log` and moves their tests to the new
@@ -25,13 +29,17 @@ requirements first need them, never earlier.
 - `device_logic` exposes one transition function per region: (state, event,
   guard result) → (next state, actions). The composition root executes the
   actions; interfaces report events back through the queue.
-- `lcd` returns `esp_err_t` for every call and never retries or aborts; policy
-  belongs to `device_logic` (FSD §6.5).
-- Panel bring-up order (confirmed by commissioning, capability `lcd-st7789`): GPIO 15 high → i80 bus (10 MHz) → ST7789 panel IO and
+- `lcd` and `st7789` return `esp_err_t` for every call and never retry or abort;
+  policy belongs to `device_logic` (FSD §6.5).
+- The L0 components hold nothing specific to this app, so they can be reused
+  as they are: `lcd` is where the app's screen (three lines, white on black, their
+  positions) and the panel settings for this board are chosen.
+- Panel bring-up order (`st7789_start`, confirmed by commissioning, capability `lcd-st7789`): GPIO 15 high → i80 bus (10 MHz) → ST7789 panel IO and
   panel → reset → init → colour inversion on → swap X/Y and mirror for landscape →
   gap (0, 35) → display on → clear to black → draw → GPIO 38 high. Use exactly
   invert_color(true), swap_xy(true), mirror(true, false), RGB element order, and
-  RGB565 pixels byte-swapped (MSB first) in the draw buffer for the 8-bit bus.
+  RGB565 pixels byte-swapped (MSB first, `st7789_bus_colour`) in the draw buffer
+  for the 8-bit bus; these are the values `lcd.c` passes in `st7789_config_t`.
   FSD FR-6.1, FR-6.3 and FR-6.4 are the requirements; operator checks decide.
 - The start guard (FSD D1/D2) is the result of `lcd_start()`: bring-up, clear
   to black, and the first draw of the BOOT screen. The backlight is turned on by
@@ -40,16 +48,16 @@ requirements first need them, never earlier.
   buffer is refilled; a missed callback is `ESP_ERR_TIMEOUT`, i.e. a write
   failure for FSD D5.
 - Text uses a 16 × 32 fixed-width bitmap font (ASCII 0x20 – 0x7E only):
-  Terminus Font Bold 16x32 (SIL OFL 1.1, `components/lcd/font/OFL.txt`),
-  converted by `tools/bdf_to_c.py` into `components/lcd/font16x32.c`.
+  Terminus Font Bold 16x32 (SIL OFL 1.1, `components/text/font/OFL.txt`),
+  converted by `tools/bdf_to_c.py` into `components/text/font16x32.c`.
   Regenerate, never hand-edit. Lines 1 – 3 at
   y = 13, 69, 125, all at x = 0 (recommendation; FR-6.5 is the requirement). A
   changed line is redrawn as its full 320 px-wide row, so no characters of a
   longer previous text remain (FR-6.8).
-- Draw from a line-sized buffer in internal DMA-capable RAM (20 chars × 16 × 32 ×
-  2 B = 20 KiB); PSRAM stays disabled.
+- Draw from the `st7789` canvas, a full-width band in internal DMA-capable RAM
+  (320 × 32 × 2 B = 20 KiB, 20 characters); PSRAM stays disabled.
 - The ST7789 panel driver is in-tree in ESP-IDF (`esp_lcd_new_panel_st7789`);
-  declare `esp_lcd` only once the code includes it.
+  only `components/st7789/` declares `esp_lcd`.
 
 ## Test builds
 
@@ -62,7 +70,8 @@ table relative to the project); never a table of its own.
 
 `tests/target/lcd_fault/` builds the shipped `main/` and components with
 `components/lcd/` replaced by a stub (`lcd_fault`) selected by a test-only
-Kconfig option. The stub returns a configured `esp_err_t` at init or at the k-th
+Kconfig option. The stub replaces the whole LCD interface, so the L0
+components below it are not built into this variant. The stub returns a configured `esp_err_t` at init or at the k-th
 draw, and logs `lcdfi: call` on every call it receives (FSD §5.6).
 
 ### No-network build (FSD FR-5.24)

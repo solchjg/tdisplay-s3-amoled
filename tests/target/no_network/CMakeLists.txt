@@ -10,7 +10,9 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/components/identity ${ROOT}/components/portal
                          ${ROOT}/components/status_http ${ROOT}/components/udp_log
                          ${ROOT}/components/ota_rx ${ROOT}/components/button
-                         ${ROOT}/components/mdns_name ${ROOT}/components/lcd)
+                         ${ROOT}/components/mdns_name ${ROOT}/components/lcd
+                         ${ROOT}/components/st7789 ${ROOT}/components/text
+                         ${ROOT}/components/tdisplay_s3 ${ROOT}/components/esp_try)
 # Distinct from every shipped version, so the bench can tell the boots apart.
 set(PROJECT_VER "0.0.0-no-network")
 

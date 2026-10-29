@@ -4,29 +4,24 @@ Compiles the pure text/layout core and the configuration header with the host
 compiler and asks them for values, rather than grepping source text.
 """
 
-import pathlib
-import shutil
-import subprocess
-
 import pytest
-
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-COMPONENT = ROOT / "components" / "lcd"
 
 HARNESS = r"""
 #include <stdio.h>
 #include <string.h>
-#include "lcd_config.h"
-#include "lcd_text.h"
+#include "lcd_layout.h"
+#include "tdisplay_s3.h"
+#include "text.h"
 
 int main(int argc, char **argv)
 {
     if (strcmp(argv[1], "config") == 0) {
-        static const int d[8] = LCD_PIN_DATA;
+        static const int d[8] = TDISPLAY_S3_LCD_DATA;
         printf("data=%d,%d,%d,%d,%d,%d,%d,%d wr=%d rd=%d dc=%d cs=%d rst=%d pwr=%d bl=%d "
                "pclk=%d gap=%d\n", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7],
-               LCD_PIN_WR, LCD_PIN_RD, LCD_PIN_DC, LCD_PIN_CS, LCD_PIN_RST, LCD_PIN_PWR,
-               LCD_PIN_BL, LCD_PCLK_HZ, LCD_GAP_Y);
+               TDISPLAY_S3_LCD_WR, TDISPLAY_S3_LCD_RD, TDISPLAY_S3_LCD_DC, TDISPLAY_S3_LCD_CS,
+               TDISPLAY_S3_LCD_RST, TDISPLAY_S3_LCD_PWR, TDISPLAY_S3_LCD_BL,
+               TDISPLAY_S3_LCD_PCLK_HZ, TDISPLAY_S3_LCD_GAP_Y);
     } else if (strcmp(argv[1], "font") == 0) {
         printf("%d %d %d %d %zu\n", FONT_W, FONT_H, FONT_FIRST, FONT_LAST, sizeof font16x32);
     } else if (strcmp(argv[1], "rect") == 0) {
@@ -38,8 +33,8 @@ int main(int argc, char **argv)
         // Lit-pixel extent of a rendered line: minx maxx miny maxy (in screen coordinates).
         int line = argv[2][0] - '0';
         lcd_rect_t r = lcd_text_line_rect(line);
-        static uint16_t buf[LCD_W * FONT_H];
-        lcd_text_render(argv[3], 0xFFFF, 0x0000, buf, r.w);
+        static uint16_t buf[TDISPLAY_S3_LCD_W * FONT_H];
+        text_render(argv[3], 0xFFFF, 0x0000, buf, r.w);
         int minx = 9999, maxx = -1, miny = 9999, maxy = -1;
         for (int y = 0; y < r.h; y++) {
             for (int x = 0; x < r.w; x++) {
@@ -51,14 +46,14 @@ int main(int argc, char **argv)
                 }
             }
         }
-        printf("%d %d %d %d %d\n", minx, maxx, miny, maxy, lcd_text_width(argv[3]));
+        printf("%d %d %d %d %d\n", minx, maxx, miny, maxy, text_width(argv[3]));
     } else if (strcmp(argv[1], "redraw") == 0) {
         // Render argv[2] then argv[3] into one row buffer; compare with a fresh argv[3].
         lcd_rect_t r = lcd_text_line_rect(1);
-        static uint16_t a[LCD_W * FONT_H], b[LCD_W * FONT_H];
-        lcd_text_render(argv[2], 0xFFFF, 0x0000, a, r.w);
-        lcd_text_render(argv[3], 0xFFFF, 0x0000, a, r.w);
-        lcd_text_render(argv[3], 0xFFFF, 0x0000, b, r.w);
+        static uint16_t a[TDISPLAY_S3_LCD_W * FONT_H], b[TDISPLAY_S3_LCD_W * FONT_H];
+        text_render(argv[2], 0xFFFF, 0x0000, a, r.w);
+        text_render(argv[3], 0xFFFF, 0x0000, a, r.w);
+        text_render(argv[3], 0xFFFF, 0x0000, b, r.w);
         printf("%d %d\n", r.w, memcmp(a, b, sizeof a) == 0);
     }
     return 0;
@@ -67,18 +62,11 @@ int main(int argc, char **argv)
 
 
 @pytest.fixture(scope="module")
-def run(tmp_path_factory):
-    srcs = [COMPONENT / "lcd_text.c", COMPONENT / "font16x32.c"]
-    if not all(s.exists() for s in srcs) or not (COMPONENT / "include" / "lcd_config.h").exists():
-        pytest.xfail("lcd text core or configuration not written yet")
-    cc = shutil.which("cc") or shutil.which("gcc")
-    d = tmp_path_factory.mktemp("lcd_text")
-    (d / "harness.c").write_text(HARNESS)
-    exe = d / "lcd"
-    subprocess.run([cc, "-std=c11", "-Wall", "-Werror", f"-I{COMPONENT / 'include'}",
-                    *map(str, srcs), str(d / "harness.c"), "-o", str(exe)], check=True)
-    return lambda *a: subprocess.run([str(exe), *a], capture_output=True, text=True,
-                                     check=True).stdout
+def run(compile_harness):
+    return compile_harness(
+        "lcd_text", HARNESS,
+        ["text/text.c", "text/font16x32.c", "lcd/lcd_layout.c"],
+        ["text/include", "lcd", "tdisplay_s3/include"])
 
 
 # TC-LCD-01 · C-6.1 – C-6.5

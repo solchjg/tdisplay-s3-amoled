@@ -1,11 +1,8 @@
-// LCD Display Interface, pure text and layout core (FSD §6.3). No ESP-IDF
-// headers, so the host tier compiles it as is.
+// Fixed-width bitmap text rendering (FSD FR-6.2). Pure C, no ESP-IDF headers,
+// so the host tier compiles it as is. Knows nothing about the panel or layout.
 #pragma once
 
 #include <stdint.h>
-
-#define LCD_W 320  // landscape (FR-6.1)
-#define LCD_H 170
 
 #define FONT_W 16  // FR-6.2
 #define FONT_H 32
@@ -16,20 +13,10 @@
 // Bit 15 of each row is the leftmost pixel (font16x32.c, generated).
 extern const uint16_t font16x32[FONT_GLYPHS][FONT_H];
 
-typedef struct {
-    int x, y, w, h;
-} lcd_rect_t;
-
-#define LCD_TEXT_LINES 3  // FSD §5.4
-
-// The box a text line is drawn into: line 0 .. LCD_TEXT_LINES - 1, in landscape
-// coordinates. Each box spans the whole row (FR-6.8).
-lcd_rect_t lcd_text_line_rect(int line);
-
 // Width in pixels of s in the fixed-width font.
-int lcd_text_width(const char *s);
+int text_width(const char *s);
 
 // Render s into a w x FONT_H pixel buffer, left-aligned, filling the rest with
 // bg. Characters outside FONT_FIRST – FONT_LAST render as '?'. Colours are
 // written as given; byte order for the bus is the caller's concern.
-void lcd_text_render(const char *s, uint16_t fg, uint16_t bg, uint16_t *buf, int w);
+void text_render(const char *s, uint16_t fg, uint16_t bg, uint16_t *buf, int w);
