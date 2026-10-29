@@ -50,8 +50,8 @@ def test_no_watchdog_reset_under_load_or_ota(bench, dut, online_ip, firmware_dir
         assert relay(bench, "GET", f"http://{online_ip}/api/status")[0] == 200
     with open(os.path.join(firmware_dir, "flash_args")) as fh:
         app = [ln.split()[1] for ln in fh if ln.startswith("0x2")][0]
-    bench.firmware_upload("tdisplay-s3-webserver", os.path.join(firmware_dir, os.path.basename(app)))
-    url = f"http://192.168.4.1:8080/firmware/tdisplay-s3-webserver/{os.path.basename(app)}"
+    bench.firmware_upload("tdisplay-s3-amoled", os.path.join(firmware_dir, os.path.basename(app)))
+    url = f"http://192.168.4.1:8080/firmware/tdisplay-s3-amoled/{os.path.basename(app)}"
     import json
     assert relay(bench, "POST", f"http://{online_ip}/ota", body=json.dumps({"url": url}).encode(),
                  headers={"Content-Type": "application/json"})[0] == 202

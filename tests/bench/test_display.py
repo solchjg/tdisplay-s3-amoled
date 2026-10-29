@@ -17,8 +17,8 @@ def test_operator_sees_the_provisioning_screen(bench, dut, flashed):
     assert bench.human_interaction(
         "TC-LCD-10: turn the board so its USB-C cable leaves the board on your RIGHT, "
         "screen facing you. Press DONE only if ALL hold: three lines reading exactly "
-        "'Setup WiFi', 'TDS3-71C734', '192.168.4.1', upright and left to right; white "
-        "text on a black background; the backlight is on (text clearly lit). "
+        "'Setup WiFi', 'TDS3-EA483C', '192.168.4.1', upright and left to right; white "
+        "text on a black background; the panel is lit (text clearly visible). "
         "Otherwise press CANCEL.", timeout=300)
 
 
@@ -26,7 +26,7 @@ def test_operator_sees_the_provisioning_screen(bench, dut, flashed):
 def test_cold_start_leaves_no_stray_pixels(bench, dut, flashed):
     assert flashed.get("ok"), "shipped build not flashed"
     assert bench.human_interaction(
-        "TC-LCD-11 step 1 of 2: unplug the T-Display-S3's USB-C cable, wait 5 s, plug it "
+        "TC-LCD-11 step 1 of 2: unplug the T-Display-S3 AMOLED's USB-C cable, wait 5 s, plug it "
         "back in WITHOUT touching any button, then press DONE.", timeout=300)
     up = bench.serial_monitor(dut, pattern="web: alive", timeout=40)
     assert up.get("matched"), "device not running after the power cycle"

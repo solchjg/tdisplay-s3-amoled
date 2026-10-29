@@ -9,7 +9,7 @@ import time
 from conftest import (BENCH_PASS, BENCH_SSID, SOFTAP_SSID, relay, save_evidence, stop_bench_ap,
                       web_lines)
 
-PROJECT = "tdisplay-s3-webserver"
+PROJECT = "tdisplay-s3-amoled"
 HDR = {"Content-Type": "application/json"}
 
 

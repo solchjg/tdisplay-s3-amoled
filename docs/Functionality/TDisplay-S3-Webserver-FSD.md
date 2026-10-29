@@ -1,4 +1,4 @@
-# T-Display-S3 Webserver — Functional Specification Document (FSD)
+# T-Display-S3 AMOLED Webserver — Functional Specification Document (FSD)
 
 This document is the **WHAT** plane: what must be true of the firmware. The plane
 map is [`../00-Overview.md`](../00-Overview.md); the other planes are
@@ -52,8 +52,8 @@ reused.
 
 ## 1. System Overview
 
-Firmware for the LilyGO T-Display-S3 (ESP32-S3 with a built-in 1.9-inch ST7789
-170×320 LCD) that joins an existing WiFi network as a station and serves a status
+Firmware for the LilyGO T-Display-S3 AMOLED (ESP32-S3 with a built-in 1.91-inch
+RM67162 240×536 AMOLED) that joins an existing WiFi network as a station and serves a status
 page and a JSON status API over plain HTTP. The built-in LCD mirrors the device's
 IP address, its hostname, and the number of HTTP requests it has answered.
 
@@ -71,7 +71,7 @@ verified on the Harness testbench.
 **Non-goals.** Authentication, TLS, BLE, MQTT, a WiFi network list in the portal,
 static IP addressing, IPv6, time synchronisation, OTA by pushed image body,
 HTTPS downloads, more than one stored network, touch, the second user button (GPIO 14), battery measurement,
-PSRAM use, backlight dimming.
+PSRAM use, brightness dimming.
 
 **Users.** Someone on the trusted LAN who opens the status page; the person who
 provisions and updates the device; the developer running the AI closed loop on
@@ -94,7 +94,7 @@ erase credentials and return to the portal.
                     ┌─────────────────────────────── ESP32-S3 ───────────────────────────────┐
  BOOT button ──────►│ BOOT Button (§18) ──┐                                                    │
                     │                     ▼                                                    │
-                    │  WiFi/IP events ─► Device Logic (§5) ─► LCD Display Interface (§6) ──────┼─ i80 ─► ST7789
+                    │  WiFi/IP events ─► Device Logic (§5) ─► LCD Display Interface (§6) ──────┼─ QSPI ► RM67162
                     │  1 s tick ──────►   │    ▲   │                                           │
                     │                     │    │   └──► Serial Log (§7) ────────────────────────┼─ USB-Serial/JTAG ─► bench
                     │                     │    │        └─► UDP Log (§16) ──────────────────────┼─ UDP :5555 ─► gateway
@@ -115,20 +115,20 @@ path: a failing display never stops the network side (FR-5.28).
 
 | Item | Value | Source |
 |------|-------|--------|
-| Board | LilyGO T-Display-S3, non-touch variant | [user] |
+| Board | LilyGO T-Display-S3 AMOLED 1.91" | [user] |
 | MCU | ESP32-S3R8: 16 MB flash, 8 MB octal PSRAM (PSRAM unused) | [derived from the board] |
-| Display | ST7789 controller, 170×320 visible pixels, RGB565, 8-bit Intel-8080 (i80) parallel bus | [derived from the board] |
-| LCD data pins | D0 – D7 = GPIO 39, 40, 41, 42, 45, 46, 47, 48 | [derived from the LilyGO T-Display-S3 pin map] |
-| LCD control pins | WR = GPIO 8, RD = GPIO 9, DC = GPIO 7, CS = GPIO 6, RST = GPIO 5 | [derived from the LilyGO T-Display-S3 pin map] |
-| LCD power enable | GPIO 15 (active high) | [derived from the LilyGO T-Display-S3 pin map] |
-| Backlight | GPIO 38 (active high) | [derived from the LilyGO T-Display-S3 pin map] |
-| i80 pixel clock | 10 MHz | [user] |
-| Visible-area offset | The 170-pixel axis starts at controller address 35 (the ST7789's 240-line RAM, centred) | [derived from the board] |
-| BOOT button | GPIO 0, active low, external pull-up on the board | [derived from the LilyGO T-Display-S3 pin map] |
+| Display | RM67162 AMOLED controller, 240×536 visible pixels, RGB565, QSPI (4 data lines) | [derived from the board] |
+| LCD data pins | QSPI D0 – D3 = GPIO 18, 7, 48, 5 | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
+| LCD control pins | SCK = GPIO 47, CS = GPIO 6, RST = GPIO 17 (TE = GPIO 9, unused) | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
+| LCD power enable | GPIO 38 (active high; panel power on the touch board, an LED on the non-touch board) | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
+| Brightness | No backlight: register 0x51 of the RM67162, 0 = dark | [derived from the board] |
+| QSPI clock | 40 MHz | [proposed] |
+| Orientation | MADCTL 0x60 (MX, MV): landscape 536×240, no RAM offset | [derived from commissioning] |
+| BOOT button | GPIO 0, active low, external pull-up on the board | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
 | Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE present but unused (FR-9.2) | [derived from the board] |
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
-| Bench slot | SLOT4 (EN/BOOT GPIOs **not wired**; reset over USB only) | [derived from the testbench device list, 2026-10-20] |
+| Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
 size limit, rollback, console) are stated as constraints in §10.
@@ -197,12 +197,12 @@ testbench.
   FR-7.5 – FR-7.7, FR-7.11 – FR-7.13, FR-7.29, FR-7.30 (image check); FR-19.1,
   NFR-19.1 (variant app); FR-9.2; the LCD fault build and the hang build
   (variant `app`) of §12.0.
-- **Exit criteria.** On SLOT4, after a USB flash of the CI artefact and a USB
+- **Exit criteria.** On SLOT1, after a USB flash of the CI artefact and a USB
   reset: the boot line of FR-7.7 and `Init complete, running event-driven` appear;
   the LCD shows `Starting` (operator); `idf.py size` fits C-10.7; the
   watchdog hang build resets with reason `TASK_WDT`.
 - **Dependencies.** Testbench USB flash, serial monitor and operator prompt; the
-  commissioned panel (`lcd-st7789`). Nothing from a later phase.
+  commissioned panel (`lcd-rm67162`). Nothing from a later phase.
 
 ### 3.2 Phase 2: Provisioning and connectivity
 
@@ -255,14 +255,14 @@ testbench.
 | ID | Risk | Likelihood | Impact | Mitigation |
 |----|------|-----------|--------|------------|
 | R-1 | The serial mirror proves what the firmware *intended* to draw, not what the panel shows | Certain | Medium | Display content is confirmed by an operator (FR-5.25, FR-6.1, FR-6.3, FR-6.4); FR-7.11 makes the intent automatable |
-| R-2 | The i80 bus is write-only, so a real panel fault is invisible; the display-failure path can be exercised only by injecting a driver error | Certain | Low | Verified on the LCD fault-injection test build (§12.0) |
+| R-2 | The QSPI bus is write-only, so a real panel fault is invisible; the display-failure path can be exercised only by injecting a driver error | Certain | Low | Verified on the LCD fault-injection test build (§12.0) |
 | R-3 | Boot deadlines are read from the device's own log timestamp, which counts from chip reset, not from the bench's reset command | Certain | Low | Accepted: the device clock is the only clock that sees both the reset and the line |
 | R-4 | Wrong mirror, colour-inversion or offset settings produce an image every serial-only test misses | Medium | Medium | Operator checks FR-6.1, FR-6.3, FR-6.4 each name the defect to look for |
-| R-5 | SLOT4 is shared with `esp32-oled-hello` | Certain | Low | Every bench test first confirms the chip and MAC recorded in `testing/test-plan.yaml` |
+| R-5 | The bench slot may hold another project's board | Certain | Low | Every bench test first confirms the chip and MAC recorded in `testing/test-plan.yaml` |
 | R-6 | The device downloads images from the bench's firmware route on port 8080; reachability from the bench AP network is the bench's declaration, not yet exercised by this project | Medium | Medium | Depended on as declared; if FR-15.10's first bench run disproves it, the fault is filed against the testbench, never worked around here |
 | R-7 | The captive-DNS check (FR-13.5) assumes the bench's HTTP relay resolves names through the DUT's SoftAP DNS | Medium | Low | FR-13.5 is a Should; the bench does not declare this ability, so its bench test is blocked until it does (testbench change request, never a project workaround) |
 | R-8 | The mDNS check (FR-17.1) assumes the bench Pi resolves `.local` names on its AP network | Medium | Low | FR-17.1 is a Should; the bench does not declare this ability, so its bench test is blocked until it does (testbench change request, never a project workaround) |
-| R-9 | BOOT (GPIO 0) is not wired on SLOT4: factory reset can only be tested by an operator; holding BOOT while the chip resets enters the ROM download mode instead | Certain | Low | FR-18.x contracts are operator-tier and press only while the device is running |
+| R-9 | BOOT (GPIO 0) is not proven wired on SLOT1: factory reset can only be tested by an operator; holding BOOT while the chip resets enters the ROM download mode instead | Certain | Low | FR-18.x contracts are operator-tier and press only while the device is running |
 | R-10 | Credentials that can never connect (wrong password, AP gone for good) leave the device retrying forever, because it never returns to the portal on its own (FR-5.19) | Certain | Medium | Accepted [user]: the BOOT-button factory reset (§18) is the recovery path |
 | R-11 | The bench AP and the device SoftAP both use 192.168.4.1 | Certain | Low | The bench's provisioning procedure leaves the device SoftAP before it starts its own AP; the device's SoftAP is gone in every state but PROVISIONING (FR-9.4) |
 | R-12 | The bench WiFi scan reports no BSSID | Certain | Low | SoftAP presence is matched by the device's own SSID (FR-13.1), which the device logs (FR-7.9) |
@@ -297,7 +297,7 @@ testbench.
 
 - ESP-IDF **v6.0.2**, the image the Harness uses (`espressif/idf:v6.0.2`). [user]
 - Managed component `espressif/mdns` (not bundled with IDF 6). [derived from §17]
-- Embedded AI Harness testbench at `192.168.2.230`, SLOT4: USB flash, serial
+- Embedded AI Harness testbench at `192.168.2.230`, SLOT1: USB flash, serial
   monitor, operator prompt, WiFi AP and station, HTTP relay, UDP log capture on
   port 5555, WiFi scan, port scan.
 
@@ -579,7 +579,7 @@ verification:
   preconditions:
     - Device provisioned and ONLINE.
   stimulus:
-    - USB reset; wait for ONLINE. Then an operator unplugs and replugs SLOT4's USB cable (power cycle).
+    - USB reset; wait for ONLINE. Then an operator unplugs and replugs SLOT1's USB cable (power cycle).
   expected_observations:
     - After each restart, "web: state=CONNECTING" then "web: online" with no portal.
   timing: "web: online" within NFR-5.1's deadline after each restart
@@ -674,29 +674,30 @@ verification:
 
 ### 6.1 Purpose & peer
 
-Powers the built-in ST7789 panel, turns on its backlight, renders up to three text
+Powers the built-in RM67162 AMOLED panel, sets its brightness, renders up to three text
 lines in landscape, and reports whether each driver call succeeded. Direction:
 device → display.
 
 ### 6.2 Protocol
 
-ESP-IDF esp_lcd i80 bus, 8 data lines, at the pixel clock of C-6.4, with the pins
-of C-6.2. RD is held high. "Display failed" means an esp_lcd call (bus creation,
-panel initialisation, or bitmap draw) returns a value other than `ESP_OK`. The bus
-has no acknowledge, so a physically absent or broken panel is not detected (R-2).
+ESP-IDF SPI master bus in quad mode through esp_lcd's SPI panel IO, at the clock
+of C-6.4, with the pins of C-6.1 and C-6.2. Registers are written with opcode 0x02
+on one line, pixels with opcode 0x32 and the data on four lines. "Display failed"
+means a bus, panel IO or register/pixel write call returns a value other than
+`ESP_OK`. The bus is write-only, so a physically absent or broken panel is not
+detected (R-2).
 
 ### 6.3 Requirements
 
-- **C-6.1** [Must] [derived from the LilyGO T-Display-S3 pin map] The i80 data
-  lines D0 – D7 shall be GPIO 39, 40, 41, 42, 45, 46, 47, 48 in that order.
-- **C-6.2** [Must] [derived from the LilyGO T-Display-S3 pin map] The LCD control
-  lines shall be WR = GPIO 8, DC = GPIO 7, CS = GPIO 6, RST = GPIO 5, and
-  RD = GPIO 9 driven high.
-- **C-6.3** [Must] [derived from the LilyGO T-Display-S3 pin map] GPIO 15 (LCD
-  power enable) shall be driven high before panel initialisation begins.
-- **C-6.4** [Must] [user] The i80 pixel clock shall be 10 MHz.
-- **C-6.5** [Must] [derived from the board] The panel's 170-pixel axis shall be
-  addressed with an offset of 35 controller lines.
+- **C-6.1** [Must] [derived from the LilyGO T-Display-S3 AMOLED pin map] The QSPI
+  data lines D0 – D3 shall be GPIO 18, 7, 48, 5 in that order.
+- **C-6.2** [Must] [derived from the LilyGO T-Display-S3 AMOLED pin map] The LCD
+  control lines shall be SCK = GPIO 47, CS = GPIO 6 and RST = GPIO 17.
+- **C-6.3** [Must] [derived from the LilyGO T-Display-S3 AMOLED pin map] GPIO 38
+  (LCD power enable) shall be driven high before panel initialisation begins.
+- **C-6.4** [Must] [proposed] The QSPI clock shall be 40 MHz.
+- **C-6.5** [Must] [derived from commissioning] The panel shall be addressed in
+  landscape with MADCTL 0x60 and no controller-RAM offset.
 - **FR-6.1** [Must] [user] In LCD_OK, text shall be upright and read left to right
   when the board is held in landscape with its USB-C connector to the viewer's
   right.
@@ -704,14 +705,14 @@ has no acknowledge, so a physically absent or broken panel is not detected (R-2)
   16 × 32 pixel character cell covering ASCII 0x20 – 0x7E.
 - **FR-6.3** [Must] [user] In LCD_OK, text shall be white on a black background.
 - **FR-6.4** [Must] [derived from FR-5.25] On entry to LCD_OK (D1), the full
-  320 × 170 visible area shall be cleared to black, leaving no lit pixels outside
+  536 × 240 visible area shall be cleared to black, leaving no lit pixels outside
   the text lines.
 - **FR-6.9** [Must] [derived from §5.4] Lines 1, 2 and 3 shall not overlap and
   shall lie entirely inside the visible area.
 - **FR-6.10** [Must] [derived from §5.4 and FR-6.2] A line of 20 characters shall
   be displayed in full, without clipping or wrapping (20 × 16 px = 320 px).
-- **FR-6.7** [Must] [derived from FR-5.25] In LCD_OK, GPIO 38 (backlight) shall be
-  driven high.
+- **FR-6.7** [Must] [derived from FR-5.25] In LCD_OK, the panel brightness
+  (register 0x51) shall be set non-zero; before LCD_OK it stays 0.
 - **FR-6.8** [Must] [derived from FR-5.26] Redrawing a line shall overwrite its
   whole row, leaving no characters of its previous, longer text.
 
@@ -719,15 +720,15 @@ has no acknowledge, so a physically absent or broken panel is not detected (R-2)
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| C-6.1 – C-6.5 | Inspect the built configuration | The pin numbers, 10 MHz clock and offset 35 appear in the firmware's own configuration | Any other value; a value taken from a driver default | host |
+| C-6.1 – C-6.5 | Inspect the built configuration | The pin numbers, 40 MHz clock and MADCTL 0x60 appear in the firmware's own configuration | Any other value; a value taken from a driver default | host |
 | C-6.1 – C-6.5 (wire) | Shipped build; reset; operator prompted after the BOOT screen | Operator confirms `Starting` is legible | Blank, noisy, shifted or garbled panel | bench (operator) |
 | FR-6.1 | LCD_OK; operator prompted with the board held USB-C to the right | Operator confirms text upright and left to right | Mirrored, upside-down or rotated text | bench (operator) |
 | FR-6.2 | Inspect the font used by the renderer | Cell 16 × 32 px; glyphs 0x20 – 0x7E | Other cell size; proportional font | host |
 | FR-6.3 | LCD_OK; operator prompted | Operator confirms white on black | Inverted or tinted colours | bench (operator) |
 | FR-6.4 | Power-cycle (random panel RAM); operator prompted after the first screen | No stray pixels along any edge or between lines | Noise band along an edge; remnants | bench (operator) |
-| FR-6.9 | Render three lines with the shipped layout | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 319], y ∈ [0, 169] | Overlap; a pixel outside | host |
+| FR-6.9 | Render three lines with the shipped layout | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 535], y ∈ [0, 239] | Overlap; a pixel outside | host |
 | FR-6.10 | Render a 20-character line | Rightmost pixel x ≤ 319; one row | Width > 320 px; wrap | host |
-| FR-6.7 | LCD_OK; operator prompted | Backlight on | Off or flickering | bench (operator) |
+| FR-6.7 | LCD_OK; operator prompted | Panel lit | Dark or flickering | bench (operator) |
 | FR-6.8 | Render `Req: 1000`, then `Req: 5` into the same row | Row after the second render equals a fresh render of `Req: 5` | Remnant pixels of `000` | host |
 
 ### 6.5 Failure modes
@@ -743,7 +744,7 @@ aborts. What happens next is §5's decision (D2, D5).
 ### 7.1 Purpose & peer
 
 The machine-readable record of every decision, read by the testbench serial
-monitor on SLOT4 and, in ONLINE, mirrored over UDP (§16). Direction: device →
+monitor on SLOT1 and, in ONLINE, mirrored over UDP (§16). Direction: device →
 bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 
 ### 7.2 Line formats
@@ -1187,7 +1188,7 @@ held while the chip resets (R-9). Sampled only after BOOT exits.
 
 ESP-IDF v6.0.2 supplies the WiFi driver (SoftAP and station), esp_netif/lwIP with
 DHCP server and client, esp_http_server, nvs_flash, app_update and the
-rollback-capable bootloader, esp_task_wdt, esp_lcd with the ST7789 driver, the GPIO
+rollback-capable bootloader, esp_task_wdt, esp_lcd's SPI panel IO for the RM67162, the GPIO
 driver, esp_timer, FreeRTOS, esp_log and the USB-Serial/JTAG console; the managed
 `espressif/mdns` component supplies mDNS. Configured and used, not implemented.
 
@@ -1251,7 +1252,7 @@ The numbers a build will otherwise take from a default.
 - **C-10.2** [Must] [user] The firmware shall be built with ESP-IDF v6.0.2.
 - **C-10.3** [Must] [user] The build shall declare a 16 MB flash size; a unit with
   less than 16 MB of flash cannot run this firmware.
-- **C-10.5** [Must] [derived from SLOT4's unwired EN/BOOT] The firmware shall be
+- **C-10.5** [Must] [derived from SLOT1's unproven EN/BOOT] The firmware shall be
   flashable, resettable and observable through the USB-Serial/JTAG port alone,
   with the console on USB-Serial/JTAG.
 - **C-10.6** [Must] [user: two 4 MB slots; offsets derived] The partition table
@@ -1276,8 +1277,8 @@ The numbers a build will otherwise take from a default.
 | C-10.1 | Inspect `sdkconfig` after build | `CONFIG_IDF_TARGET="esp32s3"` | Other target | host |
 | C-10.2 | Inspect the build log / CI image tag | `v6.0.2` | Other version | host |
 | C-10.3 | Inspect `sdkconfig` | `CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y` | Other size; default | host |
-| C-10.3 (board) | Read the flash ID in SLOT4 | 16 MB | Smaller | bench |
-| C-10.5 | Flash and reset SLOT4 using only USB | Flash succeeds; L1 and L17 appear | Need for EN/BOOT or a button | bench |
+| C-10.3 (board) | Read the flash ID in SLOT1 | 16 MB | Smaller | bench |
+| C-10.5 | Flash and reset SLOT1 using only USB | Flash succeeds; L1 and L17 appear | Need for EN/BOOT or a button | bench |
 | C-10.6 | Parse the built partition table binary | Exactly the five rows tabled | Any other row, offset or size | host |
 | C-10.7 | `idf.py size` / image file size | ≤ 0x400000 bytes | Larger | host |
 | C-10.8 | Inspect `sdkconfig` | `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y` | Absent | host |
@@ -1383,8 +1384,8 @@ hang restarts the device by itself (§19). Step-by-step instructions:
 | Tier | Runs on | Covers here |
 |------|---------|-------------|
 | **host** | Dev machine / CI, plain C compiler | §5 transition functions, retry delay, screen content; formatting, validation, escaping and JSON cores of §7, §13, §14, §16, §18, §20; layout of §6; configuration, partition-table and ELF inspection |
-| **target** | T-Display-S3 in SLOT4, no network peer; shipped or test build | Log formats and order, LCD failure path (LCD fault build), watchdog (hang build) |
-| **bench** | T-Display-S3 + testbench WiFi AP/station, HTTP relay, UDP log, scans, operator | Provisioning, connectivity and recovery, HTTP API, OTA and rollback (no-network build), mDNS, security scans, display content, button |
+| **target** | T-Display-S3 AMOLED in SLOT1, no network peer; shipped or test build | Log formats and order, LCD failure path (LCD fault build), watchdog (hang build) |
+| **bench** | T-Display-S3 AMOLED + testbench WiFi AP/station, HTTP relay, UDP log, scans, operator | Provisioning, connectivity and recovery, HTTP API, OTA and rollback (no-network build), mDNS, security scans, display content, button |
 
 Layer mapping: L2 (§5) at host as pure functions, transitions end to end at
 bench; L1 pure cores at host, wire at target/bench; L0 (§8) transitively.
@@ -1423,7 +1424,7 @@ Build-time constants:
 | Name | Value | Source |
 |------|-------|--------|
 | LCD pins, clock, offset | §2.2, C-6.1 – C-6.5 | [user]/[derived] |
-| Landscape area / font cell / colours | 320 × 170 / 16 × 32 / `0xFFFF` on `0x0000` | [user] |
+| Landscape area / font cell / colours | 536 × 240 / 16 × 32 / `0xFFFF` on `0x0000` | [user] |
 | Screen lines / max characters | 3 / 20 | [derived] |
 | LCD refresh period | 1000 ± 100 ms | [user] |
 | Boot to first state line | ≤ 3000 ms | [user] |
@@ -1499,7 +1500,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 ```yaml
 document_status: draft
 fsd_version: 0.3.9
-repository: https://github.com/solchjg/tdisplay-s3-webserver
+repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg

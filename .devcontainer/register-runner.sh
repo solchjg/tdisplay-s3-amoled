@@ -9,7 +9,7 @@
 # a short-lived registration token).
 set -euo pipefail
 
-REPO="solchjg/tdisplay-s3-webserver"
+REPO="solchjg/tdisplay-s3-amoled"
 cd /opt/actions-runner
 
 while true; do

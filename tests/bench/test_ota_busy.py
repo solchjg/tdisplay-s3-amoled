@@ -10,7 +10,7 @@ import time
 
 from conftest import relay, save_evidence, web_lines
 
-PROJECT = "tdisplay-s3-webserver"
+PROJECT = "tdisplay-s3-amoled"
 
 
 # TC-OTA-21 · FR-15.12, FR-7.31 (L12)

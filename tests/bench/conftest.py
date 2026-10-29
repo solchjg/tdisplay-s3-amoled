@@ -1,4 +1,4 @@
-"""Bench tier fixtures: the testbench, the DUT in SLOT4, and the flashed firmware.
+"""Bench tier fixtures: the testbench, the DUT in SLOT1, and the flashed firmware.
 
 A precondition that does not hold skips the test: `not done` with the reason,
 never `failed` (docs/Method/standards/testing.md).
@@ -13,14 +13,14 @@ import pytest
 
 from testbench_driver import TestbenchDriver, TestbenchError
 
-SLOT = "SLOT4"
+SLOT = "SLOT1"
 # The bench AP the journey provisions the device onto (isolated bench network;
 # the passphrase protects nothing, FSD §9.1).
 BENCH_SSID = "tds3-bench"
 BENCH_PASS = "bench-0441-pass"
-SOFTAP_SSID = "TDS3-71C734"   # FR-13.1 for the recorded MAC 34:85:18:71:c7:34
+SOFTAP_SSID = "TDS3-EA483C"   # FR-13.1 for the recorded MAC 48:27:e2:ea:48:3c
 CHIP = "esp32s3"
-MAC = "34:85:18:71:c7:34"   # testing/test-plan.yaml dut_record
+MAC = "48:27:e2:ea:48:3c"   # testing/test-plan.yaml dut_record
 
 LOG_LINE = re.compile(r"([IEWD]) \((\d+)\) web: (.*)$")
 
@@ -46,7 +46,7 @@ def stop_bench_ap(drv):
 
 @pytest.fixture(scope="session")
 def dut(bench):
-    """SLOT4 holds the unit the plan records; checked by MAC once per session."""
+    """SLOT1 holds the unit the plan records; checked by MAC once per session."""
     slot = bench.get_slot(SLOT)
     if not slot.get("present") or slot.get("detected_chip") != CHIP:
         pytest.skip(f"{SLOT} does not hold an {CHIP}: {slot.get('detected_chip')}")
@@ -100,7 +100,7 @@ def flash_coldflash(base_url, slot, chip, directory, erase=False):
 
 @pytest.fixture(scope="session")
 def flashed(bench, dut, firmware_dir):
-    """Erase SLOT4 and flash FIRMWARE_DIR once per session; JRN-01.1 asserts it."""
+    """Erase SLOT1 and flash FIRMWARE_DIR once per session; JRN-01.1 asserts it."""
     return flash_coldflash(bench.base_url, dut, CHIP, firmware_dir, erase=True)
 
 

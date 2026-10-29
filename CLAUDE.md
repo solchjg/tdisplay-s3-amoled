@@ -4,8 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-ESP-IDF v6.0.2 firmware for the LilyGO T-Display-S3 (ESP32-S3), verified on the
-Embedded AI Harness testbench. The repo is cloned from the `tdisplay-s3-hello`
+ESP-IDF v6.0.2 firmware for the LilyGO T-Display-S3 AMOLED 1.91" (ESP32-S3,
+RM67162 AMOLED over QSPI), verified on the Embedded AI Harness testbench. It is
+cloned from `tdisplay-s3-webserver` with the display layer moved to the AMOLED. The repo is cloned from the `tdisplay-s3-hello`
 base: the firmware still runs the "hello" display (two text lines, uptime
 counter). **The webserver is not yet specified** — the FSD is a stub
 (`document_status: stub`), so no webserver code should be written until `/define`
@@ -31,7 +32,7 @@ pytest tests/host/test_hello_logic.py -k <name>        # single test
 # Inspect a build against FSD constraints (skips without BUILD_OUTPUT)
 BUILD_OUTPUT=build pytest tests/host/test_build.py -v -rs
 
-# Bench tests against SLOT4 (need the harness TestbenchDriver on PYTHONPATH)
+# Bench tests against SLOT1 (need the harness TestbenchDriver on PYTHONPATH)
 PYTHONPATH=<harness>/pytest FIRMWARE_DIR=<artefact>/coldflash pytest tests/bench -v
 pytest tests/bench -m journey     # JRN-01, the release-verification journey
 ```
@@ -69,9 +70,9 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/lcd/` (L1) — this app's text display, composed from the L0
   parts below. Every call returns `esp_err_t`; it never retries or aborts
   (policy belongs to the logic layer). The layout (`lcd_layout.c`) is a pure core.
-- `shared/components/st7789/` (L0) — board-agnostic ST7789 i80 driver via `esp_lcd`,
-  configured by `st7789_config_t`; `shared/components/tdisplay_s3/` (L0) holds the
-  board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.
+- `shared/components/rm67162/` (L0) — board-agnostic RM67162 QSPI driver via `esp_lcd`'s
+  SPI panel IO, configured by `rm67162_config_t`; `shared/components/tdisplay_s3_amoled/`
+  (L0) holds the board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.
 - `shared/components/text/` (L0) — pure C font renderer. `font16x32.c` is generated
   by `shared/tools/bdf_to_c.py` — regenerate, never hand-edit.
 - `components/hello_log/` (L1) — serial log lines; `hello_log_format.c` is the pure core.
@@ -90,8 +91,8 @@ them through a small C harness; keep new logic ESP-IDF-free for the same reason.
 Never use `ESP_ERROR_CHECK` on display errors — report them to the state machine.
 Only list component `REQUIRES`/`PRIV_REQUIRES` that are actually included today.
 
-Panel bring-up order and the exact ST7789 settings (invert, swap_xy, mirror, gap
-(0,35), byte-swapped RGB565, backlight GPIO 38 on only after a successful start)
+Panel bring-up order and the exact RM67162 settings (GPIO 38 power, QSPI 40 MHz,
+MADCTL 0x60, no offset, byte-swapped RGB565, brightness 0 until a successful start)
 are in `docs/Method/project/layout.md`; they were confirmed by commissioning.
 
 Other builds sharing the components:
@@ -102,7 +103,7 @@ Other builds sharing the components:
 
 ## Testing
 
-- Tiers: **host** (pure logic, every commit), **target** (DUT in SLOT4), **bench**
+- Tiers: **host** (pure logic, every commit), **target** (DUT in SLOT1), **bench**
   (DUT + operator prompts). Every test is declared in `testing/test-plan.yaml`
   with the requirement IDs it verifies; status values (`not done`/`successful`/
   `failed`) are written by the runner, never by hand.
@@ -113,11 +114,11 @@ Other builds sharing the components:
 
 ## Bench / hardware
 
-- Testbench `http://192.168.2.230:8080`, slot **SLOT4**, serial
-  `rfc2217://192.168.2.230:4004`. SLOT4 is shared with `esp32-oled-hello`:
-  confirm `detected_chip: esp32s3` (and the recorded MAC `34:85:18:71:c7:34`)
-  before any run.
-- EN/BOOT GPIOs are not wired: flash and reset over USB only.
+- Testbench `http://192.168.2.230:8080`, slot **SLOT1**, serial
+  `rfc2217://192.168.2.230:4001`. Confirm `detected_chip: esp32s3` and the
+  recorded MAC `48:27:e2:ea:48:3c` before any run: the slot can hold another
+  project's board.
+- EN/BOOT GPIOs on SLOT1 are not proven wired: flash and reset over USB only.
 - Native USB-Serial/JTAG: never open the port with DTR/RTS asserted (halts the
   chip) — use the testbench's serial monitor. Use unanchored monitor patterns.
 - Flash via `/api/flash` with the build's `flash_args` plus the images it names

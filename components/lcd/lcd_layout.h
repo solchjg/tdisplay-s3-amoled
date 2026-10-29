@@ -1,5 +1,5 @@
 // LCD Display Interface, pure layout core (FSD §6.3): where the text lines
-// sit on the T-Display-S3's landscape panel. No ESP-IDF headers, so the host
+// sit on the T-Display-S3 AMOLED's landscape panel. No ESP-IDF headers, so the host
 // tier compiles it as is. Private to this component.
 #pragma once
 

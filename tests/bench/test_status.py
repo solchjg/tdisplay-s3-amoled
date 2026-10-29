@@ -64,5 +64,5 @@ def test_hostname_resolves_to_the_device(bench, ip):
     if caps["bench-mdns-resolve"]["available"] is not True:
         import pytest
         pytest.skip("bench-mdns-resolve not available (FSD R-8): blocked")
-    code, body, _ = relay(bench, "GET", "http://tds3-71c734.local/api/status")
+    code, body, _ = relay(bench, "GET", "http://tds3-ea483c.local/api/status")
     assert code == 200 and f'"ip":"{ip}"' in body.decode()

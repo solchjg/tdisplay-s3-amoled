@@ -1,4 +1,4 @@
-"""Target tier: Serial Log Interface (FSD §7) on the shipped build in SLOT4.
+"""Target tier: Serial Log Interface (FSD §7) on the shipped build in SLOT1.
 
 One JTAG reset per capture (P-RESET): the plain serial reset of this native-USB
 part resets it a second time, which would split the boot these tests read.
