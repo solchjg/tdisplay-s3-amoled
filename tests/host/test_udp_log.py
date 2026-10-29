@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-COMPONENT = ROOT / "components" / "udp_log"
+COMPONENT = ROOT / "shared" / "components" / "udp_log"
 
 HARNESS = r"""
 #include <stdio.h>

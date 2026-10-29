@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-COMPONENT = ROOT / "components" / "status_http"
+COMPONENT = ROOT / "shared" / "components" / "status_http"
 
 HARNESS = r"""
 #include <stdio.h>

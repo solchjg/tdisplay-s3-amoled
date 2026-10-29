@@ -6,19 +6,19 @@
 |-------|-----------|----------|------------|
 | L2 | Device Logic (FSD §5) | `components/device_logic/` — pure C, no ESP-IDF headers: both transition functions, retry delay, screen content, SSID sanitising | nothing |
 | L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the three-line display; layout core (`lcd_layout.c`) pure | `st7789`, `text`, `tdisplay_s3` |
-| L0 | ST7789 panel driver | `components/st7789/` — board-agnostic i80 bring-up, DMA canvas, rectangle writes; configured by `st7789_config_t` | esp_lcd, GPIO driver, `esp_try` |
-| L0 | Text renderer | `components/text/` — 16 × 32 font and `text_render`/`text_width`, pure C | nothing |
-| L0 | Board support | `components/tdisplay_s3/` — header-only pin and panel constants, pure | nothing |
-| L0 | Error propagation | `components/esp_try/` — header-only `ESP_TRY` (return the error, never abort) | esp_err |
+| L0 | ST7789 panel driver | `shared/components/st7789/` — board-agnostic i80 bring-up, DMA canvas, rectangle writes; configured by `st7789_config_t` | esp_lcd, GPIO driver, `esp_try` |
+| L0 | Text renderer | `shared/components/text/` — 16 × 32 font and `text_render`/`text_width`, pure C | nothing |
+| L0 | Board support | `shared/components/tdisplay_s3/` — header-only pin and panel constants, pure | nothing |
+| L0 | Error propagation | `shared/components/esp_try/` — header-only `ESP_TRY` (return the error, never abort) | esp_err |
 | L1 | Serial Log Interface (FSD §7) | `components/web_log/` (line formatting core pure; emit via esp_log) | esp_log |
-| L1 | WiFi network (FSD §8) | `components/wifi_net/` — station, SoftAP, stored credentials in NVS, station events through a callback | esp_wifi, esp_netif, esp_event, nvs_flash, `esp_try` |
-| L1 | Provisioning Portal (FSD §13) | `components/portal/` (form validation and HTML escaping core pure; httpd form and captive DNS on the SoftAP `wifi_net` starts) | esp_http_server, lwIP |
-| L1 | Status HTTP Server (FSD §14) | `components/status_http/` (JSON and HTML rendering core pure); reports each answer through the `log` callback in its source | esp_http_server |
-| L1 | OTA Receiver (FSD §15) | `components/ota_rx/` (request parsing and download state core pure; download via esp_http_client into the other slot); registers its handler on the server handle the composition root passes in and reports through `ota_rx_hooks_t` | app_update, esp_http_client, esp_http_server |
-| L1 | UDP Log (FSD §16) | `components/udp_log/` (line-selection core pure, tag passed in) | lwIP |
-| L1 | mDNS Responder (FSD §17) | `components/mdns_name/` | managed `espressif/mdns` |
-| L1 | BOOT Button (FSD §18) | `components/button/` (hold detector core pure); threshold and release through callbacks | GPIO driver, esp_timer |
-| L1 | Device Identity (FSD §20) | `components/identity/` (name formatting core pure, prefixes passed in) | nothing |
+| L1 | WiFi network (FSD §8) | `shared/components/wifi_net/` — station, SoftAP, stored credentials in NVS, station events through a callback | esp_wifi, esp_netif, esp_event, nvs_flash, `esp_try` |
+| L1 | Provisioning Portal (FSD §13) | `shared/components/portal/` (form validation and HTML escaping core pure; httpd form and captive DNS on the SoftAP `wifi_net` starts) | esp_http_server, lwIP |
+| L1 | Status HTTP Server (FSD §14) | `shared/components/status_http/` (JSON and HTML rendering core pure); reports each answer through the `log` callback in its source | esp_http_server |
+| L1 | OTA Receiver (FSD §15) | `shared/components/ota_rx/` (request parsing and download state core pure; download via esp_http_client into the other slot); registers its handler on the server handle the composition root passes in and reports through `ota_rx_hooks_t` | app_update, esp_http_client, esp_http_server |
+| L1 | UDP Log (FSD §16) | `shared/components/udp_log/` (line-selection core pure, tag passed in) | lwIP |
+| L1 | mDNS Responder (FSD §17) | `shared/components/mdns_name/` | managed `espressif/mdns` |
+| L1 | BOOT Button (FSD §18) | `shared/components/button/` (hold detector core pure); threshold and release through callbacks | GPIO driver, esp_timer |
+| L1 | Device Identity (FSD §20) | `shared/components/identity/` (name formatting core pure, prefixes passed in) | nothing |
 | — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces, and wires each interface's callbacks to `web_log` | all of the above |
 | host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler; `test_lcd_text.py` uses the `compile_harness` fixture in `conftest.py` | the pure cores only |
 
@@ -53,8 +53,8 @@ requirements first need them, never earlier.
   buffer is refilled; a missed callback is `ESP_ERR_TIMEOUT`, i.e. a write
   failure for FSD D5.
 - Text uses a 16 × 32 fixed-width bitmap font (ASCII 0x20 – 0x7E only):
-  Terminus Font Bold 16x32 (SIL OFL 1.1, `components/text/font/OFL.txt`),
-  converted by `tools/bdf_to_c.py` into `components/text/font16x32.c`.
+  Terminus Font Bold 16x32 (SIL OFL 1.1, `shared/components/text/font/OFL.txt`),
+  converted by `shared/tools/bdf_to_c.py` into `shared/components/text/font16x32.c`.
   Regenerate, never hand-edit. Lines 1 – 3 at
   y = 13, 69, 125, all at x = 0 (recommendation; FR-6.5 is the requirement). A
   changed line is redrawn as its full 320 px-wide row, so no characters of a
@@ -62,33 +62,33 @@ requirements first need them, never earlier.
 - Draw from the `st7789` canvas, a full-width band in internal DMA-capable RAM
   (320 × 32 × 2 B = 20 KiB, 20 characters); PSRAM stays disabled.
 - The ST7789 panel driver is in-tree in ESP-IDF (`esp_lcd_new_panel_st7789`);
-  only `components/st7789/` declares `esp_lcd`.
+  only `shared/components/st7789/` declares `esp_lcd`.
 
 ## Reusing components
 
-Each component under `components/` is a plain ESP-IDF component: another
-project takes the ones it needs with `EXTRA_COMPONENT_DIRS` (or by copying the
-directory) and wires them in its own `app_main`. App-specific values are
-Kconfig options declared by the component itself (`idf.py menuconfig`, or the
-other project's `sdkconfig.defaults`); their defaults are this app's values, so
-this repo sets none of them.
+The reusable components live in their own repository,
+[`solchjg/esp-idf-components`](https://github.com/solchjg/esp-idf-components),
+checked out here as the git submodule `shared/` and found by the build through
+`EXTRA_COMPONENT_DIRS` in the top-level `CMakeLists.txt` (and in each test
+build under `tests/target/`). Its README lists every component, its Kconfig
+options and what else it needs, and shows how another project takes them: by
+IDF Component Manager git dependency pinned to a tag, or as a submodule.
 
-| Component | Use it for | Kconfig options (default) | Also needs |
-|-----------|------------|---------------------------|------------|
-| `wifi_net` | station + open SoftAP, credentials in NVS | `WIFI_NET_SOFTAP_CHANNEL` (1), `WIFI_NET_SOFTAP_MAX_CLIENTS` (4), `WIFI_NET_NVS_NAMESPACE` ("net") | `esp_try` |
-| `portal` | captive WiFi setup form on the SoftAP (192.168.4.1) | `PORTAL_PAGE_TITLE` ("TDS3 setup") | — |
-| `identity` | SoftAP SSID and hostname from the base MAC | `IDENTITY_SOFTAP_SSID_PREFIX` ("TDS3-"), `IDENTITY_HOSTNAME_PREFIX` ("tds3-") | — |
-| `status_http` | `GET /` and `GET /api/status`, a server other routes can join | — | — |
-| `ota_rx` | `POST /ota` download into the other slot | — | `status_http` or any `httpd_handle_t` |
-| `udp_log` | mirror one log tag's lines over UDP | `UDP_LOG_PORT` (5555), `UDP_LOG_TAG` ("web") | — |
-| `mdns_name` | answer `<hostname>.local` | — | managed `espressif/mdns` |
-| `button` | long-press (5 s) detector on an active-low GPIO | `BUTTON_GPIO` (0) | — |
-| `st7789`, `text`, `esp_try`, `tdisplay_s3` | panel driver, bitmap font, error propagation, board pins | — | — |
-
-The identity prefixes are read by the composition root and passed to
-`id_softap_ssid` / `id_hostname`, so the `identity` core stays free of ESP-IDF
-headers. `lcd`, `device_logic` and `web_log` are this app's screen, state
-machine and log vocabulary; another project writes its own.
+- Clone with `git clone --recurse-submodules`, or run
+  `git submodule update --init` in an existing clone; the CI checkouts use
+  `submodules: true`.
+- The submodule is pinned to one commit. To take a newer version, change the
+  component in `esp-idf-components` (its own CI runs its host tests and a
+  build of every component), then `git -C shared pull` here and commit the
+  new pin.
+- `tests/host/` compiles the shared pure cores from `shared/components/`, so
+  this project's requirements stay verified against exactly the pinned code.
+- The Kconfig defaults are this app's values, so this repo sets none of them.
+  The identity prefixes are read by the composition root and passed to
+  `id_softap_ssid` / `id_hostname`, so the `identity` core stays free of
+  ESP-IDF headers.
+- `lcd`, `device_logic` and `web_log` stay in `components/`: they are this
+  app's screen, state machine and log vocabulary.
 
 ## Test builds
 

@@ -15,6 +15,9 @@ references (§5–§10) and test IDs come from the base project.
 ## Commands
 
 ```bash
+# The reusable components are the git submodule shared/ (solchjg/esp-idf-components)
+git submodule update --init
+
 # Firmware build (inside the devcontainer or with IDF v6.0.2 exported).
 # -DSDKCONFIG keeps the generated config in build/, so sdkconfig.defaults always wins.
 idf.py -B build -DSDKCONFIG=$PWD/build/sdkconfig set-target esp32s3
@@ -66,19 +69,21 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/lcd/` (L1) — this app's text display, composed from the L0
   parts below. Every call returns `esp_err_t`; it never retries or aborts
   (policy belongs to the logic layer). The layout (`lcd_layout.c`) is a pure core.
-- `components/st7789/` (L0) — board-agnostic ST7789 i80 driver via `esp_lcd`,
-  configured by `st7789_config_t`; `components/tdisplay_s3/` (L0) holds the
-  board's pin and panel constants; `components/esp_try/` (L0) the `ESP_TRY` macro.
-- `components/text/` (L0) — pure C font renderer. `font16x32.c` is generated
-  by `tools/bdf_to_c.py` — regenerate, never hand-edit.
+- `shared/components/st7789/` (L0) — board-agnostic ST7789 i80 driver via `esp_lcd`,
+  configured by `st7789_config_t`; `shared/components/tdisplay_s3/` (L0) holds the
+  board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.
+- `shared/components/text/` (L0) — pure C font renderer. `font16x32.c` is generated
+  by `shared/tools/bdf_to_c.py` — regenerate, never hand-edit.
 - `components/hello_log/` (L1) — serial log lines; `hello_log_format.c` is the pure core.
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `identity` and the L0 parts) never include `web_log` or
-  another app component: they report through callbacks that `app_main.c` wires to
-  `web_log`, and take app-specific values from their own Kconfig options. See
-  "Reusing components" in `docs/Method/project/layout.md`.
+  `mdns_name`, `button`, `identity` and the L0 parts) live in the separate repo
+  `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
+  via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
+  never include `web_log` or another app component: they report through
+  callbacks that `app_main.c` wires to `web_log`, and take app-specific values
+  from their own Kconfig options. See "Reusing components" in `docs/Method/project/layout.md`.
 
 Pure cores exist so `tests/host/` can compile them with the host `cc` and drive
 them through a small C harness; keep new logic ESP-IDF-free for the same reason.
