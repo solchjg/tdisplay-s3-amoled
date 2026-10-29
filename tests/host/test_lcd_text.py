@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "font") == 0) {
         printf("%d %d %d %d %zu\n", FONT_W, FONT_H, FONT_FIRST, FONT_LAST, sizeof font16x32);
     } else if (strcmp(argv[1], "rect") == 0) {
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < LCD_TEXT_LINES; i++) {
             lcd_rect_t r = lcd_text_line_rect(i);
             printf("%d %d %d %d\n", r.x, r.y, r.w, r.h);
         }
@@ -47,6 +47,14 @@ int main(int argc, char **argv)
             }
         }
         printf("%d %d %d %d %d\n", minx, maxx, miny, maxy, text_width(argv[3]));
+    } else if (strcmp(argv[1], "redraw") == 0) {
+        // Render argv[2] then argv[3] into one row buffer; compare with a fresh argv[3].
+        lcd_rect_t r = lcd_text_line_rect(1);
+        static uint16_t a[TDISPLAY_S3_LCD_W * FONT_H], b[TDISPLAY_S3_LCD_W * FONT_H];
+        text_render(argv[2], 0xFFFF, 0x0000, a, r.w);
+        text_render(argv[3], 0xFFFF, 0x0000, a, r.w);
+        text_render(argv[3], 0xFFFF, 0x0000, b, r.w);
+        printf("%d %d\n", r.w, memcmp(a, b, sizeof a) == 0);
     }
     return 0;
 }
@@ -76,22 +84,33 @@ def test_font_is_fixed_16x32(run):
     assert size == (last - first + 1) * h * 2, "one 16-bit row per pixel row per glyph"
 
 
-# TC-LCD-03 · FR-6.5
-def test_lines_are_stacked_inside_the_visible_area(run):
-    (x1, y1, w1, h1), (x2, y2, w2, h2) = [tuple(map(int, ln.split())) for ln in
-                                          run("rect").splitlines()]
-    for x, y, w, h in ((x1, y1, w1, h1), (x2, y2, w2, h2)):
+# TC-LCD-05 · FR-6.9
+def test_three_lines_are_stacked_inside_the_visible_area(run):
+    rects = [tuple(map(int, ln.split())) for ln in run("rect").splitlines()]
+    assert len(rects) == 3, f"{len(rects)} text lines, FSD §5.4 has three"
+    for x, y, w, h in rects:
         assert 0 <= x and x + w <= 320 and 0 <= y and y + h <= 170
-    assert y2 >= y1 + h1, "line 2 overlaps line 1"
-    for line, text in (("0", "Hello, world!"), ("1", "Up: 4294967295 s")):
-        minx, maxx, miny, maxy, _ = map(int, run("ink", line, text).split())
+    for (_, y0, _, h0), (_, y1, _, _) in zip(rects, rects[1:]):
+        assert y1 >= y0 + h0, "a line overlaps the one above it"
+    for line in "012":
+        minx, maxx, miny, maxy, _ = map(int, run("ink", line, "W" * 20).split())
         assert 0 <= minx and maxx <= 319 and 0 <= miny and maxy <= 169
 
 
-# TC-LCD-04 · FR-6.6
-def test_longest_line2_fits_on_one_row(run):
-    minx, maxx, miny, maxy, width = map(int, run("ink", "1", "Up: 4294967295 s").split())
-    assert width == 16 * 16
+# TC-LCD-06 · FR-6.10
+def test_twenty_characters_fit_one_row(run):
+    text = "tds3-71c734.local###"   # 20 characters, the widest FSD §5.4 allows
+    minx, maxx, miny, maxy, width = map(int, run("ink", "1", text).split())
+    assert width == 20 * 16
     assert maxx <= 319, f"rightmost pixel at x={maxx}"
     assert maxy - miny < 32, "text spans more than one row"
     assert maxx > minx, "nothing rendered (positive control)"
+    _, maxx_last, _, _, _ = map(int, run("ink", "1", " " * 19 + "W").split())
+    assert maxx_last >= 304, "the 20th character is not drawn (clipped)"
+
+
+# TC-LCD-07 · FR-6.8
+def test_redraw_overwrites_the_whole_row(run):
+    w, same = map(int, run("redraw", "Req: 1000", "Req: 5").split())
+    assert w == 320, f"line box is {w} px wide, not the whole row"
+    assert same == 1, "remnants of the longer previous text remain"

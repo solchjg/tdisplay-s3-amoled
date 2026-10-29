@@ -1,7 +1,15 @@
 # FSD C-10.1 target esp32s3 is set by `idf.py set-target esp32s3`.
 # FSD C-10.3: 16 MB flash, stated rather than left to a default.
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
-# FSD C-10.4: default single-app partition table (1 MB factory partition).
-CONFIG_PARTITION_TABLE_SINGLE_APP=y
+# FSD C-10.6: custom partition table, two 4 MB OTA slots.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+# FSD C-10.8: bootloader rolls back an image that never confirms (FR-5.24).
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # FSD C-10.5: console on USB-Serial/JTAG (EN/BOOT not wired on SLOT4).
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# FSD FR-19.1, NFR-19.1: task watchdog, 10 s, restarts the chip (panic) on timeout.
+CONFIG_ESP_TASK_WDT_EN=y
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
+CONFIG_ESP_TASK_WDT_PANIC=y

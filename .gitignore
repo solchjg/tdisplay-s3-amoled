@@ -5,3 +5,6 @@ sdkconfig.old
 test-results/
 __pycache__/
 *.pyc
+tests/target/*/partitions.csv
+commissioning/*/partitions.csv
+tests/target/*/dependencies.lock

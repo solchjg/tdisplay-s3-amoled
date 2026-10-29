@@ -14,11 +14,15 @@ import pytest
 from testbench_driver import TestbenchDriver, TestbenchError
 
 SLOT = "SLOT4"
+# The bench AP the journey provisions the device onto (isolated bench network;
+# the passphrase protects nothing, FSD §9.1).
+BENCH_SSID = "tds3-bench"
+BENCH_PASS = "bench-0441-pass"
+SOFTAP_SSID = "TDS3-71C734"   # FR-13.1 for the recorded MAC 34:85:18:71:c7:34
 CHIP = "esp32s3"
 MAC = "34:85:18:71:c7:34"   # testing/test-plan.yaml dut_record
 
-LOG_LINE = re.compile(r"^([IEWD]) \((\d+)\) hello: (.*)$")
-UP = re.compile(r"^up=(\d+)$")
+LOG_LINE = re.compile(r"([IEWD]) \((\d+)\) web: (.*)$")
 
 
 @pytest.fixture(scope="session")
@@ -28,7 +32,16 @@ def bench():
         drv.get_devices()
     except TestbenchError as e:
         pytest.skip(f"testbench unreachable: {e}")
-    return drv
+    stop_bench_ap(drv)   # a previous session's AP blocks scans (bench: one radio)
+    yield drv
+    stop_bench_ap(drv)   # leave the rig as found
+
+
+def stop_bench_ap(drv):
+    try:
+        drv.ap_stop()
+    except TestbenchError:
+        pass
 
 
 @pytest.fixture(scope="session")
@@ -53,18 +66,20 @@ def firmware_dir():
     return d
 
 
-def flash_coldflash(base_url, slot, chip, directory):
+def flash_coldflash(base_url, slot, chip, directory, erase=False):
     """POST /api/flash with flash_args plus every image it names.
 
     Sending flash_args (not only bin@offset parts) makes the bench use the
     build's flash mode, frequency and size instead of its own defaults.
+    erase=True erases the whole flash first, so NVS holds no credentials.
     """
     with open(os.path.join(directory, "flash_args")) as fh:
         args = fh.read()
     images = [ln.split()[1] for ln in args.splitlines() if ln.startswith("0x")]
     boundary = "----tdh" + uuid.uuid4().hex
     parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
-             for k, v in (("slot", slot), ("chip", chip), ("baud", "460800"))]
+             for k, v in (("slot", slot), ("chip", chip), ("baud", "460800"))
+             + ((("erase", "1"),) if erase else ())]
     for name, path in [("flash_args", "flash_args")] + [(os.path.basename(i), i) for i in images]:
         with open(os.path.join(directory, os.path.basename(path)), "rb") as fh:
             blob = fh.read()
@@ -85,8 +100,8 @@ def flash_coldflash(base_url, slot, chip, directory):
 
 @pytest.fixture(scope="session")
 def flashed(bench, dut, firmware_dir):
-    """Flash FIRMWARE_DIR once per session; JRN-01.1 asserts the result."""
-    return flash_coldflash(bench.base_url, dut, CHIP, firmware_dir)
+    """Erase SLOT4 and flash FIRMWARE_DIR once per session; JRN-01.1 asserts it."""
+    return flash_coldflash(bench.base_url, dut, CHIP, firmware_dir, erase=True)
 
 
 def this_boot(output):
@@ -148,16 +163,62 @@ def save_evidence(name, lines):
             fh.write("\n".join(lines) + "\n")
 
 
-def hello_lines(output):
-    """(level, ms, message) for every `hello:` log line in a capture."""
-    return [m.groups() for m in (LOG_LINE.match(ln.strip()) for ln in output) if m]
+def web_lines(output):
+    """(level, ms, message) for every `web:` log line in a capture (FSD §7.2).
+
+    Searched, not anchored: the monitor may deliver colour codes or a partial
+    line before the level letter (test-plan bench-serial-monitor note).
+    """
+    return [m.groups() for m in (LOG_LINE.search(ln.strip()) for ln in output) if m]
 
 
-def up_values(output):
-    """(ms, N) for every `hello: up=<N>` line in a capture."""
-    out = []
-    for _, ms, msg in hello_lines(output):
-        m = UP.match(msg)
+def enter_portal(bench, portal_ssid, ssid, password):
+    """POST /api/enter-portal with the fields the bench API declares.
+
+    TestbenchDriver.enter_portal() sends a different body (slot, resets),
+    SensorsIot/Embedded-AI-Harness#56; the REST contract is the declaration
+    this project depends on.
+    """
+    return bench._api_post_raw("/api/enter-portal", {
+        "portal_ssid": portal_ssid, "ssid": ssid, "password": password}, timeout=15)
+
+
+def relay(bench, method, url, body=None, headers=None, timeout=8):
+    """One HTTP exchange through the bench radio: (status, body bytes, headers)."""
+    import base64
+    payload = base64.b64encode(body).decode() if body is not None else None
+    r = bench.wifi_http(url, method=method, headers=headers, body=payload, timeout=timeout)
+    return r.get("status"), base64.b64decode(r.get("body") or ""), r.get("headers") or {}
+
+
+def ring_lines(bench, slot, lines=2000):
+    """The bench's serial ring for the slot, oldest first, as text lines."""
+    return [e.get("text", "") for e in bench.serial_output(slot, lines=lines).get("lines", [])]
+
+
+@pytest.fixture(scope="module")
+def online_ip(bench, dut):
+    """The DUT's address once it is ONLINE on the bench AP (precondition, not a test).
+
+    Needs credentials for BENCH_SSID in the DUT (the journey stores them). Starts
+    the bench AP if it is down and waits for `web: online`.
+    """
+    if not bench.ap_status().get("active"):
+        bench.ap_start(BENCH_SSID, BENCH_PASS)
+    for ln in reversed(ring_lines(bench, dut)[-200:]):
+        m = re.search(r"web: online ip=(\d+\.\d+\.\d+\.\d+)", ln)
         if m:
-            out.append((int(ms), int(m.group(1))))
-    return out
+            try:   # proven by an answer, not by a log line or a station entry
+                if relay(bench, "GET", f"http://{m.group(1)}/api/status", timeout=4)[0] == 200:
+                    return m.group(1)
+            except TestbenchError:
+                pass
+            break
+    # Not reachable: a fresh AP (a DUT reset while the AP ran leaves a stale
+    # station the bench AP will not re-admit, SensorsIot/Embedded-AI-Harness#54).
+    stop_bench_ap(bench)
+    bench.ap_start(BENCH_SSID, BENCH_PASS)
+    m = bench.serial_monitor(dut, pattern="web: online ip=", timeout=60)
+    if not m.get("matched"):
+        pytest.skip("DUT not ONLINE on the bench AP (not provisioned for it?)")
+    return re.search(r"online ip=(\d+\.\d+\.\d+\.\d+)", m["line"]).group(1)

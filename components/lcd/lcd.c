@@ -1,10 +1,9 @@
-// LCD Display Interface (FSD §6): two lines of white-on-black text, composed
-// from the reusable parts: the board's pins (tdisplay_s3), the panel driver
+// LCD Display Interface (FSD §6): rows of white-on-black text, composed from
+// the reusable parts: the board's pins (tdisplay_s3), the panel driver
 // (st7789) and the text renderer (text).
 
 #include "lcd.h"
 
-#include "esp_try.h"
 #include "lcd_layout.h"
 #include "st7789.h"
 #include "tdisplay_s3.h"
@@ -30,8 +29,8 @@ static const st7789_config_t panel_cfg = {
     .gap_y = TDISPLAY_S3_LCD_GAP_Y,
     .invert = true,
     .swap_xy = true,
-    .mirror_x = false,
-    .mirror_y = true,
+    .mirror_x = true,
+    .mirror_y = false,
     // One DMA transfer at a time: a full-width band of FONT_H rows (20 KiB).
     .canvas_pixels = TDISPLAY_S3_LCD_W * FONT_H,
 };
@@ -52,9 +51,7 @@ void lcd_backlight(bool on)
     st7789_backlight(on);
 }
 
-esp_err_t lcd_start(const char *line1, const char *line2)
+esp_err_t lcd_start(void)
 {
-    ESP_TRY(st7789_start(&panel_cfg));
-    ESP_TRY(lcd_draw_line(0, line1));
-    return lcd_draw_line(1, line2);
+    return st7789_start(&panel_cfg);
 }

@@ -1,6 +1,6 @@
 // LCD Display Interface stub for the fault-injection test build. It drives no
 // hardware: every call logs `lcdfi: call ...` (so a test can count display
-// calls, FSD FR-5.9) and returns ESP_OK, except the configured failing call,
+// calls, FSD FR-5.27) and returns ESP_OK, except the configured failing call,
 // which returns CONFIG_LCD_FAULT_ERR. After a write fault every later write
 // fails too, as a stuck panel would.
 
@@ -11,7 +11,7 @@
 static const char *TAG = "lcdfi";
 static int writes;
 
-esp_err_t lcd_start(const char *line1, const char *line2)
+esp_err_t lcd_start(void)
 {
     ESP_LOGI(TAG, "call start");
 #if CONFIG_LCD_FAULT_AT_INIT

@@ -1,0 +1,74 @@
+"""Bench tier: the provisioning portal served to a client (FSD §13), on an erased device.
+
+Self-contained: flashes the shipped build with an erase (no credentials, so
+PROVISIONING), and re-provisions the device through the bench at the end.
+"""
+
+import re
+
+import pytest
+
+from conftest import (BENCH_PASS, BENCH_SSID, CHIP, SOFTAP_SSID, enter_portal,
+                      flash_coldflash, relay, reset_and_follow, stop_bench_ap, web_lines)
+
+
+@pytest.fixture(scope="module")
+def provisioning(bench, dut, firmware_dir):
+    res = flash_coldflash(bench.base_url, dut, CHIP, firmware_dir, erase=True)
+    assert res.get("ok"), res
+    lines = reset_and_follow(bench, dut, seconds=5)
+    assert any("state=PROVISIONING" in ln for ln in lines), "erased device not in PROVISIONING"
+    stop_bench_ap(bench)
+    yield
+    res = enter_portal(bench, SOFTAP_SSID, BENCH_SSID, BENCH_PASS)   # cleanup: re-provision
+    assert res.get("ok"), res
+    assert bench.serial_monitor(dut, pattern="web: online ip=", timeout=90).get("matched")
+
+
+# TC-PORT-10 · FR-13.2, FR-7.20
+def test_portal_serves_the_form(bench, dut, provisioning):
+    mark = (bench.serial_output(dut, lines=1).get("lines") or [{"ts": 0}])[-1]["ts"]
+    bench.sta_join(SOFTAP_SSID, timeout=30)
+    try:
+        code, body, hdr = relay(bench, "GET", "http://192.168.4.1/")
+    finally:
+        bench.sta_leave()
+    page = body.decode()
+    assert code == 200 and "text/html" in hdr.get("Content-Type", hdr.get("content-type", ""))
+    form = re.search(r"<form[^>]*>", page).group(0)
+    assert 'method="post"' in form and 'action="/connect"' in form, form
+    assert 'name="ssid"' in page and 'name="password"' in page
+    ring = [e["text"] for e in bench.serial_output(dut, lines=500, since=mark).get("lines", [])]
+    assert "Portal page requested" in [m for _, _, m in web_lines(ring)], "K3 missing (FR-7.20)"
+
+
+# TC-PORT-11 · FR-13.6, FR-14.5
+def test_other_paths_lead_to_the_portal_not_the_status(bench, dut, provisioning):
+    """The bench relay follows redirects, so the 302 itself is not visible: the
+    observable is where it lands (the portal form) and what it never is (the
+    status JSON, a 404, a 204)."""
+    bench.sta_join(SOFTAP_SSID, timeout=30)
+    try:
+        results = {p: relay(bench, "GET", f"http://192.168.4.1{p}")
+                   for p in ("/generate_204", "/api/status", "/hotspot-detect.html")}
+    finally:
+        bench.sta_leave()
+    for path, (code, body, _) in results.items():
+        page = body.decode(errors="replace")
+        assert code == 200, f"{path}: {code} (404/204 means no redirect)"
+        assert 'action="/connect"' in page, f"{path} did not land on the portal form"
+        assert '"fw_version"' not in page, f"{path}: status JSON outside ONLINE (FR-14.5)"
+
+
+# TC-PORT-13 · FR-13.5 (needs bench-relay-dns-via-dut, which the bench does not declare)
+def test_any_name_resolves_to_the_portal(bench, dut, provisioning):
+    import yaml
+    caps = yaml.safe_load(open("testing/test-plan.yaml"))["capabilities"]
+    if caps["bench-relay-dns-via-dut"]["available"] is not True:
+        pytest.skip("bench-relay-dns-via-dut not available (FSD R-7): blocked")
+    bench.sta_join(SOFTAP_SSID, timeout=30)
+    try:
+        code, body, _ = relay(bench, "GET", "http://example.com/")
+    finally:
+        bench.sta_leave()
+    assert code == 200 and b'action="/connect"' in body

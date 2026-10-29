@@ -66,13 +66,13 @@ jobs:
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
 
-      - name: Check the image fits the 1 MB factory partition (FSD C-10.4)
+      - name: Check the image fits a 4 MB OTA slot (FSD C-10.7)
         run: |
           SIZE=$(stat -c %s build/tdisplay_webserver.bin)
           echo "app image: $SIZE bytes"
-          [ "$SIZE" -le 1048576 ] || { echo "FATAL: image exceeds 1 MB"; exit 1; }
+          [ "$SIZE" -le 4194304 ] || { echo "FATAL: image exceeds 4 MB"; exit 1; }
 
-      # Host-tier inspection of this build (FSD C-10.1 – C-10.4, FR-9.1);
+      # Host-tier inspection of this build (FSD C-10.1 – C-10.3, C-10.6 – C-10.8, FR-9.2);
       # in ci.yml these tests skip for want of a build.
       - name: Inspect the build (tests/host/test_build.py)
         run: |
@@ -92,6 +92,7 @@ jobs:
             cp "build/$f" coldflash/ || { echo "FATAL: missing build/$f"; exit 1; }
           done
           cp build/sdkconfig sdkconfig.generated
+          cp dependencies.lock dependencies.lock.generated 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -100,9 +101,10 @@ jobs:
             firmware_v*.bin
             firmware_v*.elf
             sdkconfig.generated
+            dependencies.lock.generated
             coldflash/
 
-  # Fault-injection test builds (FSD §5.5): test artefacts for Wave 3's
+  # LCD fault-injection test builds (FSD §5.6): test artefacts for the
   # negative tests. `release` never downloads them.
   lcd-fault:
     runs-on: ubuntu-latest
@@ -119,6 +121,10 @@ jobs:
         working-directory: /
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
+      # The shipped sdkconfig.defaults names partitions.csv relative to the
+      # project directory; the test build uses the shipped table (C-10.6).
+      - name: Use the shipped partition table
+        run: cp "$GITHUB_WORKSPACE/partitions.csv" .
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null
@@ -140,6 +146,70 @@ jobs:
           name: lcdfault-${{ matrix.variant }}
           path: tests/target/lcd_fault/out/
 
+  # No-network test build (FSD §5.6, FR-5.24): rollback test artefact, never released.
+  no-network:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    defaults:
+      run:
+        shell: bash
+        working-directory: tests/target/no_network
+    steps:
+      - name: Trust the workspace
+        working-directory: /
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+      - name: Use the shipped partition table
+        run: cp "$GITHUB_WORKSPACE/partitions.csv" .
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig \
+                -DSDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/sdkconfig.defaults"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nonetwork
+          path: tests/target/no_network/build/tdisplay_webserver_nonetwork.bin
+
+  # Hang test builds (FSD §19.3, FR-19.1/19.2): watchdog test artefacts, never released.
+  hang:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    strategy:
+      matrix:
+        variant: [app, http]
+    defaults:
+      run:
+        shell: bash
+        working-directory: tests/target/hang
+    steps:
+      - name: Trust the workspace
+        working-directory: /
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+      - name: Use the shipped partition table
+        run: cp "$GITHUB_WORKSPACE/partitions.csv" .
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig -DHANG_VARIANT=${{ matrix.variant }} \
+                -DSDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/sdkconfig.defaults"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+      - name: Collect flash set from flash_args
+        run: |
+          mkdir -p out
+          cp build/flash_args out/
+          awk '$1 ~ /^0x/ {print $2}' build/flash_args | while read -r f; do
+            cp "build/$f" out/ || { echo "FATAL: missing build/$f"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hang-${{ matrix.variant }}
+          path: tests/target/hang/out/
+
   verify:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
@@ -156,8 +226,22 @@ jobs:
         run: curl -fsS --max-time 10 "$TESTBENCH_URL/api/info"
         env:
           TESTBENCH_URL: http://192.168.2.230:8080
+      # A skipped step is `not done`, which is not a pass: the release needs
+      # every JRN-01 step declared in the plan to have run and passed.
       - name: Journey on the released bytes
-        run: pytest tests/bench -m journey -q
+        run: |
+          pytest tests/bench -m journey -q -rs --junitxml=journey.xml
+          python3 - <<'PY'
+          import re, xml.etree.ElementTree as ET
+          plan = open("testing/test-plan.yaml").read()
+          want = len(re.findall(r"^\s*- id: JRN-01\.", plan, re.M))
+          s = ET.parse("journey.xml").getroot()
+          s = s if s.tag == "testsuite" else s.find("testsuite")
+          ran = int(s.get("tests")) - int(s.get("skipped")) - int(s.get("failures")) - int(s.get("errors"))
+          print(f"journey: {ran} passed of {want} declared")
+          assert int(s.get("skipped")) == 0, "a journey step was skipped (not done)"
+          assert ran == want, "journey incomplete"
+          PY
         env:
           TESTBENCH_URL: http://192.168.2.230:8080
           FIRMWARE_DIR: ${{ github.workspace }}/artifact/coldflash

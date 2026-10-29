@@ -1,4 +1,8 @@
-# Same flash, partition and console settings as the product (FSD C-10.3 – C-10.5).
+# Same flash, partition, bootloader and console settings as the product
+# (FSD C-10.3, C-10.5, C-10.6, C-10.8), so the forward path proves the
+# product's own flash offsets. CI copies the shipped partitions.csv in.
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
-CONFIG_PARTITION_TABLE_SINGLE_APP=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

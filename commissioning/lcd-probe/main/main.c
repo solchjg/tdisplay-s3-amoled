@@ -123,7 +123,7 @@ void app_main(void)
         CHECK("init", esp_lcd_panel_init(panel));
         CHECK("invert", esp_lcd_panel_invert_color(panel, true));
         CHECK("swap_xy", esp_lcd_panel_swap_xy(panel, true));
-        CHECK("mirror", esp_lcd_panel_mirror(panel, false, true));
+        CHECK("mirror", esp_lcd_panel_mirror(panel, true, false));
         CHECK("gap", esp_lcd_panel_set_gap(panel, 0, GAP_Y));
         CHECK("disp_on", esp_lcd_panel_disp_on_off(panel, true));
     }

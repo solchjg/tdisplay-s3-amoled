@@ -18,7 +18,7 @@ jobs:
     container: espressif/idf:v6.0.2
     strategy:
       matrix:
-        program: [forward-path, lcd-probe]
+        program: [forward-path, lcd-probe, wifi-probe, button-probe]
     defaults:
       run:
         shell: bash
@@ -28,6 +28,10 @@ jobs:
         working-directory: /
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
+      # forward-path uses the product's own table (C-10.6), named relative to
+      # the project directory; the others ignore the copy.
+      - name: Use the shipped partition table
+        run: cp "$GITHUB_WORKSPACE/partitions.csv" .
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null

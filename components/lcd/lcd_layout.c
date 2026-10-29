@@ -3,11 +3,16 @@
 #include "tdisplay_s3.h"
 #include "text.h"
 
-#define LINE_X 16
-#define LINE_W (TDISPLAY_S3_LCD_W - 2 * LINE_X)  // 288 px, room for 18 characters
-static const int line_y[2] = {40, 96};
+// Full-width rows, 20 characters each (FR-6.10), evenly spaced in the 170-px
+// height (FR-6.9).
+static const int line_y[LCD_TEXT_LINES] = {13, 69, 125};
 
 lcd_rect_t lcd_text_line_rect(int line)
 {
-    return (lcd_rect_t){LINE_X, line_y[line ? 1 : 0], LINE_W, FONT_H};
+    if (line < 0) {
+        line = 0;
+    } else if (line >= LCD_TEXT_LINES) {
+        line = LCD_TEXT_LINES - 1;
+    }
+    return (lcd_rect_t){0, line_y[line], TDISPLAY_S3_LCD_W, FONT_H};
 }
