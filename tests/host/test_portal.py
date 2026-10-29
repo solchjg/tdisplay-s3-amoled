@@ -22,9 +22,14 @@ int main(int argc, char **argv)
         fputs(out, stdout);
         return 0;
     }
+    // Pre-fill with non-zero bytes and print at most each field's size, so a
+    // field left unterminated shows up as an over-long value, never a read
+    // past the struct.
     pc_creds_t c;
+    memset(&c, 'X', sizeof c);
     pc_result_t r = pc_parse_form(argv[1], strlen(argv[1]), &c);
-    printf("%d|%s|%s", (int)r, c.ssid, c.password);
+    printf("%d|%.*s|%.*s", (int)r, (int)sizeof c.ssid, c.ssid, (int)sizeof c.password,
+           c.password);
     return 0;
 }
 """
@@ -77,8 +82,9 @@ def test_valid_form_is_accepted_and_decoded(parse, body, ssid, pw):
     "ssid=Caf%C3%A9" + "x" * 28 + "&password=",   # 33 bytes once decoded
 ])
 def test_invalid_submission_is_refused(parse, body):
-    ok, _, _ = parse(body)
+    ok, ssid, pw = parse(body)
     assert not ok, f"accepted {body!r}"
+    assert len(ssid) <= 32 and len(pw) <= 63, "a refused field was left unterminated"
 
 
 # TC-PORT-03 · FR-13.7 (core)
