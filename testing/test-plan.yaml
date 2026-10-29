@@ -273,9 +273,19 @@ capabilities:
       state "USB-C cable leaving the board on your right".
   dut-wifi-slot1:
     what: The T-Display-S3 AMOLED in SLOT1 associates with the bench AP and obtains a DHCP lease
-    available: unproven
+    available: yes
+    observed: 2026-10-29
+    evidence: >
+      Shipped build 0.0.0-929e84a (local build, flashed with whole-flash erase
+      22:37:43Z): PROVISIONING with SoftAP TDS3-EA483C (open, seen by a bench
+      scan); enter-portal with tds3-bench 22:39:24Z, portal answered 200;
+      `web: online ip=192.168.4.8 rssi=-58` 22:39:44Z; GET /api/status and
+      GET / through the HTTP relay both 200 (fw_version 0.0.0-929e84a,
+      hostname tds3-ea483c); mirror lines `IP 192.168.4.8` / `Req: 2` /
+      `tds3-ea483c.local`, operator confirmed with USB-C on the right ("Human
+      confirmed" 22:41:17Z).
     consequence: >
-      Proven by the journey's provisioning step (JRN-01) on the shipped build.
+      The board's radio is good at the bench distance (RSSI around -58 dBm).
   dut-boot-button:
     what: Firmware on the T-Display-S3 AMOLED in SLOT1 reads GPIO 0 low while an operator holds BOOT, high on release
     available: unproven
