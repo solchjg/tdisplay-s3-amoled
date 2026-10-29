@@ -17,7 +17,8 @@ static int hex(char c)
 }
 
 // Decode [p, end) into out (cap bytes plus terminator). Returns the decoded
-// length, or -1 when it does not fit or holds a malformed escape.
+// length, or -1 when it does not fit or holds a malformed escape; out is
+// always terminated, and empty on -1.
 static int decode(const char *p, const char *end, char *out, size_t cap)
 {
     size_t n = 0;
@@ -27,12 +28,14 @@ static int decode(const char *p, const char *end, char *out, size_t cap)
             c = ' ';
         } else if (c == '%') {
             if (end - p < 2 || hex(p[0]) < 0 || hex(p[1]) < 0) {
+                out[0] = '\0';
                 return -1;
             }
             c = (char)(hex(p[0]) * 16 + hex(p[1]));
             p += 2;
         }
         if (n == cap) {
+            out[0] = '\0';
             return -1;
         }
         out[n++] = c;
