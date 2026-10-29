@@ -72,7 +72,7 @@ def run(compile_harness):
 # TC-LCD-01 · C-6.1 – C-6.5
 def test_configuration_states_the_fsd_values(run):
     assert run("config").split() == [
-        "data=18,7,48,5", "sck=47", "cs=6", "rst=17", "pwr=38", "pclk=40000000",
+        "data=18,7,48,5", "sck=47", "cs=6", "rst=17", "pwr=38", "pclk=75000000",
         "madctl=0x60", "size=536x240"]
 
 

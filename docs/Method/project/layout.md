@@ -39,7 +39,7 @@ requirements first need them, never earlier.
   components" below): none includes `web_log` or another app component. What
   they would log reaches the composition root through a callback, and only
   `app_main.c` calls `web_log_*`.
-- Panel bring-up order (`rm67162_start`, confirmed by commissioning, capability `lcd-rm67162`): GPIO 38 high → SPI2 bus in quad mode (40 MHz) → esp_lcd SPI
+- Panel bring-up order (`rm67162_start`, confirmed by commissioning, capability `lcd-rm67162`): GPIO 38 high → SPI2 bus in quad mode (75 MHz requested; the divider runs it at 80 MHz) → esp_lcd SPI
   panel IO (32-bit opcode, 8-bit parameters) → RST pulse → sleep out → LilyGO's
   ELVSS/OVSS trim (pages 5 and 1) → MADCTL 0x60 (landscape, USB-C on the right) →
   16 bit/pixel → brightness 0 → clear to black → display on → draw → brightness

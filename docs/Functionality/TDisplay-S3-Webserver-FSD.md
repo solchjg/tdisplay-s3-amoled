@@ -122,7 +122,7 @@ path: a failing display never stops the network side (FR-5.28).
 | LCD control pins | SCK = GPIO 47, CS = GPIO 6, RST = GPIO 17 (TE = GPIO 9, unused) | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
 | LCD power enable | GPIO 38 (active high; panel power on the touch board, an LED on the non-touch board) | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
 | Brightness | No backlight: register 0x51 of the RM67162, 0 = dark | [derived from the board] |
-| QSPI clock | 40 MHz | [proposed] |
+| QSPI clock | 75 MHz requested (the SPI divider runs it at 80 MHz) | [user] |
 | Orientation | MADCTL 0x60 (MX, MV): landscape 536×240, no RAM offset | [derived from commissioning] |
 | BOOT button | GPIO 0, active low, external pull-up on the board | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
 | Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE present but unused (FR-9.2) | [derived from the board] |
@@ -695,7 +695,7 @@ detected (R-2).
   control lines shall be SCK = GPIO 47, CS = GPIO 6 and RST = GPIO 17.
 - **C-6.3** [Must] [derived from the LilyGO T-Display-S3 AMOLED pin map] GPIO 38
   (LCD power enable) shall be driven high before panel initialisation begins.
-- **C-6.4** [Must] [proposed] The QSPI clock shall be 40 MHz.
+- **C-6.4** [Must] [user] The QSPI clock shall be requested at 75 MHz.
 - **C-6.5** [Must] [derived from commissioning] The panel shall be addressed in
   landscape with MADCTL 0x60 and no controller-RAM offset.
 - **FR-6.1** [Must] [user] In LCD_OK, text shall be upright and read left to right
@@ -720,7 +720,7 @@ detected (R-2).
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| C-6.1 – C-6.5 | Inspect the built configuration | The pin numbers, 40 MHz clock and MADCTL 0x60 appear in the firmware's own configuration | Any other value; a value taken from a driver default | host |
+| C-6.1 – C-6.5 | Inspect the built configuration | The pin numbers, 75 MHz clock and MADCTL 0x60 appear in the firmware's own configuration | Any other value; a value taken from a driver default | host |
 | C-6.1 – C-6.5 (wire) | Shipped build; reset; operator prompted after the BOOT screen | Operator confirms `Starting` is legible | Blank, noisy, shifted or garbled panel | bench (operator) |
 | FR-6.1 | LCD_OK; operator prompted with the board held USB-C to the right | Operator confirms text upright and left to right | Mirrored, upside-down or rotated text | bench (operator) |
 | FR-6.2 | Inspect the font used by the renderer | Cell 16 × 32 px; glyphs 0x20 – 0x7E | Other cell size; proportional font | host |
@@ -1505,7 +1505,7 @@ baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: approved by the user except the open decisions below
+approval_status: all requirements and values approved by the user
 created: 2026-10-23
 last_updated: 2026-10-29
 change_history:
@@ -1524,9 +1524,8 @@ change_history:
   - 0.3.7 2026-10-23 Load-defined findings: R-13 no longer claims a host stall core (stall clause blocked on bench #55); hang build logs its anchor line and FR-19.1/NFR-19.1 timing states the bench clock resolution; NFR-5.2/NFR-5.3 tolerances aligned; FR-5.21 scans with the AP stopped; FR-5.28 resets through JTAG with the AP down; Phase 2 exit names bench #54; Appendix B parses as YAML
   - 0.3.8 2026-10-24 verification waivers accepted by the user for shipment (Appendix B); R-14 (bench #54), R-15 (one bench radio), R-16 (UDP listener) added; bench clock resolution in Appendix A; R-12/R-13 order
   - 0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution
-  - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1
+  - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
-open_decisions:
-  - "C-6.4 QSPI clock 40 MHz [proposed] (LilyGO's examples run 75 MHz; 40 MHz is the conservative value commissioning confirmed)"
+open_decisions: []
 related_test_baseline: none yet
 ```

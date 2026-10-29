@@ -91,7 +91,7 @@ them through a small C harness; keep new logic ESP-IDF-free for the same reason.
 Never use `ESP_ERROR_CHECK` on display errors — report them to the state machine.
 Only list component `REQUIRES`/`PRIV_REQUIRES` that are actually included today.
 
-Panel bring-up order and the exact RM67162 settings (GPIO 38 power, QSPI 40 MHz,
+Panel bring-up order and the exact RM67162 settings (GPIO 38 power, QSPI 75 MHz requested (80 MHz actual),
 MADCTL 0x60, no offset, byte-swapped RGB565, brightness 0 until a successful start)
 are in `docs/Method/project/layout.md`; they were confirmed by commissioning.
 

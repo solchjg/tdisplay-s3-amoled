@@ -1,6 +1,6 @@
 // Commissioning aid, not product code: brings up the built-in RM67162 AMOLED
 // through the shared rm67162 driver with exactly the tdisplay_s3_amoled values
-// (QSPI pin map, GPIO 38 power, 40 MHz, MADCTL 0x60 landscape), and draws a
+// (QSPI pin map, GPIO 38 power, 75 MHz, MADCTL 0x60 landscape), and draws a
 // pattern whose failures read differently:
 //   white 2-px frame on all four edges  -> wrong size or offset shows as a cut edge
 //   RED square top-left                 -> mirror/rotation errors move it

@@ -257,7 +257,7 @@ capabilities:
       Flash over USB and the serial monitor work on SLOT1 with this board. The
       product image's own partition layout is proven by JRN-01.1.
   lcd-rm67162:
-    what: The built-in RM67162 lights correctly with the T-Display-S3 AMOLED QSPI pin map, GPIO 38 power, 40 MHz and MADCTL 0x60
+    what: The built-in RM67162 lights correctly with the T-Display-S3 AMOLED QSPI pin map, GPIO 38 power, 75 MHz and MADCTL 0x60
     available: yes
     observed: 2026-10-29
     evidence: >
@@ -266,9 +266,12 @@ capabilities:
       ESP_OK, `pattern drawn`. Operator prompt 22:30:38Z, "Human confirmed"
       22:31:40Z: USB-C on the right, black background, white frame on all four
       edges with nothing cut off, RED top-left, GREEN top-right, BLUE
-      bottom-left.
+      bottom-left. At 75 MHz (shared 234631b, shipped build
+      0.0.0-234631b-75m): provisioned and ONLINE at 192.168.4.8, GET / and
+      /api/status 200, operator confirmed the ONLINE screen clean (2026-10-29
+      ~23:00Z).
     consequence: >
-      Confirmed settings: MADCTL 0x60, no RAM offset, 536 x 240 landscape,
+      Confirmed settings: 75 MHz requested (80 MHz on the bus), MADCTL 0x60, no RAM offset, 536 x 240 landscape,
       RGB565 bytes swapped, LilyGO's 1.91" init sequence. Orientation prompts
       state "USB-C cable leaving the board on your right".
   dut-wifi-slot1:
