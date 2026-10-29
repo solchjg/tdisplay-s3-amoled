@@ -291,10 +291,16 @@ capabilities:
       The board's radio is good at the bench distance (RSSI around -58 dBm).
   dut-boot-button:
     what: Firmware on the T-Display-S3 AMOLED in SLOT1 reads GPIO 0 low while an operator holds BOOT, high on release
-    available: unproven
+    available: yes
+    observed: 2026-10-29
+    evidence: >
+      Bench run from 340fe60 (shared 234631b), shipped build 0.1.0 (local
+      build): test_button.py short press (nothing changes) and long press
+      (reset on release, credentials erased, back to PROVISIONING) both
+      passed with the operator holding BOOT; evidence button-long-press.
     consequence: >
-      Same GPIO 0 and pull-up as the T-Display-S3; FR-18.x bench tests prove it
-      on this board.
+      GPIO 0 reads active low on this board; FR-18.x tests can rely on an
+      operator press.
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the AMOLED panel, held USB-C to the right
     available: yes
