@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-COMPONENT = ROOT / "components" / "identity"
+COMPONENT = ROOT / "shared" / "components" / "identity"
 
 HARNESS = r"""
 #include <stdio.h>

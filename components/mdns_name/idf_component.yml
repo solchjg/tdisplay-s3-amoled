@@ -1,4 +1,0 @@
-# FSD §17: mDNS is not bundled with ESP-IDF 6; exact version pinned (Method).
-dependencies:
-  idf: ">=6.0.0"
-  espressif/mdns: "==1.14.0"

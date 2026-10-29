@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-COMPONENT = ROOT / "components" / "ota_rx"
+COMPONENT = ROOT / "shared" / "components" / "ota_rx"
 
 HARNESS = r"""
 #include <stdio.h>

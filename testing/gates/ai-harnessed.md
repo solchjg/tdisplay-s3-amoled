@@ -17,7 +17,7 @@ bench answers only — never memory, transcripts, or the author's account.
 | 6 | Every `needs:` entry is a declared capability | plan | each name is a key under `capabilities:` |
 | 7 | Debugging agenda lists every `unproven` project capability, each with *unproven because* and *proven by*; the testbench is not listed | `testing/debugging-agenda.md` | One row per `unproven` capability, and none for a `bench-*` capability |
 | 8 | Testing standard is one file with run rules and shared procedures | `docs/Method/standards/testing.md` | Sections P-RESET, P-POWERCYCLE, P-OPERATOR, P-FAULT; markers refer to `web:` lines, not `hello:` |
-| 9 | Firmware hooks within the FSD's scope | `main/`, `components/`, `CMakeLists.txt`, `sdkconfig.defaults` | No BLE (`esp_bt`, `nimble`), MQTT, espota/ArduinoOTA, or any module the FSD does not name. WiFi, NVS, HTTP server, OTA, UDP log and mDNS modules may be absent: the FSD schedules them in Phases 2 – 4 (§3), which `/build` delivers |
+| 9 | Firmware hooks within the FSD's scope | `main/`, `components/`, `shared/components/`, `CMakeLists.txt`, `sdkconfig.defaults` | No BLE (`esp_bt`, `nimble`), MQTT, espota/ArduinoOTA, or any module the FSD does not name. WiFi, NVS, HTTP server, OTA, UDP log and mDNS modules may be absent: the FSD schedules them in Phases 2 – 4 (§3), which `/build` delivers |
 | 10 | Build constraints come from the FSD, not from hardware | `sdkconfig.defaults`, `partitions.csv` | 16 MB flash, custom table `partitions.csv` with exactly the C-10.6 rows, rollback enabled, USB-Serial/JTAG console, each citing its C-10.x |
 | 11 | CI: build on push, release on tag, verify between them; size gate is the 4 MB slot | `.github/workflows/build.yml` | Jobs `build`, `verify` (`runs-on: [self-hosted, testbench]`, tags only), `release` with `needs: [build, verify]`; size check `-le 4194304` citing C-10.7 |
 | 12 | CI has run green once on a commit carrying this harness | GitHub | `gh run list -L 10` shows `Build Firmware` and `host tests + lint` with conclusion `success` for a commit that contains `partitions.csv` |
@@ -43,7 +43,7 @@ for t in plan['tests']:
     for n in t['needs']:
         if n not in caps: print('UNDECLARED', t['id'], n)
 PY
-grep -rniE 'esp_bt|nimble|mqtt|espota|arduinoota' main components CMakeLists.txt   # expect nothing
+grep -rniE 'esp_bt|nimble|mqtt|espota|arduinoota' main components shared/components CMakeLists.txt   # expect nothing
 grep -n 'Init complete, running event-driven' main/app_main.c
 gh run list -R solchjg/tdisplay-s3-webserver -L 10
 gh api repos/solchjg/tdisplay-s3-webserver/actions/permissions/fork-pr-contributor-approval

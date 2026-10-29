@@ -7,13 +7,13 @@ cmake_minimum_required(VERSION 3.22)
 
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
 set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_log
-                         ${ROOT}/components/identity ${ROOT}/components/portal
-                         ${ROOT}/components/status_http ${ROOT}/components/udp_log
-                         ${ROOT}/components/ota_rx ${ROOT}/components/button
-                         ${ROOT}/components/mdns_name ${ROOT}/components/wifi_net
+                         ${ROOT}/shared/components/identity ${ROOT}/shared/components/portal
+                         ${ROOT}/shared/components/status_http ${ROOT}/shared/components/udp_log
+                         ${ROOT}/shared/components/ota_rx ${ROOT}/shared/components/button
+                         ${ROOT}/shared/components/mdns_name ${ROOT}/shared/components/wifi_net
                          ${ROOT}/components/lcd
-                         ${ROOT}/components/st7789 ${ROOT}/components/text
-                         ${ROOT}/components/tdisplay_s3 ${ROOT}/components/esp_try)
+                         ${ROOT}/shared/components/st7789 ${ROOT}/shared/components/text
+                         ${ROOT}/shared/components/tdisplay_s3 ${ROOT}/shared/components/esp_try)
 # Distinct from every shipped version, so the bench can tell the boots apart.
 set(PROJECT_VER "0.0.0-no-network")
 
