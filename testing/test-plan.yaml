@@ -937,6 +937,19 @@ tests:
     impl: tests/host/test_identity.py::test_names_from_the_base_mac
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
+  - id: TC-ID-02
+    title: "SoftAP SSID and hostname with other prefixes, cut to fit"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 2
+    tier: host
+    verifies: [FR-13.1, FR-20.1]
+    needs: []
+    observable: "Sensor-ABCDEF / sensor-abcdef; a 15-character prefix leaves no room for the hex"
+    impl: tests/host/test_identity.py::test_names_with_other_prefixes
+    result: {status: not done}
+
   - id: TC-PORT-01
     title: "Valid portal form accepted and decoded"
     shape: atomic
@@ -1066,6 +1079,19 @@ tests:
     observable: "web: text from web: to end; D level and other tags not selected"
     impl: tests/host/test_udp_log.py::test_only_web_lines_at_info_or_above_without_prefix
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
+
+  - id: TC-UDP-02
+    title: "Another log tag is selected, and only that exact tag"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 3
+    tier: host
+    verifies: [FR-16.1, FR-16.2]
+    needs: []
+    observable: "tag app: app lines sent from app: to end; apple: and web: lines not selected"
+    impl: tests/host/test_udp_log.py::test_another_tag_is_selected_exactly
+    result: {status: not done}
 
   - id: TC-LOG-19
     title: "K9 UDP logging line format"

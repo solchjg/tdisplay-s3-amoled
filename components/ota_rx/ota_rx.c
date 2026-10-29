@@ -8,26 +8,27 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ota_core.h"
-#include "web_log.h"
 
 #define BODY_MAX 512
 #define STALL_MS 30000  // FR-15.11: no byte for 30 s fails the download
 #define CHUNK 4096
 
-static ota_rx_result_cb_t result_cb;
-static ota_rx_note_cb_t note_cb;
+static const ota_rx_hooks_t *hooks;
 static volatile bool busy, abort_req;
 static char url[OC_URL_MAX + 1];
 
-static void finish(bool ok, const esp_partition_t *slot, const char *reason)
+static void finish(bool ok, const esp_partition_t *slot, uint32_t bytes, const char *reason)
 {
-    if (ok) {
-        web_log_ota_succeeded();
-    } else {
-        web_log_ota_failed(reason);
-    }
+    const ota_rx_result_t result = {.ok = ok, .slot = slot, .bytes = bytes, .reason = reason};
+    hooks->on_result(&result);
     busy = false;
-    result_cb(ok, slot);
+}
+
+static void note(const char *uri, int status)
+{
+    if (hooks->note) {
+        hooks->note("POST", uri, status);
+    }
 }
 
 static void download(void *arg)
@@ -94,10 +95,9 @@ static void download(void *arg)
         esp_ota_abort(ota);
     }
     if (reason[0] == '\0') {
-        web_log_ota_downloaded(total);
-        finish(true, slot, NULL);
+        finish(true, slot, total, NULL);
     } else {
-        finish(false, NULL, reason);
+        finish(false, NULL, 0, reason);
     }
     vTaskDelete(NULL);
 }
@@ -107,8 +107,10 @@ static esp_err_t refuse(httpd_req_t *req, int status, const char *reason)
     httpd_resp_set_status(req, status == 409 ? "409 Conflict" : "400 Bad Request");
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"ok\":false}");
-    web_log_ota_refused(status, reason);
-    note_cb("POST", req->uri, status);
+    if (hooks->on_refused) {
+        hooks->on_refused(status, reason);
+    }
+    note(req->uri, status);
     return ESP_OK;
 }
 
@@ -138,18 +140,16 @@ static esp_err_t post_ota(httpd_req_t *req)
     httpd_resp_set_status(req, "202 Accepted");
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"ok\":true}");  // FR-15.8, answered before the download
-    note_cb("POST", req->uri, 202);
+    note(req->uri, 202);
     if (xTaskCreate(download, "ota", 8192, NULL, 5, NULL) != pdPASS) {
-        finish(false, NULL, "no task");
+        finish(false, NULL, 0, "no task");
     }
     return ESP_OK;
 }
 
-esp_err_t ota_rx_register(httpd_handle_t server, ota_rx_result_cb_t on_result,
-                          ota_rx_note_cb_t note)
+esp_err_t ota_rx_register(httpd_handle_t server, const ota_rx_hooks_t *h)
 {
-    result_cb = on_result;
-    note_cb = note;
+    hooks = h;
     static const httpd_uri_t ota = {.uri = "/ota", .method = HTTP_POST, .handler = post_ota};
     return httpd_register_uri_handler(server, &ota);
 }

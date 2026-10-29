@@ -23,7 +23,7 @@ static int mirror(const char *fmt, va_list args)
     vsnprintf(line, sizeof line, fmt, copy);
     va_end(copy);
     int s = sock;
-    int n = s >= 0 ? ul_select(line, text, sizeof text) : 0;
+    int n = s >= 0 ? ul_select(line, CONFIG_UDP_LOG_TAG, text, sizeof text) : 0;
     if (n > 0) {
         sendto(s, text, (size_t)n, MSG_DONTWAIT, (struct sockaddr *)&dest, sizeof dest);
     }

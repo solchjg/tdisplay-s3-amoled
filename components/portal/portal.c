@@ -6,6 +6,7 @@
 #include "captive_dns.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "web";
 static httpd_handle_t server;
@@ -16,7 +17,8 @@ static portal_submit_cb_t submit_cb;
 
 static const char FORM[] =
     "<!doctype html><html><head><meta charset=\"utf-8\">"
-    "<meta name=\"viewport\" content=\"width=device-width\"><title>TDS3 setup</title></head>"
+    "<meta name=\"viewport\" content=\"width=device-width\">"
+    "<title>" CONFIG_PORTAL_PAGE_TITLE "</title></head>"
     "<body><h1>WiFi setup</h1><form method=\"post\" action=\"/connect\">"
     "<p><label>Network name <input name=\"ssid\" maxlength=\"32\" required></label></p>"
     "<p><label>Password <input name=\"password\" type=\"password\" maxlength=\"63\"></label></p>"
@@ -56,7 +58,8 @@ static esp_err_t post_connect(httpd_req_t *req)
     char esc[6 * PC_SSID_MAX + 1], page[512];
     pc_html_escape(creds.ssid, esc, sizeof esc);
     snprintf(page, sizeof page,
-             "<!doctype html><html><head><meta charset=\"utf-8\"><title>TDS3 setup</title>"
+             "<!doctype html><html><head><meta charset=\"utf-8\">"
+             "<title>" CONFIG_PORTAL_PAGE_TITLE "</title>"
              "</head><body><p>Saved. Connecting to %s.</p></body></html>", esc);
     httpd_resp_set_type(req, "text/html");
     esp_err_t err = httpd_resp_sendstr(req, page);

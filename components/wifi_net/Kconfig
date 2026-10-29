@@ -1,0 +1,22 @@
+menu "WiFi network"
+
+    config WIFI_NET_SOFTAP_CHANNEL
+        int "SoftAP channel"
+        range 1 13
+        default 1
+        help
+            Channel of the open provisioning SoftAP (FSD FR-13.1).
+
+    config WIFI_NET_SOFTAP_MAX_CLIENTS
+        int "SoftAP client limit"
+        range 1 10
+        default 4
+
+    config WIFI_NET_NVS_NAMESPACE
+        string "NVS namespace for the stored credentials"
+        default "net"
+        help
+            At most 15 characters. Changing it orphans credentials stored
+            under the old namespace.
+
+endmenu

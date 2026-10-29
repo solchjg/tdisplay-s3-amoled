@@ -1,5 +1,5 @@
-// OTA Receiver (FSD §15): POST /ota on the status server; the download runs in
-// its own task and reports once, through the callback.
+// OTA Receiver (FSD §15): POST /ota on a running esp_http_server; the download
+// runs in its own task and reports once, through on_result.
 #pragma once
 
 #include <stdbool.h>
@@ -9,13 +9,24 @@
 #include "esp_http_server.h"
 #include "esp_partition.h"
 
-// ok: a valid image is written to `slot` (not yet selected for boot).
-typedef void (*ota_rx_result_cb_t)(bool ok, const esp_partition_t *slot);
-// Counts and logs one answered request (FR-14.6, FR-7.14).
-typedef void (*ota_rx_note_cb_t)(const char *method, const char *uri, int status);
+typedef struct {
+    bool ok;                      // a valid image is written to `slot` (not yet selected for boot)
+    const esp_partition_t *slot;  // NULL unless ok
+    uint32_t bytes;               // written, when ok
+    const char *reason;           // why not, unless ok
+} ota_rx_result_t;
 
-esp_err_t ota_rx_register(httpd_handle_t server, ota_rx_result_cb_t on_result,
-                          ota_rx_note_cb_t note);
+typedef struct {
+    // Once per accepted request, from the download task.
+    void (*on_result)(const ota_rx_result_t *result);
+    // A request answered 400 or 409 without a download (may be NULL).
+    void (*on_refused)(int status, const char *reason);
+    // Every answered request, e.g. to count and log it (may be NULL).
+    void (*note)(const char *method, const char *uri, int status);
+} ota_rx_hooks_t;
+
+// `hooks` must outlive the server.
+esp_err_t ota_rx_register(httpd_handle_t server, const ota_rx_hooks_t *hooks);
 
 // FR-15.13: abandon a download in progress (it then reports failure).
 void ota_rx_abort(void);

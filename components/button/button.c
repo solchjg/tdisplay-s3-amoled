@@ -3,12 +3,13 @@
 #include "button_core.h"
 #include "driver/gpio.h"
 #include "esp_timer.h"
-#include "web_log.h"
+#include "sdkconfig.h"
 
-#define PIN_BOOT 0
+#define PIN_BOOT CONFIG_BUTTON_GPIO
 #define SAMPLE_US (20 * 1000)
 
 static bt_state_t state;
+static button_held_cb_t held_cb;
 static button_reset_cb_t reset_cb;
 
 static void sample(void *arg)
@@ -16,7 +17,9 @@ static void sample(void *arg)
     switch (bt_sample(&state, gpio_get_level(PIN_BOOT) == 0,
                       (uint32_t)(esp_timer_get_time() / 1000))) {
     case BT_THRESHOLD:
-        web_log_button_held();  // L17b
+        if (held_cb) {
+            held_cb();
+        }
         break;
     case BT_RESET:
         reset_cb();
@@ -26,8 +29,9 @@ static void sample(void *arg)
     }
 }
 
-esp_err_t button_start(button_reset_cb_t on_reset)
+esp_err_t button_start(button_held_cb_t on_held, button_reset_cb_t on_reset)
 {
+    held_cb = on_held;
     reset_cb = on_reset;
     gpio_config_t io = {.pin_bit_mask = 1ULL << PIN_BOOT, .mode = GPIO_MODE_INPUT,
                         .pull_up_en = GPIO_PULLUP_ENABLE};

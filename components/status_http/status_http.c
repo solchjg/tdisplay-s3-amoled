@@ -5,11 +5,17 @@
 #include "esp_task_wdt.h"
 #include "esp_http_server.h"
 #include "status_core.h"
-#include "web_log.h"
 
 static httpd_handle_t server;
 static const status_http_source_t *source;
 static volatile uint32_t requests;  // written by the server task only
+
+static void report(const char *method, const char *uri, int status, uint32_t n)
+{
+    if (source && source->log) {
+        source->log(method, uri, status, n);
+    }
+}
 
 static void collect(sc_status_t *st)
 {
@@ -27,7 +33,7 @@ static esp_err_t answer(httpd_req_t *req, const char *type, const char *body, ui
 {
     httpd_resp_set_type(req, type);
     esp_err_t err = httpd_resp_sendstr(req, body);
-    web_log_http(http_method_str(req->method), req->uri, 200, n);
+    report(http_method_str(req->method), req->uri, 200, n);
     return err;
 }
 
@@ -71,7 +77,7 @@ static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
 {
     uint32_t n = ++requests;
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
-    web_log_http(http_method_str(req->method), req->uri, 404, n);
+    report(http_method_str(req->method), req->uri, 404, n);
     return ESP_OK;
 }
 
@@ -113,5 +119,5 @@ httpd_handle_t status_http_handle(void)
 
 void status_http_note(const char *method, const char *uri, int status)
 {
-    web_log_http(method, uri, status, ++requests);
+    report(method, uri, status, ++requests);
 }
