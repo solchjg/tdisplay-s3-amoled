@@ -21,8 +21,8 @@ int main(int argc, char **argv)
         mac[i] = (uint8_t)strtoul(argv[1 + i], NULL, 16);
     }
     char ap[ID_NAME_MAX], host[ID_NAME_MAX];
-    id_softap_ssid(mac, ap);
-    id_hostname(mac, host);
+    id_softap_ssid(argv[7], mac, ap);
+    id_hostname(argv[8], mac, host);
     printf("%s %s", ap, host);
     return 0;
 }
@@ -40,8 +40,10 @@ def names(tmp_path_factory):
     exe = d / "id"
     subprocess.run([cc, "-std=c11", "-Wall", "-Werror", f"-I{COMPONENT / 'include'}",
                     str(src), str(d / "harness.c"), "-o", str(exe)], check=True)
-    return lambda mac: subprocess.run([str(exe), *mac.split(":")], capture_output=True,
-                                      text=True, check=True).stdout.split()
+    def run(mac, ap_prefix="TDS3-", host_prefix="tds3-"):
+        return subprocess.run([str(exe), *mac.split(":"), ap_prefix, host_prefix],
+                              capture_output=True, text=True, check=True).stdout.split()
+    return run
 
 
 # TC-ID-01 · FR-13.1, FR-20.1, FR-20.2 (core)
@@ -51,3 +53,12 @@ def names(tmp_path_factory):
 ])
 def test_names_from_the_base_mac(names, mac, ap, host):
     assert names(mac) == [ap, host]
+
+
+# TC-ID-02 · FR-13.1, FR-20.1 (core): another project's prefixes; a long name is cut
+@pytest.mark.parametrize("ap_prefix,host_prefix,ap,host", [
+    ("Sensor-", "sensor-", "Sensor-ABCDEF", "sensor-abcdef"),
+    ("VeryLongPrefix-", "x", "VeryLongPrefix-", "xabcdef"),
+])
+def test_names_with_other_prefixes(names, ap_prefix, host_prefix, ap, host):
+    assert names("00:11:22:ab:cd:ef", ap_prefix, host_prefix) == [ap, host]

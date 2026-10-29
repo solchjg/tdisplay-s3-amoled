@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-int ul_select(const char *line, char *out, size_t cap)
+int ul_select(const char *line, const char *tag, char *out, size_t cap)
 {
     // Copy without ANSI colour sequences (ESC '[' ... 'm') and the line ending.
     char clean[UL_LINE_MAX];
@@ -28,11 +28,19 @@ int ul_select(const char *line, char *out, size_t cap)
     if (clean[0] != 'I' && clean[0] != 'W' && clean[0] != 'E') {
         return 0;
     }
-    const char *web = strstr(clean, ") web: ");
-    if (!web) {
-        return 0;
+    // ") <tag>: " follows the timestamp.
+    size_t tn = strlen(tag);
+    const char *web = clean;
+    for (;;) {
+        web = strstr(web, ") ");
+        if (!web) {
+            return 0;
+        }
+        web += 2;  // past ") "
+        if (strncmp(web, tag, tn) == 0 && web[tn] == ':' && web[tn + 1] == ' ') {
+            break;
+        }
     }
-    web += 2;  // past ") "
     size_t len = strlen(web);
     if (len + 1 > cap) {
         len = cap - 1;

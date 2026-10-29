@@ -19,12 +19,13 @@
 #include "identity.h"
 #include "lcd.h"
 #include "mdns_name.h"
-#include "net.h"
-#include "portal.h"
 #include "ota_rx.h"
+#include "portal.h"
+#include "sdkconfig.h"
 #include "status_http.h"
 #include "udp_log.h"
 #include "web_log.h"
+#include "wifi_net.h"
 
 static const char *TAG = "main";
 
@@ -52,9 +53,13 @@ static const esp_partition_t *downloaded;  // the slot a successful OTA wrote (T
 static dl_view_t view;
 static char softap_ssid[ID_NAME_MAX], hostname[ID_NAME_MAX], ip[16];
 static pc_creds_t stored;
+_Static_assert(sizeof stored.ssid == WIFI_NET_SSID_MAX + 1 &&
+               sizeof stored.password == WIFI_NET_PASSWORD_MAX + 1,
+               "portal and wifi_net credentials differ in size");
 
 static const status_http_source_t status_source = {.ip = ip, .hostname = hostname,
-                                                   .rssi = net_rssi};
+                                                   .rssi = wifi_net_rssi,
+                                                   .log = web_log_http};
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
@@ -93,10 +98,10 @@ static bool image_pending_verify(void)
            st == ESP_OTA_IMG_PENDING_VERIFY;
 }
 
-static void on_net(net_event_t ev, const char *addr)
+static void on_net(wifi_net_event_t ev, const char *addr)
 {
     app_event_t e = {.kind = APP_CONN};
-    if (ev == NET_EV_GOT_IP) {
+    if (ev == WIFI_NET_EV_GOT_IP) {
         e.ev = view.conn == DL_ONLINE ? DL_EV_IP_CHANGED : DL_EV_IP;
         strncpy(e.ip, addr, sizeof e.ip - 1);
         e.guard = image_pending_verify();
@@ -113,11 +118,21 @@ static void on_confirm_deadline(void *arg)
     post(&e);
 }
 
-static void on_ota(bool ok, const esp_partition_t *slot)
+static void on_ota(const ota_rx_result_t *r)
 {
-    downloaded = slot;
-    post_conn(ok ? DL_EV_OTA_SUCCEEDED : DL_EV_OTA_FAILED);
+    if (r->ok) {
+        web_log_ota_downloaded(r->bytes);
+        web_log_ota_succeeded();
+    } else {
+        web_log_ota_failed(r->reason);
+    }
+    downloaded = r->slot;
+    post_conn(r->ok ? DL_EV_OTA_SUCCEEDED : DL_EV_OTA_FAILED);
 }
+
+static const ota_rx_hooks_t ota_hooks = {.on_result = on_ota,
+                                         .on_refused = web_log_ota_refused,
+                                         .note = status_http_note};
 
 static void on_button_reset(void)
 {
@@ -207,7 +222,7 @@ static void start_attempt(void)
     // No-network test build (FSD §5.6): the attempt is never made.
     esp_err_t err = ESP_OK;
 #else
-    esp_err_t err = net_sta_start(&stored);
+    esp_err_t err = wifi_net_sta_start(stored.ssid, stored.password);
 #endif
     if (err != ESP_OK) {
         web_log_warn("station start", err);
@@ -221,7 +236,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     unsigned a = step.actions;
     if (a & DL_C_STORE_CREDS) {
         stored = e->creds;
-        esp_err_t err = net_creds_store(&stored);
+        esp_err_t err = wifi_net_creds_store(stored.ssid, stored.password);
         if (err != ESP_OK) {
             web_log_warn("credentials store", err);
         }
@@ -233,7 +248,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     }
     if (a & DL_C_START_SOFTAP) {
         web_log_portal(softap_ssid);
-        esp_err_t err = net_softap_start(softap_ssid);
+        esp_err_t err = wifi_net_softap_start(softap_ssid);
         if (err == ESP_OK) {
             err = portal_start(on_submit);
         }
@@ -261,7 +276,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     if (a & DL_C_START_SERVICES) {
         esp_err_t err = status_http_start(&status_source);
         if (err == ESP_OK) {
-            err = ota_rx_register(status_http_handle(), on_ota, status_http_note);
+            err = ota_rx_register(status_http_handle(), &ota_hooks);
         }
 #ifdef TDS3_TEST_HANG_HTTP
         static const httpd_uri_t hang = {.uri = "/hang", .method = HTTP_GET,
@@ -272,7 +287,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
             web_log_warn("status server start", err);
         }
         char gw[16];
-        net_gateway(gw);
+        wifi_net_gateway(gw);
         err = udp_log_start(gw);
         if (err == ESP_OK) {
             web_log_udp_logging(gw, UDP_LOG_PORT);
@@ -298,7 +313,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     }
     if (a & DL_C_ERASE_CREDS) {
         web_log_factory_reset();
-        esp_err_t err = net_creds_erase();
+        esp_err_t err = wifi_net_creds_erase();
         if (err == ESP_OK) {
             web_log_creds_erased();
         } else {
@@ -309,7 +324,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (e->ev == DL_EV_CONFIRM_DEADLINE) {
             web_log_ota_not_confirmed();
         }
-        net_sta_stop();  // leave the AP (deauth) before a planned restart
+        wifi_net_sta_stop();  // leave the AP (deauth) before a planned restart
         vTaskDelay(pdMS_TO_TICKS(LEAVE_MS));
         esp_restart();
     }
@@ -321,7 +336,7 @@ static void conn_event(const app_event_t *e)
         esp_timer_stop(attempt_timer);
     }
     if (e->ev == DL_EV_ATTEMPT_FAILED && view.conn == DL_CONNECTING) {
-        net_sta_stop();  // a timed-out attempt is abandoned before T6 arms the retry
+        wifi_net_sta_stop();  // a timed-out attempt is abandoned before T6 arms the retry
     }
     static uint32_t n;  // failed attempts since the last ONLINE (FR-5.18)
     dl_conn_t before = view.conn;
@@ -334,7 +349,7 @@ static void conn_event(const app_event_t *e)
     if (e->ev == DL_EV_IP || e->ev == DL_EV_IP_CHANGED) {
         strncpy(ip, e->ip, sizeof ip - 1);
         if (step.next == DL_ONLINE) {
-            web_log_online(ip, net_rssi());
+            web_log_online(ip, wifi_net_rssi());
         }
     }
     execute_conn(e, step);
@@ -350,9 +365,9 @@ void app_main(void)
     queue = xQueueCreate(16, sizeof(app_event_t));
 
     uint8_t mac[6];
-    net_base_mac(mac);
-    id_softap_ssid(mac, softap_ssid);
-    id_hostname(mac, hostname);
+    wifi_net_base_mac(mac);
+    id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
+    id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
                        .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname};
 
@@ -381,7 +396,7 @@ void app_main(void)
         esp_timer_start_once(confirm_timer, CONFIRM_DEADLINE_US);  // T13
     }
 
-    err = net_init(on_net, hostname);
+    err = wifi_net_init(on_net, hostname);
     if (err != ESP_OK) {
         web_log_warn("network init", err);
     }
@@ -391,9 +406,9 @@ void app_main(void)
     ESP_LOGI(TAG, "Init complete, running event-driven");
 
     // T1/T2: credentials read.
-    app_event_t cr = {.kind = APP_CONN, .ev = DL_EV_CREDS_READ, .guard = net_creds_load(&stored)};
+    app_event_t cr = {.kind = APP_CONN, .ev = DL_EV_CREDS_READ, .guard = wifi_net_creds_load(stored.ssid, stored.password)};
     conn_event(&cr);
-    err = button_start(on_button_reset);  // sampled only after BOOT exits (§18.1)
+    err = button_start(web_log_button_held, on_button_reset);  // sampled only after BOOT exits (§18.1)
     if (err != ESP_OK) {
         web_log_warn("button start", err);
     }

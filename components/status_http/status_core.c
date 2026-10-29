@@ -3,8 +3,9 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-// The strings rendered here are the image version, a dotted quad and the
-// tds3-xxxxxx hostname: none can hold a quote, a backslash or markup.
+// The strings rendered here are the image version, a dotted quad and a DNS-label
+// hostname (Kconfig IDENTITY_HOSTNAME_PREFIX + hex): none can hold a quote, a
+// backslash or markup.
 void sc_render_json(const sc_status_t *st, char *out, size_t len)
 {
     snprintf(out, len,

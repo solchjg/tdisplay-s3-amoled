@@ -1,0 +1,18 @@
+menu "UDP log"
+
+    config UDP_LOG_PORT
+        int "Destination UDP port"
+        range 1 65535
+        default 5555
+        help
+            The mirrored log lines go to this port on the address passed to
+            udp_log_start (FSD §16).
+
+    config UDP_LOG_TAG
+        string "Log tag to mirror"
+        default "web"
+        help
+            Only lines of this esp_log tag at level I, W or E are sent,
+            starting at the tag (FSD FR-16.1, FR-16.2).
+
+endmenu

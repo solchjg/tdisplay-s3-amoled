@@ -8,7 +8,8 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/components/identity ${ROOT}/components/portal
                          ${ROOT}/components/status_http ${ROOT}/components/udp_log
                          ${ROOT}/components/ota_rx ${ROOT}/components/button
-                         ${ROOT}/components/mdns_name)
+                         ${ROOT}/components/mdns_name ${ROOT}/components/wifi_net
+                         ${ROOT}/components/esp_try)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(tdisplay_webserver_lcdfault)

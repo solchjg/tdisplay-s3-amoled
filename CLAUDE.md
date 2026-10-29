@@ -74,6 +74,11 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/hello_log/` (L1) — serial log lines; `hello_log_format.c` is the pure core.
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
+- Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
+  `mdns_name`, `button`, `identity` and the L0 parts) never include `web_log` or
+  another app component: they report through callbacks that `app_main.c` wires to
+  `web_log`, and take app-specific values from their own Kconfig options. See
+  "Reusing components" in `docs/Method/project/layout.md`.
 
 Pure cores exist so `tests/host/` can compile them with the host `cc` and drive
 them through a small C harness; keep new logic ESP-IDF-free for the same reason.

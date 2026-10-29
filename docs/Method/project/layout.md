@@ -11,14 +11,15 @@
 | L0 | Board support | `components/tdisplay_s3/` — header-only pin and panel constants, pure | nothing |
 | L0 | Error propagation | `components/esp_try/` — header-only `ESP_TRY` (return the error, never abort) | esp_err |
 | L1 | Serial Log Interface (FSD §7) | `components/web_log/` (line formatting core pure; emit via esp_log) | esp_log |
-| L1 | Provisioning Portal (FSD §13) | `components/portal/` (form validation and HTML escaping core pure; SoftAP, httpd and DNS glue) | esp_wifi, esp_netif, esp_http_server, lwIP |
-| L1 | Status HTTP Server (FSD §14) | `components/status_http/` (JSON and HTML rendering core pure) | esp_http_server |
-| L1 | OTA Receiver (FSD §15) | `components/ota_rx/` (request parsing and download state core pure; download via esp_http_client into the other slot); registers its handler on the server handle the composition root passes in | app_update, esp_http_client, esp_http_server |
-| L1 | UDP Log (FSD §16) | `components/udp_log/` (prefix-stripping core pure) | lwIP |
+| L1 | WiFi network (FSD §8) | `components/wifi_net/` — station, SoftAP, stored credentials in NVS, station events through a callback | esp_wifi, esp_netif, esp_event, nvs_flash, `esp_try` |
+| L1 | Provisioning Portal (FSD §13) | `components/portal/` (form validation and HTML escaping core pure; httpd form and captive DNS on the SoftAP `wifi_net` starts) | esp_http_server, lwIP |
+| L1 | Status HTTP Server (FSD §14) | `components/status_http/` (JSON and HTML rendering core pure); reports each answer through the `log` callback in its source | esp_http_server |
+| L1 | OTA Receiver (FSD §15) | `components/ota_rx/` (request parsing and download state core pure; download via esp_http_client into the other slot); registers its handler on the server handle the composition root passes in and reports through `ota_rx_hooks_t` | app_update, esp_http_client, esp_http_server |
+| L1 | UDP Log (FSD §16) | `components/udp_log/` (line-selection core pure, tag passed in) | lwIP |
 | L1 | mDNS Responder (FSD §17) | `components/mdns_name/` | managed `espressif/mdns` |
-| L1 | BOOT Button (FSD §18) | `components/button/` (hold detector core pure) | GPIO driver |
-| L1 | Device Identity (FSD §20) | `components/identity/` (name formatting core pure) | esp_mac, esp_app_desc |
-| — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces | all of the above |
+| L1 | BOOT Button (FSD §18) | `components/button/` (hold detector core pure); threshold and release through callbacks | GPIO driver, esp_timer |
+| L1 | Device Identity (FSD §20) | `components/identity/` (name formatting core pure, prefixes passed in) | nothing |
+| — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces, and wires each interface's callbacks to `web_log` | all of the above |
 | host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler; `test_lcd_text.py` uses the `compile_harness` fixture in `conftest.py` | the pure cores only |
 
 The `hello_logic` and `hello_log` components are the base project's; `/build`
@@ -34,6 +35,10 @@ requirements first need them, never earlier.
 - The L0 components hold nothing specific to this app, so they can be reused
   as they are: `lcd` is where the app's screen (three lines, white on black, their
   positions) and the panel settings for this board are chosen.
+- The L1 interfaces except `lcd` and `web_log` are reusable too (see "Reusing
+  components" below): none includes `web_log` or another app component. What
+  they would log reaches the composition root through a callback, and only
+  `app_main.c` calls `web_log_*`.
 - Panel bring-up order (`st7789_start`, confirmed by commissioning, capability `lcd-st7789`): GPIO 15 high → i80 bus (10 MHz) → ST7789 panel IO and
   panel → reset → init → colour inversion on → swap X/Y and mirror for landscape →
   gap (0, 35) → display on → clear to black → draw → GPIO 38 high. Use exactly
@@ -59,6 +64,32 @@ requirements first need them, never earlier.
 - The ST7789 panel driver is in-tree in ESP-IDF (`esp_lcd_new_panel_st7789`);
   only `components/st7789/` declares `esp_lcd`.
 
+## Reusing components
+
+Each component under `components/` is a plain ESP-IDF component: another
+project takes the ones it needs with `EXTRA_COMPONENT_DIRS` (or by copying the
+directory) and wires them in its own `app_main`. App-specific values are
+Kconfig options declared by the component itself (`idf.py menuconfig`, or the
+other project's `sdkconfig.defaults`); their defaults are this app's values, so
+this repo sets none of them.
+
+| Component | Use it for | Kconfig options (default) | Also needs |
+|-----------|------------|---------------------------|------------|
+| `wifi_net` | station + open SoftAP, credentials in NVS | `WIFI_NET_SOFTAP_CHANNEL` (1), `WIFI_NET_SOFTAP_MAX_CLIENTS` (4), `WIFI_NET_NVS_NAMESPACE` ("net") | `esp_try` |
+| `portal` | captive WiFi setup form on the SoftAP (192.168.4.1) | `PORTAL_PAGE_TITLE` ("TDS3 setup") | — |
+| `identity` | SoftAP SSID and hostname from the base MAC | `IDENTITY_SOFTAP_SSID_PREFIX` ("TDS3-"), `IDENTITY_HOSTNAME_PREFIX` ("tds3-") | — |
+| `status_http` | `GET /` and `GET /api/status`, a server other routes can join | — | — |
+| `ota_rx` | `POST /ota` download into the other slot | — | `status_http` or any `httpd_handle_t` |
+| `udp_log` | mirror one log tag's lines over UDP | `UDP_LOG_PORT` (5555), `UDP_LOG_TAG` ("web") | — |
+| `mdns_name` | answer `<hostname>.local` | — | managed `espressif/mdns` |
+| `button` | long-press (5 s) detector on an active-low GPIO | `BUTTON_GPIO` (0) | — |
+| `st7789`, `text`, `esp_try`, `tdisplay_s3` | panel driver, bitmap font, error propagation, board pins | — | — |
+
+The identity prefixes are read by the composition root and passed to
+`id_softap_ssid` / `id_hostname`, so the `identity` core stays free of ESP-IDF
+headers. `lcd`, `device_logic` and `web_log` are this app's screen, state
+machine and log vocabulary; another project writes its own.
+
 ## Test builds
 
 Each is built by CI as a test artefact under `tests/target/` and never released.
@@ -71,8 +102,9 @@ table relative to the project); never a table of its own.
 `tests/target/lcd_fault/` builds the shipped `main/` and components with
 `components/lcd/` replaced by a stub (`lcd_fault`) selected by a test-only
 Kconfig option. The stub replaces the whole LCD interface, so the L0
-components below it are not built into this variant. The stub returns a configured `esp_err_t` at init or at the k-th
-draw, and logs `lcdfi: call` on every call it receives (FSD §5.6).
+components below it are not built into this variant (only `esp_try`, which
+`wifi_net` needs). The stub returns a configured `esp_err_t` at init or at the
+k-th draw, and logs `lcdfi: call` on every call it receives (FSD §5.6).
 
 ### No-network build (FSD FR-5.24)
 
