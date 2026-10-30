@@ -63,13 +63,13 @@ int main(int argc, char **argv)
 ISO = "2026-10-30T14:20:00+0100"
 
 
-def q(temp_c, rh, hpa):
+def q(temp_c, rh, mbar):
     """A reading's raw fields from engineering values."""
-    return round(temp_c * 100), round(hpa * 100 * 256), round(rh * 1024)
+    return round(temp_c * 100), round(mbar * 100 * 256), round(rh * 1024)
 
 
-def args(temp_c, rh, hpa, synced=1, t=1793366400):
-    c, p, h = q(temp_c, rh, hpa)
+def args(temp_c, rh, mbar, synced=1, t=1793366400):
+    c, p, h = q(temp_c, rh, mbar)
     return [t, c, p, h, synced]
 
 
@@ -90,15 +90,15 @@ def test_history_in_uninitialised_rtc_memory_holds_nothing(core):
     assert core("garbage").split() == ["0", "1", "1", "7"]
 
 
-# TC-WX-03 · FR-23.11 (core)
+# TC-WX-03 · FR-23.12 (core)
 @pytest.mark.parametrize("reading,line", [
-    ((21.43, 45.2, 1013.25), "70.6F Hum 45% 1013.25 hPa"),
-    ((-40.0, 100.0, 1100.0), "-40.0F Hum 100% 1100.00 hPa"),
-    ((85.0, 100.0, 1100.0), "185.0F Hum 100% 1100.00 hPa"),
-    ((-17.79, 0.0, 300.0), "0.0F Hum 0% 300.00 hPa"),
-    ((-17.80, 0.0, 300.0), "0.0F Hum 0% 300.00 hPa"),  # -0.04 F: no "-0.0"
-    ((-17.84, 0.0, 300.0), "-0.1F Hum 0% 300.00 hPa"),
-    ((24.27, 46.8, 996.62), "75.7F Hum 47% 996.62 hPa"),
+    ((21.43, 45.2, 1013.25), "70.6F Hum 45% 1013.25 mbar"),
+    ((-40.0, 100.0, 1100.0), "-40.0F Hum 100% 1100.00 mbar"),
+    ((85.0, 100.0, 1100.0), "185.0F Hum 100% 1100.00 mbar"),
+    ((-17.79, 0.0, 300.0), "0.0F Hum 0% 300.00 mbar"),
+    ((-17.80, 0.0, 300.0), "0.0F Hum 0% 300.00 mbar"),  # -0.04 F: no "-0.0"
+    ((-17.84, 0.0, 300.0), "-0.1F Hum 0% 300.00 mbar"),
+    ((24.27, 46.8, 996.62), "75.7F Hum 47% 996.62 mbar"),
 ])
 def test_screen_line(core, reading, line):
     out = core("line", *args(*reading))
@@ -118,23 +118,23 @@ def test_log_line(core):
         f"reading t=-13.13 rh=100.0 p=870.00 at={ISO} synced=0")
 
 
-# TC-WX-05 · FR-23.8 (core)
+# TC-WX-05 · FR-23.13 (core)
 @pytest.mark.parametrize("synced", [0, 1])
 def test_json_element_has_exactly_the_five_keys(core, synced):
     obj = json.loads(core("json", *args(-40.0, 100.0, 1100.0, synced=synced), ISO))
     assert obj == {"time": ISO, "synced": bool(synced), "temp_f": -40.0, "rh_pct": 100.0,
-                   "p_hpa": 1100.0}
+                   "p_mbar": 1100.0}
 
 
 def test_json_keeps_the_stated_decimals(core):
     out = core("json", *args(21.43, 45.2, 1013.25), ISO)
-    assert '"temp_f":70.57,"rh_pct":45.2,"p_hpa":1013.25' in out
+    assert '"temp_f":70.57,"rh_pct":45.2,"p_mbar":1013.25' in out
 
 
 # TC-WX-06 · FR-23.7 (core)
 def test_html_section(core):
     page = core("html", *args(21.43, 45.2, 1013.25, synced=0), ISO)
-    for text in ("70.57 &deg;F", "45.2 %", "1013.25 hPa", ISO, "(unsynced)"):
+    for text in ("70.57 &deg;F", "45.2 %", "1013.25 mbar", ISO, "(unsynced)"):
         assert text in page
     assert "(unsynced)" not in core("html", *args(21.43, 45.2, 1013.25), ISO)
     assert "No reading kept" in core("html")

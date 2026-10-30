@@ -76,7 +76,7 @@ static const status_http_source_t status_source = {.ip = ip, .hostname = hostnam
 
 static dl_wake_t wake;  // how this boot began (FSD §21)
 static bool task_ran;
-static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.11)
+static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.12)
 static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.4)
 
 static dl_hold_t hold;         // the setup check (FSD §24)
@@ -568,7 +568,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
             err = ota_rx_register(status_http_handle(), &ota_hooks);
         }
         if (err == ESP_OK) {
-            err = weather_register(status_http_handle(), status_http_note);  // FR-23.8
+            err = weather_register(status_http_handle(), status_http_note);  // FR-23.13
         }
 #ifdef TDS3_TEST_HANG_HTTP
         static const httpd_uri_t hang = {.uri = "/hang", .method = HTTP_GET,

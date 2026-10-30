@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 {
     if (strcmp(argv[1], "screen") == 0) {
         // screen <state> <softap_ssid> <stored_ssid> <ip> <requests> <hostname>
-        // optional 8th and 9th: line 4's reading (FR-23.11), line 5's prompt (FR-24.4)
+        // optional 8th and 9th: line 4's reading (FR-23.12), line 5's prompt (FR-24.4)
         dl_view_t v = {conn(argv[2]), argv[3], argv[4], argv[5],
                        (uint32_t)strtoul(argv[6], NULL, 10), argv[7], argc > 8 ? argv[8] : NULL,
                        argc > 9 ? argv[9] : NULL};
@@ -363,11 +363,11 @@ def test_no_task_before_provisioning_is_complete(run):
     assert sleep(run, "none", 600, provisioned=1) == (False, True)
 
 
-# TC-WX-03 · FR-23.11, FR-24.4 (core): line 4 is the reading and line 5 the prompt in
+# TC-WX-03 · FR-23.12, FR-24.4 (core): line 4 is the reading and line 5 the prompt in
 # every state, each empty when none is given
 @pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
 def test_lines_four_and_five_in_every_state(run, state):
-    reading = "75.7F Hum 47% 996.62 hPa"
+    reading = "75.7F Hum 47% 996.62 mbar"
     prompt = "Press key to continue 30:00"
     lines = run("screen", state, *ONLINE[1:], reading, prompt).split("\n")
     assert lines[3:5] == [reading, prompt]
@@ -457,5 +457,5 @@ def test_countdown_logs_when_its_minutes_change(run):
     assert run("logged", 4, p + "29:59", p + "29:58") == "0"
     assert run("logged", 4, p + "00:01", p + "00:00") == "1"
     assert run("logged", 4, p + "00:00", "") == "1"
-    assert run("logged", 3, "70.6F Hum 45% 1013.25 hPa", "70.8F Hum 45% 1013.25 hPa") == "1"
+    assert run("logged", 3, "70.6F Hum 45% 1013.25 mbar", "70.8F Hum 45% 1013.25 mbar") == "1"
     assert run("logged", 1, "Req: 1", "Req: 2") == "1"

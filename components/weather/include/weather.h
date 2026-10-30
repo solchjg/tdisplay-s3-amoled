@@ -27,7 +27,7 @@ void weather_iso(const wx_reading_t *r, char out[WX_ISO_MAX]);
 // FR-23.7: the page's reading section, for status_http's extra_html.
 void weather_html(char *out, size_t len);
 
-// FR-23.8: GET /api/readings on a running server; note counts and logs each
+// FR-23.13: GET /api/readings on a running server; note counts and logs each
 // answer like the server's own routes (status_http_note).
 typedef void (*weather_note_cb_t)(const char *method, const char *uri, int status);
 esp_err_t weather_register(httpd_handle_t server, weather_note_cb_t note);

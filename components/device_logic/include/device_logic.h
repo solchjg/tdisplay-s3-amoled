@@ -20,7 +20,7 @@ typedef struct {
     const char *ip;           // dotted quad
     uint32_t requests;        // FR-14.6
     const char *hostname;     // FR-20.1, without ".local"
-    const char *reading;      // line 4 in every state (FR-23.11)
+    const char *reading;      // line 4 in every state (FR-23.12)
     const char *prompt;       // line 5 in every state, the setup check (FR-24.4)
 } dl_view_t;
 
