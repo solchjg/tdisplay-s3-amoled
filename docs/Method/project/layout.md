@@ -19,6 +19,7 @@
 | L1 | mDNS Responder (FSD §17) | `shared/components/mdns_name/` | managed `espressif/mdns` |
 | L1 | BOOT Button (FSD §18) | `shared/components/button/` (hold detector core pure); threshold and release through callbacks | GPIO driver, esp_timer |
 | L1 | Deep Sleep (FSD §21) | `shared/components/deep_sleep/` (period and wake-cause core pure); arms the timer and the user-key wake (`CONFIG_DEEP_SLEEP_WAKE_GPIO` 21), runs the prepare callbacks the composition root registers (`lcd_sleep`, `wifi_net_stop`), sleeps | esp_sleep, RTC GPIO, `esp_try` |
+| L1 | Time (FSD §22) | `shared/components/time_sync/` (synced-at-boot core pure); time zone from `CONFIG_TIME_SYNC_TZ`, SNTP from `CONFIG_TIME_SYNC_SERVER` started with the services, each sync reported through a callback (L20) | esp_netif SNTP |
 | L1 | Device Identity (FSD §20) | `shared/components/identity/` (name formatting core pure, prefixes passed in) | nothing |
 | — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces, and wires each interface's callbacks to `web_log` | all of the above |
 | host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler; `test_lcd_text.py` uses the `compile_harness` fixture in `conftest.py` | the pure cores only |
@@ -145,3 +146,7 @@ handler that never returns.
   any run.
 - Native USB part: never open the port with DTR/RTS asserted (see
   [`../standards/testing.md`](../standards/testing.md)).
+- When the USB-Serial/JTAG port comes back (after a flash, or a deep-sleep wake that stays
+  up about a second), the bench re-attaches and the chip takes a USB reset, which clears RTC
+  memory; the serial ring also loses about the first second after each restart. Evidence that
+  must outlive a restart goes to NVS (the sleep build's `sleeptest:` boot history).

@@ -25,6 +25,7 @@
 #include "portal.h"
 #include "sdkconfig.h"
 #include "status_http.h"
+#include "time_sync.h"
 #include "udp_log.h"
 #include "web_log.h"
 #include "wifi_net.h"
@@ -38,7 +39,7 @@ static const char *TAG = "main";
 #define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
 #define LEAVE_MS 200                          // a planned restart leaves the AP first
 
-typedef enum { APP_TICK, APP_CONN } app_kind_t;
+typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED } app_kind_t;
 
 typedef struct {
     app_kind_t kind;
@@ -179,9 +180,110 @@ static dl_wake_t boot_wake(void)
 }
 
 #ifdef TDS3_TEST_SLEEP_S
-// Sleep test build (FSD §21.3): two sleeps per power-on, then awake for good, so
-// the bench can flash the next build. RTC memory survives the sleeps only.
-static RTC_DATA_ATTR uint32_t test_sleeps;
+#include <sys/time.h>
+
+#include "nvs.h"
+#include "nvs_flash.h"
+
+// Sleep test build (FSD §21.3): two sleeps per flash, then awake for good, so the
+// bench can flash the next build. The bench loses the first second of output after
+// each restart, and a reset from the bench clears RTC memory, so the last boots are
+// kept in NVS and logged every 10 s while the device is awake.
+static RTC_DATA_ATTR uint32_t test_sleeps;  // since the last boot that was not a wake
+
+#define TEST_BOOTS 8
+
+typedef struct {
+    uint32_t seq;
+    uint8_t reset;         // esp_reset_reason_t
+    uint8_t wake;          // dl_wake_t
+    int32_t asleep_ms;     // since the previous sleep entry, -1 unless a sleep wake
+    uint32_t slept_at_ms;  // uptime at this boot's sleep entry, 0 for none
+} test_boot_t;
+
+typedef struct {
+    uint32_t seq;          // of the newest boot
+    int64_t slept_us;      // system time at the last sleep entry
+    test_boot_t boot[TEST_BOOTS];  // ring, by seq % TEST_BOOTS
+} test_history_t;
+
+static test_history_t test_hist;
+
+static int64_t now_us(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
+static void test_save(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("sleeptest", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "hist", &test_hist, sizeof test_hist);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+static void test_record_boot(dl_wake_t w)
+{
+    if (nvs_flash_init() != ESP_OK) {
+        return;
+    }
+    nvs_handle_t h;
+    size_t len = sizeof test_hist;
+    if (nvs_open("sleeptest", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_blob(h, "hist", &test_hist, &len) != ESP_OK || len != sizeof test_hist) {
+            memset(&test_hist, 0, sizeof test_hist);
+        }
+        nvs_close(h);
+    }
+    esp_reset_reason_t r = esp_reset_reason();
+    int64_t ms = r == ESP_RST_DEEPSLEEP && test_hist.slept_us ? (now_us() - test_hist.slept_us) / 1000 : -1;
+    test_boot_t *b = &test_hist.boot[++test_hist.seq % TEST_BOOTS];
+    *b = (test_boot_t){.seq = test_hist.seq, .reset = (uint8_t)r, .wake = (uint8_t)w,
+                       .asleep_ms = ms < 0 || ms > INT32_MAX ? -1 : (int32_t)ms};
+    test_save();
+}
+
+static void test_mark_sleep(void)
+{
+    test_hist.boot[test_hist.seq % TEST_BOOTS].slept_at_ms = (uint32_t)(esp_timer_get_time() / 1000);
+    test_hist.slept_us = now_us();
+    test_save();
+}
+
+static const char *reset_name(esp_reset_reason_t r)
+{
+    switch (r) {
+    case ESP_RST_POWERON: return "poweron";
+    case ESP_RST_SW: return "sw";
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    case ESP_RST_USB: return "usb";
+    case ESP_RST_JTAG: return "jtag";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT: return "wdt";
+    case ESP_RST_BROWNOUT: return "brownout";
+    default: return "other";
+    }
+}
+
+static void test_log_history(void)
+{
+    static const char *wake_names[] = {"none", "timer", "button"};
+    for (uint32_t i = 0; i < TEST_BOOTS; i++) {
+        const test_boot_t *b = &test_hist.boot[(test_hist.seq + 1 + i) % TEST_BOOTS];
+        if (b->seq == 0) {
+            continue;
+        }
+        ESP_LOGI(TAG, "sleeptest: boot seq=%lu reset=%s wake=%s asleep_ms=%ld slept_at_ms=%lu",
+                 (unsigned long)b->seq, reset_name((esp_reset_reason_t)b->reset),
+                 wake_names[b->wake], (long)b->asleep_ms, (unsigned long)b->slept_at_ms);
+    }
+}
 #endif
 
 // The task (FR-21.4, FR-21.9): reads the sensors and acts on the data, then
@@ -204,8 +306,18 @@ static void run_task_and_sleep(void)
         return;
     }
     web_log_sleep(s);                    // L18
+#ifdef TDS3_TEST_SLEEP_S
+    test_mark_sleep();
+#endif
     esp_err_t err = deep_sleep_for(s);   // returns only on failure
     web_log_warn("deep sleep", err);
+}
+
+// From the SNTP (lwIP) task: logged by the application task, whose stack has room.
+static void on_time_synced(void)
+{
+    app_event_t e = {.kind = APP_TIME_SYNCED};
+    post(&e);
 }
 
 static esp_err_t lcd_sleep_cb(void *arg)
@@ -328,6 +440,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         ota_rx_abort();  // FR-15.13
     }
     if (a & DL_C_STOP_SERVICES) {
+        time_sync_stop();
         status_http_stop();
         udp_log_stop();
         mdns_name_stop();
@@ -356,6 +469,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = mdns_name_start(hostname);
         if (err != ESP_OK) {
             web_log_warn("mdns start", err);
+        }
+        err = time_sync_start(on_time_synced);  // FR-22.1: the network is up
+        if (err != ESP_OK) {
+            web_log_warn("time sync start", err);
         }
     }
     if (a & DL_C_CONFIRM_IMAGE) {
@@ -417,7 +534,11 @@ static void conn_event(const app_event_t *e)
 void app_main(void)
 {
     web_log_boot();
+    time_sync_init();  // FR-22.2, FR-22.4: zone, and whether a sync before a sleep holds
     wake = boot_wake();
+#ifdef TDS3_TEST_SLEEP_S
+    test_record_boot(wake);
+#endif
     if (wake != DL_WAKE_NONE) {
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
     }
@@ -495,6 +616,10 @@ void app_main(void)
             conn_event(&e);
             continue;
         }
+        if (e.kind == APP_TIME_SYNCED) {
+            web_log_time_synced();  // L20 (FR-22.5)
+            continue;
+        }
         esp_task_wdt_reset();
 #ifdef TDS3_TEST_HANG_APP
         // Hang test build, variant app (FSD §19.3): block 20 s after startup (FR-19.1).
@@ -515,5 +640,10 @@ void app_main(void)
         if (++tick % ALIVE_TICKS == 0) {
             web_log_alive(alive++);
         }
+#ifdef TDS3_TEST_SLEEP_S
+        if (tick % ALIVE_TICKS == 5) {
+            test_log_history();
+        }
+#endif
     }
 }

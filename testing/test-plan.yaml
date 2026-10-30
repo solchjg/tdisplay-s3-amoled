@@ -303,12 +303,23 @@ capabilities:
       operator press.
   seam-sleep-build:
     what: "Test build whose stand-in task asks for SLEEP_S s of deep sleep twice per power-on, then stays awake (FSD §21.3); SLEEP_S 10 and 300"
-    available: unproven
+    available: yes
+    observed: 2026-10-30
+    evidence: >
+      TC-SLP-10 run 3 (c55b4c9, CI run 40997968059): NVS history window
+      sleep at 60.6 s, timer wakes after 10.8 s (re-slept at 107 ms) and
+      10.4 s, then a bench USB reset.
     consequence: >
-      Built by the CI job sleep; proven by the first TC-SLP-10 run.
+      Built by the CI job sleep; its boot history lives in NVS because the
+      bench's USB reset clears RTC memory.
   dut-user-key:
     what: Firmware on the T-Display-S3 AMOLED in SLOT1 wakes from deep sleep when an operator presses the user key (GPIO 21)
-    available: unproven
+    available: yes
+    observed: 2026-10-30
+    evidence: >
+      TC-SLP-11 (59c7722): NVS history boot seq 8 reset=deepsleep
+      wake=button after 28.0 s of a 300 s sleep; operator confirmed the
+      panel dark while asleep.
     consequence: >
       GPIO 21 is the user key per LilyGO's factory pins_config.h, not yet
       observed on this unit; TC-SLP-11 is its first run.
@@ -317,6 +328,12 @@ capabilities:
     available: no
     consequence: >
       The bench declares no current meter (R-17), so NFR-21.1 has no bench run.
+  bench-internet:
+    what: The bench AP gives the DUT a route to the internet (pool.ntp.org, UDP 123)
+    available: unproven
+    consequence: >
+      R-19; TC-TIME-10 is its first run. If the bench AP has no route, the
+      test is blocked by a testbench change request, never worked around.
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the AMOLED panel, held USB-C to the right
     available: yes
@@ -1815,7 +1832,7 @@ tests:
     tier: target
     verifies: [FR-21.1, FR-21.2, FR-21.3, FR-21.8, FR-21.10]
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, dut-amoled-slot1]
-    observable: "L18 >= 60 s after L1; nothing for 10 s; L1 and L19 cause=timer 9-13 s later; no L2, L5 or L7 before the next L18"
+    observable: "The build's boot history: flash boot slept >= 59 s after start; two deep-sleep boots with wake cause timer, each 9-13 s after the previous sleep; the first slept again within 3 s; three boots in all"
     impl: tests/bench/test_sleep.py::test_window_then_timer_sleep_and_lean_wake
     result: {status: not done}
 
@@ -1828,7 +1845,7 @@ tests:
     tier: bench
     verifies: [FR-21.5, FR-21.6, FR-21.11]
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1]
-    observable: "operator sees a dark panel; after the key press L19 cause=button long before 300 s, L2 follows, no L18 for 40 s"
+    observable: "operator sees a dark panel; after the key press the boot history shows a deep-sleep boot with wake cause button long before 300 s; L2 follows, no L18 for 40 s"
     impl: tests/bench/test_sleep.py::test_key_wake_gets_the_window
     result: {status: not done}
 
@@ -1856,4 +1873,43 @@ tests:
     needs: []
     observable: "not due with no credentials stored, even 600 s after boot or after a key wake; due once stored"
     impl: tests/host/test_device_logic.py::test_no_task_before_provisioning_is_complete
+    result: {status: not done}
+
+  - id: TC-TIME-01
+    title: "A sync survives deep sleep, not a power-on or reset (time_sync core)"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-22.3, FR-22.4]
+    needs: []
+    observable: "synced before + sleep wake: synced; any other boot: unsynced"
+    impl: [shared/tests/host/test_time_sync.py]
+    result: {status: not done}
+
+  - id: TC-TIME-02
+    title: "Clock-synced log line"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-22.5]
+    needs: []
+    observable: "L20 'time synced <local ISO 8601 with offset>'"
+    impl: tests/host/test_web_log.py::test_time_synced_line
+    result: {status: not done}
+
+  - id: TC-TIME-10
+    title: "Clock synced within 10 s of ONLINE"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-22.1, FR-22.2, NFR-22.1, FR-22.5]
+    needs: [bench-internet, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1]
+    observable: "after L5, L20 within 10 s with a year >= 2026 and offset +0000 (UTC0 build)"
+    impl: tests/bench/test_time.py::test_clock_synced_after_online
     result: {status: not done}

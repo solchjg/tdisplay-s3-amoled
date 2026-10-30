@@ -60,3 +60,6 @@ void wl_fmt_sleep(char *buf, size_t len, uint32_t s);
 
 // L19: "wake cause=<timer|button>"
 void wl_fmt_wake(char *buf, size_t len, const char *cause);
+
+// L20: "time synced <local ISO 8601 time with offset>"
+void wl_fmt_time_synced(char *buf, size_t len, const char *iso);

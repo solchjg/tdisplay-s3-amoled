@@ -44,6 +44,7 @@ reused.
 | 19 | Watchdog | cross-cutting |
 | 20 | Device Identity | cross-cutting |
 | 21 | Deep Sleep | cross-cutting |
+| 22 | Time | cross-cutting |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -275,6 +276,7 @@ testbench.
 | R-16 | The bench's UDP log listener cannot be stopped, so FR-16.3 (no receiver) has no bench run | Certain | Low | Waived (Appendix B); the non-blocking send holds it by construction |
 | R-17 | The bench declares no current meter, so the sleep-current limit (NFR-21.1) has no bench run | Certain | Low | Measured by the operator with a meter, or waived; the key wake keeps the RTC peripheral domain off by construction |
 | R-18 | The USB-Serial/JTAG port disappears while the chip sleeps, and EN/BOOT are not proven wired on SLOT1, so a sleeping device cannot be flashed or monitored | Certain | High | FR-21.3: every boot that is not a sleep wake stays awake 60 s; sleep tests use short periods; the user key wakes the device |
+| R-19 | The bench AP may give the DUT no internet route, so SNTP (FR-22.1) may not be reachable from SLOT1 | Medium | Medium | Not yet observed; if the bench AP has no route, the bench test is blocked (testbench change request, never a project workaround) |
 
 ### 4.2 Assumptions
 
@@ -780,6 +782,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L16 | T13 | `web: ota not confirmed, restarting` | E |
 | L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
 | L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
+| L20 | Clock synced (FR-22.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>` (local time) | I |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1439,6 +1442,42 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
 
 ---
 
+## 22. Time
+
+### 22.1 Purpose & peer
+
+Readings carry the date and time they were taken. The chip's clock keeps
+running through deep sleep but starts from zero after a power loss or reset,
+so it is set from the network whenever one is up: SNTP over WiFi today, and
+the same rule applies to any later network (e.g. cellular network time). The
+time zone turns the synced UTC clock into local time.
+
+### 22.2 Requirements
+
+- **FR-22.1** [Must] [user] Whenever a network is up, the device shall sync its
+  clock from it: over WiFi, by SNTP from **`pool.ntp.org`** on each
+  entry into ONLINE.
+- **FR-22.2** [Must] [user] The device shall apply a time zone to the synced
+  clock: **a POSIX TZ string fixed at build time, default `UTC0`**.
+- **FR-22.3** [Must] [user] A reading taken before the first sync since the
+  last power-on or reset shall be marked unsynced.
+- **FR-22.4** [Must] [derived from FR-22.3 and §21] A sync shall stay valid
+  across deep sleep (the clock keeps running), so readings after a timer wake
+  are synced if any sync happened since power-on.
+- **NFR-22.1** [Must] [user] The clock shall be synced within **10 s** of
+  entering ONLINE when the time server is reachable.
+- **FR-22.5** [Must] [derived] The device shall log L20 on each sync (§7.2).
+
+### 22.3 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-22.3, FR-22.4 (core) | Synced flag: power-on; a sync; a timer wake after a sync; a reset after a sync | unsynced; synced; synced; unsynced | A reading marked synced before any sync | host |
+| FR-22.1, NFR-22.1, FR-22.5 | Device reaches ONLINE on an AP with internet | L20 within 10 s of L5, with a year ≥ 2026 | No L20 | bench (needs internet on the bench AP, R-19) |
+| FR-22.2 | Build with a non-UTC TZ string | L20 shows local time with the zone's offset | UTC shown as local | bench |
+
+---
+
 # Part E — Operations & Verification
 
 ## 11. Operational Procedures
@@ -1530,6 +1569,9 @@ Build-time constants:
 | Log tag | `web` | [derived] |
 | Awake window after a boot that is not a deep-sleep wake | ≥ 60 s | [user] |
 | Wake key | GPIO 21, active low | [user] |
+| Time server | `pool.ntp.org` (SNTP) | [user] |
+| Time zone | POSIX TZ string at build time, default `UTC0` | [user] |
+| Sync after entering ONLINE | ≤ 10 s | [user] |
 | Sleep current added by the key wake | ≤ 5 µA | [user] |
 
 ## Appendix B — Lifecycle Metadata
@@ -1577,7 +1619,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.5.0
+fsd_version: 0.6.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1604,6 +1646,7 @@ change_history:
   - 0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution
   - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
   - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.12, NFR-21.1) from the user's answers and weather-station example, approved by the user; L18, L19
+  - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and 10 s deadline approved by the user
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
 open_decisions: []
 related_test_baseline: none yet
