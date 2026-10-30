@@ -685,7 +685,7 @@ void app_main(void)
     deep_sleep_on_prepare(lcd_sleep_cb, NULL);
     // A timer wake follows a sleep, which only a provisioned device takes (FR-21.12).
     if (dl_task_due(wake, 0, false, wake == DL_WAKE_TIMER, task_ran, DL_HOLD_NONE)) {
-        // FR-21.10: a timer wake runs the task with the panel dark and WiFi off,
+        // FR-21.13: a timer wake runs the task with the panel dark and WiFi off,
         // then sleeps again. Only a task that asks to stay awake gets past here.
         run_task_and_sleep();
     }

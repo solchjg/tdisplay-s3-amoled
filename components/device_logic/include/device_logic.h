@@ -113,7 +113,7 @@ typedef enum { DL_WAKE_NONE, DL_WAKE_TIMER, DL_WAKE_KEY } dl_wake_t;
 
 #define DL_AWAKE_WINDOW_S 60  // FR-21.2
 
-// FR-21.10: a timer wake takes the lean path (panel dark, WiFi off, no window).
+// FR-21.13: a timer wake takes the lean path (panel dark, WiFi off, no window).
 bool dl_lean_boot(dl_wake_t wake);
 
 // Setup check region (FSD §24). ON: holding; KEY: ended by the key, the window

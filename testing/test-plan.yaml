@@ -1802,7 +1802,7 @@ tests:
     wave: 1
     fsd_phase: 4
     tier: host
-    verifies: [FR-21.2, FR-21.3, FR-21.4, FR-21.10, FR-21.11]
+    verifies: [FR-21.2, FR-21.3, FR-21.4, FR-21.13, FR-21.11]
     needs: []
     observable: "no task before 60 s or while an image is pending verify; once at 60 s; at once and lean after a timer wake; window after a key wake"
     impl: [tests/host/test_device_logic.py::test_window_then_task_once, tests/host/test_device_logic.py::test_timer_wake_is_lean_and_runs_the_task_at_once, tests/host/test_device_logic.py::test_key_wake_gets_the_window_like_a_power_on, tests/host/test_device_logic.py::test_no_task_while_an_image_is_pending_verify]
@@ -1841,7 +1841,7 @@ tests:
     wave: 1
     fsd_phase: 4
     tier: target
-    verifies: [FR-21.1, FR-21.2, FR-21.3, FR-21.8, FR-21.10]
+    verifies: [FR-21.1, FR-21.2, FR-21.3, FR-21.8, FR-21.13]
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, dut-amoled-slot1]
     observable: "The build's boot history: flash boot slept >= 59 s after start; two deep-sleep boots with wake cause timer, each 9-13 s after the previous sleep; the first slept again within 3 s; three boots in all"
     impl: tests/bench/test_sleep.py::test_window_then_timer_sleep_and_lean_wake
