@@ -180,30 +180,34 @@ static dl_wake_t boot_wake(void)
 }
 
 #ifdef TDS3_TEST_SLEEP_S
-// Sleep test build (FSD §21.3): two sleeps per flash, then awake for good, so the
-// bench can flash the next build. The bench loses the first second of output after
-// each restart, so every boot since the flash is kept in RTC memory (through sleeps
-// and any reset taken while asleep) and logged again once the device stays awake.
 #include <sys/time.h>
 
+#include "nvs.h"
+#include "nvs_flash.h"
+
+// Sleep test build (FSD §21.3): two sleeps per flash, then awake for good, so the
+// bench can flash the next build. The bench loses the first second of output after
+// each restart, and a reset from the bench clears RTC memory, so the last boots are
+// kept in NVS and logged every 10 s while the device is awake.
+static RTC_DATA_ATTR uint32_t test_sleeps;  // since the last boot that was not a wake
+
 #define TEST_BOOTS 8
-#define TEST_MAGIC 0x534c5048u
 
 typedef struct {
-    uint32_t magic;
-    uint32_t sleeps;   // sleeps asked for since the flash
-    uint32_t boots;
-    bool asleep;       // set at sleep entry, cleared by the next boot
-    int64_t slept_us;  // system time at the last sleep entry
-    struct {
-        esp_reset_reason_t reset;
-        dl_wake_t wake;
-        int32_t asleep_ms;    // since the previous sleep entry, -1 for none
-        uint32_t slept_at_ms; // uptime at this boot's sleep entry, 0 for none
-    } boot[TEST_BOOTS];
+    uint32_t seq;
+    uint8_t reset;         // esp_reset_reason_t
+    uint8_t wake;          // dl_wake_t
+    int32_t asleep_ms;     // since the previous sleep entry, -1 unless a sleep wake
+    uint32_t slept_at_ms;  // uptime at this boot's sleep entry, 0 for none
+} test_boot_t;
+
+typedef struct {
+    uint32_t seq;          // of the newest boot
+    int64_t slept_us;      // system time at the last sleep entry
+    test_boot_t boot[TEST_BOOTS];  // ring, by seq % TEST_BOOTS
 } test_history_t;
 
-static RTC_NOINIT_ATTR test_history_t test_hist;
+static test_history_t test_hist;
 
 static int64_t now_us(void)
 {
@@ -212,35 +216,42 @@ static int64_t now_us(void)
     return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
 }
 
-// A boot that does not follow a sleep (the flash's reset) starts a new history.
+static void test_save(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("sleeptest", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "hist", &test_hist, sizeof test_hist);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
 static void test_record_boot(dl_wake_t w)
 {
+    if (nvs_flash_init() != ESP_OK) {
+        return;
+    }
+    nvs_handle_t h;
+    size_t len = sizeof test_hist;
+    if (nvs_open("sleeptest", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_blob(h, "hist", &test_hist, &len) != ESP_OK || len != sizeof test_hist) {
+            memset(&test_hist, 0, sizeof test_hist);
+        }
+        nvs_close(h);
+    }
     esp_reset_reason_t r = esp_reset_reason();
-    bool after_sleep = test_hist.magic == TEST_MAGIC &&
-                       (r == ESP_RST_DEEPSLEEP || test_hist.asleep);
-    if (!after_sleep) {
-        memset(&test_hist, 0, sizeof test_hist);
-        test_hist.magic = TEST_MAGIC;
-    }
-    int64_t ms = after_sleep ? (now_us() - test_hist.slept_us) / 1000 : -1;
-    test_hist.asleep = false;
-    if (test_hist.boots < TEST_BOOTS) {
-        test_hist.boot[test_hist.boots].reset = r;
-        test_hist.boot[test_hist.boots].wake = w;
-        test_hist.boot[test_hist.boots].asleep_ms = ms < 0 || ms > INT32_MAX ? -1 : (int32_t)ms;
-        test_hist.boot[test_hist.boots].slept_at_ms = 0;
-    }
-    test_hist.boots++;
+    int64_t ms = r == ESP_RST_DEEPSLEEP && test_hist.slept_us ? (now_us() - test_hist.slept_us) / 1000 : -1;
+    test_boot_t *b = &test_hist.boot[++test_hist.seq % TEST_BOOTS];
+    *b = (test_boot_t){.seq = test_hist.seq, .reset = (uint8_t)r, .wake = (uint8_t)w,
+                       .asleep_ms = ms < 0 || ms > INT32_MAX ? -1 : (int32_t)ms};
+    test_save();
 }
 
 static void test_mark_sleep(void)
 {
-    if (test_hist.boots - 1 < TEST_BOOTS) {
-        test_hist.boot[test_hist.boots - 1].slept_at_ms =
-            (uint32_t)(esp_timer_get_time() / 1000);
-    }
+    test_hist.boot[test_hist.seq % TEST_BOOTS].slept_at_ms = (uint32_t)(esp_timer_get_time() / 1000);
     test_hist.slept_us = now_us();
-    test_hist.asleep = true;
+    test_save();
 }
 
 static const char *reset_name(esp_reset_reason_t r)
@@ -263,12 +274,14 @@ static const char *reset_name(esp_reset_reason_t r)
 static void test_log_history(void)
 {
     static const char *wake_names[] = {"none", "timer", "button"};
-    uint32_t n = test_hist.boots < TEST_BOOTS ? test_hist.boots : TEST_BOOTS;
-    for (uint32_t i = 0; i < n; i++) {
-        ESP_LOGI(TAG, "sleeptest: boot %lu/%lu reset=%s wake=%s asleep_ms=%ld slept_at_ms=%lu",
-                 (unsigned long)i, (unsigned long)test_hist.boots,
-                 reset_name(test_hist.boot[i].reset), wake_names[test_hist.boot[i].wake],
-                 (long)test_hist.boot[i].asleep_ms, (unsigned long)test_hist.boot[i].slept_at_ms);
+    for (uint32_t i = 0; i < TEST_BOOTS; i++) {
+        const test_boot_t *b = &test_hist.boot[(test_hist.seq + 1 + i) % TEST_BOOTS];
+        if (b->seq == 0) {
+            continue;
+        }
+        ESP_LOGI(TAG, "sleeptest: boot seq=%lu reset=%s wake=%s asleep_ms=%ld slept_at_ms=%lu",
+                 (unsigned long)b->seq, reset_name((esp_reset_reason_t)b->reset),
+                 wake_names[b->wake], (long)b->asleep_ms, (unsigned long)b->slept_at_ms);
     }
 }
 #endif
@@ -279,7 +292,7 @@ static void test_log_history(void)
 static uint32_t run_task(void)
 {
 #ifdef TDS3_TEST_SLEEP_S
-    return test_hist.sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
+    return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
 #else
     return 0;
 #endif

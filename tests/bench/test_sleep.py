@@ -5,9 +5,9 @@ sleep (periods 10 and 300). Flashed without an erase, so stored credentials
 stay; the device needs them, since it never sleeps before provisioning is
 complete (FR-21.12). While the chip sleeps its USB-Serial/JTAG port is gone
 (R-18), and the bench loses about the first second after each restart, where L1
-and L19 are; so the sleep build keeps each boot's reset reason, wake cause and
-time asleep in RTC memory and logs them every 10 s once it stays awake
-(`sleeptest: boot i/n ...`), and the timer test reads those. The shipped build
+and L19 are, and a reset from the bench clears RTC memory; so the sleep build
+keeps its last boots' reset reason, wake cause and time asleep in NVS and logs
+them every 10 s while awake (`sleeptest: boot seq=...`), and the tests read those. The shipped build
 (FIRMWARE_DIR) is flashed back at the end, while the device is awake.
 """
 
@@ -59,10 +59,15 @@ def test_window_then_timer_sleep_and_lean_wake(bench, dut):
     save_evidence("sleep-timer", [e["text"] for e in entries])
     assert first(entries, "web: sleep s=10"), "no L18 after the window"
     boots = history(entries)
-    assert len(boots) == 3, f"expected 3 boots since the flash, history: {boots}"
-    flash, lean, last = boots
-    assert flash["reset"] != "deepsleep" and flash["wake"] == "none", flash
-    assert flash["slept_at_ms"] >= (WINDOW_S - 1) * 1000, f"slept inside the window: {flash}"
+    # The run's flash boot is the last one that slept after a window; a reset the
+    # bench gives when the port comes back may follow the two wakes.
+    starts = [i for i, b in enumerate(boots)
+              if b["reset"] != "deepsleep" and b["slept_at_ms"] >= (WINDOW_S - 1) * 1000]
+    assert starts, f"no boot slept after its window, history: {boots}"
+    run = boots[starts[-1]:]
+    assert len(run) >= 3, f"fewer than 2 wakes after the window sleep, history: {run}"
+    flash, lean, last = run[:3]
+    assert flash["wake"] == "none", flash
     for b in (lean, last):
         assert b["reset"] == "deepsleep", f"woken by a reset, not the timer: {b}"
         assert b["wake"] == "timer", f"no timer wake cause: {b}"
@@ -72,22 +77,18 @@ def test_window_then_timer_sleep_and_lean_wake(bench, dut):
     assert last["slept_at_ms"] == 0, f"slept a third time: {last}"
 
 
-HIST = re.compile(r"sleeptest: boot (\d+)/(\d+) reset=(\w+) wake=(\w+) "
+HIST = re.compile(r"sleeptest: boot seq=(\d+) reset=(\w+) wake=(\w+) "
                   r"asleep_ms=(-?\d+) slept_at_ms=(\d+)")
 
 
 def history(entries):
-    """The latest boot history the sleep test build logged, oldest boot first."""
+    """The boots the sleep test build keeps in NVS, oldest first; the newest line wins."""
     boots = {}
-    total = None
     for e in entries:
         m = HIST.search(e["text"])
         if m:
-            i, n = int(m[1]), int(m[2])
-            if n != total:
-                boots, total = {}, n
-            boots[i] = {"reset": m[3], "wake": m[4],
-                        "asleep_ms": int(m[5]), "slept_at_ms": int(m[6])}
+            boots[int(m[1])] = {"seq": int(m[1]), "reset": m[2], "wake": m[3],
+                                "asleep_ms": int(m[4]), "slept_at_ms": int(m[5])}
     assert boots, "no sleeptest history in the log"
     return [boots[i] for i in sorted(boots)]
 
@@ -111,9 +112,7 @@ def test_key_wake_gets_the_window(bench, dut):
     time.sleep(40)
     entries = ring(bench, dut, mark)
     save_evidence("sleep-key", [e["text"] for e in entries])
-    boots = history(entries)
-    assert len(boots) == 2, f"expected 2 boots since the flash, history: {boots}"
-    key = boots[-1]
+    key = history(entries)[-1]
     assert key["reset"] == "deepsleep" and key["wake"] == "button", f"no key wake: {key}"
     assert key["asleep_ms"] < (300 - 30) * 1000, f"woke only at the period's end: {key}"
     assert first(entries, "web: state=", asked), "key wake did not start the connectivity region"
