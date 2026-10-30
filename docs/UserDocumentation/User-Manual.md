@@ -55,7 +55,8 @@ there is none. The fifth line is empty except while the device waits after setup
 - The same data as JSON: `http://<address>/api/status` — `fw_version`, `free_heap`,
   `rssi_dbm`, `ip`, `hostname`, `requests`.
 - The status page also shows the latest reading and when it was taken
-  ("unsynced" if the clock had not been set from the network yet).
+  ("unsynced" if the clock had not been set from the network yet, and "no time"
+  if the board had not had any time at all since it was powered up).
 - Every reading kept since the board was plugged in (up to 144, the last
   24 hours), newest first: `http://<address>/api/readings` — each with `time`,
   `synced`, `temp_f` (°F), `rh_pct`, `p_hpa`.

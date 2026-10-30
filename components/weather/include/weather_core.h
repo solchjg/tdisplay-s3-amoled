@@ -48,6 +48,11 @@ void wx_screen_line(const wx_reading_t *r, char out[WX_LINE_MAX]);
 // L21 after "web: ": "reading t=<..> rh=<..> p=<..> at=<iso> synced=<0|1>".
 void wx_log_line(const wx_reading_t *r, const char *iso, char *out, size_t len);
 
+// FR-22.6: whether a reading's time was ever set (on or after 2020-01-01); the
+// renderings below show "no time" (at=none, null, "no time") for one that was not.
+#define WX_TIME_SET_MIN 1577836800  // 2020-01-01T00:00:00Z
+bool wx_time_set(const wx_reading_t *r);
+
 // §23.2: one element of the readings array.
 void wx_json(const wx_reading_t *r, const char *iso, char *out, size_t len);
 

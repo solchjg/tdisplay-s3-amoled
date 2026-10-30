@@ -815,7 +815,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
 | L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
 | L20 | Clock synced (FR-22.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>` (local time) | I |
-| L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<hPa, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm> synced=<0\|1>` | I |
+| L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<hPa, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm>, or none (FR-22.6)> synced=<0\|1>` | I |
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
 | L24 | Setup check hold ended (FR-24.5, FR-24.6) | `web: setup check done by=<key\|timeout>` | I |
@@ -1505,11 +1505,16 @@ time zone turns the synced UTC clock into local time.
 - **NFR-22.1** [Must] [user] The clock shall be synced within **10 s** of
   entering ONLINE when the time server is reachable.
 - **FR-22.5** [Must] [derived] The device shall log L20 on each sync (§7.2).
+- **FR-22.6** [Must] [user] A reading whose clock was never set (a time before
+  2020-01-01, as after a power loss with no sync yet) shall show no time: `no
+  time` on the page, `null` as its `time` in `/api/readings`, `at=none` in L21.
+  A set but unsynced clock keeps its time, marked unsynced (FR-22.3).
 
 ### 22.3 Verification contracts
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
+| FR-22.6 (core) | Render a reading taken at 80 s and at 2019-12-31T23:59:59Z, unsynced; one at 2020-01-01T00:00:00Z, unsynced | `at=none`, `"time":null`, `no time (unsynced)`; the last keeps its time | A 1969 or 1970 date shown |
 | FR-22.3, FR-22.4 (core) | Synced flag: power-on; a sync; a timer wake after a sync; a reset after a sync | unsynced; synced; synced; unsynced | A reading marked synced before any sync | host |
 | FR-22.1, NFR-22.1, FR-22.5 | Device reaches ONLINE on an AP with internet | L20 within 10 s of L5, with a year ≥ 2026 | No L20 | bench (needs internet on the bench AP, R-19) |
 | FR-22.2 | Shipped build (US Eastern) | L20 shows local time with offset `-0500` (EST) or `-0400` (EDT) | `+0000`; UTC shown as local | bench |
@@ -1545,7 +1550,7 @@ relative humidity (%) and pressure (hPa), with the time it was taken and the syn
 
 | Key | Type | Unit / format | Meaning |
 |-----|------|---------------|---------|
-| `time` | string | `<YYYY-MM-DD>T<hh:mm:ss><±hhmm>`, local time (FR-22.2) | When the reading was taken |
+| `time` | string or null | `<YYYY-MM-DD>T<hh:mm:ss><±hhmm>`, local time (FR-22.2); null for a clock never set (FR-22.6) | When the reading was taken |
 | `synced` | boolean | | FR-22.3: false if no sync had happened since power-on or reset |
 | `temp_f` | number | °F, 2 decimals | Temperature |
 | `rh_pct` | number | %, 1 decimal | Relative humidity |
@@ -1824,7 +1829,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.8.0
+fsd_version: 0.8.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1856,6 +1861,7 @@ change_history:
   - 0.7.1 2026-10-30 FR-22.2 time zone set to US Eastern (EST5EDT) by the user
   - 0.7.2 2026-10-30 readings shown in °F (screen, page, L21, `temp_f` in /api/readings) by the user
   - 0.8.0 2026-10-30 from the user's request, approved by the user (humidity a whole number on line 4; 5 s live reading, 50 ms debounce): §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)
+  - 0.8.1 2026-10-30 FR-22.6 from the user's request: a reading from a never-set clock shows no time (page, `null` in /api/readings, `at=none` in L21)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6]
 open_decisions: []
 related_test_baseline: none yet

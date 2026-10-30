@@ -138,3 +138,21 @@ def test_html_section(core):
         assert text in page
     assert "(unsynced)" not in core("html", *args(21.43, 45.2, 1013.25), ISO)
     assert "No reading kept" in core("html")
+
+
+# TC-WX-16 · FR-22.6 (core): a reading from a clock never set shows no time
+@pytest.mark.parametrize("t", [80, 1577836799])  # 1970 after power-on; just before 2020
+def test_a_never_set_clock_shows_no_time(core, t):
+    r = args(21.43, 45.2, 1013.25, synced=0, t=t)
+    iso = "1969-12-31T19:01:20-0500"
+    assert core("log", *r, iso).endswith(" at=none synced=0")
+    assert json.loads(core("json", *r, iso))["time"] is None
+    page = core("html", *r, iso)
+    assert "no time (unsynced)" in page and iso not in page
+
+
+def test_a_set_but_unsynced_clock_keeps_its_time(core):
+    r = args(21.43, 45.2, 1013.25, synced=0, t=1577836800)
+    assert f"at={ISO} synced=0" in core("log", *r, ISO)
+    assert json.loads(core("json", *r, ISO))["time"] == ISO
+    assert f"{ISO} (unsynced)" in core("html", *r, ISO)
