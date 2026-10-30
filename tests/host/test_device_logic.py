@@ -66,6 +66,13 @@ int main(int argc, char **argv)
         static const char *names[] = {"BOOT", "PROVISIONING", "CONNECTING", "ONLINE",
                                       "WIFI_LOST"};
         printf("%s %u %u", names[r.next], r.actions, r.n);
+    } else if (strcmp(argv[1], "sleep") == 0) {
+        // sleep <none|timer|key> <s since boot> <pending> <ran>
+        dl_wake_t w = strcmp(argv[2], "timer") == 0 ? DL_WAKE_TIMER
+                    : strcmp(argv[2], "key") == 0 ? DL_WAKE_KEY : DL_WAKE_NONE;
+        printf("%d %d", dl_lean_boot(w),
+               dl_task_due(w, (uint32_t)strtoul(argv[3], NULL, 10), atoi(argv[4]) != 0,
+                           atoi(argv[5]) != 0));
     } else {
         // disp <state> <start|tick> <changed> <ok>
         dl_disp_t s = strcmp(argv[2], "LCD_START") == 0 ? DL_LCD_START
@@ -289,3 +296,31 @@ def test_d6_lcd_failed_never_touches_the_display(run):
 # TC-DL-18 · T4 (FR-5.14)
 def test_t4_invalid_submission_stays_and_stores_nothing(run):
     assert conn(run, "PROVISIONING", "CS", guard=0) == ("PROVISIONING", 0, 0)
+
+
+def sleep(run, wake, s, pending=0, ran=0):
+    lean, due = run("sleep", wake, s, pending, ran).split()
+    return lean == "1", due == "1"
+
+
+# TC-SLP-01 · FR-21.2, FR-21.3, FR-21.4, FR-21.10, FR-21.11 (core)
+def test_window_then_task_once(run):
+    assert sleep(run, "none", 59) == (False, False), "task inside the 60 s window"
+    assert sleep(run, "none", 60) == (False, True)
+    assert sleep(run, "none", 600, ran=1) == (False, False), "task ran twice"
+
+
+def test_timer_wake_is_lean_and_runs_the_task_at_once(run):
+    assert sleep(run, "timer", 0) == (True, True)
+    assert sleep(run, "timer", 0, ran=1) == (True, False)
+
+
+def test_key_wake_gets_the_window_like_a_power_on(run):
+    assert sleep(run, "key", 0) == (False, False)
+    assert sleep(run, "key", 59) == (False, False)
+    assert sleep(run, "key", 60) == (False, True)
+
+
+def test_no_task_while_an_image_is_pending_verify(run):
+    assert sleep(run, "none", 60, pending=1) == (False, False)
+    assert sleep(run, "none", 600, pending=1) == (False, False)

@@ -54,3 +54,9 @@ void wl_fmt_ota_downloaded(char *buf, size_t len, uint32_t n);
 
 // K11: "OTA failed: <reason>"
 void wl_fmt_ota_failed(char *buf, size_t len, const char *reason);
+
+// L18: "sleep s=<N>"
+void wl_fmt_sleep(char *buf, size_t len, uint32_t s);
+
+// L19: "wake cause=<timer|button>"
+void wl_fmt_wake(char *buf, size_t len, const char *cause);

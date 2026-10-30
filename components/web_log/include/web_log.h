@@ -59,3 +59,7 @@ void web_log_ota_not_confirmed(void);
 void web_log_button_held(void);
 void web_log_factory_reset(void);
 void web_log_creds_erased(void);
+
+// L18 before deep sleep and L19 after a deep-sleep wake (FR-21.8).
+void web_log_sleep(uint32_t s);
+void web_log_wake(const char *cause);

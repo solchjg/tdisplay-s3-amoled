@@ -188,3 +188,17 @@ void web_log_creds_erased(void)
 {
     ESP_LOGW(TAG, "WiFi credentials erased");  // K8
 }
+
+void web_log_sleep(uint32_t s)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_sleep(line, sizeof line, s);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_wake(const char *cause)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_wake(line, sizeof line, cause);
+    ESP_LOGI(TAG, "%s", line);
+}

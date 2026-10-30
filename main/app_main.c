@@ -7,7 +7,9 @@
 #include <string.h>
 
 #include "button.h"
+#include "deep_sleep.h"
 #include "device_logic.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
@@ -60,6 +62,9 @@ _Static_assert(sizeof stored.ssid == WIFI_NET_SSID_MAX + 1 &&
 static const status_http_source_t status_source = {.ip = ip, .hostname = hostname,
                                                    .rssi = wifi_net_rssi,
                                                    .log = web_log_http};
+
+static dl_wake_t wake;  // how this boot began (FSD §21)
+static bool task_ran;
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
@@ -157,6 +162,60 @@ static void on_submit(const pc_creds_t *c)
 {
     app_event_t e = {.kind = APP_CONN, .ev = DL_EV_CREDS_SUBMITTED, .guard = true, .creds = *c};
     post(&e);
+}
+
+// ── Sleep region (FSD §21) ───────────────────────────────────────────────
+
+static dl_wake_t boot_wake(void)
+{
+    switch (deep_sleep_wake_cause()) {
+    case DEEP_SLEEP_WAKE_TIMER:
+        return DL_WAKE_TIMER;
+    case DEEP_SLEEP_WAKE_BUTTON:
+        return DL_WAKE_KEY;
+    default:
+        return DL_WAKE_NONE;
+    }
+}
+
+#ifdef TDS3_TEST_SLEEP_S
+// Sleep test build (FSD §21.3): two sleeps per power-on, then awake for good, so
+// the bench can flash the next build. RTC memory survives the sleeps only.
+static RTC_DATA_ATTR uint32_t test_sleeps;
+#endif
+
+// The task (FR-21.4, FR-21.9): reads the sensors and acts on the data, then
+// returns the sleep period it asks for, 0 to stay awake. The shipped image has
+// no task yet, so it never sleeps; the sleep test build stands in for one.
+static uint32_t run_task(void)
+{
+#ifdef TDS3_TEST_SLEEP_S
+    return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
+#else
+    return 0;
+#endif
+}
+
+static void run_task_and_sleep(void)
+{
+    task_ran = true;
+    uint32_t s = run_task();
+    if (s == 0) {
+        return;
+    }
+    web_log_sleep(s);                    // L18
+    esp_err_t err = deep_sleep_for(s);   // returns only on failure
+    web_log_warn("deep sleep", err);
+}
+
+static esp_err_t lcd_sleep_cb(void *arg)
+{
+    return lcd_sleep();  // FR-21.6
+}
+
+static esp_err_t wifi_stop_cb(void *arg)
+{
+    return wifi_net_stop();  // FR-21.7: a station leaves its AP
 }
 
 // ── Display region ───────────────────────────────────────────────────────
@@ -358,6 +417,16 @@ static void conn_event(const app_event_t *e)
 void app_main(void)
 {
     web_log_boot();
+    wake = boot_wake();
+    if (wake != DL_WAKE_NONE) {
+        web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
+    }
+    deep_sleep_on_prepare(lcd_sleep_cb, NULL);
+    if (dl_task_due(wake, 0, false, task_ran)) {
+        // FR-21.10: a timer wake runs the task with the panel dark and WiFi off,
+        // then sleeps again. Only a task that asks to stay awake gets past here.
+        run_task_and_sleep();
+    }
     const esp_partition_t *invalid = esp_ota_get_last_invalid_partition();
     if (invalid) {
         web_log_rolled_back(invalid->label);  // L14
@@ -397,7 +466,9 @@ void app_main(void)
     }
 
     err = wifi_net_init(on_net, hostname);
-    if (err != ESP_OK) {
+    if (err == ESP_OK) {
+        deep_sleep_on_prepare(wifi_stop_cb, NULL);
+    } else {
         web_log_warn("network init", err);
     }
 
@@ -434,6 +505,10 @@ void app_main(void)
         }
 #endif
         disp = disp_tick(disp);
+        uint32_t up_s = (uint32_t)(esp_timer_get_time() / 1000000);
+        if (!task_ran && dl_task_due(wake, up_s, image_pending_verify(), task_ran)) {
+            run_task_and_sleep();  // FR-21.2 – FR-21.4: after the window
+        }
         if (++tick % ALIVE_TICKS == 0) {
             web_log_alive(alive++);
         }

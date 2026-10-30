@@ -83,3 +83,13 @@ void wl_fmt_ota_failed(char *buf, size_t len, const char *reason)
 {
     snprintf(buf, len, "OTA failed: %s", reason);
 }
+
+void wl_fmt_sleep(char *buf, size_t len, uint32_t s)
+{
+    snprintf(buf, len, "sleep s=%" PRIu32, s);
+}
+
+void wl_fmt_wake(char *buf, size_t len, const char *cause)
+{
+    snprintf(buf, len, "wake cause=%s", cause);
+}

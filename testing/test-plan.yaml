@@ -301,6 +301,22 @@ capabilities:
     consequence: >
       GPIO 0 reads active low on this board; FR-18.x tests can rely on an
       operator press.
+  seam-sleep-build:
+    what: "Test build whose stand-in task asks for SLEEP_S s of deep sleep twice per power-on, then stays awake (FSD §21.3); SLEEP_S 10 and 300"
+    available: unproven
+    consequence: >
+      Built by the CI job sleep; proven by the first TC-SLP-10 run.
+  dut-user-key:
+    what: Firmware on the T-Display-S3 AMOLED in SLOT1 wakes from deep sleep when an operator presses the user key (GPIO 21)
+    available: unproven
+    consequence: >
+      GPIO 21 is the user key per LilyGO's factory pins_config.h, not yet
+      observed on this unit; TC-SLP-11 is its first run.
+  bench-current-meter:
+    what: Measure the DUT's supply current in deep sleep to the microampere
+    available: no
+    consequence: >
+      The bench declares no current meter (R-17), so NFR-21.1 has no bench run.
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the AMOLED panel, held USB-C to the right
     available: yes
@@ -1750,3 +1766,81 @@ tests:
     observable: "testing/test-plan.yaml is valid YAML; test ids are unique"
     impl: tests/host/test_plan.py::test_plan_is_valid_yaml_with_unique_ids
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557"}
+
+  - id: TC-SLP-01
+    title: "Window, then the task once; timer wake lean; key wake like a power-on"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-21.2, FR-21.3, FR-21.4, FR-21.10, FR-21.11]
+    needs: []
+    observable: "no task before 60 s or while an image is pending verify; once at 60 s; at once and lean after a timer wake; window after a key wake"
+    impl: [tests/host/test_device_logic.py::test_window_then_task_once, tests/host/test_device_logic.py::test_timer_wake_is_lean_and_runs_the_task_at_once, tests/host/test_device_logic.py::test_key_wake_gets_the_window_like_a_power_on, tests/host/test_device_logic.py::test_no_task_while_an_image_is_pending_verify]
+    result: {status: not done}
+
+  - id: TC-SLP-02
+    title: "Sleep and wake log lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-21.8]
+    needs: []
+    observable: "L18 'sleep s=<N>'; L19 'wake cause=timer|button'"
+    impl: tests/host/test_web_log.py::test_sleep_and_wake_lines
+    result: {status: not done}
+
+  - id: TC-SLP-03
+    title: "Sleep period limits and wake-cause mapping (deep_sleep core)"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-21.1]
+    needs: []
+    observable: "periods valid only within the limits; TIMER, BUTTON (EXT1 on GPIO 21), NONE"
+    impl: [shared/tests/host/test_deep_sleep.py]
+    result: {status: not done}
+
+  - id: TC-SLP-10
+    title: "Window, 10 s timer sleep, lean wake that sleeps again"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: target
+    verifies: [FR-21.1, FR-21.2, FR-21.3, FR-21.8, FR-21.10]
+    needs: [seam-sleep-build, bench-flash, bench-serial-monitor, dut-amoled-slot1]
+    observable: "L18 >= 60 s after L1; nothing for 10 s; L1 and L19 cause=timer 9-13 s later; no L2, L5 or L7 before the next L18"
+    impl: tests/bench/test_sleep.py::test_window_then_timer_sleep_and_lean_wake
+    result: {status: not done}
+
+  - id: TC-SLP-11
+    title: "Panel dark in sleep; the user key wakes early into the window"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-21.5, FR-21.6, FR-21.11]
+    needs: [seam-sleep-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1]
+    observable: "operator sees a dark panel; after the key press L19 cause=button long before 300 s, L2 follows, no L18 for 40 s"
+    impl: tests/bench/test_sleep.py::test_key_wake_gets_the_window
+    result: {status: not done}
+
+  - id: TC-SLP-12
+    title: "Key wake adds at most 5 uA to the sleep current"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [NFR-21.1]
+    needs: [bench-current-meter]
+    observable: "sleep current with and without the key wake armed differs by <= 5 uA"
+    impl: []
+    result: {status: not done, reason: "blocked by bench-current-meter = no (R-17)"}

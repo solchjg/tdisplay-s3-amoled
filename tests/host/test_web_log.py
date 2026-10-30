@@ -49,6 +49,10 @@ int main(int argc, char **argv)
         wl_fmt_ota_failed(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "udp") == 0) {
         wl_fmt_udp_logging(line, sizeof line, argv[2], atoi(argv[3]));
+    } else if (strcmp(argv[1], "sleep") == 0) {
+        wl_fmt_sleep(line, sizeof line, (uint32_t)strtoul(argv[2], NULL, 10));
+    } else if (strcmp(argv[1], "wake") == 0) {
+        wl_fmt_wake(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "http") == 0) {
         wl_fmt_http(line, sizeof line, argv[2], argv[3], atoi(argv[4]),
                     (uint32_t)strtoul(argv[5], NULL, 10));
@@ -132,3 +136,11 @@ def test_udp_logging_line(fmt):
 def test_ota_lines(fmt):
     assert fmt("ota_downloaded", "1048576") == "ota downloaded bytes=1048576"
     assert fmt("ota_failed", "HTTP 404") == "OTA failed: HTTP 404"
+
+
+# TC-SLP-02 · FR-21.8 (core): L18, L19
+def test_sleep_and_wake_lines(fmt):
+    assert fmt("sleep", "10") == "sleep s=10"
+    assert fmt("sleep", "86400") == "sleep s=86400"
+    assert fmt("wake", "timer") == "wake cause=timer"
+    assert fmt("wake", "button") == "wake cause=button"

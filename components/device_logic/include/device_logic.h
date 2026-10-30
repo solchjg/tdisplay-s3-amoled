@@ -102,3 +102,16 @@ uint32_t dl_retry_delay_s(uint32_t n);
 
 // FSD §5.3 state names as logged by L2.
 const char *dl_conn_name(dl_conn_t state);
+
+// Sleep region (FSD §21). How this boot began: anything but a deep-sleep wake,
+// the sleep timer, or the user key.
+typedef enum { DL_WAKE_NONE, DL_WAKE_TIMER, DL_WAKE_KEY } dl_wake_t;
+
+#define DL_AWAKE_WINDOW_S 60  // FR-21.2
+
+// FR-21.10: a timer wake takes the lean path (panel dark, WiFi off, no window).
+bool dl_lean_boot(dl_wake_t wake);
+
+// FR-21.2 – FR-21.4: the task runs once per boot, at once on the lean path,
+// otherwise once the window is over and no image is pending verify (FR-21.3).
+bool dl_task_due(dl_wake_t wake, uint32_t s_since_boot, bool pending_verify, bool ran);
