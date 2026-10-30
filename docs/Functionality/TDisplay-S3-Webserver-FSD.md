@@ -1551,13 +1551,13 @@ A reading is the triple temperature (°C), relative humidity (%) and pressure
   full. A power loss or reset empties them.
 - **FR-23.10** [Must] [derived from §21] While the device sleeps the sensor
   shall be in its sleep mode (forced mode returns to it after each measurement).
-- **NFR-23.1** [Must] [proposed] A reading, from the forced-mode trigger to the
+- **NFR-23.1** [Must] [user] A reading, from the forced-mode trigger to the
   compensated values, shall complete within **50 ms** (the datasheet's maximum
   at ×1 is 9.3 ms).
 - **NFR-23.2** [Must] [derived from the BME280 datasheet] Compensation shall be
   the datasheet's integer formulas (32-bit temperature and humidity, 64-bit
   pressure), giving 0.01 °C, 1/1024 % and 1/256 Pa resolution before rounding.
-- **C-23.1** [Must] [proposed] The I2C bus shall run at **100 kHz** with the
+- **C-23.1** [Must] [user] The I2C bus shall run at **100 kHz** with the
   ESP32-S3's internal pull-ups enabled in addition to the breakout's.
 
 ### 23.4 Verification contracts
@@ -1678,8 +1678,8 @@ Build-time constants:
 | BME280 mode | forced, oversampling ×1 (T, P, H), filter off | [user] |
 | Task sleep period | 600 s | [user] |
 | Readings kept across sleep | 144 | [user] |
-| Reading duration | ≤ 50 ms | [proposed] |
-| I2C clock | 100 kHz, internal pull-ups on | [proposed] |
+| Reading duration | ≤ 50 ms | [user] |
+| I2C clock | 100 kHz, internal pull-ups on | [user] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -1733,7 +1733,7 @@ baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: §23 awaiting the user's approval; everything else approved
+approval_status: all requirements and values approved by the user
 created: 2026-10-23
 last_updated: 2026-10-30
 change_history:
@@ -1755,8 +1755,8 @@ change_history:
   - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
   - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.12, NFR-21.1) from the user's answers and weather-station example, approved by the user; L18, L19
   - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and 10 s deadline approved by the user
-  - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; draft
+  - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; approved by the user
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9]
-open_decisions: [FR-23.3 reading on window boots, FR-23.6 fourth screen line, NFR-23.1 50 ms, C-23.1 100 kHz and internal pull-ups]
+open_decisions: []
 related_test_baseline: none yet
 ```
