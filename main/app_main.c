@@ -422,7 +422,8 @@ void app_main(void)
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
     }
     deep_sleep_on_prepare(lcd_sleep_cb, NULL);
-    if (dl_task_due(wake, 0, false, task_ran)) {
+    // A timer wake follows a sleep, which only a provisioned device takes (FR-21.12).
+    if (dl_task_due(wake, 0, false, wake == DL_WAKE_TIMER, task_ran)) {
         // FR-21.10: a timer wake runs the task with the panel dark and WiFi off,
         // then sleeps again. Only a task that asks to stay awake gets past here.
         run_task_and_sleep();
@@ -506,7 +507,9 @@ void app_main(void)
 #endif
         disp = disp_tick(disp);
         uint32_t up_s = (uint32_t)(esp_timer_get_time() / 1000000);
-        if (!task_ran && dl_task_due(wake, up_s, image_pending_verify(), task_ran)) {
+        bool provisioned = view.conn != DL_BOOT && view.conn != DL_PROVISIONING;
+        if (!task_ran &&
+            dl_task_due(wake, up_s, image_pending_verify(), provisioned, task_ran)) {
             run_task_and_sleep();  // FR-21.2 – FR-21.4: after the window
         }
         if (++tick % ALIVE_TICKS == 0) {

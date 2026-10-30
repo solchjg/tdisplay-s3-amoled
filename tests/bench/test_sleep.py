@@ -2,8 +2,9 @@
 
 Needs SLEEP_10_DIR and SLEEP_300_DIR: the coldflash directories of the CI job
 sleep (periods 10 and 300). Flashed without an erase, so stored credentials
-stay. While the chip sleeps its USB-Serial/JTAG port is gone (R-18): the ring
-shows nothing for the period, then the wake's boot. The shipped build
+stay; the device needs them, since it never sleeps before provisioning is
+complete (FR-21.12). While the chip sleeps its USB-Serial/JTAG port is gone
+(R-18): the ring shows nothing for the period, then the wake's boot. The shipped build
 (FIRMWARE_DIR) is flashed back at the end, while the device is awake.
 """
 

@@ -1844,3 +1844,16 @@ tests:
     observable: "sleep current with and without the key wake armed differs by <= 5 uA"
     impl: []
     result: {status: not done, reason: "blocked by bench-current-meter = no (R-17)"}
+
+  - id: TC-SLP-04
+    title: "No task, so no sleep, before WiFi provisioning is complete"
+    shape: atomic
+    kind: negative
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-21.12]
+    needs: []
+    observable: "not due with no credentials stored, even 600 s after boot or after a key wake; due once stored"
+    impl: tests/host/test_device_logic.py::test_no_task_before_provisioning_is_complete
+    result: {status: not done}

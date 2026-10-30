@@ -75,8 +75,9 @@ board in: that starts the chip's download mode instead.
 
 ## 5a. Sleeping between tasks
 
-A firmware with a task (reading a sensor, for example) runs it 60 seconds after
-it is plugged in or reset, then sleeps for the time the task chooses. The screen
+A firmware with a task (reading a sensor, for example) never sleeps before its
+WiFi is set up (chapter 2). Once it is, it runs the task 60 seconds after it is
+plugged in or reset, then sleeps for the time the task chooses. The screen
 is off and WiFi is down while it sleeps. When the time is up it wakes, runs the
 task again without turning on the screen or WiFi, and goes back to sleep. To
 reach it while it sleeps, press the user key (the button that is not BOOT): it

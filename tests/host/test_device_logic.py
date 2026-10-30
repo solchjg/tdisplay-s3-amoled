@@ -67,12 +67,12 @@ int main(int argc, char **argv)
                                       "WIFI_LOST"};
         printf("%s %u %u", names[r.next], r.actions, r.n);
     } else if (strcmp(argv[1], "sleep") == 0) {
-        // sleep <none|timer|key> <s since boot> <pending> <ran>
+        // sleep <none|timer|key> <s since boot> <pending> <provisioned> <ran>
         dl_wake_t w = strcmp(argv[2], "timer") == 0 ? DL_WAKE_TIMER
                     : strcmp(argv[2], "key") == 0 ? DL_WAKE_KEY : DL_WAKE_NONE;
         printf("%d %d", dl_lean_boot(w),
                dl_task_due(w, (uint32_t)strtoul(argv[3], NULL, 10), atoi(argv[4]) != 0,
-                           atoi(argv[5]) != 0));
+                           atoi(argv[5]) != 0, atoi(argv[6]) != 0));
     } else {
         // disp <state> <start|tick> <changed> <ok>
         dl_disp_t s = strcmp(argv[2], "LCD_START") == 0 ? DL_LCD_START
@@ -298,8 +298,8 @@ def test_t4_invalid_submission_stays_and_stores_nothing(run):
     assert conn(run, "PROVISIONING", "CS", guard=0) == ("PROVISIONING", 0, 0)
 
 
-def sleep(run, wake, s, pending=0, ran=0):
-    lean, due = run("sleep", wake, s, pending, ran).split()
+def sleep(run, wake, s, pending=0, ran=0, provisioned=1):
+    lean, due = run("sleep", wake, s, pending, provisioned, ran).split()
     return lean == "1", due == "1"
 
 
@@ -324,3 +324,10 @@ def test_key_wake_gets_the_window_like_a_power_on(run):
 def test_no_task_while_an_image_is_pending_verify(run):
     assert sleep(run, "none", 60, pending=1) == (False, False)
     assert sleep(run, "none", 600, pending=1) == (False, False)
+
+
+# TC-SLP-04 · FR-21.12 (core)
+def test_no_task_before_provisioning_is_complete(run):
+    assert sleep(run, "none", 600, provisioned=0) == (False, False)
+    assert sleep(run, "key", 600, provisioned=0) == (False, False)
+    assert sleep(run, "none", 600, provisioned=1) == (False, True)

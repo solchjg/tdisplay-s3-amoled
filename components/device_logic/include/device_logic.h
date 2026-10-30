@@ -113,5 +113,7 @@ typedef enum { DL_WAKE_NONE, DL_WAKE_TIMER, DL_WAKE_KEY } dl_wake_t;
 bool dl_lean_boot(dl_wake_t wake);
 
 // FR-21.2 – FR-21.4: the task runs once per boot, at once on the lean path,
-// otherwise once the window is over and no image is pending verify (FR-21.3).
-bool dl_task_due(dl_wake_t wake, uint32_t s_since_boot, bool pending_verify, bool ran);
+// otherwise once the window is over, no image is pending verify (FR-21.3) and
+// credentials are stored (FR-21.12).
+bool dl_task_due(dl_wake_t wake, uint32_t s_since_boot, bool pending_verify,
+                 bool provisioned, bool ran);

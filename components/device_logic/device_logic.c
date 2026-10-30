@@ -160,9 +160,10 @@ bool dl_lean_boot(dl_wake_t wake)
     return wake == DL_WAKE_TIMER;
 }
 
-bool dl_task_due(dl_wake_t wake, uint32_t s_since_boot, bool pending_verify, bool ran)
+bool dl_task_due(dl_wake_t wake, uint32_t s_since_boot, bool pending_verify,
+                 bool provisioned, bool ran)
 {
-    if (ran) {
+    if (ran || !provisioned) {
         return false;
     }
     return dl_lean_boot(wake) || (s_since_boot >= DL_AWAKE_WINDOW_S && !pending_verify);
