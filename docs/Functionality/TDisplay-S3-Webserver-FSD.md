@@ -1371,11 +1371,14 @@ verification:
 
 ### 21.1 Purpose & peer
 
-Between tasks the device sleeps, so it can run from a battery. After a boot it
-stays awake for a window (the web page, OTA and the bench can reach it), then it
-runs its task (read a sensor and act on the data; the task itself is not yet
-specified) and is told to sleep for a period given at runtime. A timer wake
-runs the task again; the user key wakes it early. Waking from deep sleep is a
+Between tasks the device sleeps, so it can run from a battery, like a remote
+weather station that wakes, reads its sensors, reports (e.g. over cellular) and
+sleeps again. After a boot that is not a sleep wake, and after a key wake, it is
+fully up for a window (panel, WiFi, web page, OTA; the bench can reach it); then
+it runs its task (read a sensor and act on the data; the task itself is not yet
+specified), which tells it to sleep for a period of the task's choosing. A timer
+wake is the lean path: the task runs with the panel dark and WiFi off, then
+sleeps again. Waking from deep sleep is a
 reboot. Built on the shared `deep_sleep` component; the logic layer (§5)
 decides when to sleep, the composition root performs it.
 
@@ -1389,11 +1392,20 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
 - **FR-21.2** [Must] [user] After a boot that is not a deep-sleep wake, the
   device shall stay awake for at least 60 s before it sleeps.
 - **FR-21.3** [Must] [derived from FR-21.2 and T13] The 60 s window shall apply
-  to every boot that is not a deep-sleep wake (power-on, reset, OTA restart,
+  to every boot that is not a timer wake (power-on, reset, OTA restart, key wake,
   watchdog), so an image pending verify is confirmed or rolled back before any
   sleep and the bench can always flash the device.
 - **FR-21.4** [Must] [user] After the window, and after every timer wake, the
   device shall run its task, then sleep when told to.
+- **FR-21.9** [Must] [derived from the weather-station example] The task shall
+  tell the device to sleep and choose the period; nothing outside the firmware
+  (HTTP, portal) can.
+- **FR-21.10** [Must] [derived from the weather-station example] After a timer
+  wake the device shall leave the panel dark and the WiFi radio off, run the
+  task, and sleep again; no window, no web server.
+- **FR-21.11** [Must] [derived from the weather-station example] A key wake
+  shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
+  server, then the task (local maintenance and OTA).
 - **FR-21.5** [Must] [user] Pressing the user key (GPIO 21) during sleep shall
   wake the device before the period ends.
 - **NFR-21.1** [Must] [user] Arming the key wake shall add no more than
@@ -1413,7 +1425,8 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
 | FR-21.1 (core) | `deep_sleep` core: periods 0, 1, max, max + 1; wake causes timer, EXT1 on GPIO 21, EXT1 elsewhere, none | Valid only within the limits; TIMER, BUTTON, NONE, NONE | An out-of-range period accepted | host |
 | FR-21.1 | Sleep test build: told to sleep 10 s once the window ends | `web: sleep s=10`, then L1 and `web: wake cause=timer` 10 – 13 s later | Any line during the 10 s | target |
 | FR-21.2, FR-21.3 | Reset over USB | No `web: sleep` earlier than 60 s after L1 | A sleep inside the window | target |
-| FR-21.5 | Asleep for 300 s; operator presses the user key | L1 and `web: wake cause=button` within 3 s of the press | Waking only at the period's end | bench (operator) |
+| FR-21.5, FR-21.11 | Asleep for 300 s; operator presses the user key | L1 and `web: wake cause=button` within 3 s of the press, then L2 and no `web: sleep` for 60 s | Waking only at the period's end; sleeping inside the window | bench (operator) |
+| FR-21.10 | Sleep test build, timer wake | `web: wake cause=timer`, then `web: sleep` with no L2, L5 or L7 between | WiFi started, panel lit, the window applied | target |
 | FR-21.6 | Asleep | Operator confirms the panel is dark | A lit or flickering panel | bench (operator) |
 | NFR-21.1 | Sleep current with and without the key wake armed | Difference ≤ 5 µA | — | bench (needs a current meter, R-17) |
 
@@ -1583,13 +1596,10 @@ change_history:
   - 0.3.8 2026-10-24 verification waivers accepted by the user for shipment (Appendix B); R-14 (bench #54), R-15 (one bench radio), R-16 (UDP listener) added; bench clock resolution in Appendix A; R-12/R-13 order
   - 0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution
   - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
-  - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.8, NFR-21.1) drafted from the user's answers; awaiting approval
+  - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.11, NFR-21.1) drafted from the user's answers; awaiting approval
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
 open_decisions:
   - NFR-21.1 the 5 µA limit on the key wake's added sleep current
-  - FR-21.4 who tells the device to go back to sleep and where the period comes from (the task in firmware, or a request over HTTP)
-  - FR-21.4 whether a timer wake joins WiFi and starts the web server, or runs the task offline
-  - FR-21.4 whether the panel lights after a timer wake or stays dark
-  - FR-21.5 whether a key wake opens the 60 s window like a cold boot
+  - FR-21.9 – FR-21.11 read from the user's weather-station example, to be confirmed
 related_test_baseline: none yet
 ```
