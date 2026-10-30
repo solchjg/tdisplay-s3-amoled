@@ -336,7 +336,7 @@ def sleep(run, wake, s, pending=0, ran=0, provisioned=1, hold=NONE):
     return lean == "1", due == "1"
 
 
-# TC-SLP-01 · FR-21.2, FR-21.3, FR-21.4, FR-21.10, FR-21.11 (core)
+# TC-SLP-01 · FR-21.2, FR-21.3, FR-21.4, FR-21.13, FR-21.11 (core)
 def test_window_then_task_once(run):
     assert sleep(run, "none", 59) == (False, False), "task inside the 60 s window"
     assert sleep(run, "none", 60) == (False, True)

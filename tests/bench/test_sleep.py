@@ -47,7 +47,7 @@ def restore_shipped(bench, dut, firmware_dir):
     flash_coldflash(bench.base_url, dut, CHIP, firmware_dir)
 
 
-# TC-SLP-10 · FR-21.1, FR-21.2, FR-21.3, FR-21.8, FR-21.10
+# TC-SLP-10 · FR-21.1, FR-21.2, FR-21.3, FR-21.8, FR-21.13
 def test_window_then_timer_sleep_and_lean_wake(bench, dut):
     stop_bench_ap(bench)  # target tier: the device need not be online
     mark = time.time()
@@ -72,7 +72,7 @@ def test_window_then_timer_sleep_and_lean_wake(bench, dut):
         assert b["reset"] == "deepsleep", f"woken by a reset, not the timer: {b}"
         assert b["wake"] == "timer", f"no timer wake cause: {b}"
         assert (10 - 1) * 1000 <= b["asleep_ms"] <= (10 + TOL) * 1000, f"asleep {b}"
-    # FR-21.10: the lean wake ran the task and slept again at once.
+    # FR-21.13: the lean wake ran the task and slept again at once.
     assert 0 < lean["slept_at_ms"] < 3000, f"the lean wake did not sleep again at once: {lean}"
     assert last["slept_at_ms"] == 0, f"slept a third time: {last}"
 

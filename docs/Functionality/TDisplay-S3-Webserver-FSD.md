@@ -47,6 +47,7 @@ reused.
 | 22 | Time | cross-cutting |
 | 23 | Weather Sensor | L1 |
 | 24 | Setup Check | cross-cutting |
+| 25 | Summary Email | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -277,6 +278,18 @@ testbench.
   the next key wake.
 - **Dependencies.** §5 (T3), §21 (the key and the window), §23 (the readings).
 
+### 3.7 Phase 7: Summary email
+
+- **Scope.** Mail settings in the portal, the due-time rule, the summary text,
+  SMTP over TLS, and WiFi on a timer wake only for a due summary.
+- **Deliverables.** §25, FR-21.13, L25, L26; the shared `mail_tx` component.
+- **Exit criteria.** A WiFi-only submission still provisions; a full one stores
+  the settings; at the first due time the recipient gets the summary and the
+  device logs L25 and sleeps; an unreachable server logs L26 and the device
+  sleeps; timer wakes with no summary due keep WiFi off.
+- **Dependencies.** §13 (the form), §21 (the task and its sleep), §22 (local
+  time), §23 (the kept readings).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -305,6 +318,7 @@ testbench.
 | R-18 | The USB-Serial/JTAG port disappears while the chip sleeps, and EN/BOOT are not proven wired on SLOT1, so a sleeping device cannot be flashed or monitored | Certain | High | FR-21.3: every boot that is not a sleep wake stays awake 60 s; sleep tests use short periods; the user key wakes the device |
 | R-19 | The bench AP may give the DUT no internet route, so SNTP (FR-22.1) may not be reachable from SLOT1 | Medium | Medium | Not yet observed; if the bench AP has no route, the bench test is blocked (testbench change request, never a project workaround) |
 | R-20 | GPIO 43/44 are UART0 TX/RX: the ROM bootloader writes its boot banner on GPIO 43 (SDA) at every reset, which the sensor sees as stray START/STOP conditions | Certain | Low | No SCL clocks are sent, so no address can match; the driver installs the bus after the banner and the first transfer starts with a STOP |
+| R-23 | The bench offers no SMTP server and its AP may not reach the internet, so a sent summary has no automatic observer | Certain | Medium | The SMTP core is host-tested against scripted replies; delivery is an operator check with the user's own account; an automatic target test waits for a testbench SMTP peer (testbench change request, never a project workaround) |
 | R-21 | The bench has no reference thermometer, hygrometer or barometer, so accuracy is not verified, only plausibility and response | Certain | Low | The sensor's own accuracy (±1 °C, ±3 %, ±1 mbar per datasheet) is relied on; contracts check plausible ranges and a finger-warmth response |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
 
@@ -316,7 +330,7 @@ testbench.
 
 ### 4.3 Explicitly out of scope
 
-- Authentication on any endpoint; TLS; signed firmware, secure boot, flash
+- Authentication on any endpoint; TLS on anything the device serves (the summary email is sent over TLS, §25); signed firmware, secure boot, flash
   encryption (§9.1). [user]
 - BLE, MQTT, IPv6, NTP, static IP, more than one stored network, a network scan
   list in the portal, a portal timeout. [user]
@@ -819,6 +833,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
 | L24 | Setup check hold ended (FR-24.5, FR-24.6) | `web: setup check done by=<key\|timeout>` | I |
+| L25 | Summary sent (FR-25.9) | `web: mail sent to=<mail_to> readings=<n>` | I |
+| L26 | Summary dropped (FR-25.7) | `web: mail failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|timeout>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1256,16 +1272,16 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs |
+| Remote exposure | HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25) |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
-| Credentials | One WiFi password, stored in NVS; never output by the device (FR-9.3) |
+| Credentials | One WiFi password and one mail password, stored in NVS; never output by the device (FR-9.3, FR-25.10) |
 
 Accepted risks [user]: unauthenticated OTA (anyone on the LAN can make the device
 download and run any image from any HTTP URL); open portal SoftAP (anyone in radio
 range during PROVISIONING can submit credentials or read submitted ones);
 plaintext HTTP and logs; unencrypted NVS. The profile justifies these protections
-only: never disclosing the password, keeping the radio surface to what the
+only: never disclosing the passwords, keeping the radio surface to what the
 product uses, and not reflecting portal input as markup (FR-13.7).
 
 ### 9.2 Requirements
@@ -1444,9 +1460,11 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
 - **FR-21.9** [Must] [user] The task shall
   tell the device to sleep and choose the period; nothing outside the firmware
   (HTTP, portal) can.
-- **FR-21.10** [Must] [user] After a timer
+- **FR-21.13** [Must] [user] After a timer
   wake the device shall leave the panel dark and the WiFi radio off, run the
-  task, and sleep again; no window, no web server.
+  task, and sleep again; no window, no web server. The one exception is a
+  summary email due on that wake (FR-25.6), for which WiFi runs as a station
+  only while it is sent.
 - **FR-21.11** [Must] [user] A key wake
   shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
   server, then the task (local maintenance and OTA).
@@ -1473,7 +1491,7 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
 | FR-21.2, FR-21.3 | Reset over USB | No `web: sleep` earlier than 60 s after L1 | A sleep inside the window | target |
 | FR-21.12 (core) | Task due check with no credentials stored, 600 s after boot | Not due; due once credentials are stored | The task running in PROVISIONING | host |
 | FR-21.5, FR-21.11 | Asleep for 300 s; operator presses the user key | L1 and `web: wake cause=button` within 3 s of the press, then L2 and no `web: sleep` for 60 s | Waking only at the period's end; sleeping inside the window | bench (operator) |
-| FR-21.10 | Sleep test build, timer wake | `web: wake cause=timer`, then `web: sleep` with no L2, L5 or L7 between | WiFi started, panel lit, the window applied | target |
+| FR-21.13 | Sleep test build, timer wake | `web: wake cause=timer`, then `web: sleep` with no L2, L5 or L7 between | WiFi started, panel lit, the window applied | target |
 | FR-21.6 | Asleep | Operator confirms the panel is dark | A lit or flickering panel | bench (operator) |
 | NFR-21.1 | Sleep current with and without the key wake armed | Difference ≤ 5 µA | — | bench (needs a current meter, R-17) |
 
@@ -1658,7 +1676,7 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
   and sleeps at once, and the mark stays pending, so the next key wake or
   power-on holds again. A reset or power loss during the hold starts the
   countdown again from `30:00`.
-- **FR-24.7** [Must] [derived from FR-21.10] A timer wake shall never hold,
+- **FR-24.7** [Must] [derived from FR-21.13] A timer wake shall never hold,
   whatever the mark.
 - **FR-24.8** [Must] [derived] Entry into the hold shall log L23 (§7.2).
 
@@ -1675,6 +1693,98 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
 | FR-24.9 (core) | LED state 0, 499, 500, 999, 1000 ms into the hold; outside the hold | Lit, lit, dark, dark, lit; lit | Dark outside the hold; a period other than 1 s | host |
 | FR-24.9 | Holding; operator watches the LED next to the user key for 10 s, then presses the key | About ten flashes, then steadily lit after the press | No flashing; the LED dark after the press | bench (operator) |
 | FR-24.3, FR-24.10 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
+
+---
+
+## 25. Summary Email
+
+### 25.1 Purpose & peer
+
+At a time and interval the user sets, the device emails one plain-text summary
+of the readings it kept since the last summary to one recipient. It sends
+directly to the user's SMTP server (Gmail or the user's own, with a public
+certificate) over TLS; no relay service is involved. The mail settings are
+entered in the provisioning portal next to the WiFi credentials and kept in
+NVS. Peer: the SMTP server named in the settings, reached through the stored
+WiFi network. Built on a shared `mail_tx` component (pure core for the SMTP
+dialogue and the message text, thin TLS transport); the logic layer decides
+when a summary is due and what it says, the composition root sends it.
+
+A timer wake normally keeps WiFi off (FR-21.13); when a summary is due on a
+timer wake, the device brings WiFi up only long enough to send it.
+
+### 25.2 Portal fields
+
+Added to the §13.2 form; all optional as a group, so a submission with only
+`ssid` and `password` (the testbench's `enter-portal` call) stays valid and
+leaves email off.
+
+| Field | Format | Valid |
+|-------|--------|-------|
+| `mail_host` | SMTP server host name, e.g. `smtp.gmail.com` | 1 – 64 bytes, letters, digits, `.` and `-` |
+| `mail_port` | `465` (TLS from the start) or `587` (STARTTLS) | exactly one of the two |
+| `mail_user` | login name, also the sender address | 1 – 64 bytes |
+| `mail_password` | for Gmail an app password | 1 – 64 bytes |
+| `mail_to` | recipient address | 3 – 64 bytes, one `@` with text on both sides |
+| `mail_time` | first summary, local time | `hh:mm`, 00:00 – 23:59 |
+| `mail_every` | interval between summaries | whole hours, 1 – 24 |
+
+### 25.3 Requirements
+
+- **FR-25.1** [Must] [user] The portal form (§13.2) shall carry the fields of
+  §25.2. A submission with all of them empty or absent shall be valid and leave
+  email off; a submission with any of them filled shall be valid only if every
+  one is valid per §25.2, else answer 400 naming the first invalid field.
+- **FR-25.2** [Must] [user] Valid mail settings shall be stored in NVS with the
+  WiFi credentials at T3 and erased by a factory reset (T10). Settings change
+  only by a factory reset and a new provisioning.
+- **FR-25.3** [Must] [user] A summary is due at `mail_time` local time (FR-22.2)
+  and every `mail_every` hours after it, counted from `mail_time` each day. The
+  task (§21) shall send one summary on its first run at or after a due time;
+  due times missed in between (the device was off, or a send failed) are
+  skipped, never sent late in a batch.
+- **FR-25.4** [Must] [user] The summary shall be one plain-text email from
+  `mail_user` to `mail_to` with the subject `<hostname> summary
+  <YYYY-MM-DD> <hh:mm>` (local time of sending) and a body giving: the device
+  name (FR-20.1), the period covered (time of the oldest and newest reading
+  included), the number of readings, the newest reading in the format of
+  FR-23.12, and the minimum and maximum of temperature (°F), humidity (%) and
+  pressure (mbar) over the readings kept (FR-23.9) since the previous summary
+  was sent, or all kept readings for the first summary after a boot.
+- **FR-25.5** [Must] [user] The device shall connect to `mail_host` on
+  `mail_port`: on 465 with TLS from the first byte, on 587 by plain SMTP then
+  STARTTLS; it shall verify the server certificate against the ESP-IDF CA
+  bundle and the host name, then authenticate with `mail_user` and
+  `mail_password` (AUTH LOGIN or AUTH PLAIN, whichever the server offers).
+- **FR-25.6** [Must] [user] When a summary is due on a timer wake, the task
+  shall start WiFi as a station with the stored credentials, send the summary,
+  stop WiFi (FR-21.7) and sleep; the panel stays dark. On a timer wake with no
+  summary due, WiFi stays off (FR-21.13).
+- **FR-25.7** [Must] [user] A summary that cannot be sent (no WiFi within
+  **15 s**, a DNS, TCP, TLS or certificate failure, a server refusal, or no
+  final `250` within **30 s** of connecting) shall be dropped and logged as L26
+  with the reason; it shall not be retried, and the device goes on to sleep as
+  usual.
+- **FR-25.8** [Must] [derived from FR-25.3 and FR-22.6] With the clock never
+  set (FR-22.6), no summary shall be due; the task logs nothing for it.
+- **FR-25.9** [Must] [derived] Each summary sent shall be logged as L25, each
+  dropped one as L26 (§7.2).
+- **FR-25.10** [Must] [derived from §9.1] The device shall not output
+  `mail_password` on serial, UDP, any HTTP response or in any email (FR-9.3).
+- **NFR-25.1** [Must] [derived from FR-25.7] A timer wake that sends a summary
+  shall be back asleep within **50 s** of the wake, success or failure.
+
+### 25.4 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-25.1 (core) | Form bodies: WiFi only; all mail fields valid; each field invalid in turn; port 25; `mail_to` without `@`; `mail_every` 0 and 25 | Valid, email off; valid, settings parsed; 400 naming that field each time | A partial mail group accepted | host |
+| FR-25.3, FR-25.8 (core) | Due check for `mail_time` 07:00 and `mail_every` 6 at 06:59, 07:00, 12:59, 13:05, after a send at 07:02 the same day, after two missed slots, with the clock never set | not due, due, not due, due, not due until 13:00, one due (no batch), never due | Two summaries for one slot; a summary with the clock unset | host |
+| FR-25.4, FR-25.10 (core) | Body for 0, 1 and 144 readings | Subject and body as FR-25.4; min/max correct; no password in the text | The password anywhere in the message | host |
+| FR-25.5 (core) | SMTP core against scripted server replies for 465 and 587, AUTH LOGIN and PLAIN, a 535 refusal, a reply split across reads | The commands of RFC 5321 in order, dot-stuffed body, success only on the final 250; the 535 reported | Data sent before 220/EHLO; success on a refusal | host |
+| FR-25.6, FR-25.9, NFR-25.1 | Sleep test build with a mail slot due on the next timer wake, test server reachable | `web: wake cause=timer`, L25, `web: sleep` within 50 s; panel dark | WiFi on a timer wake with no slot due; L2 or L7 lines | target / bench (operator) |
+| FR-25.7 | Same build, `mail_host` unreachable | L26 with the reason, then `web: sleep` within 50 s | A retry; no sleep | target |
+| FR-25.4 | Operator's own Gmail account, provisioned through the portal | The summary arrives as FR-25.4 | A missing field; mbar not stated | bench (operator) |
 
 ---
 
@@ -1732,6 +1842,8 @@ Runtime configuration (the only persisted items):
 |------|------|---------|-------------|-------------|-------------|-----------|------------|---------------|-----------------|
 | `wifi_ssid` | bytes | none | 1 – 32 bytes | NVS | operational | portal (§13) | FR-13.4 | immediate (T3) | erased by factory reset |
 | `wifi_password` | bytes | none | empty or 8 – 63 bytes | NVS | secret | portal (§13) | FR-13.4 | immediate (T3) | erased by factory reset |
+| `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2) | FR-25.1 | immediate (T3) | erased by factory reset |
+| `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2) | FR-25.1 | immediate (T3) | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by the key (FR-24.5) | none | next non-timer boot | erased by factory reset |
 
 Build-time constants:
@@ -1826,6 +1938,7 @@ the bench gains the capability.
 | FR-23.6 | Line 4 as `<t>F <rh>% <p>hPa`, whole humidity and pressure | FR-23.11 (`<t>F Hum <rh>% <p> hPa`) |
 | FR-23.11 | Line 4 as `<t>F Hum <rh>% <p> hPa` | FR-23.12 (`<t>F Hum <rh>% <p> mbar`) |
 | FR-23.8 | `/api/readings` with pressure as `p_hpa` | FR-23.13 (pressure as `p_mbar`) |
+| FR-21.10 | A timer wake never starts WiFi | FR-21.13 (except to send a due summary, FR-25.6) |
 | FR-24.4 | Line 5 as `Press key to continue <mm>:<ss>` | FR-24.10 (`Press blinking key to start <mm>:<ss>`) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
 | FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
@@ -1838,7 +1951,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.9.0
+fsd_version: 0.10.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1872,7 +1985,8 @@ change_history:
   - 0.8.0 2026-10-30 from the user's request, approved by the user (humidity a whole number on line 4; 5 s live reading, 50 ms debounce): §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)
   - 0.8.1 2026-10-30 FR-22.6 from the user's request: a reading from a never-set clock shows no time (page, `null` in /api/readings, `at=none` in L21)
   - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4]
+  - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10]
 open_decisions: []
 related_test_baseline: none yet
 ```
