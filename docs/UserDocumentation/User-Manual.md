@@ -33,13 +33,23 @@ With no stored credentials the display shows `Setup WiFi`, the network name
    network, otherwise 8 – 63 characters) and press *Save and connect*.
 3. The page confirms the network name; the device leaves its setup network, shows
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
+4. The device now waits for you to check it before it starts its sleep cycle.
+   The fourth line shows a live reading, updated every 5 seconds, and the fifth
+   shows `Press key to continue` with a countdown from 30:00. Check the readings,
+   then press the user key (the one that also wakes the board). The device stays
+   up for one more minute, takes its first reading and goes to sleep.
+
+   If nobody presses the key within 30 minutes, the device goes to sleep
+   anyway. It waits again the next time it is woken by the key or powered on,
+   until the key is pressed during a wait. A timer wake never waits. A factory
+   reset (section 5) brings the wait back with the next setup.
 
 ## 3. Using the status page
 
 When connected, the display shows `IP <address>`, `Req: <count>` (requests
 answered since start) and `<name>.local`. The fourth line, in every state, is
-the latest weather reading, e.g. `21.4C 45% 1013hPa`, or `Sensor --` if there
-is none.
+the latest weather reading, e.g. `75.7F Hum 47% 996.62 hPa`, or `Sensor --` if
+there is none. The fifth line is empty except while the device waits after setup.
 
 - Status page: `http://<address>/`
 - The same data as JSON: `http://<address>/api/status` — `fw_version`, `free_heap`,
@@ -48,7 +58,7 @@ is none.
   ("unsynced" if the clock had not been set from the network yet).
 - Every reading kept since the board was plugged in (up to 144, the last
   24 hours), newest first: `http://<address>/api/readings` — each with `time`,
-  `synced`, `temp_c`, `rh_pct`, `p_hpa`.
+  `synced`, `temp_f` (°F), `rh_pct`, `p_hpa`.
 - On networks that resolve mDNS names, `http://tds3-xxxxxx.local/` also works.
 
 There is no login: anyone on your network can read it.

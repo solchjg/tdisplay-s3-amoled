@@ -1,5 +1,5 @@
 """Bench tier: the clock (FSD §22). Needs a route from the bench AP to
-pool.ntp.org (bench-internet, R-19); the shipped build is UTC0."""
+pool.ntp.org (bench-internet, R-19); the shipped build is US Eastern (EST5EDT)."""
 
 import re
 
@@ -19,4 +19,4 @@ def test_clock_synced_after_online(bench, dut, online_ip):
     assert synced and synced[0]["ts"] - t_online <= 10 + 1, "L20 later than 10 s after L5"
     iso = re.search(r"time synced (\d{4})-\d\d-\d\dT\d\d:\d\d:\d\d([+-]\d{4})", synced[0]["text"])
     assert iso and int(iso.group(1)) >= 2026, f"clock not set: {synced[0]['text']}"
-    assert iso.group(2) == "+0000", "the UTC0 build shows a non-zero offset"
+    assert iso.group(2) in ("-0500", "-0400"), f"not US Eastern local time: {iso.group(2)}"

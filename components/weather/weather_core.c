@@ -47,9 +47,10 @@ static void fixed(char *out, size_t len, int64_t value, int64_t scale, int decim
     }
 }
 
-void wx_fmt_temp(char *out, size_t len, int32_t centi_c, int decimals)
+// °F = °C · 9/5 + 32, so 500 · °F = 9 · centi_c + 16000: exact in integers.
+void wx_fmt_temp_f(char *out, size_t len, int32_t centi_c, int decimals)
 {
-    fixed(out, len, centi_c, 100, decimals);
+    fixed(out, len, (int64_t)centi_c * 9 + 16000, 500, decimals);
 }
 
 void wx_fmt_hum(char *out, size_t len, uint32_t q10, int decimals)
@@ -68,14 +69,14 @@ void wx_screen_line(const wx_reading_t *r, char out[WX_LINE_MAX])
         snprintf(out, WX_LINE_MAX, "Sensor --");
         return;
     }
-    // The sensor's ranges keep this within 20 characters ("-40.0C 100% 1100hPa");
-    // anything longer is cut, never overflowing the line.
+    // The sensor's ranges keep this within 33 characters ("185.0F Hum 100%
+    // 1100.00 hPa", 27); anything longer is cut, never overflowing the line.
     char t[16], h[16], p[16], line[64];
-    wx_fmt_temp(t, sizeof t, r->temp_centi_c, 1);
+    wx_fmt_temp_f(t, sizeof t, r->temp_centi_c, 1);
     wx_fmt_hum(h, sizeof h, r->hum_q10_pct, 0);
-    wx_fmt_press(p, sizeof p, r->press_q8_pa, 0);
-    snprintf(line, sizeof line, "%sC %s%% %shPa", t, h, p);
-    snprintf(out, WX_LINE_MAX, "%.20s", line);
+    wx_fmt_press(p, sizeof p, r->press_q8_pa, 2);
+    snprintf(line, sizeof line, "%sF Hum %s%% %s hPa", t, h, p);
+    snprintf(out, WX_LINE_MAX, "%.33s", line);
 }
 
 typedef struct {
@@ -85,7 +86,7 @@ typedef struct {
 static texts_t texts(const wx_reading_t *r)
 {
     texts_t x;
-    wx_fmt_temp(x.t, sizeof x.t, r->temp_centi_c, 2);
+    wx_fmt_temp_f(x.t, sizeof x.t, r->temp_centi_c, 2);
     wx_fmt_hum(x.h, sizeof x.h, r->hum_q10_pct, 1);
     wx_fmt_press(x.p, sizeof x.p, r->press_q8_pa, 2);
     return x;
@@ -102,7 +103,7 @@ void wx_json(const wx_reading_t *r, const char *iso, char *out, size_t len)
 {
     texts_t x = texts(r);
     snprintf(out, len,
-             "{\"time\":\"%s\",\"synced\":%s,\"temp_c\":%s,\"rh_pct\":%s,\"p_hpa\":%s}", iso,
+             "{\"time\":\"%s\",\"synced\":%s,\"temp_f\":%s,\"rh_pct\":%s,\"p_hpa\":%s}", iso,
              r->synced ? "true" : "false", x.t, x.h, x.p);
 }
 
@@ -116,7 +117,7 @@ void wx_html(const wx_reading_t *r, const char *iso, char *out, size_t len)
     texts_t x = texts(r);
     snprintf(out, len,
              "<h2>Weather</h2><table>"
-             "<tr><th>Temperature</th><td>%s &deg;C</td></tr>"
+             "<tr><th>Temperature</th><td>%s &deg;F</td></tr>"
              "<tr><th>Humidity</th><td>%s %%</td></tr>"
              "<tr><th>Pressure</th><td>%s hPa</td></tr>"
              "<tr><th>Taken</th><td>%s%s</td></tr></table>",

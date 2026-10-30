@@ -53,6 +53,10 @@ int main(int argc, char **argv)
         wl_fmt_sleep(line, sizeof line, (uint32_t)strtoul(argv[2], NULL, 10));
     } else if (strcmp(argv[1], "bme280_failed") == 0) {
         wl_fmt_bme280_failed(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "setup_pending") == 0) {
+        wl_fmt_setup_pending(line, sizeof line);
+    } else if (strcmp(argv[1], "setup_done") == 0) {
+        wl_fmt_setup_done(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "time") == 0) {
         wl_fmt_time_synced(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "wake") == 0) {
@@ -159,3 +163,10 @@ def test_time_synced_line(fmt):
 def test_sensor_failed_line(fmt):
     assert fmt("bme280_failed", "ESP_ERR_NOT_FOUND") == "bme280 failed: ESP_ERR_NOT_FOUND"
     assert fmt("bme280_failed", "ESP_ERR_TIMEOUT") == "bme280 failed: ESP_ERR_TIMEOUT"
+
+
+# TC-SC-04 · FR-24.5, FR-24.6, FR-24.8 (core): L23, L24
+def test_setup_check_lines(fmt):
+    assert fmt("setup_pending") == "setup check pending"
+    assert fmt("setup_done", "key") == "setup check done by=key"
+    assert fmt("setup_done", "timeout") == "setup check done by=timeout"

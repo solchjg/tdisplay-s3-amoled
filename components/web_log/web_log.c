@@ -227,3 +227,17 @@ void web_log_bme280_failed(esp_err_t err)
     wl_fmt_bme280_failed(line, sizeof line, esp_err_to_name(err));
     ESP_LOGE(TAG, "%s", line);
 }
+
+void web_log_setup_pending(void)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_setup_pending(line, sizeof line);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_setup_done(const char *by)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_setup_done(line, sizeof line, by);
+    ESP_LOGI(TAG, "%s", line);
+}
