@@ -30,7 +30,9 @@ With no stored credentials the display shows `Setup WiFi`, the network name
 1. Join the open network `TDS3-XXXXXX` with a phone or laptop. Most phones open the
    setup page by themselves; otherwise open `http://192.168.4.1/`.
 2. Enter your WiFi name (1 – 32 characters) and password (empty for an open
-   network, otherwise 8 – 63 characters) and press *Save and connect*.
+   network, otherwise 8 – 63 characters). To get summary emails, also fill in
+   every field under *Summary email* (chapter 5b); leave them all empty for no
+   email. Press *Save and connect*.
 3. The page confirms the network name; the device leaves its setup network, shows
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
 4. The device now waits for you to check it before it starts its sleep cycle.
@@ -110,6 +112,39 @@ board clears the kept readings.
 A sleeping board does not appear on USB; to flash it, press the user key first
 or unplug and replug it, and flash within 60 seconds.
 
+## 5b. Summary email
+
+The device can email a plain-text summary of its readings to one address, at a
+time of day you choose and then every few hours. Fill in all of these in the
+setup page (chapter 2), or none:
+
+| Field | What to enter |
+|-------|---------------|
+| SMTP server | e.g. `smtp.gmail.com`, or your own mail server's name |
+| Port | `465` (TLS) or `587` (STARTTLS), whichever your server offers |
+| User (sender) | the login, also used as the sender address, e.g. `you@gmail.com` |
+| Password | for Gmail an *app password* (Google account, Security, 2-Step Verification, App passwords), never your account password |
+| Send to | the one address that gets the summaries |
+| First summary | time of day, e.g. `07:00` (US Eastern) |
+| Every (hours) | 1 – 24; e.g. 6 sends at 07:00, 13:00, 19:00 |
+
+The server must have a certificate from a public authority (as Gmail and most
+hosted mail do); a self-signed one is refused. Each summary has the subject
+`<name> summary <date> <time>` and lists the period covered, the number of
+readings, the newest reading, and the lowest and highest temperature, humidity
+and pressure (mbar) since the previous summary.
+
+A summary goes out on the first reading at or after its time, so up to 10
+minutes late. The device turns WiFi on only for that, then sleeps again. After
+the board is plugged in or reset, the first summary is at the next scheduled
+time. If sending fails (no WiFi, server unreachable, password refused) that
+summary is skipped and the log shows `mail failed:` with the reason; the next
+one is tried at its own time. Nothing is sent while the clock has never been
+set from the network.
+
+To change the mail settings, do a factory reset (chapter 5) and set the device
+up again.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |
@@ -118,6 +153,7 @@ or unplug and replug it, and flash within 60 seconds.
 | Nothing (dark) | The display failed; the device keeps working on the network | Reset the board; the status page still answers |
 | Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
 | `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76; the rest of the device keeps working |
+| No summary email arrives | The log shows `mail failed: <reason>`: `wifi` (no network), `dns` or `connect` (server name or port wrong, or unreachable), `cert` (the server's certificate is not from a public authority), `auth` (user or password refused) | Check the settings and do chapter 5 to enter them again; for Gmail use an app password |
 | A screen that never changes | The device may be hung | It restarts itself within 15 s (watchdog); if not, unplug and replug |
 
 The device logs its state on the USB serial console (115200 baud), one line per

@@ -18,6 +18,9 @@ esp_err_t weather_read(wx_reading_t *out);
 // FR-24.3: a reading like weather_read, but not kept.
 esp_err_t weather_sample(wx_reading_t *out);
 
+// Every kept reading (FR-23.9), e.g. for the summary email (FR-25.4).
+const wx_history_t *weather_history(void);
+
 // The newest kept reading, NULL when none is kept.
 const wx_reading_t *weather_newest(void);
 

@@ -241,3 +241,17 @@ void web_log_setup_done(const char *by)
     wl_fmt_setup_done(line, sizeof line, by);
     ESP_LOGI(TAG, "%s", line);
 }
+
+void web_log_mail_sent(const char *to, uint32_t readings)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_mail_sent(line, sizeof line, to, readings);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_mail_failed(const char *reason)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_mail_failed(line, sizeof line, reason);
+    ESP_LOGW(TAG, "%s", line);
+}

@@ -64,6 +64,11 @@ esp_err_t weather_read(wx_reading_t *out)
     return err;
 }
 
+const wx_history_t *weather_history(void)
+{
+    return &history;
+}
+
 const wx_reading_t *weather_newest(void)
 {
     return wx_get(&history, 0);
