@@ -9,7 +9,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/shared/components/status_http ${ROOT}/shared/components/udp_log
                          ${ROOT}/shared/components/ota_rx ${ROOT}/shared/components/button
                          ${ROOT}/shared/components/mdns_name ${ROOT}/shared/components/wifi_net
-                         ${ROOT}/shared/components/deep_sleep
+                         ${ROOT}/shared/components/deep_sleep ${ROOT}/shared/components/time_sync
                          ${ROOT}/shared/components/esp_try)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

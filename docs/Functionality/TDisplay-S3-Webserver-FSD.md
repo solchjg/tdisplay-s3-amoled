@@ -1455,16 +1455,16 @@ time zone turns the synced UTC clock into local time.
 ### 22.2 Requirements
 
 - **FR-22.1** [Must] [user] Whenever a network is up, the device shall sync its
-  clock from it: over WiFi, by SNTP from **[proposed] `pool.ntp.org`** on each
+  clock from it: over WiFi, by SNTP from **`pool.ntp.org`** on each
   entry into ONLINE.
 - **FR-22.2** [Must] [user] The device shall apply a time zone to the synced
-  clock: **[proposed] a POSIX TZ string set at build time, default `UTC0`**.
+  clock: **a POSIX TZ string fixed at build time, default `UTC0`**.
 - **FR-22.3** [Must] [user] A reading taken before the first sync since the
   last power-on or reset shall be marked unsynced.
 - **FR-22.4** [Must] [derived from FR-22.3 and §21] A sync shall stay valid
   across deep sleep (the clock keeps running), so readings after a timer wake
   are synced if any sync happened since power-on.
-- **NFR-22.1** [Must] [proposed] The clock shall be synced within **10 s** of
+- **NFR-22.1** [Must] [user] The clock shall be synced within **10 s** of
   entering ONLINE when the time server is reachable.
 - **FR-22.5** [Must] [derived] The device shall log L20 on each sync (§7.2).
 
@@ -1569,9 +1569,9 @@ Build-time constants:
 | Log tag | `web` | [derived] |
 | Awake window after a boot that is not a deep-sleep wake | ≥ 60 s | [user] |
 | Wake key | GPIO 21, active low | [user] |
-| Time server | `pool.ntp.org` (SNTP) | [proposed] |
-| Time zone | POSIX TZ string at build time, default `UTC0` | [proposed] |
-| Sync after entering ONLINE | ≤ 10 s | [proposed] |
+| Time server | `pool.ntp.org` (SNTP) | [user] |
+| Time zone | POSIX TZ string at build time, default `UTC0` | [user] |
+| Sync after entering ONLINE | ≤ 10 s | [user] |
 | Sleep current added by the key wake | ≤ 5 µA | [user] |
 
 ## Appendix B — Lifecycle Metadata
@@ -1625,7 +1625,7 @@ baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: all approved by the user except the §22 values marked [proposed]
+approval_status: all requirements and values approved by the user
 created: 2026-10-23
 last_updated: 2026-10-30
 change_history:
@@ -1646,11 +1646,8 @@ change_history:
   - 0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution
   - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
   - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.12, NFR-21.1) from the user's answers and weather-station example, approved by the user; L18, L19
-  - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and timing proposed
+  - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and 10 s deadline approved by the user
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
-open_decisions:
-  - FR-22.1 time server (proposed pool.ntp.org)
-  - FR-22.2 time zone and where it is set (proposed a build-time POSIX TZ string, default UTC0)
-  - NFR-22.1 sync deadline after ONLINE (proposed 10 s)
+open_decisions: []
 related_test_baseline: none yet
 ```

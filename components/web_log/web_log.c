@@ -1,5 +1,7 @@
 #include "web_log.h"
 
+#include <time.h>
+
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
@@ -200,5 +202,16 @@ void web_log_wake(const char *cause)
 {
     char line[WL_LINE_MAX];
     wl_fmt_wake(line, sizeof line, cause);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_time_synced(void)
+{
+    char iso[32], line[WL_LINE_MAX];
+    time_t now = time(NULL);
+    struct tm local;
+    localtime_r(&now, &local);
+    strftime(iso, sizeof iso, "%Y-%m-%dT%H:%M:%S%z", &local);
+    wl_fmt_time_synced(line, sizeof line, iso);
     ESP_LOGI(TAG, "%s", line);
 }

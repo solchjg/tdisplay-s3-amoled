@@ -25,6 +25,7 @@
 #include "portal.h"
 #include "sdkconfig.h"
 #include "status_http.h"
+#include "time_sync.h"
 #include "udp_log.h"
 #include "web_log.h"
 #include "wifi_net.h"
@@ -38,7 +39,7 @@ static const char *TAG = "main";
 #define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
 #define LEAVE_MS 200                          // a planned restart leaves the AP first
 
-typedef enum { APP_TICK, APP_CONN } app_kind_t;
+typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED } app_kind_t;
 
 typedef struct {
     app_kind_t kind;
@@ -208,6 +209,13 @@ static void run_task_and_sleep(void)
     web_log_warn("deep sleep", err);
 }
 
+// From the SNTP (lwIP) task: logged by the application task, whose stack has room.
+static void on_time_synced(void)
+{
+    app_event_t e = {.kind = APP_TIME_SYNCED};
+    post(&e);
+}
+
 static esp_err_t lcd_sleep_cb(void *arg)
 {
     return lcd_sleep();  // FR-21.6
@@ -328,6 +336,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         ota_rx_abort();  // FR-15.13
     }
     if (a & DL_C_STOP_SERVICES) {
+        time_sync_stop();
         status_http_stop();
         udp_log_stop();
         mdns_name_stop();
@@ -356,6 +365,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = mdns_name_start(hostname);
         if (err != ESP_OK) {
             web_log_warn("mdns start", err);
+        }
+        err = time_sync_start(on_time_synced);  // FR-22.1: the network is up
+        if (err != ESP_OK) {
+            web_log_warn("time sync start", err);
         }
     }
     if (a & DL_C_CONFIRM_IMAGE) {
@@ -417,6 +430,7 @@ static void conn_event(const app_event_t *e)
 void app_main(void)
 {
     web_log_boot();
+    time_sync_init();  // FR-22.2, FR-22.4: zone, and whether a sync before a sleep holds
     wake = boot_wake();
     if (wake != DL_WAKE_NONE) {
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
@@ -493,6 +507,10 @@ void app_main(void)
         }
         if (e.kind == APP_CONN) {
             conn_event(&e);
+            continue;
+        }
+        if (e.kind == APP_TIME_SYNCED) {
+            web_log_time_synced();  // L20 (FR-22.5)
             continue;
         }
         esp_task_wdt_reset();

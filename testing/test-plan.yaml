@@ -317,6 +317,12 @@ capabilities:
     available: no
     consequence: >
       The bench declares no current meter (R-17), so NFR-21.1 has no bench run.
+  bench-internet:
+    what: The bench AP gives the DUT a route to the internet (pool.ntp.org, UDP 123)
+    available: unproven
+    consequence: >
+      R-19; TC-TIME-10 is its first run. If the bench AP has no route, the
+      test is blocked by a testbench change request, never worked around.
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the AMOLED panel, held USB-C to the right
     available: yes
@@ -1856,4 +1862,43 @@ tests:
     needs: []
     observable: "not due with no credentials stored, even 600 s after boot or after a key wake; due once stored"
     impl: tests/host/test_device_logic.py::test_no_task_before_provisioning_is_complete
+    result: {status: not done}
+
+  - id: TC-TIME-01
+    title: "A sync survives deep sleep, not a power-on or reset (time_sync core)"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-22.3, FR-22.4]
+    needs: []
+    observable: "synced before + sleep wake: synced; any other boot: unsynced"
+    impl: [shared/tests/host/test_time_sync.py]
+    result: {status: not done}
+
+  - id: TC-TIME-02
+    title: "Clock-synced log line"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: host
+    verifies: [FR-22.5]
+    needs: []
+    observable: "L20 'time synced <local ISO 8601 with offset>'"
+    impl: tests/host/test_web_log.py::test_time_synced_line
+    result: {status: not done}
+
+  - id: TC-TIME-10
+    title: "Clock synced within 10 s of ONLINE"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 4
+    tier: bench
+    verifies: [FR-22.1, FR-22.2, NFR-22.1, FR-22.5]
+    needs: [bench-internet, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1]
+    observable: "after L5, L20 within 10 s with a year >= 2026 and offset +0000 (UTC0 build)"
+    impl: tests/bench/test_time.py::test_clock_synced_after_online
     result: {status: not done}
