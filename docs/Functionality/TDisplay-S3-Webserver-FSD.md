@@ -800,7 +800,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
 | L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
 | L20 | Clock synced (FR-22.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>` (local time) | I |
-| L21 | Reading taken (FR-23.5) | `web: reading t=<°C, 2 decimals> rh=<%, 1 decimal> p=<hPa, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm> synced=<0\|1>` | I |
+| L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<hPa, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm> synced=<0\|1>` | I |
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
@@ -1516,8 +1516,8 @@ monitoring" settings: one measurement per reading, oversampling ×1 for
 temperature, pressure and humidity, IIR filter off. Between readings the
 sensor is in its sleep mode.
 
-A reading is the triple temperature (°C), relative humidity (%) and pressure
-(hPa), with the time it was taken and the synced mark of FR-22.3.
+A reading is the triple temperature (shown in °F; the sensor reports °C),
+relative humidity (%) and pressure (hPa), with the time it was taken and the synced mark of FR-22.3.
 
 ### 23.2 Readings route
 
@@ -1529,7 +1529,7 @@ A reading is the triple temperature (°C), relative humidity (%) and pressure
 |-----|------|---------------|---------|
 | `time` | string | `<YYYY-MM-DD>T<hh:mm:ss><±hhmm>`, local time (FR-22.2) | When the reading was taken |
 | `synced` | boolean | | FR-22.3: false if no sync had happened since power-on or reset |
-| `temp_c` | number | °C, 2 decimals | Temperature |
+| `temp_f` | number | °F, 2 decimals | Temperature |
 | `rh_pct` | number | %, 1 decimal | Relative humidity |
 | `p_hpa` | number | hPa, 2 decimals | Pressure |
 
@@ -1552,8 +1552,8 @@ A reading is the triple temperature (°C), relative humidity (%) and pressure
 - **FR-23.5** [Must] [user] Each reading shall be logged as L21 (§7.2); in
   ONLINE it reaches the UDP log by FR-16.1.
 - **FR-23.6** [Must] [user] While the panel is lit, line 4 of the screen shall
-  show the newest kept reading as `<t>C <rh>% <p>hPa` (temperature 1 decimal,
-  humidity and pressure whole numbers, e.g. `21.4C 45% 1013hPa`), or
+  show the newest kept reading as `<t>F <rh>% <p>hPa` (temperature 1 decimal,
+  humidity and pressure whole numbers, e.g. `70.6F 45% 1013hPa`), or
   `Sensor --` when none is kept.
 - **FR-23.7** [Must] [user] In ONLINE, `GET /` shall also show the newest kept
   reading with its time and synced mark, or say that none is kept.
@@ -1582,9 +1582,9 @@ A reading is the triple temperature (°C), relative humidity (%) and pressure
 | FR-23.1 (core) | Register writes the driver issues for one reading | `ctrl_hum` 0x01 and `config` 0x00 in sleep mode, then `ctrl_meas` 0x25 (×1, ×1, forced) | Normal mode; any oversampling other than ×1 | host |
 | FR-23.4 (core) | Driver on a fake bus: no ACK; chip ID 0x58 (BMP280); ID 0x60 | `ESP_ERR_TIMEOUT` or a bus error; `ESP_ERR_NOT_FOUND`; `ESP_OK` | A reading kept on any failure | host |
 | FR-23.9 (core) | History core: add 0, 1, 144, 145 readings | 0, 1, 144, 144 kept, newest first; the 145th drops the oldest | More than 144; a dropped newest | host |
-| FR-23.6 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; none kept | `21.4C 45% 1013hPa`; `-40.0C 100% 1100hPa`; `Sensor --` | More than 20 characters | host |
+| FR-23.6 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; 85 °C; none kept | `70.6F 45% 1013hPa`; `-40.0F 100% 1100hPa`; `185.0F …`; `Sensor --` | More than 20 characters | host |
 | FR-23.8 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced | Valid JSON, exactly the five keys per element, newest first | Extra or missing key; invalid JSON | host |
-| FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within −10 – 45 °C, 5 – 95 %, 870 – 1085 hPa | L22; no L21 | target |
+| FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within 14 – 113 °F, 5 – 95 %, 870 – 1085 hPa | L22; no L21 | target |
 | FR-23.2, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
 | FR-23.4 | Fault build reading address 0x77 | L22 with `ESP_ERR_TIMEOUT`, then the window, ONLINE and `web: sleep` as usual | A restart; a reading kept; no sleep | target |
 | FR-23.6 | ONLINE with the sensor fitted | Operator confirms line 4 matches the latest L21 | Line 4 missing, clipped or stale | bench (operator) |
@@ -1741,7 +1741,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.7.1
+fsd_version: 0.7.2
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1771,6 +1771,7 @@ change_history:
   - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and 10 s deadline approved by the user
   - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; approved by the user
   - 0.7.1 2026-10-30 FR-22.2 time zone set to US Eastern (EST5EDT) by the user
+  - 0.7.2 2026-10-30 readings shown in °F (screen, page, L21, `temp_f` in /api/readings) by the user
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9]
 open_decisions: []
 related_test_baseline: none yet

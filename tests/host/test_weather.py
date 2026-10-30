@@ -92,10 +92,13 @@ def test_history_in_uninitialised_rtc_memory_holds_nothing(core):
 
 # TC-WX-03 · FR-23.6 (core)
 @pytest.mark.parametrize("reading,line", [
-    ((21.43, 45.2, 1013.25), "21.4C 45% 1013hPa"),
-    ((-40.0, 100.0, 1100.0), "-40.0C 100% 1100hPa"),
-    ((-0.04, 0.0, 300.0), "0.0C 0% 300hPa"),
-    ((24.95, 45.5, 1013.5), "25.0C 46% 1014hPa"),
+    ((21.43, 45.2, 1013.25), "70.6F 45% 1013hPa"),
+    ((-40.0, 100.0, 1100.0), "-40.0F 100% 1100hPa"),
+    ((85.0, 100.0, 1100.0), "185.0F 100% 1100hPa"),
+    ((-17.79, 0.0, 300.0), "0.0F 0% 300hPa"),
+    ((-17.80, 0.0, 300.0), "0.0F 0% 300hPa"),  # -0.04 F: no "-0.0"
+    ((-17.84, 0.0, 300.0), "-0.1F 0% 300hPa"),
+    ((24.27, 45.5, 1013.5), "75.7F 46% 1014hPa"),
 ])
 def test_screen_line(core, reading, line):
     out = core("line", *args(*reading))
@@ -110,28 +113,28 @@ def test_screen_line_without_a_reading(core):
 # TC-WX-04 · FR-23.5 (core): L21
 def test_log_line(core):
     assert core("log", *args(21.43, 45.2, 1013.25), ISO) == (
-        f"reading t=21.43 rh=45.2 p=1013.25 at={ISO} synced=1")
-    assert core("log", *args(-5.07, 99.96, 870.004, synced=0), ISO) == (
-        f"reading t=-5.07 rh=100.0 p=870.00 at={ISO} synced=0")
+        f"reading t=70.57 rh=45.2 p=1013.25 at={ISO} synced=1")
+    assert core("log", *args(-25.07, 99.96, 870.004, synced=0), ISO) == (
+        f"reading t=-13.13 rh=100.0 p=870.00 at={ISO} synced=0")
 
 
 # TC-WX-05 · FR-23.8 (core)
 @pytest.mark.parametrize("synced", [0, 1])
 def test_json_element_has_exactly_the_five_keys(core, synced):
     obj = json.loads(core("json", *args(-40.0, 100.0, 1100.0, synced=synced), ISO))
-    assert obj == {"time": ISO, "synced": bool(synced), "temp_c": -40.0, "rh_pct": 100.0,
+    assert obj == {"time": ISO, "synced": bool(synced), "temp_f": -40.0, "rh_pct": 100.0,
                    "p_hpa": 1100.0}
 
 
 def test_json_keeps_the_stated_decimals(core):
     out = core("json", *args(21.43, 45.2, 1013.25), ISO)
-    assert '"temp_c":21.43,"rh_pct":45.2,"p_hpa":1013.25' in out
+    assert '"temp_f":70.57,"rh_pct":45.2,"p_hpa":1013.25' in out
 
 
 # TC-WX-06 · FR-23.7 (core)
 def test_html_section(core):
     page = core("html", *args(21.43, 45.2, 1013.25, synced=0), ISO)
-    for text in ("21.43 &deg;C", "45.2 %", "1013.25 hPa", ISO, "(unsynced)"):
+    for text in ("70.57 &deg;F", "45.2 %", "1013.25 hPa", ISO, "(unsynced)"):
         assert text in page
     assert "(unsynced)" not in core("html", *args(21.43, 45.2, 1013.25), ISO)
     assert "No reading kept" in core("html")

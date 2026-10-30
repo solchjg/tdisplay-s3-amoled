@@ -38,7 +38,7 @@ With no stored credentials the display shows `Setup WiFi`, the network name
 
 When connected, the display shows `IP <address>`, `Req: <count>` (requests
 answered since start) and `<name>.local`. The fourth line, in every state, is
-the latest weather reading, e.g. `21.4C 45% 1013hPa`, or `Sensor --` if there
+the latest weather reading, e.g. `70.6F 45% 1013hPa`, or `Sensor --` if there
 is none.
 
 - Status page: `http://<address>/`
@@ -48,7 +48,7 @@ is none.
   ("unsynced" if the clock had not been set from the network yet).
 - Every reading kept since the board was plugged in (up to 144, the last
   24 hours), newest first: `http://<address>/api/readings` — each with `time`,
-  `synced`, `temp_c`, `rh_pct`, `p_hpa`.
+  `synced`, `temp_f` (°F), `rh_pct`, `p_hpa`.
 - On networks that resolve mDNS names, `http://tds3-xxxxxx.local/` also works.
 
 There is no login: anyone on your network can read it.

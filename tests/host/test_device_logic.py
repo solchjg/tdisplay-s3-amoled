@@ -337,7 +337,7 @@ def test_no_task_before_provisioning_is_complete(run):
 # TC-WX-03 · FR-23.6 (core): line 4 is the reading in every state, empty when none is given
 @pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
 def test_line_four_is_the_reading_in_every_state(run, state):
-    lines = run("screen", state, *ONLINE[1:], "21.4C 45% 1013hPa").split("\n")
-    assert lines[3] == "21.4C 45% 1013hPa"
+    lines = run("screen", state, *ONLINE[1:], "70.6F 45% 1013hPa").split("\n")
+    assert lines[3] == "70.6F 45% 1013hPa"
     assert lines[:3] == screen(run, state), "lines 1 - 3 unchanged"
     assert run("screen", state, *ONLINE[1:]).split("\n")[3] == ""

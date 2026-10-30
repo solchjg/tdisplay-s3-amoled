@@ -1960,7 +1960,7 @@ tests:
     tier: host
     verifies: [FR-23.6]
     needs: []
-    observable: "'21.4C 45% 1013hPa', '-40.0C 100% 1100hPa', 'Sensor --'; at most 20 characters; lines 1 - 3 unchanged"
+    observable: "'70.6F 45% 1013hPa', '-40.0F 100% 1100hPa', 'Sensor --'; at most 20 characters; lines 1 - 3 unchanged"
     impl: [tests/host/test_weather.py::test_screen_line, tests/host/test_weather.py::test_screen_line_without_a_reading, tests/host/test_device_logic.py::test_line_four_is_the_reading_in_every_state]
     result: {status: not done}
 
@@ -1973,7 +1973,7 @@ tests:
     tier: host
     verifies: [FR-23.5]
     needs: []
-    observable: "L21 'reading t=21.43 rh=45.2 p=1013.25 at=<iso> synced=1'"
+    observable: "L21 'reading t=70.57 rh=45.2 p=1013.25 at=<iso> synced=1' (°F)"
     impl: tests/host/test_weather.py::test_log_line
     result: {status: not done}
 
@@ -1986,7 +1986,7 @@ tests:
     tier: host
     verifies: [FR-23.8]
     needs: []
-    observable: "valid JSON, exactly time, synced, temp_c, rh_pct, p_hpa with the stated decimals"
+    observable: "valid JSON, exactly time, synced, temp_f, rh_pct, p_hpa with the stated decimals"
     impl: [tests/host/test_weather.py::test_json_element_has_exactly_the_five_keys, tests/host/test_weather.py::test_json_keeps_the_stated_decimals]
     result: {status: not done}
 
@@ -2025,7 +2025,7 @@ tests:
     tier: target
     verifies: [FR-23.3, FR-23.5, NFR-23.1]
     needs: [bench-flash, bench-serial-monitor, dut-amoled-slot1, dut-bme280]
-    observable: "after a USB reset, L21 before L2 with -10 - 45 C, 5 - 95 %, 870 - 1085 hPa; no L22"
+    observable: "after a USB reset, L21 before L2 with 14 - 113 F, 5 - 95 %, 870 - 1085 hPa; no L22"
     impl: []
     result: {status: not done}
 
