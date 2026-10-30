@@ -79,7 +79,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `identity` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `identity` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through
@@ -99,6 +99,8 @@ Other builds sharing the components:
 - `tests/target/lcd_fault/` — shipped `main/` with `lcd` replaced by a
   fault-injection stub (variants `sdkconfig.init`, `sdkconfig.write5`); test
   artefact only, never released.
+- `tests/target/sleep/` — shipped `main/` with a stand-in task that sleeps
+  `SLEEP_S` (10 or 300) seconds twice per power-on (FSD §21.3); test artefact only.
 - `commissioning/{forward-path,lcd-probe}/` — Phase 2 bring-up programs, never released.
 
 ## Testing

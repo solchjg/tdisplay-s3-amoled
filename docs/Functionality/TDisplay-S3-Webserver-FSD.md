@@ -43,6 +43,7 @@ reused.
 | 10 | Build & Platform Constraints | cross-cutting |
 | 19 | Watchdog | cross-cutting |
 | 20 | Device Identity | cross-cutting |
+| 21 | Deep Sleep | cross-cutting |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -157,7 +158,8 @@ size limit, rollback, console) are stated as constraints in §10.
 │ L1  Interfaces        │ LCD Display (§6) · Serial Log (§7) ·             │
 │                       │ Provisioning Portal (§13) · Status HTTP (§14) ·  │
 │                       │ OTA Receiver (§15) · UDP Log (§16) ·             │
-│                       │ mDNS Responder (§17) · BOOT Button (§18)         │
+│                       │ mDNS Responder (§17) · BOOT Button (§18) ·       │
+│                       │ Deep Sleep (§21)                                 │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ L0  Foundation        │ ESP-IDF (§8): esp_wifi, esp_netif/lwIP,          │
 │                       │ esp_http_server, nvs_flash, app_update,          │
@@ -169,7 +171,8 @@ size limit, rollback, console) are stated as constraints in §10.
 ```
 
 - **L2 Device Logic** owns both state models of §5, the screen content of each
-  state, the retry schedule, and the confirm-or-roll-back decision. Pure
+  state, the retry schedule, the confirm-or-roll-back decision, and when the
+  task runs (§21). Pure
   functions; no I/O.
 - **L1 interfaces** own their wire formats: the HTTP routes and bodies, the portal
   form and its validation, the OTA request and download rules, the log line formats, the
@@ -270,6 +273,8 @@ testbench.
 | R-14 | The bench AP does not re-admit a station that reset without a deauth (SensorsIot/Embedded-AI-Harness#54), so no test can reset or power-cycle a provisioned DUT and expect it back on the same AP | Certain | Medium | Waived for shipment (Appendix B, Verification waivers); a reset with the AP down and a fresh AP start is used wherever the requirement allows it |
 | R-15 | The bench has one radio, which cannot scan while its AP beacons, so nothing can be scanned while the DUT is ONLINE on the bench AP or right after enter-portal starts the AP | Certain | Low | FR-9.4's ONLINE part and FR-5.13's SoftAP-gone timing are waived (Appendix B); their other parts are verified with the AP stopped |
 | R-16 | The bench's UDP log listener cannot be stopped, so FR-16.3 (no receiver) has no bench run | Certain | Low | Waived (Appendix B); the non-blocking send holds it by construction |
+| R-17 | The bench declares no current meter, so the sleep-current limit (NFR-21.1) has no bench run | Certain | Low | Measured by the operator with a meter, or waived; the key wake keeps the RTC peripheral domain off by construction |
+| R-18 | The USB-Serial/JTAG port disappears while the chip sleeps, and EN/BOOT are not proven wired on SLOT1, so a sleeping device cannot be flashed or monitored | Certain | High | FR-21.3: every boot that is not a sleep wake stays awake 60 s; sleep tests use short periods; the user key wakes the device |
 
 ### 4.2 Assumptions
 
@@ -773,6 +778,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L15 | T10 | `web: factory reset` | W |
 | L17b | BOOT button held 5 s (FR-18.3 threshold reached) | `web: button held, release to reset` | W |
 | L16 | T13 | `web: ota not confirmed, restarting` | E |
+| L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
+| L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1364,6 +1371,74 @@ verification:
 
 ---
 
+## 21. Deep Sleep
+
+### 21.1 Purpose & peer
+
+Between tasks the device sleeps, so it can run from a battery, like a remote
+weather station that wakes, reads its sensors, reports (e.g. over cellular) and
+sleeps again. After a boot that is not a sleep wake, and after a key wake, it is
+fully up for a window (panel, WiFi, web page, OTA; the bench can reach it); then
+it runs its task (read a sensor and act on the data; the task itself is not yet
+specified), which tells it to sleep for a period of the task's choosing. A timer
+wake is the lean path: the task runs with the panel dark and WiFi off, then
+sleeps again. Waking from deep sleep is a
+reboot. Built on the shared `deep_sleep` component; the logic layer (§5)
+decides when to sleep, the composition root performs it.
+
+The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
+`pins_config.h`); GPIO 0 (BOOT) stays the factory-reset button (§18).
+
+### 21.2 Requirements
+
+- **FR-21.1** [Must] [user] When told to go back to sleep with a period of
+  N seconds, the device shall enter deep sleep and wake N s later.
+- **FR-21.2** [Must] [user] After a boot that is not a deep-sleep wake, the
+  device shall stay awake for at least 60 s before it sleeps.
+- **FR-21.3** [Must] [derived from FR-21.2 and T13] The 60 s window shall apply
+  to every boot that is not a timer wake (power-on, reset, OTA restart, key wake,
+  watchdog), so an image pending verify is confirmed or rolled back before any
+  sleep and the bench can always flash the device.
+- **FR-21.4** [Must] [user] After the window, and after every timer wake, the
+  device shall run its task, then sleep when told to.
+- **FR-21.9** [Must] [user] The task shall
+  tell the device to sleep and choose the period; nothing outside the firmware
+  (HTTP, portal) can.
+- **FR-21.10** [Must] [user] After a timer
+  wake the device shall leave the panel dark and the WiFi radio off, run the
+  task, and sleep again; no window, no web server.
+- **FR-21.11** [Must] [user] A key wake
+  shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
+  server, then the task (local maintenance and OTA).
+- **FR-21.12** [Must] [user] The device shall not sleep before WiFi
+  provisioning is complete: while no credentials are stored (PROVISIONING),
+  the task does not run, whatever the time since boot.
+- **FR-21.5** [Must] [user] Pressing the user key (GPIO 21) during sleep shall
+  wake the device before the period ends.
+- **NFR-21.1** [Must] [user] Arming the key wake shall add no more than
+  **5 µA** to the sleep current.
+- **FR-21.6** [Must] [user] During sleep the panel shall be powered fully off:
+  dark, display off, sleep in, then its power GPIO (38) held low.
+- **FR-21.7** [Must] [derived] Before sleeping, a station shall leave its AP
+  (radio stopped), so the AP sees the station go.
+- **FR-21.8** [Must] [derived] The device shall log L18 as the last `web:` line
+  before sleep, and L19 right after L1 on a deep-sleep wake (§7.2).
+
+### 21.3 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-21.1 (core) | `deep_sleep` core: periods 0, 1, max, max + 1; wake causes timer, EXT1 on GPIO 21, EXT1 elsewhere, none | Valid only within the limits; TIMER, BUTTON, NONE, NONE | An out-of-range period accepted | host |
+| FR-21.1 | Sleep test build: told to sleep 10 s once the window ends | `web: sleep s=10`, then L1 and `web: wake cause=timer` 10 – 13 s later | Any line during the 10 s | target |
+| FR-21.2, FR-21.3 | Reset over USB | No `web: sleep` earlier than 60 s after L1 | A sleep inside the window | target |
+| FR-21.12 (core) | Task due check with no credentials stored, 600 s after boot | Not due; due once credentials are stored | The task running in PROVISIONING | host |
+| FR-21.5, FR-21.11 | Asleep for 300 s; operator presses the user key | L1 and `web: wake cause=button` within 3 s of the press, then L2 and no `web: sleep` for 60 s | Waking only at the period's end; sleeping inside the window | bench (operator) |
+| FR-21.10 | Sleep test build, timer wake | `web: wake cause=timer`, then `web: sleep` with no L2, L5 or L7 between | WiFi started, panel lit, the window applied | target |
+| FR-21.6 | Asleep | Operator confirms the panel is dark | A lit or flickering panel | bench (operator) |
+| NFR-21.1 | Sleep current with and without the key wake armed | Difference ≤ 5 µA | — | bench (needs a current meter, R-17) |
+
+---
+
 # Part E — Operations & Verification
 
 ## 11. Operational Procedures
@@ -1453,6 +1528,9 @@ Build-time constants:
 | Timing tolerance of restart and detection deadlines | up to + 3 s late, never early | [user] |
 | UDP log destination | station gateway, port 5555 | [user] |
 | Log tag | `web` | [derived] |
+| Awake window after a boot that is not a deep-sleep wake | ≥ 60 s | [user] |
+| Wake key | GPIO 21, active low | [user] |
+| Sleep current added by the key wake | ≤ 5 µA | [user] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -1499,7 +1577,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.4.0
+fsd_version: 0.5.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1507,7 +1585,7 @@ author: solchjg
 reviewers: []
 approval_status: all requirements and values approved by the user
 created: 2026-10-23
-last_updated: 2026-10-29
+last_updated: 2026-10-30
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - 0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS
@@ -1525,6 +1603,7 @@ change_history:
   - 0.3.8 2026-10-24 verification waivers accepted by the user for shipment (Appendix B); R-14 (bench #54), R-15 (one bench radio), R-16 (UDP listener) added; bench clock resolution in Appendix A; R-12/R-13 order
   - 0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution
   - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
+  - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.12, NFR-21.1) from the user's answers and weather-station example, approved by the user; L18, L19
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
 open_decisions: []
 related_test_baseline: none yet

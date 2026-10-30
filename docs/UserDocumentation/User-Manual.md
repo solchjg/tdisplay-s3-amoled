@@ -73,12 +73,28 @@ credentials are erased, the device restarts, and it shows the setup screen of
 chapter 2 again. A shorter press does nothing. Do not hold BOOT while plugging the
 board in: that starts the chip's download mode instead.
 
+## 5a. Sleeping between tasks
+
+A firmware with a task (reading a sensor, for example) never sleeps before its
+WiFi is set up (chapter 2). Once it is, it runs the task 60 seconds after it is
+plugged in or reset, then sleeps for the time the task chooses. The screen
+is off and WiFi is down while it sleeps. When the time is up it wakes, runs the
+task again without turning on the screen or WiFi, and goes back to sleep. To
+reach it while it sleeps, press the user key (the button that is not BOOT): it
+wakes fully, with the screen, WiFi and status page, for at least 60 seconds,
+then runs the task and sleeps again. This firmware has no task yet, so it never
+sleeps.
+
+A sleeping board does not appear on USB; to flash it, press the user key first
+or unplug and replug it, and flash within 60 seconds.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |
 |---------------|---------|------------|
 | `Connecting` and then `WiFi lost` / `Retrying`, repeating | The stored network is unreachable or the password is wrong; the device retries every 1 – 15 s and never gives up | Check the access point; to enter new credentials, do chapter 5 |
 | Nothing (dark) | The display failed; the device keeps working on the network | Reset the board; the status page still answers |
+| Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
 | A screen that never changes | The device may be hung | It restarts itself within 15 s (watchdog); if not, unplug and replug |
 
 The device logs its state on the USB serial console (115200 baud), one line per

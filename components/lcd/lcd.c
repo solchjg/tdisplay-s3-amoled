@@ -4,6 +4,7 @@
 
 #include "lcd.h"
 
+#include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "lcd_layout.h"
 #include "rm67162.h"
@@ -50,4 +51,18 @@ void lcd_backlight(bool on)
 esp_err_t lcd_start(void)
 {
     return rm67162_start(&panel_cfg);
+}
+
+esp_err_t lcd_sleep(void)
+{
+    if (rm67162_canvas(NULL) != NULL) {
+        return rm67162_sleep();
+    }
+    gpio_config_t c = {.pin_bit_mask = 1ULL << TDISPLAY_S3_AMOLED_LCD_PWR,
+                       .mode = GPIO_MODE_OUTPUT};
+    esp_err_t err = gpio_config(&c);
+    if (err == ESP_OK) {
+        err = gpio_set_level(TDISPLAY_S3_AMOLED_LCD_PWR, 0);
+    }
+    return err == ESP_OK ? gpio_hold_en(TDISPLAY_S3_AMOLED_LCD_PWR) : err;
 }
