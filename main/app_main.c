@@ -180,9 +180,97 @@ static dl_wake_t boot_wake(void)
 }
 
 #ifdef TDS3_TEST_SLEEP_S
-// Sleep test build (FSD §21.3): two sleeps per power-on, then awake for good, so
-// the bench can flash the next build. RTC memory survives the sleeps only.
-static RTC_DATA_ATTR uint32_t test_sleeps;
+// Sleep test build (FSD §21.3): two sleeps per flash, then awake for good, so the
+// bench can flash the next build. The bench loses the first second of output after
+// each restart, so every boot since the flash is kept in RTC memory (through sleeps
+// and any reset taken while asleep) and logged again once the device stays awake.
+#include <sys/time.h>
+
+#define TEST_BOOTS 8
+#define TEST_MAGIC 0x534c5048u
+
+typedef struct {
+    uint32_t magic;
+    uint32_t sleeps;   // sleeps asked for since the flash
+    uint32_t boots;
+    bool asleep;       // set at sleep entry, cleared by the next boot
+    int64_t slept_us;  // system time at the last sleep entry
+    struct {
+        esp_reset_reason_t reset;
+        dl_wake_t wake;
+        int32_t asleep_ms;    // since the previous sleep entry, -1 for none
+        uint32_t slept_at_ms; // uptime at this boot's sleep entry, 0 for none
+    } boot[TEST_BOOTS];
+} test_history_t;
+
+static RTC_NOINIT_ATTR test_history_t test_hist;
+
+static int64_t now_us(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
+// A boot that does not follow a sleep (the flash's reset) starts a new history.
+static void test_record_boot(dl_wake_t w)
+{
+    esp_reset_reason_t r = esp_reset_reason();
+    bool after_sleep = test_hist.magic == TEST_MAGIC &&
+                       (r == ESP_RST_DEEPSLEEP || test_hist.asleep);
+    if (!after_sleep) {
+        memset(&test_hist, 0, sizeof test_hist);
+        test_hist.magic = TEST_MAGIC;
+    }
+    int64_t ms = after_sleep ? (now_us() - test_hist.slept_us) / 1000 : -1;
+    test_hist.asleep = false;
+    if (test_hist.boots < TEST_BOOTS) {
+        test_hist.boot[test_hist.boots].reset = r;
+        test_hist.boot[test_hist.boots].wake = w;
+        test_hist.boot[test_hist.boots].asleep_ms = ms < 0 || ms > INT32_MAX ? -1 : (int32_t)ms;
+        test_hist.boot[test_hist.boots].slept_at_ms = 0;
+    }
+    test_hist.boots++;
+}
+
+static void test_mark_sleep(void)
+{
+    if (test_hist.boots - 1 < TEST_BOOTS) {
+        test_hist.boot[test_hist.boots - 1].slept_at_ms =
+            (uint32_t)(esp_timer_get_time() / 1000);
+    }
+    test_hist.slept_us = now_us();
+    test_hist.asleep = true;
+}
+
+static const char *reset_name(esp_reset_reason_t r)
+{
+    switch (r) {
+    case ESP_RST_POWERON: return "poweron";
+    case ESP_RST_SW: return "sw";
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    case ESP_RST_USB: return "usb";
+    case ESP_RST_JTAG: return "jtag";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT: return "wdt";
+    case ESP_RST_BROWNOUT: return "brownout";
+    default: return "other";
+    }
+}
+
+static void test_log_history(void)
+{
+    static const char *wake_names[] = {"none", "timer", "button"};
+    uint32_t n = test_hist.boots < TEST_BOOTS ? test_hist.boots : TEST_BOOTS;
+    for (uint32_t i = 0; i < n; i++) {
+        ESP_LOGI(TAG, "sleeptest: boot %lu/%lu reset=%s wake=%s asleep_ms=%ld slept_at_ms=%lu",
+                 (unsigned long)i, (unsigned long)test_hist.boots,
+                 reset_name(test_hist.boot[i].reset), wake_names[test_hist.boot[i].wake],
+                 (long)test_hist.boot[i].asleep_ms, (unsigned long)test_hist.boot[i].slept_at_ms);
+    }
+}
 #endif
 
 // The task (FR-21.4, FR-21.9): reads the sensors and acts on the data, then
@@ -191,7 +279,7 @@ static RTC_DATA_ATTR uint32_t test_sleeps;
 static uint32_t run_task(void)
 {
 #ifdef TDS3_TEST_SLEEP_S
-    return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
+    return test_hist.sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
 #else
     return 0;
 #endif
@@ -205,6 +293,9 @@ static void run_task_and_sleep(void)
         return;
     }
     web_log_sleep(s);                    // L18
+#ifdef TDS3_TEST_SLEEP_S
+    test_mark_sleep();
+#endif
     esp_err_t err = deep_sleep_for(s);   // returns only on failure
     web_log_warn("deep sleep", err);
 }
@@ -432,6 +523,9 @@ void app_main(void)
     web_log_boot();
     time_sync_init();  // FR-22.2, FR-22.4: zone, and whether a sync before a sleep holds
     wake = boot_wake();
+#ifdef TDS3_TEST_SLEEP_S
+    test_record_boot(wake);
+#endif
     if (wake != DL_WAKE_NONE) {
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
     }
@@ -533,5 +627,10 @@ void app_main(void)
         if (++tick % ALIVE_TICKS == 0) {
             web_log_alive(alive++);
         }
+#ifdef TDS3_TEST_SLEEP_S
+        if (tick % ALIVE_TICKS == 5) {
+            test_log_history();
+        }
+#endif
     }
 }

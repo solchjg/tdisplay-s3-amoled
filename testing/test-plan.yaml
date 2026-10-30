@@ -1821,7 +1821,7 @@ tests:
     tier: target
     verifies: [FR-21.1, FR-21.2, FR-21.3, FR-21.8, FR-21.10]
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, dut-amoled-slot1]
-    observable: "L18 >= 60 s after L1; nothing for 10 s; L1 and L19 cause=timer 9-13 s later; no L2, L5 or L7 before the next L18"
+    observable: "The build's boot history: flash boot slept >= 59 s after start; two deep-sleep boots with wake cause timer, each 9-13 s after the previous sleep; the first slept again within 3 s; three boots in all"
     impl: tests/bench/test_sleep.py::test_window_then_timer_sleep_and_lean_wake
     result: {status: not done}
 
@@ -1834,7 +1834,7 @@ tests:
     tier: bench
     verifies: [FR-21.5, FR-21.6, FR-21.11]
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1]
-    observable: "operator sees a dark panel; after the key press L19 cause=button long before 300 s, L2 follows, no L18 for 40 s"
+    observable: "operator sees a dark panel; after the key press the boot history shows a deep-sleep boot with wake cause button long before 300 s; L2 follows, no L18 for 40 s"
     impl: tests/bench/test_sleep.py::test_key_wake_gets_the_window
     result: {status: not done}
 

@@ -4,11 +4,15 @@ Needs SLEEP_10_DIR and SLEEP_300_DIR: the coldflash directories of the CI job
 sleep (periods 10 and 300). Flashed without an erase, so stored credentials
 stay; the device needs them, since it never sleeps before provisioning is
 complete (FR-21.12). While the chip sleeps its USB-Serial/JTAG port is gone
-(R-18): the ring shows nothing for the period, then the wake's boot. The shipped build
+(R-18), and the bench loses about the first second after each restart, where L1
+and L19 are; so the sleep build keeps each boot's reset reason, wake cause and
+time asleep in RTC memory and logs them every 10 s once it stays awake
+(`sleeptest: boot i/n ...`), and the timer test reads those. The shipped build
 (FIRMWARE_DIR) is flashed back at the end, while the device is awake.
 """
 
 import os
+import re
 import time
 
 import pytest
@@ -48,28 +52,44 @@ def test_window_then_timer_sleep_and_lean_wake(bench, dut):
     stop_bench_ap(bench)  # target tier: the device need not be online
     mark = time.time()
     flash_dir(bench, dut, "SLEEP_10_DIR")
-    # The build sleeps twice per power-on: window, 10 s, lean wake, 10 s, then awake.
-    time.sleep(WINDOW_S + 2 * 10 + 30)
+    # The build sleeps twice per flash: window, 10 s, lean wake, 10 s, then awake
+    # and logging its boot history every 10 s.
+    time.sleep(WINDOW_S + 2 * 10 + 40)
     entries = ring(bench, dut, mark)
     save_evidence("sleep-timer", [e["text"] for e in entries])
-    t_boot = first(entries, "web: boot reason=")
-    assert t_boot, "no boot after the flash"
-    t_sleep = first(entries, "web: sleep s=10", t_boot)
-    assert t_sleep, "no L18 after the window"
-    assert t_sleep - t_boot >= WINDOW_S - 1, f"slept {t_sleep - t_boot:.1f} s after boot"
-    t_wake = first(entries, "web: boot reason=", t_sleep + 0.001)
-    assert t_wake, "no boot after the sleep"
-    assert 10 - 1 <= t_wake - t_sleep <= 10 + TOL, f"woke {t_wake - t_sleep:.1f} s after L18"
-    quiet = [e["text"] for e in entries if t_sleep < e["ts"] < t_wake - 1 and "web:" in e["text"]]
-    assert not quiet, f"lines during the sleep: {quiet}"
-    t_again = first(entries, "web: sleep s=10", t_wake)
-    assert t_again, "the lean wake did not sleep again"
-    lean = [e["text"] for e in entries if t_wake <= e["ts"] <= t_again]
-    assert any("web: wake cause=timer" in t for t in lean), "no L19 after the timer wake"
-    for t in lean:
-        assert not any(k in t for k in ("web: state=", "web: online", "web: lcd line")), \
-            f"lean path did more than the task: {t}"
-    assert t_again - t_wake < WINDOW_S / 2, "the lean wake waited for a window"
+    assert first(entries, "web: sleep s=10"), "no L18 after the window"
+    boots = history(entries)
+    assert len(boots) == 3, f"expected 3 boots since the flash, history: {boots}"
+    flash, lean, last = boots
+    assert flash["reset"] != "deepsleep" and flash["wake"] == "none", flash
+    assert flash["slept_at_ms"] >= (WINDOW_S - 1) * 1000, f"slept inside the window: {flash}"
+    for b in (lean, last):
+        assert b["reset"] == "deepsleep", f"woken by a reset, not the timer: {b}"
+        assert b["wake"] == "timer", f"no timer wake cause: {b}"
+        assert (10 - 1) * 1000 <= b["asleep_ms"] <= (10 + TOL) * 1000, f"asleep {b}"
+    # FR-21.10: the lean wake ran the task and slept again at once.
+    assert 0 < lean["slept_at_ms"] < 3000, f"the lean wake did not sleep again at once: {lean}"
+    assert last["slept_at_ms"] == 0, f"slept a third time: {last}"
+
+
+HIST = re.compile(r"sleeptest: boot (\d+)/(\d+) reset=(\w+) wake=(\w+) "
+                  r"asleep_ms=(-?\d+) slept_at_ms=(\d+)")
+
+
+def history(entries):
+    """The latest boot history the sleep test build logged, oldest boot first."""
+    boots = {}
+    total = None
+    for e in entries:
+        m = HIST.search(e["text"])
+        if m:
+            i, n = int(m[1]), int(m[2])
+            if n != total:
+                boots, total = {}, n
+            boots[i] = {"reset": m[3], "wake": m[4],
+                        "asleep_ms": int(m[5]), "slept_at_ms": int(m[6])}
+    assert boots, "no sleeptest history in the log"
+    return [boots[i] for i in sorted(boots)]
 
 
 # TC-SLP-11 · FR-21.5, FR-21.6, FR-21.11
@@ -86,14 +106,15 @@ def test_key_wake_gets_the_window(bench, dut):
     assert bench.human_interaction(
         "TC-SLP-11 step 2 of 2: press the user key ONCE, the button that is NOT the "
         "BOOT button, then press DONE. (Do NOT unplug.)", timeout=120)
-    up = bench.serial_monitor(dut, pattern="web: wake cause=button", timeout=30)
-    assert up.get("matched"), "no L19 cause=button after the key press"
     # Watch 40 s of the window; the shipped build is flashed back before it ends
     # (the build would sleep 300 s again). The full 60 s is TC-SLP-01's.
     time.sleep(40)
     entries = ring(bench, dut, mark)
     save_evidence("sleep-key", [e["text"] for e in entries])
-    t_wake = first(entries, "web: wake cause=button")
-    assert t_wake and t_wake - asked < 120 + TOL, "woke only at the period's end"
-    assert first(entries, "web: state=", t_wake), "key wake did not start the connectivity region"
-    assert first(entries, "web: sleep s=", t_wake) is None, "slept inside the window"
+    boots = history(entries)
+    assert len(boots) == 2, f"expected 2 boots since the flash, history: {boots}"
+    key = boots[-1]
+    assert key["reset"] == "deepsleep" and key["wake"] == "button", f"no key wake: {key}"
+    assert key["asleep_ms"] < (300 - 30) * 1000, f"woke only at the period's end: {key}"
+    assert first(entries, "web: state=", asked), "key wake did not start the connectivity region"
+    assert first(entries, "web: sleep s=", asked) is None, "slept inside the window"
