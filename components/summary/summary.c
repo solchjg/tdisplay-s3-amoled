@@ -19,17 +19,20 @@
 #define KEY_SLOT "slot"
 #define MAIL_STACK 8192  // the TLS handshake runs on it
 
+// No capitals, corrections or suggestions from a phone keyboard in these fields.
+#define NO_ASSIST " autocapitalize=\"none\" autocorrect=\"off\" spellcheck=\"false\""
+
 // FR-25.1: §25.2's fields, all optional as a group.
 static const char FORM_HTML[] =
     "<h2>Email summary (optional)</h2>"
-    "<p><label>SMTP server <input name=\"mail_host\" maxlength=\"64\" "
-    "placeholder=\"smtp.gmail.com\"></label></p>"
+    "<p><label>SMTP server (Gmail: smtp.gmail.com) "
+    "<input name=\"mail_host\" maxlength=\"64\"" NO_ASSIST "></label></p>"
     "<p><label>Port <select name=\"mail_port\"><option value=\"\">-</option>"
     "<option>465</option><option>587</option></select></label></p>"
-    "<p><label>Login (sender address) <input name=\"mail_user\" maxlength=\"64\"></label></p>"
+    "<p><label>Login (sender address) <input name=\"mail_user\" maxlength=\"64\"" NO_ASSIST "></label></p>"
     "<p><label>Password (Gmail: app password) <input name=\"mail_password\" "
     "type=\"password\" maxlength=\"64\"></label></p>"
-    "<p><label>Send to <input name=\"mail_to\" type=\"email\" maxlength=\"64\"></label></p>"
+    "<p><label>Send to <input name=\"mail_to\" type=\"email\" maxlength=\"64\"" NO_ASSIST "></label></p>"
     "<p><label>First summary at <input name=\"mail_time\" type=\"time\"></label></p>"
     "<p><label>Then every <input name=\"mail_every\" type=\"number\" min=\"1\" max=\"24\"> "
     "hours</label></p>";

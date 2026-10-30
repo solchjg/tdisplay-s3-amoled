@@ -119,6 +119,13 @@ def test_each_invalid_field_is_named(core, name, value):
     assert core("parse", with_field(name, value)) == f"bad {name}"
 
 
+def test_spaces_around_a_value_are_dropped(core):
+    body = with_field("mail_host", "+smtp.gmail.com+")
+    body = body.replace("mail_to=you%40example.org", "mail_to=you%40example.org%20")
+    body = body.replace("mail_password=abcd+efgh+ijkl+mnop", "mail_password=+pw+")
+    assert core("parse", body) == "on smtp.gmail.com|465|me@gmail.com| pw |you@example.org|420|6"
+
+
 def test_a_partial_group_is_refused(core):
     assert core("parse", "ssid=a&password=&mail_to=you%40example.org") == "bad mail_host"
 

@@ -65,6 +65,25 @@ static int small(const char *s, int n, int lo, int hi)
     return v >= lo && v <= hi ? v : -1;
 }
 
+// Spaces and tabs around a value, as a phone keyboard's autocomplete leaves
+// them, are not part of it. Returns the new length.
+static int trim(char *s, int n)
+{
+    if (n <= 0) {
+        return n;
+    }
+    int a = 0;
+    while (a < n && (s[a] == ' ' || s[a] == '\t')) {
+        a++;
+    }
+    while (n > a && (s[n - 1] == ' ' || s[n - 1] == '\t')) {
+        n--;
+    }
+    memmove(s, s + a, (size_t)(n - a));
+    s[n - a] = '\0';
+    return n - a;
+}
+
 const char *sm_parse(const char *body, size_t len, sm_settings_t *out)
 {
     char v[N_FIELDS][SM_FIELD_MAX + 1];
@@ -73,6 +92,9 @@ const char *sm_parse(const char *body, size_t len, sm_settings_t *out)
     memset(out, 0, sizeof *out);
     for (size_t i = 0; i < N_FIELDS; i++) {
         n[i] = pc_field(body, len, FIELDS[i], v[i], SM_FIELD_MAX);
+        if (i != 3) {  // a password may begin or end with a space
+            n[i] = trim(v[i], n[i]);
+        }
         any |= n[i] != 0 && n[i] != PC_FIELD_ABSENT;  // filled, or too long to read
     }
     if (!any) {
