@@ -15,9 +15,9 @@ bench answers only — never memory, transcripts, or the author's account.
 ## Mechanical checks
 
 ```bash
-gh release list -R solchjg/tdisplay-s3-webserver -L 1
-gh run list -R solchjg/tdisplay-s3-webserver --workflow build.yml -L 3
-gh run view <run-id> -R solchjg/tdisplay-s3-webserver --json jobs --jq '.jobs[] | {name, conclusion}'
+gh release list -R solchjg/tdisplay-s3-amoled -L 1
+gh run list -R solchjg/tdisplay-s3-amoled --workflow build.yml -L 3
+gh run view <run-id> -R solchjg/tdisplay-s3-amoled --json jobs --jq '.jobs[] | {name, conclusion}'
 ```
 
 ## Traps

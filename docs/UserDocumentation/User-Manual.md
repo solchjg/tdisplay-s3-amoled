@@ -53,7 +53,7 @@ device can reach, then tell the device its URL:
 
 ```bash
 curl -H 'Content-Type: application/json' \
-     -d '{"url":"http://<server>/tdisplay-s3-webserver.bin"}' http://<address>/ota
+     -d '{"url":"http://<server>/tdisplay-s3-amoled.bin"}' http://<address>/ota
 ```
 
 The device answers `{"ok":true}` at once, downloads the image (about 20 s for

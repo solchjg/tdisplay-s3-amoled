@@ -6,7 +6,7 @@ name: Commissioning aids
 on:
   push:
     branches: [main]
-    paths: ['commissioning/**', '.github/workflows/commissioning.yml']
+    paths: ['commissioning/**', 'shared', '.github/workflows/commissioning.yml']
   workflow_dispatch:
 
 permissions:
@@ -28,6 +28,8 @@ jobs:
         working-directory: /
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
+        with:
+          submodules: true   # lcd-probe builds the shared rm67162 driver
       # forward-path uses the product's own table (C-10.6), named relative to
       # the project directory; the others ignore the copy.
       - name: Use the shipped partition table

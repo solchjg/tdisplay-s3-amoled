@@ -77,4 +77,4 @@ def test_dhcp_hostname_reaches_the_bench(bench, dut, online_ip):
     events = bench._api_get("/api/wifi/events").get("events", [])
     ours = [e for e in events if e.get("type") == "STA_CONNECT" and e.get("mac", "").lower() == MAC]
     assert ours, "no STA_CONNECT event for the DUT"
-    assert ours[-1].get("hostname") == "tds3-71c734", ours[-1]
+    assert ours[-1].get("hostname") == "tds3-ea483c", ours[-1]

@@ -3,14 +3,14 @@
 **Standing exclusion:** evidence is committed artefacts, CI results, and live
 bench answers only — never memory, transcripts, or the author's account.
 
-**Phase 1 never touches the DUT.** Do not flash, reset, read, or monitor SLOT4.
+**Phase 1 never touches the DUT.** Do not flash, reset, read, or monitor SLOT1.
 
 ## Requirements
 
 | # | Must be true | Where to look | Evidence |
 |---|--------------|---------------|----------|
 | 1 | Gate *Load defined* holds | `testing/gates/load-defined.md` | Its mechanical checks pass on HEAD |
-| 2 | Test plan exists with capabilities and the journey | `testing/test-plan.yaml` | Bench capabilities `available: yes` (incl. `bench-wifi-ap`, `bench-enter-portal`, `bench-http-relay`, `bench-udp-log`, `bench-firmware-hosting`); undeclared bench abilities `available: no` with a consequence; project capabilities (`dut-tdisplay-s3-slot4`, `dut-wifi-slot4`, `dut-boot-button`, `lcd-st7789`, `operator-at-bench`, the `seam-*` builds, `stall-http-peer`) `available: unproven`; `release-verification` present |
+| 2 | Test plan exists with capabilities and the journey | `testing/test-plan.yaml` | Bench capabilities `available: yes` (incl. `bench-wifi-ap`, `bench-enter-portal`, `bench-http-relay`, `bench-udp-log`, `bench-firmware-hosting`); undeclared bench abilities `available: no` with a consequence; project capabilities (`dut-amoled-slot1`, `dut-wifi-slot1`, `dut-boot-button`, `lcd-rm67162`, `operator-at-bench`, the `seam-*` builds, `stall-http-peer`) `available: unproven`; `release-verification` present |
 | 3 | Journey seeded | same, `tests:` | JRN-01.1 – JRN-01.6, `shape: workflow`, `kind: standard`, `wave: 1`, each with `fsd_phase`, `verifies:`, `needs:`, `observable:`, `impl:` |
 | 4 | No status was typed: every result is `not done` with a reason; no `blocked:` field | same | no `blocked:`; no `status: successful` / `failed` |
 | 5 | Every id in `verifies:` is a live FSD requirement | plan + FSD | Each id is a requirement bullet and is not in the FSD's superseded list |
@@ -22,7 +22,7 @@ bench answers only — never memory, transcripts, or the author's account.
 | 11 | CI: build on push, release on tag, verify between them; size gate is the 4 MB slot | `.github/workflows/build.yml` | Jobs `build`, `verify` (`runs-on: [self-hosted, testbench]`, tags only), `release` with `needs: [build, verify]`; size check `-le 4194304` citing C-10.7 |
 | 12 | CI has run green once on a commit carrying this harness | GitHub | `gh run list -L 10` shows `Build Firmware` and `host tests + lint` with conclusion `success` for a commit that contains `partitions.csv` |
 | 13 | Devcontainer with toolchain and runner; registration not automatic | `.devcontainer/` | `Dockerfile` FROM `espressif/idf:v6.0.2`; `register-runner.sh` per-repo, `--ephemeral`, label `testbench`; nothing in `devcontainer.json` runs it; the `devcontainer` job of `host tests + lint` green |
-| 14 | Outside contributors need approval (public repo + self-hosted runner) | GitHub | `gh api repos/solchjg/tdisplay-s3-webserver/actions/permissions/fork-pr-contributor-approval` → `all_external_contributors` |
+| 14 | Outside contributors need approval (public repo + self-hosted runner) | GitHub | `gh api repos/solchjg/tdisplay-s3-amoled/actions/permissions/fork-pr-contributor-approval` → `all_external_contributors` |
 
 ## Mechanical checks
 
@@ -45,8 +45,8 @@ for t in plan['tests']:
 PY
 grep -rniE 'esp_bt|nimble|mqtt|espota|arduinoota' main components shared/components CMakeLists.txt   # expect nothing
 grep -n 'Init complete, running event-driven' main/app_main.c
-gh run list -R solchjg/tdisplay-s3-webserver -L 10
-gh api repos/solchjg/tdisplay-s3-webserver/actions/permissions/fork-pr-contributor-approval
+gh run list -R solchjg/tdisplay-s3-amoled -L 10
+gh api repos/solchjg/tdisplay-s3-amoled/actions/permissions/fork-pr-contributor-approval
 ```
 
 ## Judgement checks

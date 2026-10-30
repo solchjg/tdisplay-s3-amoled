@@ -5,13 +5,13 @@
 # test, never by hand, always with the commit. Blocked is computed from
 # `needs` against `capabilities`; never typed.
 
-project: tdisplay-s3-webserver
+project: tdisplay-s3-amoled
 fsd: docs/Functionality/TDisplay-S3-Webserver-FSD.md
 dut:
-  board: LilyGO T-Display-S3 (non-touch, 16 MB flash, 8 MB PSRAM)
+  board: LilyGO T-Display-S3 AMOLED 1.91" (16 MB flash, 8 MB PSRAM)
   chip: esp32s3
-  slot: SLOT4
-  serial: rfc2217://192.168.2.230:4004
+  slot: SLOT1
+  serial: rfc2217://192.168.2.230:4001
 testbench:
   url: http://192.168.2.230:8080
   record:   # dated observation (memory); tests select the bench by identity
@@ -19,12 +19,12 @@ testbench:
     hostname: testbench-0441
     last_seen_ip: 192.168.2.230
     portal_version: not reported (/api/info carries none)
-dut_record:   # the unit this project is verified against (observed 2026-10-23, /api/chip/info SLOT4)
+dut_record:   # the unit this project is verified against (observed 2026-10-29, esptool via /api/flash SLOT1)
   chip: ESP32-S3 (QFN56)
-  revision: v0.1
+  revision: v0.2
   psram: embedded 8MB (AP_3v3)
-  flash: 16MB (manufacturer 0xef, device 0x4018), quad
-  mac: 34:85:18:71:c7:34
+  flash: 16MB
+  mac: 48:27:e2:ea:48:3c
   usb: USB-Serial/JTAG 303a:1001, /dev/ttyACM0
 
 # ── Capabilities ─────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ dut_record:   # the unit this project is verified against (observed 2026-10-23, 
 # /commission observes it working here — each one is a debugging-agenda item.
 capabilities:
   bench-flash:
-    what: Flash an image set to SLOT4 over USB (Harness /api/flash)
+    what: Flash an image set to SLOT1 over USB (Harness /api/flash)
     available: yes
     # Usage notes (2026-10-23): upload the artefact's flash_args file with the
     # parts (tests/bench/conftest.py does). Even then the bench flashes 40 MHz
@@ -47,7 +47,7 @@ capabilities:
     # "flash(SLOT4)" with about 665 bytes of output (02:47:11Z, 03:04:14Z); it
     # reads identity and does not write an image.
   bench-serial-monitor:
-    what: Read SLOT4 serial with pattern wait, DTR/RTS held low (Harness serial monitor)
+    what: Read SLOT1 serial with pattern wait, DTR/RTS held low (Harness serial monitor)
     available: yes
     # Usage note (2026-10-23): /api/serial/output can hold the same device line
     # twice in a row (seen around flashes and debug sessions). Tests counting
@@ -59,7 +59,7 @@ capabilities:
     # cannot catch a one-shot boot line across a reset. Read the boot capture
     # that the serial reset returns, or match a periodic line.
   bench-usb-reset:
-    what: Reset the DUT in SLOT4 over USB-Serial/JTAG (Harness serial reset)
+    what: Reset the DUT in SLOT1 over USB-Serial/JTAG (Harness serial reset)
     available: yes
     # Usage note (2026-10-23): on this native-USB S3 the DTR/RTS reset resets the
     # chip a second time ~3.4 s after its 5 s capture, when the bench reopens
@@ -69,7 +69,7 @@ capabilities:
     # "what does a boot print"; wrong for any no-reset window. Bench fault:
     # SensorsIot/Embedded-AI-Harness#47 (reproduction and code path commented).
   bench-jtag-reset:
-    what: Reset SLOT4 through its built-in USB-JTAG in a debug session, keeping the serial proxy up (Harness debug + serial reset)
+    what: Reset SLOT1 through its built-in USB-JTAG in a debug session, keeping the serial proxy up (Harness debug + serial reset)
     available: yes
     # Usage note (2026-10-23, a1e1600 run 1): once, right after a flash, the
     # JTAG reset did not reset the chip (capture held no `rst:` line; device
@@ -93,7 +93,7 @@ capabilities:
     what: BLE scan from the bench
     available: yes
   bench-flash-erase:
-    what: Erase the whole flash of SLOT4 before writing (Harness /api/flash, field erase)
+    what: Erase the whole flash of SLOT1 before writing (Harness /api/flash, field erase)
     available: yes
   bench-wifi-ap:
     what: Start and stop a WPA2 access point on the bench radio, with DHCP and a station list (Harness /api/wifi/ap_start, ap_stop, ap_status)
@@ -159,12 +159,12 @@ capabilities:
     # Not among the bench's declared capabilities (FSD R-7).
     # Consequence: FR-13.5's bench test (captive DNS) is blocked until the
     # bench declares it; FR-13.5 is a Should, so shipment needs a decision.
-  slot4-gpio-reset:
-    what: EN/BOOT reset and download mode via bench GPIO on SLOT4
-    available: no
-    # Bench reports gpio_wired=false for SLOT4 (EN pulse produced no reset).
-    # Consequence: no GPIO recovery of a crash-looping or wedged DUT; recovery
-    # is USB reset, or an operator holding BOOT (GPIO 0) while replugging USB-C.
+  slot1-gpio-reset:
+    what: EN/BOOT reset and download mode via bench GPIO on SLOT1
+    available: unproven
+    # The bench configures EN/BOOT GPIOs for SLOT1 (gpio_wired not yet measured).
+    # Until proven, recovery is USB reset, or an operator holding BOOT (GPIO 0)
+    # while replugging USB-C.
   bench-udp-listener-off:
     what: Stop the bench's UDP log listener on port 5555 (needed by FR-16.3)
     available: no
@@ -244,88 +244,72 @@ capabilities:
       runner for this repo (fresh registration token, then
       `gh api repos/solchjg/tdisplay-s3-webserver/actions/runners` lists it)
       and flip this to yes. The Shipped gate cannot open until then.
-  dut-tdisplay-s3-slot4:
-    what: The board in SLOT4 is a T-Display-S3 with 16 MB flash; a CI-built image flashes over USB and its log reaches SLOT4's monitor
+  dut-amoled-slot1:
+    what: The board in SLOT1 is a T-Display-S3 AMOLED with 16 MB flash; a locally built image flashes over USB and its log reaches SLOT1's monitor
     available: yes
-    observed: 2026-10-23
+    observed: 2026-10-29
     evidence: >
-      Identity: /api/chip/info SLOT4 18:37:40Z: ESP32-S3 (QFN56) v0.1, MAC
-      34:85:18:71:c7:34, flash ef/4018 16MB, embedded PSRAM 8MB (matches
-      dut_record and FSD §2.2). Forward path: Commissioning aids run
-      40004940061, artefact `forward-path` (product table, C-10.6, rollback
-      bootloader), flashed with its own flash_args: 0x0 bootloader, 0x8000
-      partition table, 0xf000 ota_data_initial, 0x20000 forward_path.bin, all
-      hashes verified (18:41:52Z). Serial monitor matched `OFF` (18:41:56Z);
-      serial reset capture showed the five-row table, "Loaded app from
-      partition at offset 0x20000", then ON/OFF.
-      Product image: Build Firmware run 40003952313 (08fa152, success),
-      artefact firmware-v0.0.0-harness coldflash/, flashed with its own
-      flash_args (0x0 / 0x8000 / 0xf000 ota_data_initial / 0x20000
-      tdisplay_webserver.bin), then a bench serial reset (~19:20Z). The boot it
-      caused: "Loaded app from partition at offset 0x20000", "App version:
-      0.0.0-harness", `I (294) main: Init complete, running event-driven`.
-      The shipped build is left flashed on SLOT4.
+      /api/flash SLOT1 22:30:18Z: esptool reports ESP32-S3 (QFN56) v0.2,
+      embedded PSRAM 8MB, MAC 48:27:e2:ea:48:3c; lcd-probe (0x0 bootloader,
+      0x8000 partition table, 0x10000 lcd_probe.bin) written and hash-verified.
+      Serial monitor matched `lcdprobe: alive 2 drawn` (22:30:29Z).
     consequence: >
-      The CI → artefact → flash_args offsets → boot → observation pipeline is
-      above suspicion, on the product's own partition layout.
-  lcd-st7789:
-    what: The built-in ST7789 lights correctly with the T-Display-S3 pin map, GPIO 15 power, GPIO 38 backlight, 10 MHz i80 clock and offset 35
+      Flash over USB and the serial monitor work on SLOT1 with this board. The
+      product image's own partition layout is proven by JRN-01.1.
+  lcd-rm67162:
+    what: The built-in RM67162 lights correctly with the T-Display-S3 AMOLED QSPI pin map, GPIO 38 power, 75 MHz and MADCTL 0x60
     available: yes
-    observed: 2026-10-23
+    observed: 2026-10-29
     evidence: >
-      lcd-probe from run 40004940061 with mirror(false, true): every esp_lcd
-      call ESP_OK, but the operator cancelled twice (18:45:10Z, 18:47:57Z) and
-      reported the pattern rotated 180° with USB-C on the right (red
-      bottom-right, blue top-right). lcd-probe from run 40006382938 with
-      mirror(true, false), flashed 18:52:42Z: all calls ESP_OK, `pattern
-      drawn`, operator confirmed (18:53:10Z "Human confirmed"): USB-C on the
-      right, black background, white frame on all four edges with no noise,
-      RED top-left, GREEN top-right, BLUE bottom-left.
+      lcd-probe (commissioning/lcd-probe, built on shared/components/rm67162
+      at a5221a9) flashed 22:30:18Z: start, every draw and brightness returned
+      ESP_OK, `pattern drawn`. Operator prompt 22:30:38Z, "Human confirmed"
+      22:31:40Z: USB-C on the right, black background, white frame on all four
+      edges with nothing cut off, RED top-left, GREEN top-right, BLUE
+      bottom-left. At 75 MHz (shared 234631b, shipped build
+      0.0.0-234631b-75m): provisioned and ONLINE at 192.168.4.8, GET / and
+      /api/status 200, operator confirmed the ONLINE screen clean (2026-10-29
+      ~23:00Z).
     consequence: >
-      Confirmed settings: invert_color(true), swap_xy(true), mirror(true,
-      false), set_gap(0, 35), RGB element order, RGB565 bytes swapped. The
-      shipped components/lcd/lcd.c still calls mirror(false, true) and will
-      fail FR-6.1; /build changes it with FR-6.1's test. This contradicts
-      tdisplay-s3-hello's record (same binary confirmed correct at 02:58Z,
-      and its JRN-01.4 at 14:29Z): one of the observations was made with the
-      board the other way round, so every orientation prompt must state
-      "USB-C cable leaving the board on your right" explicitly.
-  dut-wifi-slot4:
-    what: The T-Display-S3 in SLOT4 associates with the bench AP and obtains a DHCP lease
+      Confirmed settings: 75 MHz requested (80 MHz on the bus), MADCTL 0x60, no RAM offset, 536 x 240 landscape,
+      RGB565 bytes swapped, LilyGO's 1.91" init sequence. Orientation prompts
+      state "USB-C cable leaving the board on your right".
+  dut-wifi-slot1:
+    what: The T-Display-S3 AMOLED in SLOT1 associates with the bench AP and obtains a DHCP lease
     available: yes
-    observed: 2026-10-23
+    observed: 2026-10-29
     evidence: >
-      wifi-probe from run 40004940061, bench AP `tds3-commission` (WPA2,
-      channel 6). After the AP was restarted (see bench-wifi-ap note):
-      `wifiprobe: got ip 192.168.4.6` (18:43:51Z); ap_status stations
-      [{mac 34:85:18:71:c7:34, ip 192.168.4.6}]; wifi events STA_CONNECT with
-      hostname espressif; 10 heartbeats over 20 s stayed connected, RSSI −58
-      to −60 dBm.
+      Shipped build 0.0.0-929e84a (local build, flashed with whole-flash erase
+      22:37:43Z): PROVISIONING with SoftAP TDS3-EA483C (open, seen by a bench
+      scan); enter-portal with tds3-bench 22:39:24Z, portal answered 200;
+      `web: online ip=192.168.4.8 rssi=-58` 22:39:44Z; GET /api/status and
+      GET / through the HTTP relay both 200 (fw_version 0.0.0-929e84a,
+      hostname tds3-ea483c); mirror lines `IP 192.168.4.8` / `Req: 2` /
+      `tds3-ea483c.local`, operator confirmed with USB-C on the right ("Human
+      confirmed" 22:41:17Z).
     consequence: >
-      The board's radio is good at the bench distance; RSSI around −59 dBm
-      leaves margin for association-dependent tests.
+      The board's radio is good at the bench distance (RSSI around -58 dBm).
   dut-boot-button:
-    what: Firmware on the T-Display-S3 in SLOT4 reads GPIO 0 low while an operator holds BOOT, high on release
+    what: Firmware on the T-Display-S3 AMOLED in SLOT1 reads GPIO 0 low while an operator holds BOOT, high on release
     available: yes
-    observed: 2026-10-23
+    observed: 2026-10-29
     evidence: >
-      button-probe from run 40004940061 (18:49:17Z): idle `boot=high`; during
-      the operator prompt (18:49:27Z – 18:50:37Z "Human confirmed") the probe
-      logged `buttonprobe: boot=low` then `buttonprobe: boot=high`.
+      Bench run from 340fe60 (shared 234631b), shipped build 0.1.0 (local
+      build): test_button.py short press (nothing changes) and long press
+      (reset on release, credentials erased, back to PROVISIONING) both
+      passed with the operator holding BOOT; evidence button-long-press.
     consequence: >
-      GPIO 0 reads active low with the board's pull-up, debounced over 60 ms;
-      FR-18.x tests can rely on an operator press.
+      GPIO 0 reads active low on this board; FR-18.x tests can rely on an
+      operator press.
   operator-at-bench:
-    what: A person at the bench answers operator prompts and can see the T-Display-S3 panel, held USB-C to the right
+    what: A person at the bench answers operator prompts and can see the AMOLED panel, held USB-C to the right
     available: yes
-    observed: 2026-10-23
+    observed: 2026-10-29
     evidence: >
-      BOOT prompt "Human confirmed" 18:50:37Z, with the matching GPIO 0 change
-      on serial; LCD prompt "Human confirmed" 18:53:10Z.
+      lcd-probe prompt "Human confirmed" 22:31:40Z.
     consequence: >
       An answer counts only when given on the Pi display and the bench logs
       "Human confirmed". Orientation must be stated as the USB-C cable side.
-
 # ── Gate verdicts ────────────────────────────────────────────────────────
 # Wave decisions (user, 2026-10-23): Wave 2 opens with Wave 1 green except the
 # tests blocked only by testbench faults (TC-NET-10, TC-NET-12: #54; TC-MDNS-10:
@@ -366,14 +350,14 @@ gates:
 # tag. Atomic tests (TC-<area>-<nn>) are declared by /build per wave.
 tests:
   - id: JRN-01.1
-    title: Erase SLOT4 and flash the firmware over USB
+    title: Erase SLOT1 and flash the firmware over USB
     shape: workflow
     kind: standard
     wave: 1
     fsd_phase: 1
     tier: bench
     verifies: [C-10.5]
-    needs: [bench-flash, bench-flash-erase, dut-tdisplay-s3-slot4]
+    needs: [bench-flash, bench-flash-erase, dut-amoled-slot1]
     observable: flash with erase reports success for every image in flash_args
     impl: tests/bench/test_journey.py::test_jrn_01_1_erase_and_flash
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -386,8 +370,8 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.11, FR-13.1, FR-7.18, FR-7.19]
-    needs: [bench-usb-reset, bench-serial-monitor, bench-wifi-scan, dut-tdisplay-s3-slot4, dut-wifi-slot4]
-    observable: "`web: state=PROVISIONING` and `AP mode: SSID='TDS3-71C734'` on serial; the bench scan sees open SSID TDS3-71C734"
+    needs: [bench-usb-reset, bench-serial-monitor, bench-wifi-scan, dut-amoled-slot1, dut-wifi-slot1]
+    observable: "`web: state=PROVISIONING` and `AP mode: SSID='TDS3-EA483C'` on serial; the bench scan sees open SSID TDS3-EA483C"
     impl: tests/bench/test_journey.py::test_jrn_01_2_portal_open
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
@@ -399,7 +383,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.13, FR-13.3, FR-7.21]
-    needs: [bench-enter-portal, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-enter-portal, bench-serial-monitor, dut-wifi-slot1]
     observable: "`Credentials saved` and `web: provisioned ssid=<bench SSID>` on serial, with no boot line after them"
     impl: tests/bench/test_journey.py::test_jrn_01_3_provisioned
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -412,7 +396,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.15, FR-7.10, FR-7.23]
-    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "`STA got IP` and `web: online ip=<a.b.c.d>`; the bench AP station list holds the DUT's MAC with that IP"
     impl: tests/bench/test_journey.py::test_jrn_01_4_online
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -425,7 +409,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-14.8, FR-20.3]
-    needs: [bench-http-relay, dut-wifi-slot4]
+    needs: [bench-http-relay, dut-wifi-slot1]
     observable: "relay GET http://<ip>/api/status → 200, JSON with exactly the 6 keys (no uptime_s), fw_version equal to the artefact's version, ip equal to step 4's"
     impl: tests/bench/test_journey.py::test_jrn_01_5_status
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -438,7 +422,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-5.25, FR-5.26, FR-7.11]
-    needs: [bench-serial-monitor, bench-http-relay, lcd-st7789, dut-wifi-slot4]
+    needs: [bench-serial-monitor, bench-http-relay, lcd-rm67162, dut-wifi-slot1]
     observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
     impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -802,7 +786,7 @@ tests:
     fsd_phase: 1
     tier: target
     verifies: [FR-7.6]
-    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-amoled-slot1]
     observable: "exactly one Init complete, running event-driven, after the app_init lines"
     impl: tests/bench/test_log.py::test_init_marker_once_after_startup
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -815,7 +799,7 @@ tests:
     fsd_phase: 1
     tier: target
     verifies: [FR-7.7]
-    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-amoled-slot1]
     observable: "first web: line is boot reason=<NAME> fw=.. slot=ota_0|ota_1, once"
     impl: tests/bench/test_log.py::test_boot_line_first_and_once
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -828,7 +812,7 @@ tests:
     fsd_phase: 1
     tier: target
     verifies: [FR-7.5]
-    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-amoled-slot1]
     observable: "each web: line matches <L> (<ms>) web: "
     impl: tests/bench/test_log.py::test_every_web_line_has_the_esp_idf_prefix
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -841,7 +825,7 @@ tests:
     fsd_phase: 1
     tier: target
     verifies: [FR-7.29]
-    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-tdisplay-s3-slot4]
+    needs: [bench-jtag-reset, bench-serial-monitor, bench-flash, dut-amoled-slot1]
     observable: "70 s capture: >= 6 alive lines, N = 0,1,2,..., gaps 9 - 11 s"
     impl: tests/bench/test_log.py::test_alive_every_10_s_counting_from_0
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -854,8 +838,8 @@ tests:
     fsd_phase: 1
     tier: bench
     verifies: [FR-5.25, FR-6.1, FR-6.3, FR-6.7]
-    needs: [bench-jtag-reset, bench-operator-prompt, operator-at-bench, lcd-st7789, dut-tdisplay-s3-slot4]
-    observable: "operator confirms 'Setup WiFi' / 'TDS3-71C734' / '192.168.4.1', upright with USB-C on the right, white on black, backlight on"
+    needs: [bench-jtag-reset, bench-operator-prompt, operator-at-bench, lcd-rm67162, dut-amoled-slot1]
+    observable: "operator confirms 'Setup WiFi' / 'TDS3-EA483C' / '192.168.4.1', upright with USB-C on the right, white on black, backlight on"
     impl: tests/bench/test_display.py::test_operator_sees_the_provisioning_screen
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
 
@@ -867,7 +851,7 @@ tests:
     fsd_phase: 1
     tier: bench
     verifies: [FR-6.4]
-    needs: [bench-operator-prompt, operator-at-bench, bench-serial-monitor, lcd-st7789, dut-tdisplay-s3-slot4]
+    needs: [bench-operator-prompt, operator-at-bench, bench-serial-monitor, lcd-rm67162, dut-amoled-slot1]
     observable: "after an operator power cycle (P-POWERCYCLE), operator confirms black everywhere except the text lines, no edge noise"
     impl: tests/bench/test_display.py::test_cold_start_leaves_no_stray_pixels
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
@@ -933,7 +917,7 @@ tests:
     tier: host
     verifies: [FR-13.1, FR-20.1, FR-20.2]
     needs: []
-    observable: "TDS3-ABCDEF / tds3-abcdef; TDS3-71C734 / tds3-71c734"
+    observable: "TDS3-ABCDEF / tds3-abcdef; TDS3-EA483C / tds3-ea483c"
     impl: tests/host/test_identity.py::test_names_from_the_base_mac
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
@@ -1049,7 +1033,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-14.6]
-    needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
+    needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot1, dut-amoled-slot1]
     observable: "3 sequential GET /api/status give requests k, k+1, k+2"
     impl: tests/bench/test_status.py::test_request_count_rises_by_one_per_request
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1062,7 +1046,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-14.7, FR-14.3]
-    needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot4, dut-tdisplay-s3-slot4]
+    needs: [bench-wifi-ap, bench-http-relay, dut-wifi-slot1, dut-amoled-slot1]
     observable: "200 text/html; fw_version, ip, hostname equal the JSON; labels present; no uptime"
     impl: tests/bench/test_status.py::test_page_shows_every_field_and_agrees_with_the_json
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1114,7 +1098,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-16.1, FR-16.2]
-    needs: [bench-udp-log, bench-http-relay, dut-wifi-slot4]
+    needs: [bench-udp-log, bench-http-relay, dut-wifi-slot1]
     observable: "5 GET /api/status give 5 datagrams 'web: http GET /api/status 200 n=k' from the DUT, equal to the serial text"
     impl: tests/bench/test_udp.py::test_web_lines_arrive_as_datagrams_equal_to_serial
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1127,7 +1111,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [NFR-5.1, FR-5.20]
-    needs: [bench-wifi-ap, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4, dut-tdisplay-s3-slot4, bench-ap-rejoin-after-reset]
+    needs: [bench-wifi-ap, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1, bench-ap-rejoin-after-reset]
     observable: "5 JTAG resets: CONNECTING, no PROVISIONING, web: online at <= 10000 ms each"
     impl: tests/bench/test_connectivity.py::test_reset_reaches_online_within_10_s_without_portal
     result: {status: not done, reason: "blocked by bench-ap-rejoin-after-reset = no (bench fault, product exonerated by the wifi-probe positive control); first run at fd7b45c: run 0 online at 2306 ms, runs 1-4 auth -> init"}
@@ -1140,8 +1124,8 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.12, FR-5.20]
-    needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4]
-    observable: "bench AP down, reset: CONNECTING, 3 scans over 30 s without TDS3-71C734, rejoins when the AP returns"
+    needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot1]
+    observable: "bench AP down, reset: CONNECTING, 3 scans over 30 s without TDS3-EA483C, rejoins when the AP returns"
     impl: tests/bench/test_connectivity.py::test_stored_credentials_never_open_the_softap
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
@@ -1153,7 +1137,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.20]
-    needs: [bench-wifi-ap, bench-operator-prompt, operator-at-bench, bench-serial-monitor, dut-wifi-slot4, bench-ap-rejoin-after-reset]
+    needs: [bench-wifi-ap, bench-operator-prompt, operator-at-bench, bench-serial-monitor, dut-wifi-slot1, bench-ap-rejoin-after-reset]
     observable: "operator power cycle (P-POWERCYCLE): web: online again, no PROVISIONING"
     impl: tests/bench/test_connectivity.py::test_power_cycle_keeps_the_credentials
     result: {status: not done, reason: "blocked by bench-ap-rejoin-after-reset = no (bench fault, product exonerated by the wifi-probe positive control); first run at fd7b45c: run 0 online at 2306 ms, runs 1-4 auth -> init"}
@@ -1192,7 +1176,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-15.8, NFR-15.1]
-    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "POST /ota {url} -> 202 {ok:true} within 2 s (+ relay slack)"
     impl: tests/bench/test_ota.py::test_ota_request_answered_202_within_2_s
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1205,7 +1189,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-15.10, FR-7.27, FR-5.32, FR-15.1]
-    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "OTA succeeded, restart (reason SW) within 2 s, boot line fw = hosted image version, slot switched"
     impl: tests/bench/test_ota.py::test_download_succeeds_and_restarts_into_the_new_image
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1218,7 +1202,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-5.23]
-    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "after the OTA boot: state=ONLINE then ota confirmed; no ota not confirmed"
     impl: tests/bench/test_ota.py::test_new_image_confirms_itself_online
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1244,7 +1228,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-5.21, FR-18.3, FR-18.4, FR-7.16, FR-7.25, FR-7.32]
-    needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot4]
+    needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot1]
     observable: "~12 s hold: L17b, then >= 3 s later L15, K8, boot within 2 s, state=PROVISIONING; no download-mode banner"
     impl: tests/bench/test_button.py::test_long_press_resets_on_release
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
@@ -1257,7 +1241,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-18.2]
-    needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot4]
+    needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot1]
     observable: "~2 s press: no L17b/L15, no boot line, /api/status 200 10 s later"
     impl: tests/bench/test_button.py::test_short_press_changes_nothing
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "operator run on the release candidate, junit 10 passed in 247.7 s; operator answers on the Pi display"}
@@ -1270,8 +1254,8 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-13.2, FR-7.20]
-    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
-    observable: "erased device; joined to TDS3-71C734: GET / 200 text/html, form method=post action=/connect, fields ssid and password; K3 Portal page requested logged"
+    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot1]
+    observable: "erased device; joined to TDS3-EA483C: GET / 200 text/html, form method=post action=/connect, fields ssid and password; K3 Portal page requested logged"
     impl: tests/bench/test_portal.py::test_portal_serves_the_form
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
@@ -1283,7 +1267,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [NFR-14.1]
-    needs: [bench-http-relay, bench-wifi-ap, dut-wifi-slot4]
+    needs: [bench-http-relay, bench-wifi-ap, dut-wifi-slot1]
     observable: "100 sequential GET / through the relay: p95 <= 500 ms"
     impl: tests/bench/test_status.py::test_page_p95_within_500_ms
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1296,8 +1280,8 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-17.2]
-    needs: [bench-wifi-events, bench-wifi-ap, dut-wifi-slot4]
-    observable: "bench STA_CONNECT event for 34:85:18:71:c7:34 has hostname tds3-71c734"
+    needs: [bench-wifi-events, bench-wifi-ap, dut-wifi-slot1]
+    observable: "bench STA_CONNECT event for 48:27:e2:ea:48:3c has hostname tds3-ea483c"
     impl: tests/bench/test_connectivity.py::test_dhcp_hostname_reaches_the_bench
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
@@ -1309,8 +1293,8 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-17.1]
-    needs: [bench-mdns-resolve, bench-http-relay, dut-wifi-slot4]
-    observable: "relay GET http://tds3-71c734.local/api/status -> 200 with the device's ip"
+    needs: [bench-mdns-resolve, bench-http-relay, dut-wifi-slot1]
+    observable: "relay GET http://tds3-ea483c.local/api/status -> 200 with the device's ip"
     impl: tests/bench/test_status.py::test_hostname_resolves_to_the_device
     result: {status: not done, reason: "blocked: bench-mdns-resolve = no (FSD R-8)"}
 
@@ -1374,7 +1358,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [NFR-5.3, FR-5.30, FR-7.24]
-    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "bench AP stopped: state=WIFI_LOST <= 15 s (+3), K7, no restart"
     impl: tests/bench/test_recovery.py::test_ap_loss_enters_wifi_lost_within_15_s
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1387,7 +1371,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.18, FR-5.16, FR-5.17, FR-7.17]
-    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "75 s outage: L6 delays 1000, 2000, 4000, 8000, 15000, 15000 ms; each CONNECTING its delay (+-10 %) after L6; attempt counts 1, 2, 3, ..."
     impl: tests/bench/test_recovery.py::test_retries_follow_the_backoff_schedule
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1400,7 +1384,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [NFR-5.2]
-    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: ">= 60 s outage, AP back: web: online <= 30 s (+3); no restart, no PROVISIONING in the whole window"
     impl: tests/bench/test_recovery.py::test_reconnects_within_30_s_of_the_ap_returning
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1413,8 +1397,8 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.19, FR-5.20]
-    needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot4]
-    observable: "AP down, reset, 120 s: CONNECTING/WIFI_LOST alternate, no PROVISIONING, TDS3-71C734 never scanned; ONLINE once the AP returns"
+    needs: [bench-wifi-ap, bench-wifi-scan, bench-jtag-reset, bench-serial-monitor, dut-wifi-slot1]
+    observable: "AP down, reset, 120 s: CONNECTING/WIFI_LOST alternate, no PROVISIONING, TDS3-EA483C never scanned; ONLINE once the AP returns"
     impl: tests/bench/test_recovery.py::test_reset_with_the_ap_down_never_opens_the_portal
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
 
@@ -1426,7 +1410,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-5.24, FR-7.31]
-    needs: [seam-no-network-build, bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [seam-no-network-build, bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "A ONLINE; OTA to no-network build B: one boot of B, L16 at 60-63 s of B's uptime, restart, A boots with 'rolled back, invalid=<B slot>', not PROVISIONING, ONLINE again"
     impl: tests/bench/test_rollback.py::test_never_online_image_is_rolled_back
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1439,7 +1423,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-15.12, FR-7.31]
-    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "A re-installs its own image: first POST 202, second within 1.5 s 409, L12 ota refused 409, exactly one OTA succeeded, ONLINE after the restart"
     impl: tests/bench/test_ota_busy.py::test_second_request_while_downloading_is_refused_409
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1454,7 +1438,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-13.6, FR-14.5]
-    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, dut-wifi-slot4]
+    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, dut-wifi-slot1]
     observable: "PROVISIONING: /generate_204, /api/status, /hotspot-detect.html all land on the portal form (relay follows the 302); never status JSON, 404 or 204"
     impl: tests/bench/test_portal.py::test_other_paths_lead_to_the_portal_not_the_status
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1519,7 +1503,7 @@ tests:
     fsd_phase: 1
     tier: target
     verifies: [FR-19.1, NFR-19.1]
-    needs: [seam-hang-build, bench-flash, bench-serial-monitor, dut-tdisplay-s3-slot4]
+    needs: [seam-hang-build, bench-flash, bench-serial-monitor, dut-amoled-slot1]
     observable: "hang build app: restart 10-15 s (+3) after the hang, reason TASK_WDT, then CONNECTING not PROVISIONING"
     impl: tests/bench/test_watchdog.py::test_blocked_application_task_restarts_via_watchdog
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1532,7 +1516,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-19.2, NFR-19.1]
-    needs: [seam-hang-build, bench-flash, bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    needs: [seam-hang-build, bench-flash, bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot1]
     observable: "hang build http: GET /hang, restart 10-15 s (+3) later, reason TASK_WDT"
     impl: tests/bench/test_watchdog.py::test_blocked_http_handler_restarts_via_watchdog
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1545,7 +1529,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-19.1]
-    needs: [bench-http-relay, bench-firmware-hosting, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-http-relay, bench-firmware-hosting, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "100 requests plus a full OTA download: OTA succeeded, no reason=TASK_WDT"
     impl: tests/bench/test_watchdog.py::test_no_watchdog_reset_under_load_or_ota
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1558,7 +1542,7 @@ tests:
     fsd_phase: 1
     tier: bench
     verifies: [FR-5.27, FR-5.28, FR-7.12]
-    needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot4]
+    needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot1]
     observable: "lcdfault-init: one lcdfi call start before L8 E ESP_ERR_TIMEOUT, no LCD call after, ONLINE, 12 requests counted, one boot"
     impl: tests/bench/test_lcd_fault.py::test_start_failure_leaves_the_network_running
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1571,7 +1555,7 @@ tests:
     fsd_phase: 1
     tier: bench
     verifies: [FR-5.27, FR-5.28, FR-7.13]
-    needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot4]
+    needs: [seam-lcd-fault-injection, bench-flash, bench-wifi-ap, bench-http-relay, dut-wifi-slot1]
     observable: "lcdfault-write5: L9 E ESP_ERR_INVALID_STATE once, no draw after, ONLINE, 12 requests counted, one boot"
     impl: tests/bench/test_lcd_fault.py::test_write_failure_leaves_the_network_running
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1584,7 +1568,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-14.4]
-    needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot1]
     observable: "GET /nope 404; DELETE /api/status 404"
     impl: tests/bench/test_negative.py::test_other_routes_answer_404
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1597,7 +1581,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-15.9]
-    needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-wifi-ap, bench-http-relay, bench-serial-monitor, dut-wifi-slot1]
     observable: "POST /ota {url: ftp://x} -> 400, L12, no download"
     impl: tests/bench/test_negative.py::test_non_http_url_refused_400
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1610,7 +1594,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-15.11, NFR-15.2]
-    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "random 300 kB, cut image, 4 MB+1 file, 404 URL: each 202 then K11 within 63 s, fw_version unchanged, no K10, no restart"
     impl: tests/bench/test_negative.py::test_bad_downloads_fail_without_restart
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1623,7 +1607,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-15.13]
-    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot4]
+    needs: [bench-firmware-hosting, bench-http-relay, bench-wifi-ap, bench-serial-monitor, dut-wifi-slot1]
     observable: "AP stopped 3 s into a download, back 20 s later: K11, WIFI_LOST, ONLINE with the same fw_version, no K10, no restart"
     impl: tests/bench/test_negative.py::test_download_cut_by_wifi_loss_changes_nothing
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1636,7 +1620,7 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-5.14]
-    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot4]
+    needs: [bench-flash-erase, bench-wifi-sta, bench-http-relay, bench-enter-portal, dut-wifi-slot1]
     observable: "33-byte SSID: 400 naming ssid; a reset still enters PROVISIONING"
     impl: tests/bench/test_negative.py::test_invalid_submission_refused_on_the_device
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 1), junit in scratchpad rc-e5d36e3"}
@@ -1649,7 +1633,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-9.3]
-    needs: [bench-flash-erase, bench-enter-portal, bench-udp-log, bench-http-relay, dut-wifi-slot4]
+    needs: [bench-flash-erase, bench-enter-portal, bench-udp-log, bench-http-relay, dut-wifi-slot1]
     observable: "provisioned with marker pw-<12 hex>: marker absent from serial, UDP and both HTTP bodies"
     impl: tests/bench/test_security.py::test_password_never_output
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1662,7 +1646,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-9.5]
-    needs: [bench-portscan, dut-wifi-slot4]
+    needs: [bench-portscan, dut-wifi-slot1]
     observable: "port scan 1-65535 of the DUT: open = [80]"
     impl: tests/bench/test_security.py::test_only_port_80_open
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1675,8 +1659,8 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-9.4]
-    needs: [bench-wifi-scan, bench-wifi-ap, dut-wifi-slot4]
-    observable: "bench AP down 60 s, a scan every 5 s: no TDS3-71C734 (ONLINE part blocked: bench-scan-while-ap = no)"
+    needs: [bench-wifi-scan, bench-wifi-ap, dut-wifi-slot1]
+    observable: "bench AP down 60 s, a scan every 5 s: no TDS3-EA483C (ONLINE part blocked: bench-scan-while-ap = no)"
     impl: tests/bench/test_security.py::test_no_softap_while_connecting_or_lost
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
@@ -1688,7 +1672,7 @@ tests:
     fsd_phase: 1
     tier: bench
     verifies: [FR-9.2]
-    needs: [bench-ble-scan, dut-tdisplay-s3-slot4]
+    needs: [bench-ble-scan, dut-amoled-slot1]
     observable: "bench BLE scan: no advertiser at base MAC + 0..3"
     impl: tests/bench/test_security.py::test_no_ble_advertiser
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
@@ -1714,8 +1698,8 @@ tests:
     fsd_phase: 2
     tier: bench
     verifies: [FR-13.5]
-    needs: [bench-relay-dns-via-dut, bench-wifi-sta, bench-http-relay, dut-wifi-slot4]
-    observable: "joined to TDS3-71C734: GET http://example.com/ lands on the portal form"
+    needs: [bench-relay-dns-via-dut, bench-wifi-sta, bench-http-relay, dut-wifi-slot1]
+    observable: "joined to TDS3-EA483C: GET http://example.com/ lands on the portal form"
     impl: tests/bench/test_portal.py::test_any_name_resolves_to_the_portal
     result: {status: not done, reason: "blocked: bench-relay-dns-via-dut = no (FSD R-7)"}
 
@@ -1727,7 +1711,7 @@ tests:
     fsd_phase: 3
     tier: bench
     verifies: [FR-16.3]
-    needs: [bench-udp-listener-off, bench-http-relay, dut-wifi-slot4]
+    needs: [bench-udp-listener-off, bench-http-relay, dut-wifi-slot1]
     observable: "bench UDP listener stopped; 20 GET /api/status: 20 answers 200, 20 serial L10 lines, no restart"
     impl: none (blocked before it can run)
     result: {status: not done, reason: "blocked: bench-udp-listener-off = no"}
@@ -1740,7 +1724,7 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [FR-15.11]
-    needs: [stall-http-peer, bench-http-relay, bench-serial-monitor, dut-wifi-slot4]
+    needs: [stall-http-peer, bench-http-relay, bench-serial-monitor, dut-wifi-slot1]
     observable: "the FSD FR-15.11 (stall) contract: K11 30-33 s after the last byte; a following valid request answered 202; no restart before it"
     impl: none (blocked before it can run)
     result: {status: not done, reason: "blocked: stall-http-peer = no (SensorsIot/Embedded-AI-Harness#55)"}

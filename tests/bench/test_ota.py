@@ -15,7 +15,7 @@ import pytest
 
 from conftest import relay, save_evidence, web_lines
 
-PROJECT = "tdisplay-s3-webserver"
+PROJECT = "tdisplay-s3-amoled"
 run = {}
 
 

@@ -12,8 +12,8 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/shared/components/ota_rx ${ROOT}/shared/components/button
                          ${ROOT}/shared/components/mdns_name ${ROOT}/shared/components/wifi_net
                          ${ROOT}/components/lcd
-                         ${ROOT}/shared/components/st7789 ${ROOT}/shared/components/text
-                         ${ROOT}/shared/components/tdisplay_s3 ${ROOT}/shared/components/esp_try)
+                         ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/text
+                         ${ROOT}/shared/components/tdisplay_s3_amoled ${ROOT}/shared/components/esp_try)
 # Distinct from every shipped version, so the bench can tell the boots apart.
 set(HANG_VARIANT app CACHE STRING "Hang test variant: app or http")
 set(PROJECT_VER "0.0.0-hang-${HANG_VARIANT}")

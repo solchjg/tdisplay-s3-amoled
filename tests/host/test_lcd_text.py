@@ -10,18 +10,18 @@ HARNESS = r"""
 #include <stdio.h>
 #include <string.h>
 #include "lcd_layout.h"
-#include "tdisplay_s3.h"
+#include "tdisplay_s3_amoled.h"
 #include "text.h"
 
 int main(int argc, char **argv)
 {
     if (strcmp(argv[1], "config") == 0) {
-        static const int d[8] = TDISPLAY_S3_LCD_DATA;
-        printf("data=%d,%d,%d,%d,%d,%d,%d,%d wr=%d rd=%d dc=%d cs=%d rst=%d pwr=%d bl=%d "
-               "pclk=%d gap=%d\n", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7],
-               TDISPLAY_S3_LCD_WR, TDISPLAY_S3_LCD_RD, TDISPLAY_S3_LCD_DC, TDISPLAY_S3_LCD_CS,
-               TDISPLAY_S3_LCD_RST, TDISPLAY_S3_LCD_PWR, TDISPLAY_S3_LCD_BL,
-               TDISPLAY_S3_LCD_PCLK_HZ, TDISPLAY_S3_LCD_GAP_Y);
+        static const int d[4] = TDISPLAY_S3_AMOLED_LCD_DATA;
+        printf("data=%d,%d,%d,%d sck=%d cs=%d rst=%d pwr=%d pclk=%d madctl=0x%02X "
+               "size=%dx%d\n", d[0], d[1], d[2], d[3], TDISPLAY_S3_AMOLED_LCD_SCK,
+               TDISPLAY_S3_AMOLED_LCD_CS, TDISPLAY_S3_AMOLED_LCD_RST, TDISPLAY_S3_AMOLED_LCD_PWR,
+               TDISPLAY_S3_AMOLED_LCD_PCLK_HZ, TDISPLAY_S3_AMOLED_LCD_MADCTL,
+               TDISPLAY_S3_AMOLED_LCD_W, TDISPLAY_S3_AMOLED_LCD_H);
     } else if (strcmp(argv[1], "font") == 0) {
         printf("%d %d %d %d %zu\n", FONT_W, FONT_H, FONT_FIRST, FONT_LAST, sizeof font16x32);
     } else if (strcmp(argv[1], "rect") == 0) {
@@ -33,7 +33,7 @@ int main(int argc, char **argv)
         // Lit-pixel extent of a rendered line: minx maxx miny maxy (in screen coordinates).
         int line = argv[2][0] - '0';
         lcd_rect_t r = lcd_text_line_rect(line);
-        static uint16_t buf[TDISPLAY_S3_LCD_W * FONT_H];
+        static uint16_t buf[TDISPLAY_S3_AMOLED_LCD_W * FONT_H];
         text_render(argv[3], 0xFFFF, 0x0000, buf, r.w);
         int minx = 9999, maxx = -1, miny = 9999, maxy = -1;
         for (int y = 0; y < r.h; y++) {
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "redraw") == 0) {
         // Render argv[2] then argv[3] into one row buffer; compare with a fresh argv[3].
         lcd_rect_t r = lcd_text_line_rect(1);
-        static uint16_t a[TDISPLAY_S3_LCD_W * FONT_H], b[TDISPLAY_S3_LCD_W * FONT_H];
+        static uint16_t a[TDISPLAY_S3_AMOLED_LCD_W * FONT_H], b[TDISPLAY_S3_AMOLED_LCD_W * FONT_H];
         text_render(argv[2], 0xFFFF, 0x0000, a, r.w);
         text_render(argv[3], 0xFFFF, 0x0000, a, r.w);
         text_render(argv[3], 0xFFFF, 0x0000, b, r.w);
@@ -66,14 +66,14 @@ def run(compile_harness):
     return compile_harness(
         "lcd_text", HARNESS,
         ["text/text.c", "text/font16x32.c", "lcd/lcd_layout.c"],
-        ["text/include", "lcd", "tdisplay_s3/include"])
+        ["text/include", "lcd", "tdisplay_s3_amoled/include"])
 
 
 # TC-LCD-01 · C-6.1 – C-6.5
 def test_configuration_states_the_fsd_values(run):
     assert run("config").split() == [
-        "data=39,40,41,42,45,46,47,48", "wr=8", "rd=9", "dc=7", "cs=6", "rst=5",
-        "pwr=15", "bl=38", "pclk=10000000", "gap=35"]
+        "data=18,7,48,5", "sck=47", "cs=6", "rst=17", "pwr=38", "pclk=75000000",
+        "madctl=0x60", "size=536x240"]
 
 
 # TC-LCD-02 · FR-6.2
@@ -89,12 +89,12 @@ def test_three_lines_are_stacked_inside_the_visible_area(run):
     rects = [tuple(map(int, ln.split())) for ln in run("rect").splitlines()]
     assert len(rects) == 3, f"{len(rects)} text lines, FSD §5.4 has three"
     for x, y, w, h in rects:
-        assert 0 <= x and x + w <= 320 and 0 <= y and y + h <= 170
+        assert 0 <= x and x + w <= 536 and 0 <= y and y + h <= 240
     for (_, y0, _, h0), (_, y1, _, _) in zip(rects, rects[1:]):
         assert y1 >= y0 + h0, "a line overlaps the one above it"
     for line in "012":
         minx, maxx, miny, maxy, _ = map(int, run("ink", line, "W" * 20).split())
-        assert 0 <= minx and maxx <= 319 and 0 <= miny and maxy <= 169
+        assert 0 <= minx and maxx <= 535 and 0 <= miny and maxy <= 239
 
 
 # TC-LCD-06 · FR-6.10
@@ -112,5 +112,5 @@ def test_twenty_characters_fit_one_row(run):
 # TC-LCD-07 · FR-6.8
 def test_redraw_overwrites_the_whole_row(run):
     w, same = map(int, run("redraw", "Req: 1000", "Req: 5").split())
-    assert w == 320, f"line box is {w} px wide, not the whole row"
+    assert w == 536, f"line box is {w} px wide, not the whole row"
     assert same == 1, "remnants of the longer previous text remain"

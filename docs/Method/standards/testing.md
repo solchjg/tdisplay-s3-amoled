@@ -8,7 +8,7 @@ verifiable, and every change ships the test that proves it.
 | Tier | Runs on | Speed | Catches |
 |------|---------|-------|---------|
 | **host** | Dev machine, plain C compiler | ms, every commit | Pure logic: state transitions, formatting, layout bounds, font cell, configuration inspection. No ESP-IDF, no hardware. |
-| **target** | T-Display-S3 in SLOT4, no network peer; shipped or test build | seconds, pre-merge | Log formats and order, heartbeat period, the LCD failure path, watchdog restarts. |
+| **target** | T-Display-S3 in SLOT1, no network peer; shipped or test build | seconds, pre-merge | Log formats and order, heartbeat period, the LCD failure path, watchdog restarts. |
 | **bench** | T-Display-S3 + testbench WiFi AP/station, HTTP relay, UDP log, scans, firmware hosting, operator | minutes, pre-release | Provisioning, connectivity and recovery, HTTP API, OTA and rollback, display content, the BOOT button, security scans. |
 
 ## Rules
@@ -47,11 +47,11 @@ Anything else needs a profile change in the FSD first.
 - **Verify the precondition; if it fails record `not done`, never `failed`.**
 - **Leave the rig as you found it** — shipped build flashed, DUT reset.
 
-## P-RESET — USB reset of SLOT4
+## P-RESET — USB reset of SLOT1
 
-**Needs** testbench serial on SLOT4. **Before** confirm the DUT is present in the
-device list with `detected_chip: esp32s3` (SLOT4 is shared with another project).
-**Steps** issue the testbench serial reset for SLOT4; EN/BOOT GPIOs are not wired,
+**Needs** testbench serial on SLOT1. **Before** confirm the DUT is present in the
+device list with `detected_chip: esp32s3` (the slot can hold another project's board).
+**Steps** issue the testbench serial reset for SLOT1; EN/BOOT GPIOs are not proven wired,
 so no GPIO reset exists. Where a contract prohibits an extra boot, reset through
 the JTAG reset instead (capability `bench-jtag-reset`): the plain serial reset of
 this native-USB part resets it a second time when the bench reopens the port. **After** confirm a `web:` line arrives (positive
@@ -60,7 +60,7 @@ control) before timing anything else.
 ## P-POWERCYCLE — cold start (FSD FR-6.4, FR-5.20)
 
 **Needs** P-OPERATOR. **Steps** prompt the operator to unplug the USB-C cable for
-5 s and replug it, without touching BOOT, confirm. **After** confirm SLOT4 re-enumerates and a `web:`
+5 s and replug it, without touching BOOT, confirm. **After** confirm SLOT1 re-enumerates and a `web:`
 line arrives.
 
 ## P-OPERATOR — operator-confirmed display check
@@ -68,7 +68,7 @@ line arrives.
 **Needs** the testbench operator prompt. **Before** record the latest
 `web: lcd line<k>=` mirror lines (FSD FR-7.11). **Steps** raise a blocking prompt naming exactly what to check
 and the defect to look for (text, orientation with USB-C on the right, white on
-black, edge noise, backlight, the mirrored line text). **After** store the answer and its
+black, edge noise, panel lit, the mirrored line text). **After** store the answer and its
 timestamp as evidence. A prompt that times out unanswered is `not done`. A
 prompt answered CANCEL after it said "otherwise press CANCEL" is the operator
 reporting the defect: `failed`, with what they saw recorded as evidence.
