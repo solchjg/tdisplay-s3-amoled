@@ -8,7 +8,7 @@
 // L1, once per boot, before any other `web:` line (FR-7.7).
 void web_log_boot(void);
 
-// L7: the text drawn on line k (1 .. 3) (FR-7.11).
+// L7: the text drawn on line k (1 .. 4) (FR-7.11).
 void web_log_lcd_line(int k, const char *text);
 
 // L8 (FR-7.12) and L9 (FR-7.13), at error level.
@@ -66,3 +66,8 @@ void web_log_wake(const char *cause);
 
 // L20 after each clock sync (FR-22.5): the local time now.
 void web_log_time_synced(void);
+
+// L21 for each reading (FR-23.5), its text made by the weather core; L22 (error)
+// when the sensor fails (FR-23.4).
+void web_log_reading(const char *text);
+void web_log_bme280_failed(esp_err_t err);

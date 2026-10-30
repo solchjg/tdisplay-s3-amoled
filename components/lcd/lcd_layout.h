@@ -7,7 +7,7 @@ typedef struct {
     int x, y, w, h;
 } lcd_rect_t;
 
-#define LCD_TEXT_LINES 3  // FSD §5.4
+#define LCD_TEXT_LINES 4  // FSD §5.4
 
 // The box a text line is drawn into: line 0 .. LCD_TEXT_LINES - 1, in landscape
 // coordinates. Each box spans the whole row (FR-6.8).

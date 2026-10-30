@@ -27,7 +27,9 @@
 #include "status_http.h"
 #include "time_sync.h"
 #include "udp_log.h"
+#include "weather.h"
 #include "web_log.h"
+#include "web_log_format.h"
 #include "wifi_net.h"
 
 static const char *TAG = "main";
@@ -38,6 +40,7 @@ static const char *TAG = "main";
 #define ANSWER_FLUSH_MS 1000                // T3: let the 200 reach the client
 #define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
 #define LEAVE_MS 200                          // a planned restart leaves the AP first
+#define TASK_PERIOD_S 600                     // FR-23.2: one reading every 10 min
 
 typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED } app_kind_t;
 
@@ -62,10 +65,12 @@ _Static_assert(sizeof stored.ssid == WIFI_NET_SSID_MAX + 1 &&
 
 static const status_http_source_t status_source = {.ip = ip, .hostname = hostname,
                                                    .rssi = wifi_net_rssi,
-                                                   .log = web_log_http};
+                                                   .log = web_log_http,
+                                                   .extra_html = weather_html};
 
 static dl_wake_t wake;  // how this boot began (FSD §21)
 static bool task_ran;
+static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.6)
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
@@ -286,15 +291,35 @@ static void test_log_history(void)
 }
 #endif
 
-// The task (FR-21.4, FR-21.9): reads the sensors and acts on the data, then
-// returns the sleep period it asks for, 0 to stay awake. The shipped image has
-// no task yet, so it never sleeps; the sleep test build stands in for one.
+// ── Weather region (FSD §23) ─────────────────────────────────────────────
+
+// One reading, logged (L21) and kept, or the failure logged (L22); either way the
+// boot carries on (FR-23.4). Line 4 shows the newest kept reading.
+static void take_reading(void)
+{
+    wx_reading_t r;
+    esp_err_t err = weather_read(&r);
+    if (err == ESP_OK) {
+        char iso[WX_ISO_MAX], line[WL_LINE_MAX];
+        weather_iso(&r, iso);
+        wx_log_line(&r, iso, line, sizeof line);
+        web_log_reading(line);
+    } else {
+        web_log_bme280_failed(err);
+    }
+    wx_screen_line(weather_newest(), reading_line);
+}
+
+// The task (FR-21.4, FR-21.9): takes a reading (FR-23.1), then returns the sleep
+// period it asks for (FR-23.2), 0 to stay awake. The sleep test build sleeps
+// twice per flash with its own period, then stays awake.
 static uint32_t run_task(void)
 {
+    take_reading();
 #ifdef TDS3_TEST_SLEEP_S
     return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
 #else
-    return 0;
+    return TASK_PERIOD_S;
 #endif
 }
 
@@ -450,6 +475,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err == ESP_OK) {
             err = ota_rx_register(status_http_handle(), &ota_hooks);
         }
+        if (err == ESP_OK) {
+            err = weather_register(status_http_handle(), status_http_note);  // FR-23.8
+        }
 #ifdef TDS3_TEST_HANG_HTTP
         static const httpd_uri_t hang = {.uri = "/hang", .method = HTTP_GET,
                                          .handler = get_hang};
@@ -559,8 +587,10 @@ void app_main(void)
     wifi_net_base_mac(mac);
     id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
     id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);
+    take_reading();  // FR-23.3: a value for the panel and the page during the window
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
-                       .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname};
+                       .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname,
+                       .reading = reading_line};
 
     // D1/D2: start, clear, and the first draw of the BOOT screen.
     char want[DL_LINES][DL_LINE_MAX];

@@ -51,6 +51,8 @@ int main(int argc, char **argv)
         wl_fmt_udp_logging(line, sizeof line, argv[2], atoi(argv[3]));
     } else if (strcmp(argv[1], "sleep") == 0) {
         wl_fmt_sleep(line, sizeof line, (uint32_t)strtoul(argv[2], NULL, 10));
+    } else if (strcmp(argv[1], "bme280_failed") == 0) {
+        wl_fmt_bme280_failed(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "time") == 0) {
         wl_fmt_time_synced(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "wake") == 0) {
@@ -151,3 +153,9 @@ def test_sleep_and_wake_lines(fmt):
 # TC-TIME-02 · FR-22.5 (core): L20
 def test_time_synced_line(fmt):
     assert fmt("time", "2026-10-30T02:50:12+0000") == "time synced 2026-10-30T02:50:12+0000"
+
+
+# TC-WX-02 · FR-23.4 (core): L22
+def test_sensor_failed_line(fmt):
+    assert fmt("bme280_failed", "ESP_ERR_NOT_FOUND") == "bme280 failed: ESP_ERR_NOT_FOUND"
+    assert fmt("bme280_failed", "ESP_ERR_TIMEOUT") == "bme280 failed: ESP_ERR_TIMEOUT"

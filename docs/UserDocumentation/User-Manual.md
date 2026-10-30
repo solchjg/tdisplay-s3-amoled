@@ -37,11 +37,18 @@ With no stored credentials the display shows `Setup WiFi`, the network name
 ## 3. Using the status page
 
 When connected, the display shows `IP <address>`, `Req: <count>` (requests
-answered since start) and `<name>.local`.
+answered since start) and `<name>.local`. The fourth line, in every state, is
+the latest weather reading, e.g. `21.4C 45% 1013hPa`, or `Sensor --` if there
+is none.
 
 - Status page: `http://<address>/`
 - The same data as JSON: `http://<address>/api/status` — `fw_version`, `free_heap`,
   `rssi_dbm`, `ip`, `hostname`, `requests`.
+- The status page also shows the latest reading and when it was taken
+  ("unsynced" if the clock had not been set from the network yet).
+- Every reading kept since the board was plugged in (up to 144, the last
+  24 hours), newest first: `http://<address>/api/readings` — each with `time`,
+  `synced`, `temp_c`, `rh_pct`, `p_hpa`.
 - On networks that resolve mDNS names, `http://tds3-xxxxxx.local/` also works.
 
 There is no login: anyone on your network can read it.
@@ -82,8 +89,11 @@ is off and WiFi is down while it sleeps. When the time is up it wakes, runs the
 task again without turning on the screen or WiFi, and goes back to sleep. To
 reach it while it sleeps, press the user key (the button that is not BOOT): it
 wakes fully, with the screen, WiFi and status page, for at least 60 seconds,
-then runs the task and sleeps again. This firmware has no task yet, so it never
-sleeps.
+then runs the task and sleeps again. This firmware's task reads the BME280
+weather sensor (temperature, humidity, pressure; SDA on GPIO 43, SCL on GPIO 44,
+address 0x76) and sleeps 10 minutes, so it takes a reading every 10 minutes
+and one more at each power-on, reset or key wake. Unplugging or resetting the
+board clears the kept readings.
 
 A sleeping board does not appear on USB; to flash it, press the user key first
 or unplug and replug it, and flash within 60 seconds.
@@ -95,6 +105,7 @@ or unplug and replug it, and flash within 60 seconds.
 | `Connecting` and then `WiFi lost` / `Retrying`, repeating | The stored network is unreachable or the password is wrong; the device retries every 1 – 15 s and never gives up | Check the access point; to enter new credentials, do chapter 5 |
 | Nothing (dark) | The display failed; the device keeps working on the network | Reset the board; the status page still answers |
 | Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
+| `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76; the rest of the device keeps working |
 | A screen that never changes | The device may be hung | It restarts itself within 15 s (watchdog); if not, unplug and replug |
 
 The device logs its state on the USB serial console (115200 baud), one line per

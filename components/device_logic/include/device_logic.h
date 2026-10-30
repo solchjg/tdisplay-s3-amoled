@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define DL_LINES 3
+#define DL_LINES 4
 #define DL_LINE_MAX 21  // 20 characters (FSD §5.4) plus the terminator
 
 // Connectivity states (FSD §5.3).
@@ -19,9 +19,10 @@ typedef struct {
     const char *ip;           // dotted quad
     uint32_t requests;        // FR-14.6
     const char *hostname;     // FR-20.1, without ".local"
+    const char *reading;      // line 4 in every state (FR-23.6)
 } dl_view_t;
 
-// The three lines of FSD §5.4 for v's state.
+// The four lines of FSD §5.4 for v's state.
 void dl_screen(const dl_view_t *v, char out[DL_LINES][DL_LINE_MAX]);
 
 // FR-5.29: each byte outside 0x20 – 0x7E becomes '?'; cut to 20 characters.

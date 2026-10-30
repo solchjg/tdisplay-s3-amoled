@@ -334,6 +334,17 @@ capabilities:
     consequence: >
       R-19; TC-TIME-10 is its first run. If the bench AP has no route, the
       test is blocked by a testbench change request, never worked around.
+  dut-bme280:
+    what: A BME280 (chip ID 0x60) at 0x76 on SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1
+    available: unproven
+    consequence: >
+      Wired by the user (2026-10-30); not yet observed answering. TC-WX-10
+      is its first run.
+  seam-sensor-fault-build:
+    what: "Test build that reads the sensor at 0x77, where nothing answers (FSD §23.4)"
+    available: no
+    consequence: >
+      Not built yet; TC-WX-12 is blocked until it is.
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the AMOLED panel, held USB-C to the right
     available: yes
@@ -578,13 +589,13 @@ tests:
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-LCD-05
-    title: Three text lines stacked inside the visible area
+    title: Four text lines stacked inside the visible area
     shape: atomic
     kind: standard
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [FR-6.9]
+    verifies: [FR-6.11]
     needs: []
     observable: "3 non-overlapping line boxes inside 320x170; 20-char renders stay inside"
     impl: tests/host/test_lcd_text.py::test_three_lines_are_stacked_inside_the_visible_area
@@ -1912,4 +1923,173 @@ tests:
     needs: [bench-internet, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1]
     observable: "after L5, L20 within 10 s with a year >= 2026 and offset +0000 (UTC0 build)"
     impl: tests/bench/test_time.py::test_clock_synced_after_online
+    result: {status: not done}
+
+  - id: TC-WX-01
+    title: "Readings kept across sleep: the newest 144, newest first"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.9]
+    needs: []
+    observable: "0, 1, 144, 145, 300 added: 0, 1, 144, 144, 144 kept, newest first; uninitialised RTC memory holds none"
+    impl: [tests/host/test_weather.py::test_history_keeps_the_newest_144_newest_first, tests/host/test_weather.py::test_history_in_uninitialised_rtc_memory_holds_nothing]
+    result: {status: not done}
+
+  - id: TC-WX-02
+    title: "Sensor-failed log line"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.4]
+    needs: []
+    observable: "L22 'bme280 failed: <ERR>'"
+    impl: tests/host/test_web_log.py::test_sensor_failed_line
+    result: {status: not done}
+
+  - id: TC-WX-03
+    title: "Screen line 4 is the newest reading in every state"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.6]
+    needs: []
+    observable: "'21.4C 45% 1013hPa', '-40.0C 100% 1100hPa', 'Sensor --'; at most 20 characters; lines 1 - 3 unchanged"
+    impl: [tests/host/test_weather.py::test_screen_line, tests/host/test_weather.py::test_screen_line_without_a_reading, tests/host/test_device_logic.py::test_line_four_is_the_reading_in_every_state]
+    result: {status: not done}
+
+  - id: TC-WX-04
+    title: "Reading log line"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.5]
+    needs: []
+    observable: "L21 'reading t=21.43 rh=45.2 p=1013.25 at=<iso> synced=1'"
+    impl: tests/host/test_weather.py::test_log_line
+    result: {status: not done}
+
+  - id: TC-WX-05
+    title: "Readings JSON element"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.8]
+    needs: []
+    observable: "valid JSON, exactly time, synced, temp_c, rh_pct, p_hpa with the stated decimals"
+    impl: [tests/host/test_weather.py::test_json_element_has_exactly_the_five_keys, tests/host/test_weather.py::test_json_keeps_the_stated_decimals]
+    result: {status: not done}
+
+  - id: TC-WX-06
+    title: "Page reading section"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.7]
+    needs: []
+    observable: "values, time and an unsynced mark when unsynced; 'No reading kept' without one; status_http places it after the table"
+    impl: [tests/host/test_weather.py::test_html_section, shared/tests/host/test_status_http.py::test_html_page_carries_the_apps_extra_markup_after_the_table]
+    result: {status: not done}
+
+  - id: TC-WX-07
+    title: "BME280 compensation, forced-mode sequence and failures (bme280 core)"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [NFR-23.2, FR-23.1, FR-23.4]
+    needs: []
+    observable: "datasheet example 25.08 C / 1006.53 hPa; humidity within 0.05 % of the double formula; ranges clamped; ctrl_hum 01 and config 00, then ctrl_meas 25; ID 0x58 and NAK keep no reading"
+    impl: [shared/tests/host/test_bme280.py]
+    result: {status: not done}
+
+  - id: TC-WX-10
+    title: "A plausible reading before the window"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: target
+    verifies: [FR-23.3, FR-23.5, NFR-23.1]
+    needs: [bench-flash, bench-serial-monitor, dut-amoled-slot1, dut-bme280]
+    observable: "after a USB reset, L21 before L2 with -10 - 45 C, 5 - 95 %, 870 - 1085 hPa; no L22"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-WX-11
+    title: "A reading on every timer wake, listed by /api/readings"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: bench
+    verifies: [FR-23.2, FR-23.9, FR-23.5]
+    needs: [seam-sleep-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-wifi-slot1, dut-amoled-slot1, dut-bme280]
+    observable: "an L21 on each timer wake of the 10 s sleep build; after a key wake, /api/readings lists them newest first"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-WX-12
+    title: "A missing sensor is reported, the device carries on"
+    shape: atomic
+    kind: negative
+    wave: 1
+    fsd_phase: 5
+    tier: target
+    verifies: [FR-23.4]
+    needs: [seam-sensor-fault-build, bench-flash, bench-serial-monitor, dut-amoled-slot1]
+    observable: "L22 with ESP_ERR_TIMEOUT or a bus error, then the window, ONLINE and L18 as usual; no restart"
+    impl: []
+    result: {status: not done, reason: "blocked by seam-sensor-fault-build = no"}
+
+  - id: TC-WX-13
+    title: "Panel line 4 matches the latest reading"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: bench
+    verifies: [FR-23.6, FR-6.11]
+    needs: [bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280]
+    observable: "operator confirms line 4 equals the latest L21, rounded, unclipped"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-WX-14
+    title: "Page and /api/readings carry the latest reading"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: bench
+    verifies: [FR-23.7, FR-23.8]
+    needs: [bench-flash, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1, dut-bme280]
+    observable: "GET / shows the newest values; GET /api/readings parses as FSD 23.2 and its first element equals the latest L21"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-WX-15
+    title: "The sensor responds to warmth"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: bench
+    verifies: [FR-23.1]
+    needs: [bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1, dut-bme280]
+    observable: "after a finger on the sensor for 30 s and a key wake, L21 shows a higher temperature than the one before"
+    impl: []
     result: {status: not done}
