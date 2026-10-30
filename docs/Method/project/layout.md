@@ -146,3 +146,7 @@ handler that never returns.
   any run.
 - Native USB part: never open the port with DTR/RTS asserted (see
   [`../standards/testing.md`](../standards/testing.md)).
+- When the USB-Serial/JTAG port comes back (after a flash, or a deep-sleep wake that stays
+  up about a second), the bench re-attaches and the chip takes a USB reset, which clears RTC
+  memory; the serial ring also loses about the first second after each restart. Evidence that
+  must outlive a restart goes to NVS (the sleep build's `sleeptest:` boot history).

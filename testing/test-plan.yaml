@@ -303,9 +303,15 @@ capabilities:
       operator press.
   seam-sleep-build:
     what: "Test build whose stand-in task asks for SLEEP_S s of deep sleep twice per power-on, then stays awake (FSD §21.3); SLEEP_S 10 and 300"
-    available: unproven
+    available: yes
+    observed: 2026-10-30
+    evidence: >
+      TC-SLP-10 run 3 (c55b4c9, CI run 40997968059): NVS history window
+      sleep at 60.6 s, timer wakes after 10.8 s (re-slept at 107 ms) and
+      10.4 s, then a bench USB reset.
     consequence: >
-      Built by the CI job sleep; proven by the first TC-SLP-10 run.
+      Built by the CI job sleep; its boot history lives in NVS because the
+      bench's USB reset clears RTC memory.
   dut-user-key:
     what: Firmware on the T-Display-S3 AMOLED in SLOT1 wakes from deep sleep when an operator presses the user key (GPIO 21)
     available: unproven
