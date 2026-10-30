@@ -3,9 +3,9 @@
 #include "tdisplay_s3_amoled.h"
 #include "text.h"
 
-// Full-width rows, 20 characters each (FR-6.10), evenly spaced in the 240-px
-// height (FR-6.11): 22 px between the 32-px lines, 22 above and 24 below.
-static const int line_y[LCD_TEXT_LINES] = {22, 76, 130, 184};
+// Full-width rows, 33 characters each (FR-6.13), evenly spaced in the 240-px
+// height (FR-6.12): 13 px between the 32-px lines, 13 above and 15 below.
+static const int line_y[LCD_TEXT_LINES] = {13, 58, 103, 148, 193};
 
 lcd_rect_t lcd_text_line_rect(int line)
 {

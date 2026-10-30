@@ -31,7 +31,7 @@ static RTC_DATA_ATTR wx_history_t history;
 static bool started;
 static weather_note_cb_t note_cb;
 
-esp_err_t weather_read(wx_reading_t *out)
+esp_err_t weather_sample(wx_reading_t *out)
 {
     if (!started) {
         esp_err_t err = bme280_start(&sensor_cfg);
@@ -52,8 +52,16 @@ esp_err_t weather_read(wx_reading_t *out)
                           .press_q8_pa = b.press_q8_pa,
                           .hum_q10_pct = b.hum_q10_pct,
                           .synced = time_sync_synced()};
-    wx_add(&history, out);
     return ESP_OK;
+}
+
+esp_err_t weather_read(wx_reading_t *out)
+{
+    esp_err_t err = weather_sample(out);
+    if (err == ESP_OK) {
+        wx_add(&history, out);
+    }
+    return err;
 }
 
 const wx_reading_t *weather_newest(void)

@@ -90,20 +90,20 @@ def test_history_in_uninitialised_rtc_memory_holds_nothing(core):
     assert core("garbage").split() == ["0", "1", "1", "7"]
 
 
-# TC-WX-03 · FR-23.6 (core)
+# TC-WX-03 · FR-23.11 (core)
 @pytest.mark.parametrize("reading,line", [
-    ((21.43, 45.2, 1013.25), "70.6F 45% 1013hPa"),
-    ((-40.0, 100.0, 1100.0), "-40.0F 100% 1100hPa"),
-    ((85.0, 100.0, 1100.0), "185.0F 100% 1100hPa"),
-    ((-17.79, 0.0, 300.0), "0.0F 0% 300hPa"),
-    ((-17.80, 0.0, 300.0), "0.0F 0% 300hPa"),  # -0.04 F: no "-0.0"
-    ((-17.84, 0.0, 300.0), "-0.1F 0% 300hPa"),
-    ((24.27, 45.5, 1013.5), "75.7F 46% 1014hPa"),
+    ((21.43, 45.2, 1013.25), "70.6F Hum 45% 1013.25 hPa"),
+    ((-40.0, 100.0, 1100.0), "-40.0F Hum 100% 1100.00 hPa"),
+    ((85.0, 100.0, 1100.0), "185.0F Hum 100% 1100.00 hPa"),
+    ((-17.79, 0.0, 300.0), "0.0F Hum 0% 300.00 hPa"),
+    ((-17.80, 0.0, 300.0), "0.0F Hum 0% 300.00 hPa"),  # -0.04 F: no "-0.0"
+    ((-17.84, 0.0, 300.0), "-0.1F Hum 0% 300.00 hPa"),
+    ((24.27, 46.8, 996.62), "75.7F Hum 47% 996.62 hPa"),
 ])
 def test_screen_line(core, reading, line):
     out = core("line", *args(*reading))
     assert out == line
-    assert len(out) <= 20
+    assert len(out) <= 33
 
 
 def test_screen_line_without_a_reading(core):

@@ -269,11 +269,11 @@ testbench.
 
 - **Scope.** Five 33-character screen lines, the `Hum` reading line, and the
   hold after WiFi is configured.
-- **Deliverables.** §24, FR-6.12, FR-6.13, FR-7.33, FR-23.11; the hold test
-  build §24.3 names.
+- **Deliverables.** §24, FR-6.12, FR-6.13, FR-7.33, FR-23.11; the sleep test
+  builds' 60 s hold timeout (§24.3).
 - **Exit criteria.** Provisioning logs L23 and the device does not sleep; the
   panel counts down on line 5; a key press logs L24 `by=key` and the device
-  sleeps after the window; the hold test build times out and holds again on
+  sleeps after the window; the sleep test build times out and holds again on
   the next key wake.
 - **Dependencies.** §5 (T3), §21 (the key and the window), §23 (the readings).
 
@@ -306,7 +306,7 @@ testbench.
 | R-19 | The bench AP may give the DUT no internet route, so SNTP (FR-22.1) may not be reachable from SLOT1 | Medium | Medium | Not yet observed; if the bench AP has no route, the bench test is blocked (testbench change request, never a project workaround) |
 | R-20 | GPIO 43/44 are UART0 TX/RX: the ROM bootloader writes its boot banner on GPIO 43 (SDA) at every reset, which the sensor sees as stray START/STOP conditions | Certain | Low | No SCL clocks are sent, so no address can match; the driver installs the bus after the banner and the first transfer starts with a STOP |
 | R-21 | The bench has no reference thermometer, hygrometer or barometer, so accuracy is not verified, only plausibility and response | Certain | Low | The sensor's own accuracy (±1 °C, ±3 %, ±1 hPa per datasheet) is relied on; contracts check plausible ranges and a finger-warmth response |
-| R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the hold test build with its 60 s timeout; the shipped 30 min is a build constant, not a runtime value |
+| R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
 
 ### 4.2 Assumptions
 
@@ -1662,7 +1662,7 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
 | FR-24.5, FR-24.6 (core) | Hold, then a key event; hold, then 1800 s with no key | Mark cleared, window 60 s, then the task; mark kept, the task at once | Sleep inside the hold; the mark cleared by the timeout | host |
 | FR-24.1, FR-24.2, FR-24.8 | Erased NVS; provision through the portal (bench AP) | L4, then L23; no `web: sleep` for 120 s | Sleep or the task during the hold | target |
 | FR-24.5 | Holding; operator presses the user key | L24 `by=key`, then `web: sleep` 60 – 63 s later | Sleep earlier; no L24 | bench (operator) |
-| FR-24.6 | Hold test build with the timeout cut to 60 s, provisioned | L24 `by=timeout` 60 – 63 s after L23, then L21 and `web: sleep`; after a key wake, L23 again | Sleep before the timeout; no hold after the key wake | target / bench (operator) |
+| FR-24.6 | Sleep test build (hold timeout cut to 60 s), provisioned | L24 `by=timeout` 60 – 63 s after L23, then L21 and `web: sleep`; after a key wake, L23 again | Sleep before the timeout; no hold after the key wake | target / bench (operator) |
 | FR-24.3, FR-24.4 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
 
 ---
@@ -1769,7 +1769,7 @@ Build-time constants:
 | Readings kept across sleep | 144 | [user] |
 | Reading duration | ≤ 50 ms | [user] |
 | I2C clock | 100 kHz, internal pull-ups on | [user] |
-| Setup check hold timeout | 30 min (60 s in the hold test build) | [user] |
+| Setup check hold timeout | 30 min (60 s in the sleep test builds) | [user] |
 | Live reading period during the hold | 5 s | [user] |
 | User key debounce | 50 ms | [user] |
 | Reading line decimals (T / RH / P) | 1 / 0 / 2 | [user] |

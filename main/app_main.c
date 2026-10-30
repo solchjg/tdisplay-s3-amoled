@@ -24,6 +24,7 @@
 #include "ota_rx.h"
 #include "portal.h"
 #include "sdkconfig.h"
+#include "setup_check.h"
 #include "status_http.h"
 #include "time_sync.h"
 #include "udp_log.h"
@@ -41,8 +42,13 @@ static const char *TAG = "main";
 #define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
 #define LEAVE_MS 200                          // a planned restart leaves the AP first
 #define TASK_PERIOD_S 600                     // FR-23.2: one reading every 10 min
+#ifdef TDS3_TEST_HOLD_S
+#define HOLD_TIMEOUT_S TDS3_TEST_HOLD_S  // the sleep test builds cut the hold (R-22)
+#else
+#define HOLD_TIMEOUT_S DL_HOLD_TIMEOUT_S  // FR-24.6
+#endif
 
-typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED } app_kind_t;
+typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY } app_kind_t;
 
 typedef struct {
     app_kind_t kind;
@@ -70,7 +76,13 @@ static const status_http_source_t status_source = {.ip = ip, .hostname = hostnam
 
 static dl_wake_t wake;  // how this boot began (FSD §21)
 static bool task_ran;
-static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.6)
+static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.11)
+static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.4)
+
+static dl_hold_t hold;         // the setup check (FSD §24)
+static uint32_t hold_start_s;  // uptime when the hold began
+static uint32_t live_read_s;   // uptime of the last live reading (FR-24.3)
+static uint32_t window_start_s;  // uptime the window counts from (FR-24.5)
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
@@ -163,6 +175,12 @@ static esp_err_t get_hang(httpd_req_t *req)
     return ESP_OK;
 }
 #endif
+
+static void on_key(void)
+{
+    app_event_t e = {.kind = APP_KEY};
+    post(&e);
+}
 
 static void on_submit(const pc_creds_t *c)
 {
@@ -310,6 +328,13 @@ static void take_reading(void)
     wx_screen_line(weather_newest(), reading_line);
 }
 
+// FR-24.3: during the hold, line 4 shows a live reading, neither kept nor logged.
+static void show_live_reading(void)
+{
+    wx_reading_t r;
+    wx_screen_line(weather_sample(&r) == ESP_OK ? &r : NULL, reading_line);
+}
+
 // The task (FR-21.4, FR-21.9): takes a reading (FR-23.1), then returns the sleep
 // period it asks for (FR-23.2), 0 to stay awake. The sleep test build sleeps
 // twice per flash with its own period, then stays awake.
@@ -367,8 +392,8 @@ static esp_err_t draw_changed(char want[DL_LINES][DL_LINE_MAX])
             if (err != ESP_OK) {
                 return err;
             }
+            redrawn[i] = dl_line_logged(i, shown[i], want[i]);  // FR-7.33
             strcpy(shown[i], want[i]);
-            redrawn[i] = true;
         }
     }
     return ESP_OK;
@@ -409,6 +434,67 @@ static dl_disp_t disp_tick(dl_disp_t disp)
     return step.next;
 }
 
+// ── Setup check region (FSD §24) ─────────────────────────────────────────
+
+static uint32_t uptime_s(void)
+{
+    return (uint32_t)(esp_timer_get_time() / 1000000);
+}
+
+static void execute_hold(unsigned a)
+{
+    uint32_t now = uptime_s();
+    if (a & DL_H_ENTER) {
+        hold_start_s = live_read_s = now;
+        web_log_setup_pending();  // L23
+        esp_err_t err = setup_check_key_start(on_key);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            web_log_warn("setup key start", err);
+        }
+        dl_hold_line(0, HOLD_TIMEOUT_S, prompt_line);
+        show_live_reading();
+    }
+    if (a & DL_H_CLEAR_MARK) {
+        esp_err_t err = setup_check_mark(false);
+        if (err != ESP_OK) {
+            web_log_warn("setup check clear", err);
+        }
+    }
+    if (a & (DL_H_LOG_KEY | DL_H_LOG_TIMEOUT)) {
+        web_log_setup_done(a & DL_H_LOG_KEY ? "key" : "timeout");  // L24
+        setup_check_key_stop();
+        prompt_line[0] = '\0';
+        wx_screen_line(weather_newest(), reading_line);  // line 4 back to the kept reading
+    }
+    if (a & DL_H_START_WINDOW) {
+        window_start_s = now;
+    }
+}
+
+static void hold_event(dl_hold_event_t ev, bool guard)
+{
+    dl_hold_step_t step = dl_hold_step(hold, ev, guard, wake, uptime_s() - hold_start_s,
+                                       HOLD_TIMEOUT_S);
+    hold = step.next;
+    execute_hold(step.actions);
+}
+
+// Each tick of the hold, before the draw: the countdown (FR-24.4) and the live
+// reading every 5 s (FR-24.3). The timeout (FR-24.6) is checked after the draw,
+// so 00:00 is shown.
+static void hold_tick(void)
+{
+    if (hold != DL_HOLD_ON) {
+        return;
+    }
+    uint32_t now = uptime_s();
+    dl_hold_line(now - hold_start_s, HOLD_TIMEOUT_S, prompt_line);
+    if (now - live_read_s >= DL_HOLD_READ_S) {
+        live_read_s = now;
+        show_live_reading();
+    }
+}
+
 // ── Connectivity region ──────────────────────────────────────────────────
 
 static void start_attempt(void)
@@ -437,6 +523,12 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
             web_log_warn("credentials store", err);
         }
         web_log_provisioned(stored.ssid);
+    }
+    if (a & DL_C_MARK_SETUP) {
+        esp_err_t err = setup_check_mark(true);  // FR-24.1
+        if (err != ESP_OK) {
+            web_log_warn("setup check mark", err);
+        }
     }
     if (a & DL_C_STOP_SOFTAP) {
         vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));
@@ -523,6 +615,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         } else {
             web_log_warn("credentials erase", err);
         }
+        err = setup_check_mark(false);  // FR-24.1
+        if (err != ESP_OK) {
+            web_log_warn("setup check clear", err);
+        }
     }
     if (a & DL_C_RESTART) {
         if (e->ev == DL_EV_CONFIRM_DEADLINE) {
@@ -557,6 +653,9 @@ static void conn_event(const app_event_t *e)
         }
     }
     execute_conn(e, step);
+    if (step.actions & DL_C_MARK_SETUP) {
+        hold_event(DL_HEV_MARKED, true);
+    }
 }
 
 void app_main(void)
@@ -572,7 +671,7 @@ void app_main(void)
     }
     deep_sleep_on_prepare(lcd_sleep_cb, NULL);
     // A timer wake follows a sleep, which only a provisioned device takes (FR-21.12).
-    if (dl_task_due(wake, 0, false, wake == DL_WAKE_TIMER, task_ran)) {
+    if (dl_task_due(wake, 0, false, wake == DL_WAKE_TIMER, task_ran, DL_HOLD_NONE)) {
         // FR-21.10: a timer wake runs the task with the panel dark and WiFi off,
         // then sleeps again. Only a task that asks to stay awake gets past here.
         run_task_and_sleep();
@@ -590,7 +689,7 @@ void app_main(void)
     take_reading();  // FR-23.3: a value for the panel and the page during the window
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
                        .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname,
-                       .reading = reading_line};
+                       .reading = reading_line, .prompt = prompt_line};
 
     // D1/D2: start, clear, and the first draw of the BOOT screen.
     char want[DL_LINES][DL_LINE_MAX];
@@ -623,6 +722,7 @@ void app_main(void)
     } else {
         web_log_warn("network init", err);
     }
+    hold_event(DL_HEV_BOOT, setup_check_pending());  // FR-24.2: NVS is up
 
     // FR-19.1: this task is watched; the 1 s tick below feeds it.
     esp_task_wdt_add(NULL);
@@ -650,6 +750,10 @@ void app_main(void)
             web_log_time_synced();  // L20 (FR-22.5)
             continue;
         }
+        if (e.kind == APP_KEY) {
+            hold_event(DL_HEV_KEY, false);
+            continue;
+        }
         esp_task_wdt_reset();
 #ifdef TDS3_TEST_HANG_APP
         // Hang test build, variant app (FSD §19.3): block 20 s after startup (FR-19.1).
@@ -660,12 +764,13 @@ void app_main(void)
             }
         }
 #endif
+        hold_tick();
         disp = disp_tick(disp);
-        uint32_t up_s = (uint32_t)(esp_timer_get_time() / 1000000);
+        hold_event(DL_HEV_TICK, false);
         bool provisioned = view.conn != DL_BOOT && view.conn != DL_PROVISIONING;
-        if (!task_ran &&
-            dl_task_due(wake, up_s, image_pending_verify(), provisioned, task_ran)) {
-            run_task_and_sleep();  // FR-21.2 – FR-21.4: after the window
+        if (!task_ran && dl_task_due(wake, uptime_s() - window_start_s, image_pending_verify(),
+                                     provisioned, task_ran, hold)) {
+            run_task_and_sleep();  // FR-21.2 – FR-21.4, FR-24.5, FR-24.6: after the window
         }
         if (++tick % ALIVE_TICKS == 0) {
             web_log_alive(alive++);

@@ -11,7 +11,7 @@
 // L1: "boot reason=<R> fw=<V> slot=<label>"
 void wl_fmt_boot(char *buf, size_t len, const char *reason, const char *fw, const char *slot);
 
-// L7: "lcd line<k>=\"<text>\"", k = 1 .. 4
+// L7: "lcd line<k>=\"<text>\"", k = 1 .. 5
 void wl_fmt_lcd_line(char *buf, size_t len, int k, const char *text);
 
 // L8: "lcd init failed: <ERR>"
@@ -66,3 +66,7 @@ void wl_fmt_time_synced(char *buf, size_t len, const char *iso);
 
 // L22: "bme280 failed: <ERR>" (L21's text comes from the weather core)
 void wl_fmt_bme280_failed(char *buf, size_t len, const char *err);
+
+// L23: "setup check pending"; L24: "setup check done by=<key|timeout>"
+void wl_fmt_setup_pending(char *buf, size_t len);
+void wl_fmt_setup_done(char *buf, size_t len, const char *by);

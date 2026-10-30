@@ -465,7 +465,7 @@ tests:
     wave: 1
     fsd_phase: 3
     tier: bench
-    verifies: [FR-5.25, FR-5.26, FR-7.11]
+    verifies: [FR-5.25, FR-5.26, FR-7.33]
     needs: [bench-serial-monitor, bench-http-relay, lcd-rm67162, dut-wifi-slot1]
     observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
     impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
@@ -589,30 +589,30 @@ tests:
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-LCD-05
-    title: Four text lines stacked inside the visible area
+    title: Five text lines stacked inside the visible area
     shape: atomic
     kind: standard
     wave: 1
-    fsd_phase: 1
+    fsd_phase: 6
     tier: host
-    verifies: [FR-6.11]
+    verifies: [FR-6.12]
     needs: []
-    observable: "3 non-overlapping line boxes inside 320x170; 20-char renders stay inside"
-    impl: tests/host/test_lcd_text.py::test_three_lines_are_stacked_inside_the_visible_area
-    result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
+    observable: "5 non-overlapping line boxes inside 536x240; 33-char renders stay inside"
+    impl: tests/host/test_lcd_text.py::test_five_lines_are_stacked_inside_the_visible_area
+    result: {status: not done}
 
   - id: TC-LCD-06
-    title: A 20-character line fits one row
+    title: A 33-character line fits one row
     shape: atomic
     kind: standard
     wave: 1
-    fsd_phase: 1
+    fsd_phase: 6
     tier: host
-    verifies: [FR-6.10]
+    verifies: [FR-6.13]
     needs: []
-    observable: "width 320 px, rightmost pixel <= 319, 20th character drawn, one row"
-    impl: tests/host/test_lcd_text.py::test_twenty_characters_fit_one_row
-    result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
+    observable: "width 528 px, rightmost pixel <= 527, 33rd character drawn, one row; the screen keeps 33 characters and still cuts an SSID at 20"
+    impl: [tests/host/test_lcd_text.py::test_thirty_three_characters_fit_one_row, tests/host/test_device_logic.py::test_a_33_character_line_is_kept_whole]
+    result: {status: not done}
 
   - id: TC-LCD-07
     title: A redraw overwrites the whole row
@@ -712,7 +712,7 @@ tests:
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [FR-5.26, FR-7.11]
+    verifies: [FR-5.26, FR-7.33]
     needs: []
     observable: "draws on the tick; next LCD_OK; actions = LOG_LINES"
     impl: tests/host/test_device_logic.py::test_d4_changed_tick_redraws_and_mirrors
@@ -777,7 +777,7 @@ tests:
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [FR-7.11]
+    verifies: [FR-7.33]
     needs: []
     observable: "lcd line<k>=\"<text>\""
     impl: tests/host/test_web_log.py::test_lcd_line_mirror
@@ -935,7 +935,7 @@ tests:
     tier: host
     verifies: [FR-5.13]
     needs: []
-    observable: "next CONNECTING; STORE_CREDS, STOP_SOFTAP, START_ATTEMPT; no RESTART"
+    observable: "next CONNECTING; STORE_CREDS, STOP_SOFTAP, START_ATTEMPT, MARK_SETUP; no RESTART"
     impl: tests/host/test_device_logic.py::test_t3_valid_submission_stores_and_connects_without_restart
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
@@ -1952,16 +1952,16 @@ tests:
     result: {status: not done}
 
   - id: TC-WX-03
-    title: "Screen line 4 is the newest reading in every state"
+    title: "Screen line 4 is the reading, line 5 the prompt, in every state"
     shape: atomic
     kind: standard
     wave: 1
-    fsd_phase: 5
+    fsd_phase: 6
     tier: host
-    verifies: [FR-23.6]
+    verifies: [FR-23.11, FR-24.4]
     needs: []
-    observable: "'70.6F 45% 1013hPa', '-40.0F 100% 1100hPa', 'Sensor --'; at most 20 characters; lines 1 - 3 unchanged"
-    impl: [tests/host/test_weather.py::test_screen_line, tests/host/test_weather.py::test_screen_line_without_a_reading, tests/host/test_device_logic.py::test_line_four_is_the_reading_in_every_state]
+    observable: "'70.6F Hum 45% 1013.25 hPa', '-40.0F Hum 100% 1100.00 hPa', 'Sensor --'; at most 33 characters; lines 1 - 3 unchanged"
+    impl: [tests/host/test_weather.py::test_screen_line, tests/host/test_weather.py::test_screen_line_without_a_reading, tests/host/test_device_logic.py::test_lines_four_and_five_in_every_state]
     result: {status: not done}
 
   - id: TC-WX-04
@@ -2062,7 +2062,7 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: bench
-    verifies: [FR-23.6, FR-6.11]
+    verifies: [FR-23.11, FR-6.12]
     needs: [bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280]
     observable: "operator confirms line 4 equals the latest L21, rounded, unclipped"
     impl: []
@@ -2091,5 +2091,136 @@ tests:
     verifies: [FR-23.1]
     needs: [bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1, dut-bme280]
     observable: "after a finger on the sensor for 30 s and a key wake, L21 shows a higher temperature than the one before"
+    impl: []
+    result: {status: not done}
+
+  # ── Setup check (FSD §24) ──────────────────────────────────────────────
+  - id: TC-SC-01
+    title: "A pending mark holds every boot but a timer wake; T3 starts the hold"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: host
+    verifies: [FR-24.1, FR-24.2, FR-24.7]
+    needs: []
+    observable: "BOOT with the mark on a power-on or key wake: ON, ENTER; no mark or a timer wake: no hold; MARKED: ON; no task while ON"
+    impl: [tests/host/test_device_logic.py::test_a_pending_mark_holds_every_boot_but_a_timer_wake, tests/host/test_device_logic.py::test_a_timer_wake_never_holds, tests/host/test_device_logic.py::test_storing_credentials_starts_the_hold, tests/host/test_device_logic.py::test_no_task_while_holding]
+    result: {status: not done}
+
+  - id: TC-SC-02
+    title: "The key or the timeout ends the hold"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: host
+    verifies: [FR-24.5, FR-24.6]
+    needs: []
+    observable: "KEY: mark cleared, L24 by=key, the task 60 s later; 1800 s: L24 by=timeout, mark kept, the task at once"
+    impl: [tests/host/test_device_logic.py::test_the_key_ends_the_hold_and_starts_the_window, tests/host/test_device_logic.py::test_the_timeout_ends_the_hold_and_keeps_the_mark]
+    result: {status: not done}
+
+  - id: TC-SC-03
+    title: "The countdown line"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: host
+    verifies: [FR-24.4]
+    needs: []
+    observable: "'Press key to continue 30:00', '... 29:59', '... 01:01', '... 00:00'; at most 33 characters"
+    impl: tests/host/test_device_logic.py::test_countdown_line
+    result: {status: not done}
+
+  - id: TC-SC-04
+    title: "Setup check log lines L23, L24"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: host
+    verifies: [FR-24.5, FR-24.6, FR-24.8]
+    needs: []
+    observable: "'setup check pending'; 'setup check done by=key'; 'setup check done by=timeout'"
+    impl: tests/host/test_web_log.py::test_setup_check_lines
+    result: {status: not done}
+
+  - id: TC-SC-05
+    title: "The countdown logs L7 once a minute"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: host
+    verifies: [FR-7.33]
+    needs: []
+    observable: "line 5 logs when its minutes change and at 00:00; every other line logs every redraw"
+    impl: tests/host/test_device_logic.py::test_countdown_logs_when_its_minutes_change
+    result: {status: not done}
+
+  - id: TC-SC-06
+    title: "User key debounce"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: host
+    verifies: [FR-24.5]
+    needs: []
+    observable: "a press counts once after 50 ms; shorter bounces never; a key held from boot counts only after a release"
+    impl: tests/host/test_setup_check.py
+    result: {status: not done}
+
+  - id: TC-SC-07
+    title: "Provisioning holds the device awake"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: target
+    verifies: [FR-24.1, FR-24.2, FR-24.8]
+    needs: [bench-flash, bench-flash-erase, bench-serial-monitor, bench-wifi-ap, dut-amoled-slot1]
+    observable: "after an erase and provisioning through the portal: L4, then L23; no web: sleep for 120 s"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-SC-08
+    title: "The key ends the hold; the window, then sleep"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: bench
+    verifies: [FR-24.5]
+    needs: [bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1]
+    observable: "holding; operator presses the user key: L24 by=key, then web: sleep 60 - 63 s later"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-SC-09
+    title: "The hold times out, sleeps, and holds again after a key wake"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: target
+    verifies: [FR-24.6]
+    needs: [seam-sleep-build, bench-flash, bench-flash-erase, bench-serial-monitor, bench-wifi-ap, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1]
+    observable: "sleep test build (hold 60 s), provisioned: L24 by=timeout 60 - 63 s after L23, then L21 and web: sleep; after a key wake, L23 again"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-SC-10
+    title: "The panel counts down and shows live readings"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: bench
+    verifies: [FR-24.3, FR-24.4]
+    needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280]
+    observable: "operator watching 15 s with a finger on the sensor: line 5 counts down once a second; line 4 changes at least once"
     impl: []
     result: {status: not done}

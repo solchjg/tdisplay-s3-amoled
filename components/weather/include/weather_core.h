@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #define WX_KEEP 144      // FR-23.9: 24 h at 600 s
-#define WX_LINE_MAX 21   // a screen line: 20 characters (FSD §5.4) plus the terminator
+#define WX_LINE_MAX 34   // a screen line: 33 characters (FSD §5.4) plus the terminator
 #define WX_ISO_MAX 25    // <YYYY-MM-DD>T<hh:mm:ss><±hhmm> plus the terminator
 #define WX_JSON_MAX 128  // one §23.2 element
 #define WX_HTML_MAX 256  // the page's reading section
@@ -42,7 +42,7 @@ void wx_fmt_temp_f(char *out, size_t len, int32_t centi_c, int decimals);
 void wx_fmt_hum(char *out, size_t len, uint32_t q10, int decimals);
 void wx_fmt_press(char *out, size_t len, uint32_t q8_pa, int decimals);
 
-// FR-23.6: "<t>F <rh>% <p>hPa", or "Sensor --" for r == NULL.
+// FR-23.11: "<t>F Hum <rh>% <p> hPa", or "Sensor --" for r == NULL.
 void wx_screen_line(const wx_reading_t *r, char out[WX_LINE_MAX]);
 
 // L21 after "web: ": "reading t=<..> rh=<..> p=<..> at=<iso> synced=<0|1>".

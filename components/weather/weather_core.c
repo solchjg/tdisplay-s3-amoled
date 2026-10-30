@@ -69,14 +69,14 @@ void wx_screen_line(const wx_reading_t *r, char out[WX_LINE_MAX])
         snprintf(out, WX_LINE_MAX, "Sensor --");
         return;
     }
-    // The sensor's ranges keep this within 20 characters ("185.0F 100% 1100hPa");
-    // anything longer is cut, never overflowing the line.
+    // The sensor's ranges keep this within 33 characters ("185.0F Hum 100%
+    // 1100.00 hPa", 27); anything longer is cut, never overflowing the line.
     char t[16], h[16], p[16], line[64];
     wx_fmt_temp_f(t, sizeof t, r->temp_centi_c, 1);
     wx_fmt_hum(h, sizeof h, r->hum_q10_pct, 0);
-    wx_fmt_press(p, sizeof p, r->press_q8_pa, 0);
-    snprintf(line, sizeof line, "%sF %s%% %shPa", t, h, p);
-    snprintf(out, WX_LINE_MAX, "%.20s", line);
+    wx_fmt_press(p, sizeof p, r->press_q8_pa, 2);
+    snprintf(line, sizeof line, "%sF Hum %s%% %s hPa", t, h, p);
+    snprintf(out, WX_LINE_MAX, "%.33s", line);
 }
 
 typedef struct {

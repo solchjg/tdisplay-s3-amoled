@@ -103,3 +103,13 @@ void wl_fmt_bme280_failed(char *buf, size_t len, const char *err)
 {
     snprintf(buf, len, "bme280 failed: %s", err);
 }
+
+void wl_fmt_setup_pending(char *buf, size_t len)
+{
+    snprintf(buf, len, "setup check pending");
+}
+
+void wl_fmt_setup_done(char *buf, size_t len, const char *by)
+{
+    snprintf(buf, len, "setup check done by=%s", by);
+}

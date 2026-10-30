@@ -15,6 +15,9 @@
 // failure nothing is kept, and the next call starts the sensor afresh.
 esp_err_t weather_read(wx_reading_t *out);
 
+// FR-24.3: a reading like weather_read, but not kept.
+esp_err_t weather_sample(wx_reading_t *out);
+
 // The newest kept reading, NULL when none is kept.
 const wx_reading_t *weather_newest(void);
 

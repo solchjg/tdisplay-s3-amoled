@@ -75,6 +75,9 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   (L0) holds the board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.
 - `shared/components/text/` (L0) — pure C font renderer. `font16x32.c` is generated
   by `shared/tools/bdf_to_c.py` — regenerate, never hand-edit.
+- `components/setup_check/` (L1) — the setup check (FSD §24): the pending mark
+  in NVS and the user key (GPIO 21); `setup_check_core.c` is the pure debouncer.
+  When to hold is `device_logic`'s `dl_hold_step`.
 - `components/hello_log/` (L1) — serial log lines; `hello_log_format.c` is the pure core.
 - `components/weather/` (L1) — the BME280 task's readings (FSD §23): kept in RTC
   memory, shown on line 4, logged (L21/L22), served at `/api/readings`;

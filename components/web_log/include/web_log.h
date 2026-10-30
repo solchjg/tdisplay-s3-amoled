@@ -8,7 +8,7 @@
 // L1, once per boot, before any other `web:` line (FR-7.7).
 void web_log_boot(void);
 
-// L7: the text drawn on line k (1 .. 4) (FR-7.11).
+// L7: the text drawn on line k (1 .. 5) (FR-7.33).
 void web_log_lcd_line(int k, const char *text);
 
 // L8 (FR-7.12) and L9 (FR-7.13), at error level.
@@ -71,3 +71,8 @@ void web_log_time_synced(void);
 // when the sensor fails (FR-23.4).
 void web_log_reading(const char *text);
 void web_log_bme280_failed(esp_err_t err);
+
+// L23 on entering the setup check hold (FR-24.8); L24 when it ends, by "key" or
+// "timeout" (FR-24.5, FR-24.6).
+void web_log_setup_pending(void);
+void web_log_setup_done(const char *by);
