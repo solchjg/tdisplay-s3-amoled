@@ -242,7 +242,7 @@ capabilities:
       `testbench` runner that never picks it up. Development and every
       non-release test are unaffected. Before the first tag, re-register the
       runner for this repo (fresh registration token, then
-      `gh api repos/solchjg/tdisplay-s3-webserver/actions/runners` lists it)
+      `gh api repos/solchjg/tdisplay-s3-amoled/actions/runners` lists it)
       and flip this to yes. The Shipped gate cannot open until then.
   dut-amoled-slot1:
     what: The board in SLOT1 is a T-Display-S3 AMOLED with 16 MB flash; a locally built image flashes over USB and its log reaches SLOT1's monitor

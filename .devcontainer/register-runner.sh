@@ -19,7 +19,7 @@ while true; do
     "https://api.github.com/repos/${REPO}/actions/runners/registration-token" | jq -r .token)
   su runner -c "./config.sh --unattended --ephemeral --replace \
     --url https://github.com/${REPO} --token ${TOKEN} \
-    --name tdisplay-webserver-testbench --labels testbench"
+    --name tdisplay-s3-amoled-testbench --labels testbench"
   su runner -c "./run.sh" || true
   sleep 5
 done
