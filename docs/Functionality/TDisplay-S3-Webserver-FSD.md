@@ -1571,9 +1571,9 @@ relative humidity (%) and pressure (hPa), with the time it was taken and the syn
   ONLINE it reaches the UDP log by FR-16.1.
 - **FR-23.11** [Must] [user] While the panel is lit, line 4 of the screen shall
   show the newest kept reading (the live reading during the setup check,
-  FR-24.3) as `<t>F Hum <rh>% <p> hPa`, temperature 1 decimal, humidity
-  1 decimal **[proposed]**, pressure 2 decimals **[proposed]**, e.g.
-  `75.7F Hum 46.8% 996.62 hPa`; or `Sensor --` when none is kept.
+  FR-24.3) as `<t>F Hum <rh>% <p> hPa`, temperature 1 decimal, humidity a
+  whole number, pressure 2 decimals, e.g. `75.7F Hum 47% 996.62 hPa`; or
+  `Sensor --` when none is kept.
 - **FR-23.7** [Must] [user] In ONLINE, `GET /` shall also show the newest kept
   reading with its time and synced mark, or say that none is kept.
 - **FR-23.8** [Must] [user] In ONLINE, `GET /api/readings` shall answer 200 with
@@ -1601,7 +1601,7 @@ relative humidity (%) and pressure (hPa), with the time it was taken and the syn
 | FR-23.1 (core) | Register writes the driver issues for one reading | `ctrl_hum` 0x01 and `config` 0x00 in sleep mode, then `ctrl_meas` 0x25 (×1, ×1, forced) | Normal mode; any oversampling other than ×1 | host |
 | FR-23.4 (core) | Driver on a fake bus: no ACK; chip ID 0x58 (BMP280); ID 0x60 | `ESP_ERR_TIMEOUT` or a bus error; `ESP_ERR_NOT_FOUND`; `ESP_OK` | A reading kept on any failure | host |
 | FR-23.9 (core) | History core: add 0, 1, 144, 145 readings | 0, 1, 144, 144 kept, newest first; the 145th drops the oldest | More than 144; a dropped newest | host |
-| FR-23.11 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; 85 °C; none kept | `70.6F Hum 45.2% 1013.25 hPa`; `-40.0F Hum 100.0% 1100.00 hPa`; `185.0F …`; `Sensor --` | More than 33 characters | host |
+| FR-23.11 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; 85 °C; none kept | `70.6F Hum 45% 1013.25 hPa`; `-40.0F Hum 100% 1100.00 hPa`; `185.0F …`; `Sensor --` | More than 33 characters | host |
 | FR-23.8 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced | Valid JSON, exactly the five keys per element, newest first | Extra or missing key; invalid JSON | host |
 | FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within 14 – 113 °F, 5 – 95 %, 870 – 1085 hPa | L22; no L21 | target |
 | FR-23.2, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
@@ -1635,13 +1635,13 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
   server and OTA run as in the window; the 60 s window of FR-21.2 starts only
   when the hold ends by key.
 - **FR-24.3** [Must] [user] During the hold, line 4 shall show a live reading,
-  taken every **5 s** **[proposed]**; these readings are neither kept
+  taken every **5 s**; these readings are neither kept
   (FR-23.9) nor logged as L21.
 - **FR-24.4** [Must] [user] During the hold, line 5 shall show
   `Press key to continue <mm>:<ss>`, counting down once a second from `30:00`
   to `00:00`.
 - **FR-24.5** [Must] [user] A press of the user key during the hold, debounced
-  **50 ms** **[proposed]**, shall end it: the mark is cleared, L24 `by=key` is
+  **50 ms**, shall end it: the mark is cleared, L24 `by=key` is
   logged, line 5 is emptied, and the 60 s window runs, then the task and sleep
   as usual (§21).
 - **FR-24.6** [Must] [user] If no press comes within **30 min** of the hold
@@ -1770,9 +1770,9 @@ Build-time constants:
 | Reading duration | ≤ 50 ms | [user] |
 | I2C clock | 100 kHz, internal pull-ups on | [user] |
 | Setup check hold timeout | 30 min (60 s in the hold test build) | [user] |
-| Live reading period during the hold | 5 s | [proposed] |
-| User key debounce | 50 ms | [proposed] |
-| Reading line decimals (T / RH / P) | 1 / 1 / 2 | [proposed] |
+| Live reading period during the hold | 5 s | [user] |
+| User key debounce | 50 ms | [user] |
+| Reading line decimals (T / RH / P) | 1 / 0 / 2 | [user] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -1822,16 +1822,6 @@ the bench gains the capability.
 FR-6.1 – FR-6.4 and FR-6.7 keep their IDs and meaning; only the name of the state
 they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
-### Open decisions
-
-Values marked **[proposed]**, awaiting the user:
-
-| Item | Proposed | Where |
-|------|----------|-------|
-| Live reading period during the hold | 5 s | FR-24.3 |
-| User key debounce | 50 ms | FR-24.5 |
-| Humidity and pressure decimals on line 4 | 1 and 2 (`46.8%`, `996.62 hPa`) | FR-23.11 |
-
 ```yaml
 document_status: draft
 fsd_version: 0.8.0
@@ -1840,7 +1830,7 @@ baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: awaiting the user for §24, FR-6.12, FR-6.13, FR-7.33, FR-23.11 and the Open decisions; all else approved
+approval_status: all requirements and values approved by the user
 created: 2026-10-23
 last_updated: 2026-10-30
 change_history:
@@ -1865,8 +1855,8 @@ change_history:
   - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; approved by the user
   - 0.7.1 2026-10-30 FR-22.2 time zone set to US Eastern (EST5EDT) by the user
   - 0.7.2 2026-10-30 readings shown in °F (screen, page, L21, `temp_f` in /api/readings) by the user
-  - 0.8.0 2026-10-30 draft from the user's request: §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)
+  - 0.8.0 2026-10-30 from the user's request, approved by the user (humidity a whole number on line 4; 5 s live reading, 50 ms debounce): §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6]
-open_decisions: [FR-24.3 live reading period 5 s, FR-24.5 key debounce 50 ms, FR-23.11 decimals 1/1/2]
+open_decisions: []
 related_test_baseline: none yet
 ```
