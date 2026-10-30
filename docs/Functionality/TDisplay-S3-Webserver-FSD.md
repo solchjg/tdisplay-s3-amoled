@@ -45,6 +45,7 @@ reused.
 | 20 | Device Identity | cross-cutting |
 | 21 | Deep Sleep | cross-cutting |
 | 22 | Time | cross-cutting |
+| 23 | Weather Sensor | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -277,6 +278,8 @@ testbench.
 | R-17 | The bench declares no current meter, so the sleep-current limit (NFR-21.1) has no bench run | Certain | Low | Measured by the operator with a meter, or waived; the key wake keeps the RTC peripheral domain off by construction |
 | R-18 | The USB-Serial/JTAG port disappears while the chip sleeps, and EN/BOOT are not proven wired on SLOT1, so a sleeping device cannot be flashed or monitored | Certain | High | FR-21.3: every boot that is not a sleep wake stays awake 60 s; sleep tests use short periods; the user key wakes the device |
 | R-19 | The bench AP may give the DUT no internet route, so SNTP (FR-22.1) may not be reachable from SLOT1 | Medium | Medium | Not yet observed; if the bench AP has no route, the bench test is blocked (testbench change request, never a project workaround) |
+| R-20 | GPIO 43/44 are UART0 TX/RX: the ROM bootloader writes its boot banner on GPIO 43 (SDA) at every reset, which the sensor sees as stray START/STOP conditions | Certain | Low | No SCL clocks are sent, so no address can match; the driver installs the bus after the banner and the first transfer starts with a STOP |
+| R-21 | The bench has no reference thermometer, hygrometer or barometer, so accuracy is not verified, only plausibility and response | Certain | Low | The sensor's own accuracy (±1 °C, ±3 %, ±1 hPa per datasheet) is relied on; contracts check plausible ranges and a finger-warmth response |
 
 ### 4.2 Assumptions
 
@@ -418,7 +421,8 @@ region; they change the screen content that D3 – D5 compare against.
 
 ### 5.4 Screen content
 
-Three text lines, landscape, at most 20 characters each.
+Four text lines, landscape, at most 20 characters each. Line 4 is the
+newest reading in every state (FR-23.6); the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
 |--------------------|--------|--------|--------|
@@ -714,8 +718,8 @@ detected (R-2).
 - **FR-6.4** [Must] [derived from FR-5.25] On entry to LCD_OK (D1), the full
   536 × 240 visible area shall be cleared to black, leaving no lit pixels outside
   the text lines.
-- **FR-6.9** [Must] [derived from §5.4] Lines 1, 2 and 3 shall not overlap and
-  shall lie entirely inside the visible area.
+- **FR-6.11** [Must] [derived from §5.4 and FR-23.6] Lines 1 – 4 shall not
+  overlap and shall lie entirely inside the visible area.
 - **FR-6.10** [Must] [derived from §5.4 and FR-6.2] A line of 20 characters shall
   be displayed in full, without clipping or wrapping (20 × 16 px = 320 px).
 - **FR-6.7** [Must] [derived from FR-5.25] In LCD_OK, the panel brightness
@@ -733,7 +737,7 @@ detected (R-2).
 | FR-6.2 | Inspect the font used by the renderer | Cell 16 × 32 px; glyphs 0x20 – 0x7E | Other cell size; proportional font | host |
 | FR-6.3 | LCD_OK; operator prompted | Operator confirms white on black | Inverted or tinted colours | bench (operator) |
 | FR-6.4 | Power-cycle (random panel RAM); operator prompted after the first screen | No stray pixels along any edge or between lines | Noise band along an edge; remnants | bench (operator) |
-| FR-6.9 | Render three lines with the shipped layout | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 535], y ∈ [0, 239] | Overlap; a pixel outside | host |
+| FR-6.11 | Render four lines with the shipped layout | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 535], y ∈ [0, 239] | Overlap; a pixel outside | host |
 | FR-6.10 | Render a 20-character line | Rightmost pixel x ≤ 319; one row | Width > 320 px; wrap | host |
 | FR-6.7 | LCD_OK; operator prompted | Panel lit | Dark or flickering | bench (operator) |
 | FR-6.8 | Render `Req: 1000`, then `Req: 5` into the same row | Row after the second render equals a fresh render of `Req: 5` | Remnant pixels of `000` | host |
@@ -783,6 +787,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
 | L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
 | L20 | Clock synced (FR-22.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>` (local time) | I |
+| L21 | Reading taken (FR-23.5) | `web: reading t=<°C, 2 decimals> rh=<%, 1 decimal> p=<hPa, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm> synced=<0\|1>` | I |
+| L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1478,6 +1484,101 @@ time zone turns the synced UTC clock into local time.
 
 ---
 
+## 23. Weather Sensor
+
+### 23.1 Purpose & peer
+
+The device's task (§21) reads a Bosch BME280 temperature, humidity and pressure
+sensor. On a timer wake it takes a reading and keeps it; on a boot with a window
+it also shows the newest reading on the panel and the web page, and serves the
+kept readings as JSON. Built on the shared `bme280` component (pure
+compensation core, thin I2C layer); the logic layer decides when to read, the
+composition root performs the read and routes the result.
+
+The sensor is a genuine BME280 (chip ID `0x60`) on I2C at address **0x76**,
+SDA = GPIO 43, SCL = GPIO 44 (the board's UART0 pins; the console is the
+USB-Serial/JTAG, §2.2). It is read in forced mode with the Bosch "weather
+monitoring" settings: one measurement per reading, oversampling ×1 for
+temperature, pressure and humidity, IIR filter off. Between readings the
+sensor is in its sleep mode.
+
+A reading is the triple temperature (°C), relative humidity (%) and pressure
+(hPa), with the time it was taken and the synced mark of FR-22.3.
+
+### 23.2 Readings route
+
+| Method | Path | Response |
+|--------|------|----------|
+| GET | `/api/readings` | 200 `application/json`: `{"readings": [ … ]}`, newest first, each element exactly the keys below |
+
+| Key | Type | Unit / format | Meaning |
+|-----|------|---------------|---------|
+| `time` | string | `<YYYY-MM-DD>T<hh:mm:ss><±hhmm>`, local time (FR-22.2) | When the reading was taken |
+| `synced` | boolean | | FR-22.3: false if no sync had happened since power-on or reset |
+| `temp_c` | number | °C, 2 decimals | Temperature |
+| `rh_pct` | number | %, 1 decimal | Relative humidity |
+| `p_hpa` | number | hPa, 2 decimals | Pressure |
+
+### 23.3 Requirements
+
+- **FR-23.1** [Must] [user] Each time the task runs (§21, FR-21.4) it shall take
+  one reading from the BME280 at 0x76 on SDA GPIO 43 / SCL GPIO 44, in forced
+  mode, oversampling ×1 for all three quantities, IIR filter off.
+- **FR-23.2** [Must] [user] After its reading the task shall tell the device to
+  sleep for **600 s** (FR-21.9).
+- **FR-23.3** [Must] [derived from FR-23.6, FR-23.7] On every boot that is not a
+  timer wake, the device shall also take a reading before the window opens, so
+  the panel and the web page have a value during the window.
+- **FR-23.4** [Must] [derived] Before its first reading after a boot the device
+  shall check the chip ID is `0x60` and load the sensor's calibration. A sensor
+  that does not answer, answers with another ID, or fails a transfer shall be
+  reported (L22); no reading is kept, and the window, web server and sleep
+  carry on as if the sensor were absent. The device shall not restart or retry
+  within the same task run.
+- **FR-23.5** [Must] [user] Each reading shall be logged as L21 (§7.2); in
+  ONLINE it reaches the UDP log by FR-16.1.
+- **FR-23.6** [Must] [user] While the panel is lit, line 4 of the screen shall
+  show the newest kept reading as `<t>C <rh>% <p>hPa` (temperature 1 decimal,
+  humidity and pressure whole numbers, e.g. `21.4C 45% 1013hPa`), or
+  `Sensor --` when none is kept.
+- **FR-23.7** [Must] [user] In ONLINE, `GET /` shall also show the newest kept
+  reading with its time and synced mark, or say that none is kept.
+- **FR-23.8** [Must] [user] In ONLINE, `GET /api/readings` shall answer 200 with
+  the §23.2 object holding every kept reading, newest first; `[]` when none is
+  kept.
+- **FR-23.9** [Must] [user] The device shall keep the newest **144** readings
+  (24 h at 600 s) across deep sleep in RTC memory, dropping the oldest when
+  full. A power loss or reset empties them.
+- **FR-23.10** [Must] [derived from §21] While the device sleeps the sensor
+  shall be in its sleep mode (forced mode returns to it after each measurement).
+- **NFR-23.1** [Must] [proposed] A reading, from the forced-mode trigger to the
+  compensated values, shall complete within **50 ms** (the datasheet's maximum
+  at ×1 is 9.3 ms).
+- **NFR-23.2** [Must] [derived from the BME280 datasheet] Compensation shall be
+  the datasheet's integer formulas (32-bit temperature and humidity, 64-bit
+  pressure), giving 0.01 °C, 1/1024 % and 1/256 Pa resolution before rounding.
+- **C-23.1** [Must] [proposed] The I2C bus shall run at **100 kHz** with the
+  ESP32-S3's internal pull-ups enabled in addition to the breakout's.
+
+### 23.4 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| NFR-23.2 (core) | `bme280` compensation core with the datasheet's sample calibration and raw values; minimum and maximum raw values | The datasheet's results (e.g. 25.08 °C, 1006.53 hPa) within one LSB; results clamped to the sensor ranges | Overflow; a result outside −40 – 85 °C, 0 – 100 %, 300 – 1100 hPa | host |
+| FR-23.1 (core) | Register writes the driver issues for one reading | `ctrl_hum` 0x01, then `ctrl_meas` 0x25 (×1, ×1, forced), `config` 0x00 | Normal mode; any oversampling other than ×1 | host |
+| FR-23.4 (core) | Driver on a fake bus: no ACK; chip ID 0x58 (BMP280); ID 0x60 | `ESP_ERR_TIMEOUT` or a bus error; `ESP_ERR_NOT_FOUND`; `ESP_OK` | A reading kept on any failure | host |
+| FR-23.9 (core) | History core: add 0, 1, 144, 145 readings | 0, 1, 144, 144 kept, newest first; the 145th drops the oldest | More than 144; a dropped newest | host |
+| FR-23.6 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; none kept | `21.4C 45% 1013hPa`; `-40.0C 100% 1100hPa`; `Sensor --` | More than 20 characters | host |
+| FR-23.8 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced | Valid JSON, exactly the five keys per element, newest first | Extra or missing key; invalid JSON | host |
+| FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within −10 – 45 °C, 5 – 95 %, 870 – 1085 hPa | L22; no L21 | target |
+| FR-23.2, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
+| FR-23.4 | Fault build reading address 0x77 | L22 with `ESP_ERR_TIMEOUT`, then the window, ONLINE and `web: sleep` as usual | A restart; a reading kept; no sleep | target |
+| FR-23.6 | ONLINE with the sensor fitted | Operator confirms line 4 matches the latest L21 | Line 4 missing, clipped or stale | bench (operator) |
+| FR-23.7, FR-23.8 | ONLINE; relay `GET /` and `GET /api/readings` | Page shows the newest reading's values; JSON parses as §23.2 and its first element equals the latest L21 | 404; a value differing from L21 | bench |
+| FR-23.1 | ONLINE; operator holds a finger on the sensor for 30 s, then presses the user key | The next L21 shows a higher temperature than the one before | No change | bench (operator) |
+
+---
+
 # Part E — Operations & Verification
 
 ## 11. Operational Procedures
@@ -1539,7 +1640,7 @@ Build-time constants:
 |------|-------|--------|
 | LCD pins, clock, offset | §2.2, C-6.1 – C-6.5 | [user]/[derived] |
 | Landscape area / font cell / colours | 536 × 240 / 16 × 32 / `0xFFFF` on `0x0000` | [user] |
-| Screen lines / max characters | 3 / 20 | [derived] |
+| Screen lines / max characters | 4 / 20 | [derived] |
 | LCD refresh period | 1000 ± 100 ms | [user] |
 | Boot to first state line | ≤ 3000 ms | [user] |
 | Boot to ONLINE | ≤ 10 s | [user] |
@@ -1573,6 +1674,12 @@ Build-time constants:
 | Time zone | POSIX TZ string at build time, default `UTC0` | [user] |
 | Sync after entering ONLINE | ≤ 10 s | [user] |
 | Sleep current added by the key wake | ≤ 5 µA | [user] |
+| BME280 address / SDA / SCL | 0x76 / GPIO 43 / GPIO 44 | [user] |
+| BME280 mode | forced, oversampling ×1 (T, P, H), filter off | [user] |
+| Task sleep period | 600 s | [user] |
+| Readings kept across sleep | 144 | [user] |
+| Reading duration | ≤ 50 ms | [proposed] |
+| I2C clock | 100 kHz, internal pull-ups on | [proposed] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -1607,6 +1714,7 @@ the bench gains the capability.
 | C-10.4 | 1 MB single-app partition | C-10.6, C-10.7 |
 | FR-5.22 | Restart after the OTA receiver accepts an uploaded image | FR-5.32 (restart after a successful download) |
 | FR-6.5 | Two text lines stacked inside the visible area | FR-6.9 (three lines) |
+| FR-6.9 | Three text lines stacked inside the visible area | FR-6.11 (four lines) |
 | FR-6.6 | The 16-character uptime line fits one row | FR-6.10 (any 20-character line) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
 | FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
@@ -1619,13 +1727,13 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.6.0
+fsd_version: 0.7.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: all requirements and values approved by the user
+approval_status: §23 awaiting the user's approval; everything else approved
 created: 2026-10-23
 last_updated: 2026-10-30
 change_history:
@@ -1647,7 +1755,8 @@ change_history:
   - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
   - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.12, NFR-21.1) from the user's answers and weather-station example, approved by the user; L18, L19
   - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and 10 s deadline approved by the user
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15]
-open_decisions: []
+  - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; draft
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9]
+open_decisions: [FR-23.3 reading on window boots, FR-23.6 fourth screen line, NFR-23.1 50 ms, C-23.1 100 kHz and internal pull-ups]
 related_test_baseline: none yet
 ```
