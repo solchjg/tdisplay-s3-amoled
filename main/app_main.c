@@ -17,6 +17,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "identity.h"
 #include "lcd.h"
@@ -26,6 +27,7 @@
 #include "sdkconfig.h"
 #include "setup_check.h"
 #include "status_http.h"
+#include "summary.h"
 #include "time_sync.h"
 #include "udp_log.h"
 #include "weather.h"
@@ -42,6 +44,7 @@ static const char *TAG = "main";
 #define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
 #define LEAVE_MS 200                          // a planned restart leaves the AP first
 #define TASK_PERIOD_S 600                     // FR-23.2: one reading every 10 min
+#define MAIL_WIFI_MS 15000                    // FR-25.7: no WiFi within 15 s drops the summary
 #ifdef TDS3_TEST_HOLD_S
 #define HOLD_TIMEOUT_S TDS3_TEST_HOLD_S  // the sleep test builds cut the hold (R-22)
 #else
@@ -59,6 +62,8 @@ typedef struct {
 } app_event_t;
 
 static QueueHandle_t queue;
+static SemaphoreHandle_t got_ip;  // a summary on a timer wake waits for it (FR-25.6)
+static bool net_ready;            // wifi_net_init done
 static esp_timer_handle_t tick_timer, retry_timer, attempt_timer, confirm_timer, led_timer;
 static const esp_partition_t *downloaded;  // the slot a successful OTA wrote (T11)
 
@@ -132,6 +137,12 @@ static bool image_pending_verify(void)
 
 static void on_net(wifi_net_event_t ev, const char *addr)
 {
+    if (ev == WIFI_NET_EV_GOT_IP && got_ip) {
+        xSemaphoreGive(got_ip);
+    }
+    if (!queue) {
+        return;  // a timer wake sending a summary: no connectivity region yet
+    }
     app_event_t e = {.kind = APP_CONN};
     if (ev == WIFI_NET_EV_GOT_IP) {
         e.ev = view.conn == DL_ONLINE ? DL_EV_IP_CHANGED : DL_EV_IP;
@@ -344,12 +355,58 @@ static void show_live_reading(void)
     wx_screen_line(weather_sample(&r) == ESP_OK ? &r : NULL, reading_line);
 }
 
+// ── Summary email region (FSD §25) ───────────────────────────────────────
+
+// FR-25.6: on a timer wake the station comes up only for the summary.
+static bool mail_wifi_up(void)
+{
+    got_ip = xSemaphoreCreateBinary();
+    if (!got_ip) {
+        return false;
+    }
+    if (!net_ready) {
+        if (wifi_net_init(on_net, hostname) != ESP_OK) {
+            return false;
+        }
+        net_ready = true;
+    }
+    return wifi_net_creds_load(stored.ssid, stored.password) &&
+           wifi_net_sta_start(stored.ssid, stored.password) == ESP_OK &&
+           xSemaphoreTake(got_ip, pdMS_TO_TICKS(MAIL_WIFI_MS)) == pdTRUE;
+}
+
+// FR-25.3 – FR-25.9: a due summary is sent once, or dropped and logged.
+static void send_due_summary(void)
+{
+    if (!summary_due()) {
+        return;
+    }
+    bool timer = wake == DL_WAKE_TIMER;
+    const char *failed = NULL;
+    uint32_t n = 0;
+    if (timer ? !mail_wifi_up() : view.conn != DL_ONLINE) {
+        failed = "wifi";
+    } else {
+        mt_reason_t why = summary_send(hostname, &n);
+        failed = why == MT_OK ? NULL : mt_reason_name(why);
+    }
+    if (failed) {
+        web_log_mail_failed(failed);  // L26
+    } else {
+        web_log_mail_sent(summary_to(), n);  // L25
+    }
+    if (timer) {
+        wifi_net_stop();  // FR-21.7, FR-25.6: WiFi only while the summary is sent
+    }
+}
+
 // The task (FR-21.4, FR-21.9): takes a reading (FR-23.1), then returns the sleep
 // period it asks for (FR-23.2), 0 to stay awake. The sleep test build sleeps
 // twice per flash with its own period, then stays awake.
 static uint32_t run_task(void)
 {
     take_reading();
+    send_due_summary();
 #ifdef TDS3_TEST_SLEEP_S
     return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
 #else
@@ -535,6 +592,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("credentials store", err);
         }
+        err = summary_store();  // FR-25.2
+        if (err != ESP_OK) {
+            web_log_warn("mail settings store", err);
+        }
         web_log_provisioned(stored.ssid);
     }
     if (a & DL_C_MARK_SETUP) {
@@ -551,7 +612,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         web_log_portal(softap_ssid);
         esp_err_t err = wifi_net_softap_start(softap_ssid);
         if (err == ESP_OK) {
-            err = portal_start(on_submit);
+            err = portal_start_extra(on_submit, summary_portal_fields());  // FR-25.1
         }
         if (err != ESP_OK) {
             web_log_warn("portal start", err);
@@ -632,6 +693,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("setup check clear", err);
         }
+        err = summary_erase();  // FR-25.2
+        if (err != ESP_OK) {
+            web_log_warn("mail settings erase", err);
+        }
     }
     if (a & DL_C_RESTART) {
         if (e->ev == DL_EV_CONFIRM_DEADLINE) {
@@ -683,10 +748,14 @@ void app_main(void)
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
     }
     deep_sleep_on_prepare(lcd_sleep_cb, NULL);
+    uint8_t mac[6];
+    wifi_net_base_mac(mac);
+    id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
+    id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);  // the summary's sender name
     // A timer wake follows a sleep, which only a provisioned device takes (FR-21.12).
     if (dl_task_due(wake, 0, false, wake == DL_WAKE_TIMER, task_ran, DL_HOLD_NONE)) {
-        // FR-21.13: a timer wake runs the task with the panel dark and WiFi off,
-        // then sleeps again. Only a task that asks to stay awake gets past here.
+        // FR-21.13: a timer wake runs the task with the panel dark and WiFi off
+        // (but for a due summary, FR-25.6), then sleeps again. Only a task that asks to stay awake gets past here.
         run_task_and_sleep();
     }
     const esp_partition_t *invalid = esp_ota_get_last_invalid_partition();
@@ -694,11 +763,6 @@ void app_main(void)
         web_log_rolled_back(invalid->label);  // L14
     }
     queue = xQueueCreate(16, sizeof(app_event_t));
-
-    uint8_t mac[6];
-    wifi_net_base_mac(mac);
-    id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
-    id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);
     take_reading();  // FR-23.3: a value for the panel and the page during the window
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
                        .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname,
@@ -731,8 +795,9 @@ void app_main(void)
         esp_timer_start_once(confirm_timer, CONFIRM_DEADLINE_US);  // T13
     }
 
-    err = wifi_net_init(on_net, hostname);
+    err = net_ready ? ESP_OK : wifi_net_init(on_net, hostname);
     if (err == ESP_OK) {
+        net_ready = true;
         deep_sleep_on_prepare(wifi_stop_cb, NULL);
     } else {
         web_log_warn("network init", err);

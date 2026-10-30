@@ -2263,3 +2263,94 @@ tests:
     observable: "taken at 80 s or before 2020: at=none, \"time\":null, 'no time (unsynced)'; from 2020 on, unsynced: its time kept"
     impl: [tests/host/test_weather.py::test_a_never_set_clock_shows_no_time, tests/host/test_weather.py::test_a_set_but_unsynced_clock_keeps_its_time]
     result: {status: not done}
+
+  - id: TC-MAIL-01
+    title: "SMTP core: implicit TLS, AUTH PLAIN, the RFC 5321 sequence"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.5]
+    needs: []
+    observable: "mail_tx core against scripted replies: EHLO, AUTH PLAIN, MAIL FROM, RCPT TO, DATA, success only on the final 250, then QUIT; STARTTLS before any login on 587, EHLO again over TLS, no plain fallback; AUTH LOGIN when only LOGIN is offered; 535 reported as auth; any other refusal as refused; split replies give the same dialogue"
+    impl: shared/tests/host/test_mail_tx.py
+    result: {status: not done}
+
+  - id: TC-MAIL-10
+    title: "Mail fields of the portal form"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.1]
+    needs: []
+    observable: "WiFi only: valid, email off; all valid: parsed; each field invalid in turn, a partial group, port 25, mail_to without @, mail_every 0 and 25: 400 naming the field"
+    impl: [tests/host/test_summary.py::test_wifi_only_submission_leaves_email_off, tests/host/test_summary.py::test_full_submission_is_parsed, tests/host/test_summary.py::test_each_invalid_field_is_named, tests/host/test_summary.py::test_a_partial_group_is_refused, tests/host/test_summary.py::test_limits_are_accepted]
+    result: {status: not done}
+
+  - id: TC-MAIL-12
+    title: "When a summary is due"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.3, FR-25.8]
+    needs: []
+    observable: "07:00 every 6 h: not due 06:59, due 07:00, not due 12:59 after the 07:00 slot, due 13:05, one summary for missed slots; never due with the clock unset"
+    impl: [tests/host/test_summary.py::test_due_rule, tests/host/test_summary.py::test_every_5_hours_restarts_at_mail_time_each_day, tests/host/test_summary.py::test_daily_summary, tests/host/test_summary.py::test_first_look_arms_without_sending, tests/host/test_summary.py::test_never_due_with_the_clock_unset]
+    result: {status: not done}
+
+  - id: TC-MAIL-13
+    title: "Summary subject and body"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.4, FR-25.10]
+    needs: []
+    observable: "subject '<hostname> summary <date> <hh:mm>'; body for 0, 1 and 144 readings with period, count, newest line and min/max in F, % and mbar; no password"
+    impl: [tests/host/test_summary.py::test_subject, tests/host/test_summary.py::test_body_with_no_readings, tests/host/test_summary.py::test_body_with_one_reading, tests/host/test_summary.py::test_body_min_max_over_readings_since_the_last_summary, tests/host/test_summary.py::test_body_over_a_full_day_of_readings, tests/host/test_summary.py::test_body_never_holds_the_password]
+    result: {status: not done}
+
+  - id: TC-MAIL-14
+    title: "Mail log lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.9]
+    needs: []
+    observable: "L25 'mail sent to=<to> readings=<n>', L26 'mail failed: <reason>'"
+    impl: tests/host/test_web_log.py::test_mail_lines
+    result: {status: not done}
+
+  - id: TC-MAIL-20
+    title: "The summary arrives in the operator's mailbox"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: bench
+    verifies: [FR-25.4, FR-25.5, FR-25.9]
+    needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
+    observable: "provisioned through the portal with the operator's own Gmail account and a slot a few minutes ahead: L25 at the first task run after it, and the email arrives with every FR-25.4 field, pressure in mbar"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-MAIL-21
+    title: "An unreachable mail server is dropped and logged"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: target
+    verifies: [FR-25.7, NFR-25.1]
+    needs: [bench-serial-monitor, dut-amoled-slot1]
+    observable: "mail_host that does not resolve, slot due: L26 'mail failed: dns', then 'web: sleep'; no second attempt"
+    impl: []
+    result: {status: not done}
