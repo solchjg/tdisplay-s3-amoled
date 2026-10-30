@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define SK_DEBOUNCE_MS 50  // FR-24.5
+#define SK_DEBOUNCE_MS 50  // FR-24.11
 
 typedef struct {
     bool pressed;        // debounced level: true = held (key low)

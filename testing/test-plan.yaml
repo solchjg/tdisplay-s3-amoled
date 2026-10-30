@@ -1284,7 +1284,7 @@ tests:
     wave: 1
     fsd_phase: 4
     tier: bench
-    verifies: [FR-18.2]
+    verifies: [FR-18.5]
     needs: [bench-operator-prompt, operator-at-bench, dut-boot-button, bench-serial-monitor, bench-http-relay, dut-wifi-slot1]
     observable: "~2 s press: no L17b/L15, no boot line, /api/status 200 10 s later"
     impl: tests/bench/test_button.py::test_short_press_changes_nothing
@@ -1958,7 +1958,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-23.12, FR-24.10]
+    verifies: [FR-23.12, FR-24.12]
     needs: []
     observable: "'70.6F Hum 45% 1013.25 mbar', '-40.0F Hum 100% 1100.00 mbar', 'Sensor --'; at most 33 characters; lines 1 - 3 unchanged"
     impl: [tests/host/test_weather.py::test_screen_line, tests/host/test_weather.py::test_screen_line_without_a_reading, tests/host/test_device_logic.py::test_lines_four_and_five_in_every_state]
@@ -2115,7 +2115,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-24.5, FR-24.6]
+    verifies: [FR-24.11, FR-24.6]
     needs: []
     observable: "KEY: mark cleared, L24 by=key, the task 60 s later; 1800 s: L24 by=timeout, mark kept, the task at once"
     impl: [tests/host/test_device_logic.py::test_the_key_ends_the_hold_and_starts_the_window, tests/host/test_device_logic.py::test_the_timeout_ends_the_hold_and_keeps_the_mark]
@@ -2128,9 +2128,9 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-24.10]
+    verifies: [FR-24.12]
     needs: []
-    observable: "'Press blinking key to start 30:00', '... 29:59', '... 01:01', '... 00:00'; at most 33 characters"
+    observable: "'Press BOOT to start 30:00', '... 29:59', '... 01:01', '... 00:00'; 25 characters"
     impl: tests/host/test_device_logic.py::test_countdown_line
     result: {status: not done}
 
@@ -2141,7 +2141,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-24.5, FR-24.6, FR-24.8]
+    verifies: [FR-24.11, FR-24.6, FR-24.8]
     needs: []
     observable: "'setup check pending'; 'setup check done by=key'; 'setup check done by=timeout'"
     impl: tests/host/test_web_log.py::test_setup_check_lines
@@ -2167,7 +2167,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-24.5]
+    verifies: [FR-24.11]
     needs: []
     observable: "a press counts once after 50 ms; shorter bounces never; a key held from boot counts only after a release"
     impl: tests/host/test_setup_check.py
@@ -2193,9 +2193,9 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: bench
-    verifies: [FR-24.5]
+    verifies: [FR-24.11]
     needs: [bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1]
-    observable: "holding; operator presses the user key: L24 by=key, then web: sleep 60 - 63 s later"
+    observable: "holding; operator presses BOOT briefly (again after power-on, the user key): L24 by=key each time, then web: sleep 60 - 63 s later; no factory reset"
     impl: []
     result: {status: not done}
 
@@ -2219,7 +2219,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: bench
-    verifies: [FR-24.3, FR-24.10]
+    verifies: [FR-24.3, FR-24.12]
     needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280]
     observable: "operator watching 15 s with a finger on the sensor: line 5 counts down once a second; line 4 changes at least once"
     impl: []
@@ -2247,7 +2247,7 @@ tests:
     tier: bench
     verifies: [FR-24.9]
     needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
-    observable: "operator watching 10 s: the LED next to the user key flashes about ten times; after the press it stays lit"
+    observable: "operator watching 10 s: the LED next to the BOOT key flashes about ten times; after the press it stays lit"
     impl: []
     result: {status: not done}
 

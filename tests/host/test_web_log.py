@@ -169,7 +169,7 @@ def test_sensor_failed_line(fmt):
     assert fmt("bme280_failed", "ESP_ERR_TIMEOUT") == "bme280 failed: ESP_ERR_TIMEOUT"
 
 
-# TC-SC-04 · FR-24.5, FR-24.6, FR-24.8 (core): L23, L24
+# TC-SC-04 · FR-24.11, FR-24.6, FR-24.8 (core): L23, L24
 def test_setup_check_lines(fmt):
     assert fmt("setup_pending") == "setup check pending"
     assert fmt("setup_done", "key") == "setup check done by=key"

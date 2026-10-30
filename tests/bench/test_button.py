@@ -15,7 +15,7 @@ def ring_since(bench, dut, mark):
     return [e["text"] for e in bench.serial_output(dut, lines=1000, since=mark).get("lines", [])]
 
 
-# TC-BTN-11 · FR-18.2 (short press changes nothing); first, while still ONLINE
+# TC-BTN-11 · FR-18.5 (short press changes nothing); first, while still ONLINE
 def test_short_press_changes_nothing(bench, dut, online_ip):
     mark = (bench.serial_output(dut, lines=1).get("lines") or [{"ts": 0}])[-1]["ts"]
     assert bench.human_interaction(

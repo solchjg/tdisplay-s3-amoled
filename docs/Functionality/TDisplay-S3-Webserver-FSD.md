@@ -464,7 +464,7 @@ region; they change the screen content that D3 – D5 compare against.
 
 Five text lines, landscape, at most 33 characters each. Line 4 is the
 reading in every state (FR-23.12); line 5 is empty except during the setup
-check (FR-24.10); the table gives lines 1 – 3.
+check (FR-24.12); the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
 |--------------------|--------|--------|--------|
@@ -760,7 +760,7 @@ detected (R-2).
 - **FR-6.4** [Must] [derived from FR-5.25] On entry to LCD_OK (D1), the full
   536 × 240 visible area shall be cleared to black, leaving no lit pixels outside
   the text lines.
-- **FR-6.12** [Must] [derived from §5.4, FR-23.12 and FR-24.10] Lines 1 – 5
+- **FR-6.12** [Must] [derived from §5.4, FR-23.12 and FR-24.12] Lines 1 – 5
   shall not overlap and shall lie entirely inside the visible area.
 - **FR-6.13** [Must] [user] A line of 33 characters shall be displayed in full,
   without clipping or wrapping (33 × 16 px = 528 px of the 536).
@@ -832,7 +832,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<mbar, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm>, or none (FR-22.6)> synced=<0\|1>` | I |
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
-| L24 | Setup check hold ended (FR-24.5, FR-24.6) | `web: setup check done by=<key\|timeout>` | I |
+| L24 | Setup check hold ended (FR-24.11, FR-24.6) | `web: setup check done by=<key\|timeout>` | I |
 | L25 | Summary sent (FR-25.9) | `web: mail sent to=<mail_to> readings=<n>` | I |
 | L26 | Summary dropped (FR-25.7) | `web: mail failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|timeout>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
@@ -852,7 +852,7 @@ Each line requirement is one row of §7.2:
   log L2 once.
 - **FR-7.9** [Must] [derived from FR-13.1] Entry into PROVISIONING shall log L3.
 - **FR-7.10** [Must] [derived from FR-5.15] Entry into ONLINE and T9 shall log L5.
-- **FR-7.33** [Must] [derived from R-1 and FR-24.10] Each line redrawn by D4
+- **FR-7.33** [Must] [derived from R-1 and FR-24.12] Each line redrawn by D4
   shall log L7 with the exact text drawn, except the setup-check countdown on
   line 5, which logs L7 only when its minutes change (and once at 00:00).
 - **FR-7.12** [Must] [derived from D2] D2 shall log L8 at error level.
@@ -1218,7 +1218,7 @@ component. Active in ONLINE only.
 
 ### 18.1 Purpose & peer
 
-The on-board BOOT button (GPIO 0, active low) is the only local control; a long
+The on-board BOOT button (GPIO 0, active low): a long
 press requests a factory reset, which happens on release, so the button is never
 held while the chip resets (R-9). Sampled only after BOOT exits.
 
@@ -1229,8 +1229,9 @@ held while the chip resets (R-9). Sampled only after BOOT exits.
   release.
 - **FR-18.4** [Must] [derived from FR-18.3] While the button is held, the device
   shall raise no factory-reset event and shall not restart.
-- **FR-18.2** [Must] [derived] Releasing the button before 5 s shall
-  raise no event and change nothing.
+- **FR-18.5** [Must] [derived] Releasing the button before 5 s shall
+  raise no factory-reset event; outside the setup-check hold it changes
+  nothing, inside it the press ends the hold (FR-24.11).
 
 ### 18.3 Verification contracts
 
@@ -1239,7 +1240,7 @@ held while the chip resets (R-9). Sampled only after BOOT exits.
 | FR-18.3 | See FR-5.21 (full form) | L17b, then L15 and a boot line after release | A reset while held (ROM download-mode banner, no boot line) | bench (operator) |
 | FR-18.3 (core) | Hold detector fed samples: low 4.9 s then high; low 5.0 s then high; low 12 s then high; low 30 s with no release | No event; one event at the release; one event at the release; no event | An event while still low; an event under 5 s; two events for one hold | host |
 | FR-18.4 | ONLINE; operator holds BOOT for ~12 s, then releases | L17b about 5 s into the hold; no L15 and no boot line before the release (operator confirms the release time) | L15 or a restart while held | bench (operator) |
-| FR-18.2 | ONLINE; operator presses BOOT for ~2 s | No L15, no boot line, still ONLINE 10 s later | Factory reset; restart | bench (operator) |
+| FR-18.5 | ONLINE, no setup check pending; operator presses BOOT for ~2 s | No L15, no boot line, still ONLINE 10 s later | Factory reset; restart | bench (operator) |
 
 ---
 
@@ -1639,12 +1640,14 @@ relative humidity (%) and pressure (mbar), with the time it was taken and the sy
 
 When WiFi has just been configured, the device does not drop straight into its
 sleep cycle. It holds with the panel lit, shows live readings and asks the
-installer to press the user key to continue, so the sensors (and later e.g. a
+installer to press a key to continue, so the sensors (and later e.g. a
 GPS fix) can be checked in place first. A pending mark in NVS says the check is
 still owed; it survives sleep, reset and power loss. The logic layer (§5)
 decides when to hold and when the hold ends; the composition root reads the key
-and the clock. The key is the user key, GPIO 21, active low (§21.1), the same
-key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
+and the clock. Either key ends the hold: the BOOT key, GPIO 0, next to the LED
+that blinks during the hold, or the user key, GPIO 21 (§21.1), the key that
+wakes the device. Both are active low. Held for 5 s, BOOT still requests a
+factory reset (§18).
 
 ### 24.2 Requirements
 
@@ -1660,17 +1663,18 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
 - **FR-24.3** [Must] [user] During the hold, line 4 shall show a live reading,
   taken every **5 s**; these readings are neither kept
   (FR-23.9) nor logged as L21.
-- **FR-24.10** [Must] [user] During the hold, line 5 shall show
-  `Press blinking key to start <mm>:<ss>`, counting down once a second from
-  `30:00` to `00:00` (33 characters).
-- **FR-24.9** [Must] [user] During the hold, the LED next to the user key
+- **FR-24.12** [Must] [user] During the hold, line 5 shall show
+  `Press BOOT to start <mm>:<ss>`, counting down once a second from
+  `30:00` to `00:00` (25 characters).
+- **FR-24.9** [Must] [user] During the hold, the LED next to the BOOT key
   (GPIO 38 on the non-touch board) shall flash at **1 Hz**, 500 ms on and
   500 ms off; when the hold ends it is lit again with the panel, as outside
   the hold.
-- **FR-24.5** [Must] [user] A press of the user key during the hold, debounced
-  **50 ms**, shall end it: the mark is cleared, L24 `by=key` is
+- **FR-24.11** [Must] [user] A press of the BOOT key or the user key during
+  the hold, debounced **50 ms**, shall end it: the mark is cleared, L24 `by=key` is
   logged, line 5 is emptied, and the 60 s window runs, then the task and sleep
-  as usual (§21).
+  as usual (§21). A BOOT press held on for 5 s also raises the factory
+  reset at its release (FR-18.3).
 - **FR-24.6** [Must] [user] If no press comes within **30 min** of the hold
   starting, the hold shall end with L24 `by=timeout`; the device runs the task
   and sleeps at once, and the mark stays pending, so the next key wake or
@@ -1685,14 +1689,14 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-24.1, FR-24.2, FR-24.7 (core) | Logic: T3; boot (power-on, reset, key wake, timer wake) with the mark pending and not | Hold after T3 and after every pending non-timer boot; no hold on a timer wake or with no mark | The task due during a hold; a hold on a timer wake | host |
-| FR-24.10 (core) | Countdown line for 1800, 61, 0 s left | `Press blinking key to start 30:00`; `… 01:01`; `… 00:00` | More than 33 characters | host |
-| FR-24.5, FR-24.6 (core) | Hold, then a key event; hold, then 1800 s with no key | Mark cleared, window 60 s, then the task; mark kept, the task at once | Sleep inside the hold; the mark cleared by the timeout | host |
+| FR-24.12 (core) | Countdown line for 1800, 61, 0 s left | `Press BOOT to start 30:00`; `… 01:01`; `… 00:00` | More than 25 characters | host |
+| FR-24.11, FR-24.6 (core) | Hold, then a key event; hold, then 1800 s with no key | Mark cleared, window 60 s, then the task; mark kept, the task at once | Sleep inside the hold; the mark cleared by the timeout | host |
 | FR-24.1, FR-24.2, FR-24.8 | Erased NVS; provision through the portal (bench AP) | L4, then L23; no `web: sleep` for 120 s | Sleep or the task during the hold | target |
-| FR-24.5 | Holding; operator presses the user key | L24 `by=key`, then `web: sleep` 60 – 63 s later | Sleep earlier; no L24 | bench (operator) |
+| FR-24.11 | Holding; operator presses BOOT briefly; again after power-on with the mark pending, the user key | L24 `by=key` each time, then `web: sleep` 60 – 63 s later; no L15 | Sleep earlier; no L24; a factory reset | bench (operator) |
 | FR-24.6 | Sleep test build (hold timeout cut to 60 s), provisioned | L24 `by=timeout` 60 – 63 s after L23, then L21 and `web: sleep`; after a key wake, L23 again | Sleep before the timeout; no hold after the key wake | target / bench (operator) |
 | FR-24.9 (core) | LED state 0, 499, 500, 999, 1000 ms into the hold; outside the hold | Lit, lit, dark, dark, lit; lit | Dark outside the hold; a period other than 1 s | host |
-| FR-24.9 | Holding; operator watches the LED next to the user key for 10 s, then presses the key | About ten flashes, then steadily lit after the press | No flashing; the LED dark after the press | bench (operator) |
-| FR-24.3, FR-24.10 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
+| FR-24.9 | Holding; operator watches the LED next to the BOOT key for 10 s, then presses BOOT | About ten flashes, then steadily lit after the press | No flashing; the LED dark after the press | bench (operator) |
+| FR-24.3, FR-24.12 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
 
 ---
 
@@ -1844,7 +1848,7 @@ Runtime configuration (the only persisted items):
 | `wifi_password` | bytes | none | empty or 8 – 63 bytes | NVS | secret | portal (§13) | FR-13.4 | immediate (T3) | erased by factory reset |
 | `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2) | FR-25.1 | immediate (T3) | erased by factory reset |
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2) | FR-25.1 | immediate (T3) | erased by factory reset |
-| `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by the key (FR-24.5) | none | next non-timer boot | erased by factory reset |
+| `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 
 Build-time constants:
 
@@ -1940,6 +1944,9 @@ the bench gains the capability.
 | FR-23.8 | `/api/readings` with pressure as `p_hpa` | FR-23.13 (pressure as `p_mbar`) |
 | FR-21.10 | A timer wake never starts WiFi | FR-21.13 (except to send a due summary, FR-25.6) |
 | FR-24.4 | Line 5 as `Press key to continue <mm>:<ss>` | FR-24.10 (`Press blinking key to start <mm>:<ss>`) |
+| FR-24.10 | Line 5 as `Press blinking key to start <mm>:<ss>` | FR-24.12 (`Press BOOT to start <mm>:<ss>`) |
+| FR-24.5 | Only the user key ends the setup check | FR-24.11 (the BOOT key or the user key) |
+| FR-18.2 | A short BOOT press changes nothing | FR-18.5 (except that it ends the setup check) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
 | FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
 | FR-15.5 | 409 while an upload is in progress | FR-15.12 (while a download is in progress) |
@@ -1951,7 +1958,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.10.0
+fsd_version: 0.11.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1986,7 +1993,8 @@ change_history:
   - 0.8.1 2026-10-30 FR-22.6 from the user's request: a reading from a never-set clock shows no time (page, `null` in /api/readings, `at=none` in L21)
   - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)
   - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10]
+  - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2]
 open_decisions: []
 related_test_baseline: none yet
 ```

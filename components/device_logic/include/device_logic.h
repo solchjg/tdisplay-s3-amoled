@@ -21,7 +21,7 @@ typedef struct {
     uint32_t requests;        // FR-14.6
     const char *hostname;     // FR-20.1, without ".local"
     const char *reading;      // line 4 in every state (FR-23.12)
-    const char *prompt;       // line 5 in every state, the setup check (FR-24.10)
+    const char *prompt;       // line 5 in every state, the setup check (FR-24.12)
 } dl_view_t;
 
 // The five lines of FSD §5.4 for v's state.
@@ -126,17 +126,17 @@ typedef enum { DL_HOLD_NONE, DL_HOLD_ON, DL_HOLD_KEY, DL_HOLD_TIMEOUT } dl_hold_
 typedef enum {
     DL_HEV_BOOT,    // guard: the mark is pending (FR-24.2)
     DL_HEV_MARKED,  // T3 marked the check pending (FR-24.1)
-    DL_HEV_KEY,     // a debounced press of the user key (FR-24.5)
+    DL_HEV_KEY,     // a debounced press of BOOT or the user key (FR-24.11)
     DL_HEV_TICK,    // 1 s tick; with the seconds held so far
 } dl_hold_event_t;
 
 // Setup check actions, executed by the composition root in this bit order.
 enum {
     DL_H_ENTER = 1u << 0,         // start the countdown; L23 (FR-24.8)
-    DL_H_CLEAR_MARK = 1u << 1,    // FR-24.5
+    DL_H_CLEAR_MARK = 1u << 1,    // FR-24.11
     DL_H_LOG_KEY = 1u << 2,       // L24 by=key
     DL_H_LOG_TIMEOUT = 1u << 3,   // L24 by=timeout
-    DL_H_START_WINDOW = 1u << 4,  // the 60 s window starts now (FR-24.5)
+    DL_H_START_WINDOW = 1u << 4,  // the 60 s window starts now (FR-24.11)
 };
 
 typedef struct {
@@ -144,17 +144,17 @@ typedef struct {
     unsigned actions;
 } dl_hold_step_t;
 
-// FR-24.2, FR-24.5 – FR-24.7. A timer wake never holds.
+// FR-24.2, FR-24.11 – FR-24.7. A timer wake never holds.
 dl_hold_step_t dl_hold_step(dl_hold_t state, dl_hold_event_t event, bool guard,
                             dl_wake_t wake, uint32_t held_s, uint32_t timeout_s);
 
-// FR-24.10: "Press blinking key to start <mm>:<ss>" for the seconds left (0 at or past
+// FR-24.12: "Press BOOT to start <mm>:<ss>" for the seconds left (0 at or past
 // the timeout).
 void dl_hold_line(uint32_t held_s, uint32_t timeout_s, char out[DL_LINE_MAX]);
 
 #define DL_LED_HALF_MS 500  // FR-24.9: 1 Hz, half on, half off
 
-// FR-24.9: whether the LED by the user key is lit, held_ms into the hold. It
+// FR-24.9: whether the LED by the BOOT key is lit, held_ms into the hold. It
 // flashes while the hold is on, lit from the hold's first moment; outside the
 // hold it stays lit with the panel.
 bool dl_led_lit(dl_hold_t hold, uint32_t held_ms);

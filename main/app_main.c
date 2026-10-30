@@ -82,13 +82,13 @@ static const status_http_source_t status_source = {.ip = ip, .hostname = hostnam
 static dl_wake_t wake;  // how this boot began (FSD §21)
 static bool task_ran;
 static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.12)
-static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.10)
+static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.12)
 
 static dl_hold_t hold;         // the setup check (FSD §24)
 static uint32_t hold_start_s;  // uptime when the hold began
 static int64_t hold_start_us;  // the same, for the LED's half periods (FR-24.9)
 static uint32_t live_read_s;   // uptime of the last live reading (FR-24.3)
-static uint32_t window_start_s;  // uptime the window counts from (FR-24.5)
+static uint32_t window_start_s;  // uptime the window counts from (FR-24.11)
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
@@ -549,7 +549,7 @@ static void hold_event(dl_hold_event_t ev, bool guard)
     execute_hold(step.actions);
 }
 
-// Each tick of the hold, before the draw: the countdown (FR-24.10) and the live
+// Each tick of the hold, before the draw: the countdown (FR-24.12) and the live
 // reading every 5 s (FR-24.3). The timeout (FR-24.6) is checked after the draw,
 // so 00:00 is shown.
 static void hold_tick(void)
@@ -850,7 +850,7 @@ void app_main(void)
         bool provisioned = view.conn != DL_BOOT && view.conn != DL_PROVISIONING;
         if (!task_ran && dl_task_due(wake, uptime_s() - window_start_s, image_pending_verify(),
                                      provisioned, task_ran, hold)) {
-            run_task_and_sleep();  // FR-21.2 – FR-21.4, FR-24.5, FR-24.6: after the window
+            run_task_and_sleep();  // FR-21.2 – FR-21.4, FR-24.11, FR-24.6: after the window
         }
         if (++tick % ALIVE_TICKS == 0) {
             web_log_alive(alive++);

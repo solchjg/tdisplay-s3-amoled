@@ -7,6 +7,13 @@ menu "Setup check"
             The key that ends the setup check hold (FSD §24): the board's user
             key, the same that wakes the device from deep sleep.
 
+    config SETUP_CHECK_KEY2_GPIO
+        int "Second key GPIO (active low, -1 for none)"
+        default -1
+        help
+            A second key that ends the hold the same way, such as the BOOT
+            key next to the LED that blinks during the hold.
+
     config SETUP_CHECK_NVS_NAMESPACE
         string "NVS namespace of the pending mark"
         default "setup"

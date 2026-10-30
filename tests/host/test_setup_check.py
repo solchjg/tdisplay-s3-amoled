@@ -37,7 +37,7 @@ def presses(compile_harness):
     return call
 
 
-# TC-SC-06 · FR-24.5 (core): one press per debounced press, 50 ms
+# TC-SC-06 · FR-24.11 (core): one press per debounced press, 50 ms
 def test_a_50_ms_press_counts_once(presses):
     assert presses("0" * 10 + "1" * 20 + "0" * 10) == [150]
     assert presses("0" * 10 + "1" * 5) == [], "held 40 ms: no press"
