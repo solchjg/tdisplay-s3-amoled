@@ -92,18 +92,27 @@ static texts_t texts(const wx_reading_t *r)
     return x;
 }
 
+bool wx_time_set(const wx_reading_t *r)
+{
+    return r->time >= WX_TIME_SET_MIN;
+}
+
 void wx_log_line(const wx_reading_t *r, const char *iso, char *out, size_t len)
 {
     texts_t x = texts(r);
-    snprintf(out, len, "reading t=%s rh=%s p=%s at=%s synced=%d", x.t, x.h, x.p, iso,
-             r->synced ? 1 : 0);
+    snprintf(out, len, "reading t=%s rh=%s p=%s at=%s synced=%d", x.t, x.h, x.p,
+             wx_time_set(r) ? iso : "none", r->synced ? 1 : 0);
 }
 
 void wx_json(const wx_reading_t *r, const char *iso, char *out, size_t len)
 {
     texts_t x = texts(r);
+    char time[WX_ISO_MAX + 2] = "null";
+    if (wx_time_set(r)) {
+        snprintf(time, sizeof time, "\"%s\"", iso);
+    }
     snprintf(out, len,
-             "{\"time\":\"%s\",\"synced\":%s,\"temp_f\":%s,\"rh_pct\":%s,\"p_hpa\":%s}", iso,
+             "{\"time\":%s,\"synced\":%s,\"temp_f\":%s,\"rh_pct\":%s,\"p_hpa\":%s}", time,
              r->synced ? "true" : "false", x.t, x.h, x.p);
 }
 
@@ -121,5 +130,5 @@ void wx_html(const wx_reading_t *r, const char *iso, char *out, size_t len)
              "<tr><th>Humidity</th><td>%s %%</td></tr>"
              "<tr><th>Pressure</th><td>%s hPa</td></tr>"
              "<tr><th>Taken</th><td>%s%s</td></tr></table>",
-             x.t, x.h, x.p, iso, r->synced ? "" : " (unsynced)");
+             x.t, x.h, x.p, wx_time_set(r) ? iso : "no time", r->synced ? "" : " (unsynced)");
 }

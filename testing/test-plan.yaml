@@ -2224,3 +2224,16 @@ tests:
     observable: "operator watching 15 s with a finger on the sensor: line 5 counts down once a second; line 4 changes at least once"
     impl: []
     result: {status: not done}
+
+  - id: TC-WX-16
+    title: "A reading from a never-set clock shows no time"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-22.6]
+    needs: []
+    observable: "taken at 80 s or before 2020: at=none, \"time\":null, 'no time (unsynced)'; from 2020 on, unsynced: its time kept"
+    impl: [tests/host/test_weather.py::test_a_never_set_clock_shows_no_time, tests/host/test_weather.py::test_a_set_but_unsynced_clock_keeps_its_time]
+    result: {status: not done}
