@@ -113,3 +113,13 @@ void wl_fmt_setup_done(char *buf, size_t len, const char *by)
 {
     snprintf(buf, len, "setup check done by=%s", by);
 }
+
+void wl_fmt_mail_sent(char *buf, size_t len, const char *to, uint32_t readings)
+{
+    snprintf(buf, len, "mail sent to=%s readings=%" PRIu32, to, readings);
+}
+
+void wl_fmt_mail_failed(char *buf, size_t len, const char *reason)
+{
+    snprintf(buf, len, "mail failed: %s", reason);
+}

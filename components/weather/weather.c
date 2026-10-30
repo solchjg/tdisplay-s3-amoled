@@ -69,6 +69,11 @@ const wx_reading_t *weather_newest(void)
     return wx_get(&history, 0);
 }
 
+const wx_history_t *weather_history(void)
+{
+    return &history;
+}
+
 void weather_iso(const wx_reading_t *r, char out[WX_ISO_MAX])
 {
     time_t t = (time_t)r->time;

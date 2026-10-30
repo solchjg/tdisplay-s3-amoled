@@ -30,7 +30,9 @@ With no stored credentials the display shows `Setup WiFi`, the network name
 1. Join the open network `TDS3-XXXXXX` with a phone or laptop. Most phones open the
    setup page by themselves; otherwise open `http://192.168.4.1/`.
 2. Enter your WiFi name (1 – 32 characters) and password (empty for an open
-   network, otherwise 8 – 63 characters) and press *Save and connect*.
+   network, otherwise 8 – 63 characters). For the summary email (section 5b),
+   fill in the email fields too; leave them all empty for no email. Press
+   *Save and connect*.
 3. The page confirms the network name; the device leaves its setup network, shows
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
 4. The device now waits for you to check it before it starts its sleep cycle.
@@ -109,6 +111,34 @@ board clears the kept readings.
 
 A sleeping board does not appear on USB; to flash it, press the user key first
 or unplug and replug it, and flash within 60 seconds.
+
+## 5b. Summary email
+
+The device can email you a short summary of its readings: how many it took,
+the period they cover, the newest reading, and the lowest and highest
+temperature (°F), humidity (%) and pressure (mbar). It sends directly to your
+mail provider's server over an encrypted connection. Fill in all of these on
+the setup page (chapter 2), or none of them:
+
+| Field | What to enter |
+|-------|---------------|
+| SMTP server | `smtp.gmail.com` for Gmail, or your own server's name |
+| Port | `465` (Gmail and most providers) or `587` |
+| Login (sender address) | your full email address; the summary comes from it |
+| Password | for Gmail an *app password* (Google account → Security → App passwords; it needs 2-step verification), not your normal password |
+| Send to | the one address that receives the summaries |
+| First summary at | a time of day, e.g. 07:00 |
+| Then every | 1 – 24 hours, counted again from the first time each day |
+
+The first summary goes out at the first of those times after the device has
+the correct time from the internet, then one every so many hours. The device
+sends it the next time it is awake at or after that time (within 10 minutes,
+as it wakes every 10 minutes to take a reading), then sleeps again. If the
+email cannot be sent (no WiFi, the server refuses the login, the network is
+down) that summary is skipped and the serial log says why
+(`mail failed: ...`); the next one covers the readings since the last summary
+that did arrive. To change any of these settings, do a factory reset (chapter 5)
+and set the device up again. The password is never shown or logged.
 
 ## 6. Troubleshooting
 
