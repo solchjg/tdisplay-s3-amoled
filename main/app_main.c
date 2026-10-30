@@ -59,7 +59,7 @@ typedef struct {
 } app_event_t;
 
 static QueueHandle_t queue;
-static esp_timer_handle_t tick_timer, retry_timer, attempt_timer, confirm_timer;
+static esp_timer_handle_t tick_timer, retry_timer, attempt_timer, confirm_timer, led_timer;
 static const esp_partition_t *downloaded;  // the slot a successful OTA wrote (T11)
 
 static dl_view_t view;
@@ -77,10 +77,11 @@ static const status_http_source_t status_source = {.ip = ip, .hostname = hostnam
 static dl_wake_t wake;  // how this boot began (FSD §21)
 static bool task_ran;
 static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.12)
-static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.4)
+static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.10)
 
 static dl_hold_t hold;         // the setup check (FSD §24)
 static uint32_t hold_start_s;  // uptime when the hold began
+static int64_t hold_start_us;  // the same, for the LED's half periods (FR-24.9)
 static uint32_t live_read_s;   // uptime of the last live reading (FR-24.3)
 static uint32_t window_start_s;  // uptime the window counts from (FR-24.5)
 
@@ -102,6 +103,14 @@ static void on_tick(void *arg)
 {
     app_event_t e = {.kind = APP_TICK};
     post(&e);
+}
+
+// FR-24.9: every half period of the hold, the LED by the key. A failed write
+// only leaves the LED as it was, so it is not reported.
+static void on_led(void *arg)
+{
+    uint32_t ms = (uint32_t)((esp_timer_get_time() - hold_start_us) / 1000);
+    (void)lcd_led(dl_led_lit(DL_HOLD_ON, ms));
 }
 
 static void on_retry(void *arg)
@@ -446,7 +455,9 @@ static void execute_hold(unsigned a)
     uint32_t now = uptime_s();
     if (a & DL_H_ENTER) {
         hold_start_s = live_read_s = now;
+        hold_start_us = esp_timer_get_time();
         web_log_setup_pending();  // L23
+        esp_timer_start_periodic(led_timer, DL_LED_HALF_MS * 1000);  // FR-24.9
         esp_err_t err = setup_check_key_start(on_key);
         if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
             web_log_warn("setup key start", err);
@@ -463,6 +474,8 @@ static void execute_hold(unsigned a)
     if (a & (DL_H_LOG_KEY | DL_H_LOG_TIMEOUT)) {
         web_log_setup_done(a & DL_H_LOG_KEY ? "key" : "timeout");  // L24
         setup_check_key_stop();
+        esp_timer_stop(led_timer);
+        (void)lcd_led(dl_led_lit(DL_HOLD_NONE, 0));  // lit again with the panel
         prompt_line[0] = '\0';
         wx_screen_line(weather_newest(), reading_line);  // line 4 back to the kept reading
     }
@@ -479,7 +492,7 @@ static void hold_event(dl_hold_event_t ev, bool guard)
     execute_hold(step.actions);
 }
 
-// Each tick of the hold, before the draw: the countdown (FR-24.4) and the live
+// Each tick of the hold, before the draw: the countdown (FR-24.10) and the live
 // reading every 5 s (FR-24.3). The timeout (FR-24.6) is checked after the draw,
 // so 00:00 is shown.
 static void hold_tick(void)
@@ -712,6 +725,8 @@ void app_main(void)
     const esp_timer_create_args_t confirm_args = {.callback = on_confirm_deadline,
                                                   .name = "confirm"};
     esp_timer_create(&confirm_args, &confirm_timer);
+    const esp_timer_create_args_t led_args = {.callback = on_led, .name = "led"};
+    esp_timer_create(&led_args, &led_timer);
     if (image_pending_verify()) {
         esp_timer_start_once(confirm_timer, CONFIRM_DEADLINE_US);  // T13
     }

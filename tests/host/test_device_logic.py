@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 {
     if (strcmp(argv[1], "screen") == 0) {
         // screen <state> <softap_ssid> <stored_ssid> <ip> <requests> <hostname>
-        // optional 8th and 9th: line 4's reading (FR-23.12), line 5's prompt (FR-24.4)
+        // optional 8th and 9th: line 4's reading (FR-23.12), line 5's prompt (FR-24.10)
         dl_view_t v = {conn(argv[2]), argv[3], argv[4], argv[5],
                        (uint32_t)strtoul(argv[6], NULL, 10), argv[7], argc > 8 ? argv[8] : NULL,
                        argc > 9 ? argv[9] : NULL};
@@ -97,6 +97,9 @@ int main(int argc, char **argv)
         char out[DL_LINE_MAX];
         dl_hold_line((uint32_t)strtoul(argv[2], NULL, 10), (uint32_t)strtoul(argv[3], NULL, 10), out);
         fputs(out, stdout);
+    } else if (strcmp(argv[1], "led") == 0) {
+        // led <hold> <held_ms>
+        printf("%d", dl_led_lit((dl_hold_t)atoi(argv[2]), (uint32_t)strtoul(argv[3], NULL, 10)));
     } else if (strcmp(argv[1], "logged") == 0) {
         // logged <line 0-based> <was> <now>
         printf("%d", dl_line_logged(atoi(argv[2]), argv[3], argv[4]));
@@ -363,12 +366,12 @@ def test_no_task_before_provisioning_is_complete(run):
     assert sleep(run, "none", 600, provisioned=1) == (False, True)
 
 
-# TC-WX-03 · FR-23.12, FR-24.4 (core): line 4 is the reading and line 5 the prompt in
+# TC-WX-03 · FR-23.12, FR-24.10 (core): line 4 is the reading and line 5 the prompt in
 # every state, each empty when none is given
 @pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
 def test_lines_four_and_five_in_every_state(run, state):
     reading = "75.7F Hum 47% 996.62 mbar"
-    prompt = "Press key to continue 30:00"
+    prompt = "Press blinking key to start 30:00"
     lines = run("screen", state, *ONLINE[1:], reading, prompt).split("\n")
     assert lines[3:5] == [reading, prompt]
     assert lines[:3] == screen(run, state), "lines 1 - 3 unchanged"
@@ -435,13 +438,13 @@ def test_the_timeout_ends_the_hold_and_keeps_the_mark(run):
     assert hold(run, ON, "TICK", held=60, timeout=60)[0] == TIMEOUT, "the test builds' 60 s"
 
 
-# TC-SC-03 · FR-24.4 (core): the countdown line
+# TC-SC-03 · FR-24.10 (core): the countdown line
 @pytest.mark.parametrize("held,line", [
-    (0, "Press key to continue 30:00"),
-    (1, "Press key to continue 29:59"),
-    (1739, "Press key to continue 01:01"),
-    (1800, "Press key to continue 00:00"),
-    (5000, "Press key to continue 00:00"),
+    (0, "Press blinking key to start 30:00"),
+    (1, "Press blinking key to start 29:59"),
+    (1739, "Press blinking key to start 01:01"),
+    (1800, "Press blinking key to start 00:00"),
+    (5000, "Press blinking key to start 00:00"),
 ])
 def test_countdown_line(run, held, line):
     out = run("holdline", held, 1800)
@@ -449,9 +452,21 @@ def test_countdown_line(run, held, line):
     assert len(out) <= 33
 
 
+# TC-SC-11 · FR-24.9 (core): the LED flashes at 1 Hz during the hold, lit outside it
+@pytest.mark.parametrize("ms,lit", [(0, "1"), (499, "1"), (500, "0"), (999, "0"), (1000, "1"),
+                                    (1799999, "0")])
+def test_led_flashes_during_the_hold(run, ms, lit):
+    assert run("led", ON, ms) == lit
+
+
+@pytest.mark.parametrize("state", [NONE, KEY, TIMEOUT])
+def test_led_is_lit_outside_the_hold(run, state):
+    assert run("led", state, 500) == "1"
+
+
 # TC-SC-05 · FR-7.33 (core): the countdown logs L7 once a minute and at 00:00
 def test_countdown_logs_when_its_minutes_change(run):
-    p = "Press key to continue "
+    p = "Press blinking key to start "
     assert run("logged", 4, "", p + "30:00") == "1"
     assert run("logged", 4, p + "30:00", p + "29:59") == "1"
     assert run("logged", 4, p + "29:59", p + "29:58") == "0"

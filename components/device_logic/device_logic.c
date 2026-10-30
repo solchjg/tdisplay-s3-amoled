@@ -191,13 +191,18 @@ dl_hold_step_t dl_hold_step(dl_hold_t state, dl_hold_event_t event, bool guard,
     return (dl_hold_step_t){state, 0};
 }
 
-#define HOLD_PROMPT "Press key to continue "
+#define HOLD_PROMPT "Press blinking key to start "
 
 void dl_hold_line(uint32_t held_s, uint32_t timeout_s, char out[DL_LINE_MAX])
 {
     uint32_t left = held_s >= timeout_s ? 0 : timeout_s - held_s;
     snprintf(out, DL_LINE_MAX, HOLD_PROMPT "%02" PRIu32 ":%02" PRIu32,
              left / 60 % 100, left % 60);
+}
+
+bool dl_led_lit(dl_hold_t hold, uint32_t held_ms)
+{
+    return hold != DL_HOLD_ON || held_ms / DL_LED_HALF_MS % 2 == 0;
 }
 
 bool dl_line_logged(int i, const char *was, const char *now)

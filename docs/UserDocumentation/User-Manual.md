@@ -35,8 +35,9 @@ With no stored credentials the display shows `Setup WiFi`, the network name
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
 4. The device now waits for you to check it before it starts its sleep cycle.
    The fourth line shows a live reading, updated every 5 seconds, and the fifth
-   shows `Press key to continue` with a countdown from 30:00. Check the readings,
-   then press the user key (the one that also wakes the board). The device stays
+   shows `Press blinking key to start` with a countdown from 30:00, while the LED
+   next to the user key flashes once a second. Check the readings, then press
+   that key (the one that also wakes the board). The device stays
    up for one more minute, takes its first reading and goes to sleep.
 
    If nobody presses the key within 30 minutes, the device goes to sleep

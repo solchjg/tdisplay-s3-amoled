@@ -38,6 +38,12 @@ void lcd_backlight(bool on)
     ESP_LOGI(TAG, "call backlight %d", on);
 }
 
+esp_err_t lcd_led(bool on)
+{
+    ESP_LOGI(TAG, "call led %d", on);
+    return ESP_OK;
+}
+
 esp_err_t lcd_sleep(void)
 {
     ESP_LOGI(TAG, "call sleep");

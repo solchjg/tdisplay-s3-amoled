@@ -450,7 +450,7 @@ region; they change the screen content that D3 – D5 compare against.
 
 Five text lines, landscape, at most 33 characters each. Line 4 is the
 reading in every state (FR-23.12); line 5 is empty except during the setup
-check (FR-24.4); the table gives lines 1 – 3.
+check (FR-24.10); the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
 |--------------------|--------|--------|--------|
@@ -746,7 +746,7 @@ detected (R-2).
 - **FR-6.4** [Must] [derived from FR-5.25] On entry to LCD_OK (D1), the full
   536 × 240 visible area shall be cleared to black, leaving no lit pixels outside
   the text lines.
-- **FR-6.12** [Must] [derived from §5.4, FR-23.12 and FR-24.4] Lines 1 – 5
+- **FR-6.12** [Must] [derived from §5.4, FR-23.12 and FR-24.10] Lines 1 – 5
   shall not overlap and shall lie entirely inside the visible area.
 - **FR-6.13** [Must] [user] A line of 33 characters shall be displayed in full,
   without clipping or wrapping (33 × 16 px = 528 px of the 536).
@@ -836,7 +836,7 @@ Each line requirement is one row of §7.2:
   log L2 once.
 - **FR-7.9** [Must] [derived from FR-13.1] Entry into PROVISIONING shall log L3.
 - **FR-7.10** [Must] [derived from FR-5.15] Entry into ONLINE and T9 shall log L5.
-- **FR-7.33** [Must] [derived from R-1 and FR-24.4] Each line redrawn by D4
+- **FR-7.33** [Must] [derived from R-1 and FR-24.10] Each line redrawn by D4
   shall log L7 with the exact text drawn, except the setup-check countdown on
   line 5, which logs L7 only when its minutes change (and once at 00:00).
 - **FR-7.12** [Must] [derived from D2] D2 shall log L8 at error level.
@@ -1642,9 +1642,13 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
 - **FR-24.3** [Must] [user] During the hold, line 4 shall show a live reading,
   taken every **5 s**; these readings are neither kept
   (FR-23.9) nor logged as L21.
-- **FR-24.4** [Must] [user] During the hold, line 5 shall show
-  `Press key to continue <mm>:<ss>`, counting down once a second from `30:00`
-  to `00:00`.
+- **FR-24.10** [Must] [user] During the hold, line 5 shall show
+  `Press blinking key to start <mm>:<ss>`, counting down once a second from
+  `30:00` to `00:00` (33 characters).
+- **FR-24.9** [Must] [user] During the hold, the LED next to the user key
+  (GPIO 38 on the non-touch board) shall flash at **1 Hz**, 500 ms on and
+  500 ms off; when the hold ends it is lit again with the panel, as outside
+  the hold.
 - **FR-24.5** [Must] [user] A press of the user key during the hold, debounced
   **50 ms**, shall end it: the mark is cleared, L24 `by=key` is
   logged, line 5 is emptied, and the 60 s window runs, then the task and sleep
@@ -1663,12 +1667,14 @@ key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-24.1, FR-24.2, FR-24.7 (core) | Logic: T3; boot (power-on, reset, key wake, timer wake) with the mark pending and not | Hold after T3 and after every pending non-timer boot; no hold on a timer wake or with no mark | The task due during a hold; a hold on a timer wake | host |
-| FR-24.4 (core) | Countdown line for 1800, 61, 0 s left | `Press key to continue 30:00`; `… 01:01`; `… 00:00` | More than 33 characters | host |
+| FR-24.10 (core) | Countdown line for 1800, 61, 0 s left | `Press blinking key to start 30:00`; `… 01:01`; `… 00:00` | More than 33 characters | host |
 | FR-24.5, FR-24.6 (core) | Hold, then a key event; hold, then 1800 s with no key | Mark cleared, window 60 s, then the task; mark kept, the task at once | Sleep inside the hold; the mark cleared by the timeout | host |
 | FR-24.1, FR-24.2, FR-24.8 | Erased NVS; provision through the portal (bench AP) | L4, then L23; no `web: sleep` for 120 s | Sleep or the task during the hold | target |
 | FR-24.5 | Holding; operator presses the user key | L24 `by=key`, then `web: sleep` 60 – 63 s later | Sleep earlier; no L24 | bench (operator) |
 | FR-24.6 | Sleep test build (hold timeout cut to 60 s), provisioned | L24 `by=timeout` 60 – 63 s after L23, then L21 and `web: sleep`; after a key wake, L23 again | Sleep before the timeout; no hold after the key wake | target / bench (operator) |
-| FR-24.3, FR-24.4 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
+| FR-24.9 (core) | LED state 0, 499, 500, 999, 1000 ms into the hold; outside the hold | Lit, lit, dark, dark, lit; lit | Dark outside the hold; a period other than 1 s | host |
+| FR-24.9 | Holding; operator watches the LED next to the user key for 10 s, then presses the key | About ten flashes, then steadily lit after the press | No flashing; the LED dark after the press | bench (operator) |
+| FR-24.3, FR-24.10 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
 
 ---
 
@@ -1820,6 +1826,7 @@ the bench gains the capability.
 | FR-23.6 | Line 4 as `<t>F <rh>% <p>hPa`, whole humidity and pressure | FR-23.11 (`<t>F Hum <rh>% <p> hPa`) |
 | FR-23.11 | Line 4 as `<t>F Hum <rh>% <p> hPa` | FR-23.12 (`<t>F Hum <rh>% <p> mbar`) |
 | FR-23.8 | `/api/readings` with pressure as `p_hpa` | FR-23.13 (pressure as `p_mbar`) |
+| FR-24.4 | Line 5 as `Press key to continue <mm>:<ss>` | FR-24.10 (`Press blinking key to start <mm>:<ss>`) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
 | FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
 | FR-15.5 | 409 while an upload is in progress | FR-15.12 (while a download is in progress) |
@@ -1864,8 +1871,8 @@ change_history:
   - 0.7.2 2026-10-30 readings shown in °F (screen, page, L21, `temp_f` in /api/readings) by the user
   - 0.8.0 2026-10-30 from the user's request, approved by the user (humidity a whole number on line 4; 5 s live reading, 50 ms debounce): §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)
   - 0.8.1 2026-10-30 FR-22.6 from the user's request: a reading from a never-set clock shows no time (page, `null` in /api/readings, `at=none` in L21)
-  - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8]
+  - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4]
 open_decisions: []
 related_test_baseline: none yet
 ```
