@@ -46,6 +46,7 @@ reused.
 | 21 | Deep Sleep | cross-cutting |
 | 22 | Time | cross-cutting |
 | 23 | Weather Sensor | L1 |
+| 24 | Setup Check | cross-cutting |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -199,7 +200,7 @@ testbench.
   the boot screen, the new serial log lines, task watchdog. No WiFi.
 - **Deliverables.** C-10.1 – C-10.3, C-10.5 – C-10.8; §6 (FR-6.x, C-6.x) against
   the BOOT screen; FR-5.25 (BOOT row), FR-5.27, FR-5.29, FR-5.31 (core),
-  FR-7.5 – FR-7.7, FR-7.11 – FR-7.13, FR-7.29, FR-7.30 (image check); FR-19.1,
+  FR-7.5 – FR-7.7, FR-7.12, FR-7.13, FR-7.33, FR-7.29, FR-7.30 (image check); FR-19.1,
   NFR-19.1 (variant app); FR-9.2; the LCD fault build and the hang build
   (variant `app`) of §12.0.
 - **Exit criteria.** On SLOT1, after a USB flash of the CI artefact and a USB
@@ -232,7 +233,7 @@ testbench.
   HTTP parts), FR-9.5, FR-19.2, NFR-19.1 (variant http); the hang build variant `http`.
 - **Exit criteria.** Through the bench HTTP relay: `GET /` and `GET /api/status`
   answer per §14 with consistent values; the LCD request count follows (FR-5.25,
-  operator plus FR-7.11 mirror); NFR-14.1 holds; only TCP port 80 is open.
+  operator plus FR-7.33 mirror); NFR-14.1 holds; only TCP port 80 is open.
 - **Dependencies.** Phase 2 (the device must be ONLINE on the bench AP); Phase 1's
   test builds; testbench UDP log capture and port scan.
 
@@ -255,7 +256,7 @@ testbench.
 
 - **Scope.** The BME280 read as the deep-sleep task, its readings logged,
   shown, served and kept across sleep.
-- **Deliverables.** §23, FR-6.11; the shared `bme280` component; the sensor
+- **Deliverables.** §23; the shared `bme280` component; the sensor
   fault build §23.4 names.
 - **Exit criteria.** A reset shows a plausible L21 before the window; three
   timer wakes each log L21 and `/api/readings` lists them; the panel's line 4
@@ -263,6 +264,18 @@ testbench.
   and the device carries on.
 - **Dependencies.** §21 (the task and its sleep), §22 (the time stamp); a
   BME280 wired to SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1.
+
+### 3.6 Phase 6: Setup check
+
+- **Scope.** Five 33-character screen lines, the `Hum` reading line, and the
+  hold after WiFi is configured.
+- **Deliverables.** §24, FR-6.12, FR-6.13, FR-7.33, FR-23.11; the hold test
+  build §24.3 names.
+- **Exit criteria.** Provisioning logs L23 and the device does not sleep; the
+  panel counts down on line 5; a key press logs L24 `by=key` and the device
+  sleeps after the window; the hold test build times out and holds again on
+  the next key wake.
+- **Dependencies.** §5 (T3), §21 (the key and the window), §23 (the readings).
 
 ---
 
@@ -272,7 +285,7 @@ testbench.
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |----|------|-----------|--------|------------|
-| R-1 | The serial mirror proves what the firmware *intended* to draw, not what the panel shows | Certain | Medium | Display content is confirmed by an operator (FR-5.25, FR-6.1, FR-6.3, FR-6.4); FR-7.11 makes the intent automatable |
+| R-1 | The serial mirror proves what the firmware *intended* to draw, not what the panel shows | Certain | Medium | Display content is confirmed by an operator (FR-5.25, FR-6.1, FR-6.3, FR-6.4); FR-7.33 makes the intent automatable |
 | R-2 | The QSPI bus is write-only, so a real panel fault is invisible; the display-failure path can be exercised only by injecting a driver error | Certain | Low | Verified on the LCD fault-injection test build (§12.0) |
 | R-3 | Boot deadlines are read from the device's own log timestamp, which counts from chip reset, not from the bench's reset command | Certain | Low | Accepted: the device clock is the only clock that sees both the reset and the line |
 | R-4 | Wrong mirror, colour-inversion or offset settings produce an image every serial-only test misses | Medium | Medium | Operator checks FR-6.1, FR-6.3, FR-6.4 each name the defect to look for |
@@ -293,6 +306,7 @@ testbench.
 | R-19 | The bench AP may give the DUT no internet route, so SNTP (FR-22.1) may not be reachable from SLOT1 | Medium | Medium | Not yet observed; if the bench AP has no route, the bench test is blocked (testbench change request, never a project workaround) |
 | R-20 | GPIO 43/44 are UART0 TX/RX: the ROM bootloader writes its boot banner on GPIO 43 (SDA) at every reset, which the sensor sees as stray START/STOP conditions | Certain | Low | No SCL clocks are sent, so no address can match; the driver installs the bus after the banner and the first transfer starts with a STOP |
 | R-21 | The bench has no reference thermometer, hygrometer or barometer, so accuracy is not verified, only plausibility and response | Certain | Low | The sensor's own accuracy (±1 °C, ±3 %, ±1 hPa per datasheet) is relied on; contracts check plausible ranges and a finger-warmth response |
+| R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the hold test build with its 60 s timeout; the shipped 30 min is a build constant, not a runtime value |
 
 ### 4.2 Assumptions
 
@@ -344,7 +358,7 @@ whether a new image is confirmed, and what the LCD shows.
 | Retry delay | derived from n | ms | FR-5.18 | |
 | Image pending verify | bootloader / `otadata` | boolean | | True on the first boot of a newly uploaded image |
 | Request count | §14 | unsigned 32-bit | 0 – 2³² − 1 | FR-14.6 |
-| Screen lines 1 – 3 | derived from state | ASCII, ≤ 20 characters each | FR-5.29 | §5.4 |
+| Screen lines 1 – 3 | derived from state | ASCII, ≤ 33 characters each | FR-5.29 | §5.4 |
 
 ### 5.3 State models
 
@@ -423,7 +437,7 @@ reset (60).
 | D1 | LCD_START | start done | ok | LCD_OK | Clear to black; draw the BOOT screen; backlight on | 3000 ms after reset |
 | D2 | LCD_START | start done | failed | LCD_FAILED | Log `web: lcd init failed: <ERR>` | 3000 ms after reset |
 | D3 | LCD_OK | 1 s tick | screen unchanged | LCD_OK | none | 1000 ± 100 ms period |
-| D4 | LCD_OK | 1 s tick | changed, write ok | LCD_OK | Redraw each changed line; log FR-7.11 for each | 1000 ± 100 ms period |
+| D4 | LCD_OK | 1 s tick | changed, write ok | LCD_OK | Redraw each changed line; log FR-7.33 for each | 1000 ± 100 ms period |
 | D5 | LCD_OK | 1 s tick | changed, write failed | LCD_FAILED | Log `web: lcd write failed: <ERR>` | same tick |
 | D6 | LCD_FAILED | 1 s tick | — | LCD_FAILED | No LCD call | — |
 
@@ -434,8 +448,9 @@ region; they change the screen content that D3 – D5 compare against.
 
 ### 5.4 Screen content
 
-Four text lines, landscape, at most 20 characters each. Line 4 is the
-newest reading in every state (FR-23.6); the table gives lines 1 – 3.
+Five text lines, landscape, at most 33 characters each. Line 4 is the
+reading in every state (FR-23.11); line 5 is empty except during the setup
+check (FR-24.4); the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
 |--------------------|--------|--------|--------|
@@ -538,12 +553,12 @@ Compact form:
 | FR-5.32 | ONLINE; request a valid hosted image (FR-15.10) | `OTA succeeded`, then a boot line with the new `fw=` | No restart; old `fw=` after the restart | restart ≤ 2 s after `OTA succeeded` | bench |
 | NFR-5.3 | ONLINE; bench AP stopped | `web: state=WIFI_LOST` | No state change; a boot line; PROVISIONING | ≤ 15 s after the AP stop, by the bench activity log and the serial capture; up to + 3 s late (Appendix A), never before the stop | bench |
 | FR-5.23 | After FR-5.32 | `web: ota confirmed` once ONLINE; a further USB reset boots the same `fw=` | Rollback on the next reset | n/a | bench |
-| FR-5.25 | Each connectivity state reached on the bench; operator prompted per state | Operator confirms the §5.4 lines; the FR-7.11 mirror lines match them | Missing, stale or extra text | n/a | bench (operator) |
+| FR-5.25 | Each connectivity state reached on the bench; operator prompted per state | Operator confirms the §5.4 lines; the FR-7.33 mirror lines match them | Missing, stale or extra text | n/a | bench (operator) |
 | FR-5.25 (core) | Screen function for every state, with sample SSID/IP/n/hostname | The §5.4 strings exactly | Any other string | n/a | host |
-| FR-5.26 | ONLINE; one `GET /api/status` | FR-7.11 line `line2="Req: <n>"` with the new n | No mirror line | ≤ 2 s after the response | bench |
+| FR-5.26 | ONLINE; one `GET /api/status` | FR-7.33 line `line2="Req: <n>"` with the new n | No mirror line | ≤ 2 s after the response | bench |
 | FR-5.27 | LCD fault build failing at start; USB reset; 30 s capture | Exactly one `lcdfi: call` before `web: lcd init failed:` | Any `lcdfi: call` after it | 30 s window | target |
 | FR-5.31 (core) | Screen function for every §5.3 state and every display-region state | No line equals `Hello, world!`; no line starts `Up:` | Either text in any state | n/a | host |
-| FR-5.31 | Shipped build, JRN-01 run from erase to ONLINE with 3 requests; operator prompted at PROVISIONING and ONLINE | No FR-7.11 mirror line with either text; operator confirms neither is on the panel | `Hello, world!` or `Up:` on the panel or in a mirror line | n/a | bench (operator) |
+| FR-5.31 | Shipped build, JRN-01 run from erase to ONLINE with 3 requests; operator prompted at PROVISIONING and ONLINE | No FR-7.33 mirror line with either text; operator confirms neither is on the panel | `Hello, world!` or `Up:` on the panel or in a mirror line | n/a | bench (operator) |
 | FR-5.29 (core) | SSIDs: 32 × `A`; `Caf\xc3\xa9`; empty | `AAAAAAAAAAAAAAAAAAAA`; `Caf??`; empty line | Wider than 20; raw non-ASCII byte | n/a | host |
 | NFR-5.1 | Provisioned; bench AP up; USB reset; 5 runs | `web: online` log timestamp ≤ 10000 ms in every run | A run over 10000 ms; PROVISIONING | ≤ 10 s | bench |
 
@@ -731,10 +746,10 @@ detected (R-2).
 - **FR-6.4** [Must] [derived from FR-5.25] On entry to LCD_OK (D1), the full
   536 × 240 visible area shall be cleared to black, leaving no lit pixels outside
   the text lines.
-- **FR-6.11** [Must] [derived from §5.4 and FR-23.6] Lines 1 – 4 shall not
-  overlap and shall lie entirely inside the visible area.
-- **FR-6.10** [Must] [derived from §5.4 and FR-6.2] A line of 20 characters shall
-  be displayed in full, without clipping or wrapping (20 × 16 px = 320 px).
+- **FR-6.12** [Must] [derived from §5.4, FR-23.11 and FR-24.4] Lines 1 – 5
+  shall not overlap and shall lie entirely inside the visible area.
+- **FR-6.13** [Must] [user] A line of 33 characters shall be displayed in full,
+  without clipping or wrapping (33 × 16 px = 528 px of the 536).
 - **FR-6.7** [Must] [derived from FR-5.25] In LCD_OK, the panel brightness
   (register 0x51) shall be set non-zero; before LCD_OK it stays 0.
 - **FR-6.8** [Must] [derived from FR-5.26] Redrawing a line shall overwrite its
@@ -750,8 +765,8 @@ detected (R-2).
 | FR-6.2 | Inspect the font used by the renderer | Cell 16 × 32 px; glyphs 0x20 – 0x7E | Other cell size; proportional font | host |
 | FR-6.3 | LCD_OK; operator prompted | Operator confirms white on black | Inverted or tinted colours | bench (operator) |
 | FR-6.4 | Power-cycle (random panel RAM); operator prompted after the first screen | No stray pixels along any edge or between lines | Noise band along an edge; remnants | bench (operator) |
-| FR-6.11 | Render four lines with the shipped layout | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 535], y ∈ [0, 239] | Overlap; a pixel outside | host |
-| FR-6.10 | Render a 20-character line | Rightmost pixel x ≤ 319; one row | Width > 320 px; wrap | host |
+| FR-6.12 | Render five lines with the shipped layout | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 535], y ∈ [0, 239] | Overlap; a pixel outside | host |
+| FR-6.13 | Render a 33-character line | Rightmost pixel x ≤ 527; one row | Width > 528 px; wrap | host |
 | FR-6.7 | LCD_OK; operator prompted | Panel lit | Dark or flickering | bench (operator) |
 | FR-6.8 | Render `Req: 1000`, then `Req: 5` into the same row | Row after the second render equals a fresh render of `Req: 5` | Remnant pixels of `000` | host |
 
@@ -802,6 +817,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L20 | Clock synced (FR-22.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>` (local time) | I |
 | L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<hPa, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm> synced=<0\|1>` | I |
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
+| L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
+| L24 | Setup check hold ended (FR-24.5, FR-24.6) | `web: setup check done by=<key\|timeout>` | I |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -819,8 +836,9 @@ Each line requirement is one row of §7.2:
   log L2 once.
 - **FR-7.9** [Must] [derived from FR-13.1] Entry into PROVISIONING shall log L3.
 - **FR-7.10** [Must] [derived from FR-5.15] Entry into ONLINE and T9 shall log L5.
-- **FR-7.11** [Must] [derived from R-1] Each line redrawn by D4 shall log L7 with
-  the exact text drawn.
+- **FR-7.33** [Must] [derived from R-1 and FR-24.4] Each line redrawn by D4
+  shall log L7 with the exact text drawn, except the setup-check countdown on
+  line 5, which logs L7 only when its minutes change (and once at 00:00).
 - **FR-7.12** [Must] [derived from D2] D2 shall log L8 at error level.
 - **FR-7.13** [Must] [derived from D5] D5 shall log L9 at error level.
 - **FR-7.14** [Must] [derived from FR-14.6] Each status-server answer shall log L10.
@@ -889,7 +907,7 @@ concerned, `<ip>` the destination of FR-16.1.
 | FR-7.7 | USB reset | L1 once, first `web:` line; `reason=` one of `USB`, `SW`, `POWERON`; `slot=ota_0` or `ota_1` | Missing; after another `web:` line; numeric reason | target |
 | FR-7.8 – FR-7.10 | Provisioning run (FR-5.13) | L3, L4, L2 sequence PROVISIONING → CONNECTING → ONLINE, L5 with the bench-assigned IP | Missing or duplicated state line | bench |
 | FR-7.8 – FR-7.17 (core) | Format each line with sample values | The §7.2 strings exactly | Any other spelling or level | host |
-| FR-7.11 | ONLINE; one request | L7 `line2="Req: <n>"` | Text differing from the drawn line | bench |
+| FR-7.33 | ONLINE; one request | L7 `line2="Req: <n>"` | Text differing from the drawn line | bench |
 | FR-7.12, FR-7.13 | LCD fault build at start / 5th write | L8 `ESP_ERR_TIMEOUT` / L9 `ESP_ERR_INVALID_STATE` at level E, once | Level I/W; numeric code; repeated | target |
 | FR-7.14 | ONLINE; `GET /nope` | `web: http GET /nope 404 n=<count>` | Missing | bench |
 | FR-7.30 | Inspect the shipped application image (`.bin`) | No NUL-terminated string `hello` (the tag) and no `Hello, world!` in it | Either byte string present | host |
@@ -1540,7 +1558,7 @@ relative humidity (%) and pressure (hPa), with the time it was taken and the syn
   mode, oversampling ×1 for all three quantities, IIR filter off.
 - **FR-23.2** [Must] [user] After its reading the task shall tell the device to
   sleep for **600 s** (FR-21.9).
-- **FR-23.3** [Must] [derived from FR-23.6, FR-23.7] On every boot that is not a
+- **FR-23.3** [Must] [derived from FR-23.11, FR-23.7] On every boot that is not a
   timer wake, the device shall also take a reading before the window opens, so
   the panel and the web page have a value during the window.
 - **FR-23.4** [Must] [derived] Before its first reading after a boot the device
@@ -1551,10 +1569,11 @@ relative humidity (%) and pressure (hPa), with the time it was taken and the syn
   within the same task run.
 - **FR-23.5** [Must] [user] Each reading shall be logged as L21 (§7.2); in
   ONLINE it reaches the UDP log by FR-16.1.
-- **FR-23.6** [Must] [user] While the panel is lit, line 4 of the screen shall
-  show the newest kept reading as `<t>F <rh>% <p>hPa` (temperature 1 decimal,
-  humidity and pressure whole numbers, e.g. `70.6F 45% 1013hPa`), or
-  `Sensor --` when none is kept.
+- **FR-23.11** [Must] [user] While the panel is lit, line 4 of the screen shall
+  show the newest kept reading (the live reading during the setup check,
+  FR-24.3) as `<t>F Hum <rh>% <p> hPa`, temperature 1 decimal, humidity
+  1 decimal **[proposed]**, pressure 2 decimals **[proposed]**, e.g.
+  `75.7F Hum 46.8% 996.62 hPa`; or `Sensor --` when none is kept.
 - **FR-23.7** [Must] [user] In ONLINE, `GET /` shall also show the newest kept
   reading with its time and synced mark, or say that none is kept.
 - **FR-23.8** [Must] [user] In ONLINE, `GET /api/readings` shall answer 200 with
@@ -1582,14 +1601,69 @@ relative humidity (%) and pressure (hPa), with the time it was taken and the syn
 | FR-23.1 (core) | Register writes the driver issues for one reading | `ctrl_hum` 0x01 and `config` 0x00 in sleep mode, then `ctrl_meas` 0x25 (×1, ×1, forced) | Normal mode; any oversampling other than ×1 | host |
 | FR-23.4 (core) | Driver on a fake bus: no ACK; chip ID 0x58 (BMP280); ID 0x60 | `ESP_ERR_TIMEOUT` or a bus error; `ESP_ERR_NOT_FOUND`; `ESP_OK` | A reading kept on any failure | host |
 | FR-23.9 (core) | History core: add 0, 1, 144, 145 readings | 0, 1, 144, 144 kept, newest first; the 145th drops the oldest | More than 144; a dropped newest | host |
-| FR-23.6 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; 85 °C; none kept | `70.6F 45% 1013hPa`; `-40.0F 100% 1100hPa`; `185.0F …`; `Sensor --` | More than 20 characters | host |
+| FR-23.11 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; 85 °C; none kept | `70.6F Hum 45.2% 1013.25 hPa`; `-40.0F Hum 100.0% 1100.00 hPa`; `185.0F …`; `Sensor --` | More than 33 characters | host |
 | FR-23.8 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced | Valid JSON, exactly the five keys per element, newest first | Extra or missing key; invalid JSON | host |
 | FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within 14 – 113 °F, 5 – 95 %, 870 – 1085 hPa | L22; no L21 | target |
 | FR-23.2, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
 | FR-23.4 | Fault build reading address 0x77 | L22 with `ESP_ERR_TIMEOUT`, then the window, ONLINE and `web: sleep` as usual | A restart; a reading kept; no sleep | target |
-| FR-23.6 | ONLINE with the sensor fitted | Operator confirms line 4 matches the latest L21 | Line 4 missing, clipped or stale | bench (operator) |
+| FR-23.11 | ONLINE with the sensor fitted | Operator confirms line 4 matches the latest L21 | Line 4 missing, clipped or stale | bench (operator) |
 | FR-23.7, FR-23.8 | ONLINE; relay `GET /` and `GET /api/readings` | Page shows the newest reading's values; JSON parses as §23.2 and its first element equals the latest L21 | 404; a value differing from L21 | bench |
 | FR-23.1 | ONLINE; operator holds a finger on the sensor for 30 s, then presses the user key | The next L21 shows a higher temperature than the one before | No change | bench (operator) |
+
+## 24. Setup Check
+
+### 24.1 Purpose & peer
+
+When WiFi has just been configured, the device does not drop straight into its
+sleep cycle. It holds with the panel lit, shows live readings and asks the
+installer to press the user key to continue, so the sensors (and later e.g. a
+GPS fix) can be checked in place first. A pending mark in NVS says the check is
+still owed; it survives sleep, reset and power loss. The logic layer (§5)
+decides when to hold and when the hold ends; the composition root reads the key
+and the clock. The key is the user key, GPIO 21, active low (§21.1), the same
+key that wakes the device; GPIO 0 (BOOT) stays the factory-reset button (§18).
+
+### 24.2 Requirements
+
+- **FR-24.1** [Must] [user] When the portal stores credentials (T3), the device
+  shall mark the setup check pending in NVS. A factory reset (T10) clears the
+  mark with the credentials; credentials stored by an earlier firmware carry no
+  mark.
+- **FR-24.2** [Must] [user] While the mark is pending, the device shall hold,
+  from T3 and on every later boot that is not a timer wake: the task does not
+  run and the device does not sleep, whatever the WiFi state. Panel, WiFi, web
+  server and OTA run as in the window; the 60 s window of FR-21.2 starts only
+  when the hold ends by key.
+- **FR-24.3** [Must] [user] During the hold, line 4 shall show a live reading,
+  taken every **5 s** **[proposed]**; these readings are neither kept
+  (FR-23.9) nor logged as L21.
+- **FR-24.4** [Must] [user] During the hold, line 5 shall show
+  `Press key to continue <mm>:<ss>`, counting down once a second from `30:00`
+  to `00:00`.
+- **FR-24.5** [Must] [user] A press of the user key during the hold, debounced
+  **50 ms** **[proposed]**, shall end it: the mark is cleared, L24 `by=key` is
+  logged, line 5 is emptied, and the 60 s window runs, then the task and sleep
+  as usual (§21).
+- **FR-24.6** [Must] [user] If no press comes within **30 min** of the hold
+  starting, the hold shall end with L24 `by=timeout`; the device runs the task
+  and sleeps at once, and the mark stays pending, so the next key wake or
+  power-on holds again. A reset or power loss during the hold starts the
+  countdown again from `30:00`.
+- **FR-24.7** [Must] [derived from FR-21.10] A timer wake shall never hold,
+  whatever the mark.
+- **FR-24.8** [Must] [derived] Entry into the hold shall log L23 (§7.2).
+
+### 24.3 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-24.1, FR-24.2, FR-24.7 (core) | Logic: T3; boot (power-on, reset, key wake, timer wake) with the mark pending and not | Hold after T3 and after every pending non-timer boot; no hold on a timer wake or with no mark | The task due during a hold; a hold on a timer wake | host |
+| FR-24.4 (core) | Countdown line for 1800, 61, 0 s left | `Press key to continue 30:00`; `… 01:01`; `… 00:00` | More than 33 characters | host |
+| FR-24.5, FR-24.6 (core) | Hold, then a key event; hold, then 1800 s with no key | Mark cleared, window 60 s, then the task; mark kept, the task at once | Sleep inside the hold; the mark cleared by the timeout | host |
+| FR-24.1, FR-24.2, FR-24.8 | Erased NVS; provision through the portal (bench AP) | L4, then L23; no `web: sleep` for 120 s | Sleep or the task during the hold | target |
+| FR-24.5 | Holding; operator presses the user key | L24 `by=key`, then `web: sleep` 60 – 63 s later | Sleep earlier; no L24 | bench (operator) |
+| FR-24.6 | Hold test build with the timeout cut to 60 s, provisioned | L24 `by=timeout` 60 – 63 s after L23, then L21 and `web: sleep`; after a key wake, L23 again | Sleep before the timeout; no hold after the key wake | target / bench (operator) |
+| FR-24.3, FR-24.4 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
 
 ---
 
@@ -1647,6 +1721,7 @@ Runtime configuration (the only persisted items):
 |------|------|---------|-------------|-------------|-------------|-----------|------------|---------------|-----------------|
 | `wifi_ssid` | bytes | none | 1 – 32 bytes | NVS | operational | portal (§13) | FR-13.4 | immediate (T3) | erased by factory reset |
 | `wifi_password` | bytes | none | empty or 8 – 63 bytes | NVS | secret | portal (§13) | FR-13.4 | immediate (T3) | erased by factory reset |
+| `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by the key (FR-24.5) | none | next non-timer boot | erased by factory reset |
 
 Build-time constants:
 
@@ -1654,7 +1729,7 @@ Build-time constants:
 |------|-------|--------|
 | LCD pins, clock, offset | §2.2, C-6.1 – C-6.5 | [user]/[derived] |
 | Landscape area / font cell / colours | 536 × 240 / 16 × 32 / `0xFFFF` on `0x0000` | [user] |
-| Screen lines / max characters | 4 / 20 | [derived] |
+| Screen lines / max characters | 5 / 33 | [user] |
 | LCD refresh period | 1000 ± 100 ms | [user] |
 | Boot to first state line | ≤ 3000 ms | [user] |
 | Boot to ONLINE | ≤ 10 s | [user] |
@@ -1694,6 +1769,10 @@ Build-time constants:
 | Readings kept across sleep | 144 | [user] |
 | Reading duration | ≤ 50 ms | [user] |
 | I2C clock | 100 kHz, internal pull-ups on | [user] |
+| Setup check hold timeout | 30 min (60 s in the hold test build) | [user] |
+| Live reading period during the hold | 5 s | [proposed] |
+| User key debounce | 50 ms | [proposed] |
+| Reading line decimals (T / RH / P) | 1 / 1 / 2 | [proposed] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -1730,6 +1809,10 @@ the bench gains the capability.
 | FR-6.5 | Two text lines stacked inside the visible area | FR-6.9 (three lines) |
 | FR-6.9 | Three text lines stacked inside the visible area | FR-6.11 (four lines) |
 | FR-6.6 | The 16-character uptime line fits one row | FR-6.10 (any 20-character line) |
+| FR-6.10 | Any 20-character line fits one row | FR-6.13 (any 33-character line) |
+| FR-6.11 | Four text lines stacked inside the visible area | FR-6.12 (five lines) |
+| FR-7.11 | Every line redrawn by D4 logs L7 | FR-7.33 (the countdown logs once a minute) |
+| FR-23.6 | Line 4 as `<t>F <rh>% <p>hPa`, whole humidity and pressure | FR-23.11 (`<t>F Hum <rh>% <p> hPa`) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
 | FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
 | FR-15.5 | 409 while an upload is in progress | FR-15.12 (while a download is in progress) |
@@ -1739,15 +1822,25 @@ the bench gains the capability.
 FR-6.1 – FR-6.4 and FR-6.7 keep their IDs and meaning; only the name of the state
 they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
+### Open decisions
+
+Values marked **[proposed]**, awaiting the user:
+
+| Item | Proposed | Where |
+|------|----------|-------|
+| Live reading period during the hold | 5 s | FR-24.3 |
+| User key debounce | 50 ms | FR-24.5 |
+| Humidity and pressure decimals on line 4 | 1 and 2 (`46.8%`, `996.62 hPa`) | FR-23.11 |
+
 ```yaml
 document_status: draft
-fsd_version: 0.7.2
+fsd_version: 0.8.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
 author: solchjg
 reviewers: []
-approval_status: all requirements and values approved by the user
+approval_status: awaiting the user for §24, FR-6.12, FR-6.13, FR-7.33, FR-23.11 and the Open decisions; all else approved
 created: 2026-10-23
 last_updated: 2026-10-30
 change_history:
@@ -1772,7 +1865,8 @@ change_history:
   - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; approved by the user
   - 0.7.1 2026-10-30 FR-22.2 time zone set to US Eastern (EST5EDT) by the user
   - 0.7.2 2026-10-30 readings shown in °F (screen, page, L21, `temp_f` in /api/readings) by the user
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9]
-open_decisions: []
+  - 0.8.0 2026-10-30 draft from the user's request: §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6]
+open_decisions: [FR-24.3 live reading period 5 s, FR-24.5 key debounce 50 ms, FR-23.11 decimals 1/1/2]
 related_test_baseline: none yet
 ```
