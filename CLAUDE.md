@@ -76,10 +76,13 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `shared/components/text/` (L0) — pure C font renderer. `font16x32.c` is generated
   by `shared/tools/bdf_to_c.py` — regenerate, never hand-edit.
 - `components/hello_log/` (L1) — serial log lines; `hello_log_format.c` is the pure core.
+- `components/weather/` (L1) — the BME280 task's readings (FSD §23): kept in RTC
+  memory, shown on line 4, logged (L21/L22), served at `/api/readings`;
+  `weather_core.c` is the pure core. The sensor driver is `shared/components/bme280/`.
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through

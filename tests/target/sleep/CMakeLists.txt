@@ -10,6 +10,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/shared/components/ota_rx ${ROOT}/shared/components/button
                          ${ROOT}/shared/components/mdns_name ${ROOT}/shared/components/wifi_net
                          ${ROOT}/shared/components/deep_sleep ${ROOT}/shared/components/time_sync
+                         ${ROOT}/components/weather ${ROOT}/shared/components/bme280
                          ${ROOT}/components/lcd
                          ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/text
                          ${ROOT}/shared/components/tdisplay_s3_amoled ${ROOT}/shared/components/esp_try)

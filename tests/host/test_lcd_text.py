@@ -84,15 +84,15 @@ def test_font_is_fixed_16x32(run):
     assert size == (last - first + 1) * h * 2, "one 16-bit row per pixel row per glyph"
 
 
-# TC-LCD-05 · FR-6.9
-def test_three_lines_are_stacked_inside_the_visible_area(run):
+# TC-LCD-05 · FR-6.11
+def test_four_lines_are_stacked_inside_the_visible_area(run):
     rects = [tuple(map(int, ln.split())) for ln in run("rect").splitlines()]
-    assert len(rects) == 3, f"{len(rects)} text lines, FSD §5.4 has three"
+    assert len(rects) == 4, f"{len(rects)} text lines, FSD §5.4 has four"
     for x, y, w, h in rects:
         assert 0 <= x and x + w <= 536 and 0 <= y and y + h <= 240
     for (_, y0, _, h0), (_, y1, _, _) in zip(rects, rects[1:]):
         assert y1 >= y0 + h0, "a line overlaps the one above it"
-    for line in "012":
+    for line in "0123":
         minx, maxx, miny, maxy, _ = map(int, run("ink", line, "W" * 20).split())
         assert 0 <= minx and maxx <= 535 and 0 <= miny and maxy <= 239
 

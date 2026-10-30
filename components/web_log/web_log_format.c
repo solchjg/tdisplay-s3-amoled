@@ -98,3 +98,8 @@ void wl_fmt_wake(char *buf, size_t len, const char *cause)
 {
     snprintf(buf, len, "wake cause=%s", cause);
 }
+
+void wl_fmt_bme280_failed(char *buf, size_t len, const char *err)
+{
+    snprintf(buf, len, "bme280 failed: %s", err);
+}

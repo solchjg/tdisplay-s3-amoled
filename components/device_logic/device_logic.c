@@ -49,6 +49,7 @@ void dl_screen(const dl_view_t *v, char out[DL_LINES][DL_LINE_MAX])
         put(out[1], "Retrying");
         break;
     }
+    put(out[3], v->reading);
 }
 
 dl_disp_step_t dl_disp_step(dl_disp_t state, dl_disp_event_t event, bool changed, bool ok)

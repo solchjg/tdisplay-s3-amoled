@@ -251,6 +251,19 @@ testbench.
   (`/api/firmware/upload`, served at `/firmware/<project>/<file>`) reachable from
   the bench AP network (R-6).
 
+### 3.5 Phase 5: Weather sensor
+
+- **Scope.** The BME280 read as the deep-sleep task, its readings logged,
+  shown, served and kept across sleep.
+- **Deliverables.** §23, FR-6.11; the shared `bme280` component; the sensor
+  fault build §23.4 names.
+- **Exit criteria.** A reset shows a plausible L21 before the window; three
+  timer wakes each log L21 and `/api/readings` lists them; the panel's line 4
+  and the page match the latest L21; a sensor at the wrong address logs L22
+  and the device carries on.
+- **Dependencies.** §21 (the task and its sleep), §22 (the time stamp); a
+  BME280 wired to SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1.
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -1565,7 +1578,7 @@ A reading is the triple temperature (°C), relative humidity (%) and pressure
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | NFR-23.2 (core) | `bme280` compensation core with the datasheet's sample calibration and raw values; minimum and maximum raw values | The datasheet's results (e.g. 25.08 °C, 1006.53 hPa) within one LSB; results clamped to the sensor ranges | Overflow; a result outside −40 – 85 °C, 0 – 100 %, 300 – 1100 hPa | host |
-| FR-23.1 (core) | Register writes the driver issues for one reading | `ctrl_hum` 0x01, then `ctrl_meas` 0x25 (×1, ×1, forced), `config` 0x00 | Normal mode; any oversampling other than ×1 | host |
+| FR-23.1 (core) | Register writes the driver issues for one reading | `ctrl_hum` 0x01 and `config` 0x00 in sleep mode, then `ctrl_meas` 0x25 (×1, ×1, forced) | Normal mode; any oversampling other than ×1 | host |
 | FR-23.4 (core) | Driver on a fake bus: no ACK; chip ID 0x58 (BMP280); ID 0x60 | `ESP_ERR_TIMEOUT` or a bus error; `ESP_ERR_NOT_FOUND`; `ESP_OK` | A reading kept on any failure | host |
 | FR-23.9 (core) | History core: add 0, 1, 144, 145 readings | 0, 1, 144, 144 kept, newest first; the 145th drops the oldest | More than 144; a dropped newest | host |
 | FR-23.6 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 hPa; −40.0 °C 100 % 1100 hPa; none kept | `21.4C 45% 1013hPa`; `-40.0C 100% 1100hPa`; `Sensor --` | More than 20 characters | host |

@@ -9,6 +9,7 @@
 | L0 | RM67162 panel driver | `shared/components/rm67162/` — board-agnostic QSPI bring-up, DMA canvas, rectangle writes, brightness; configured by `rm67162_config_t` | esp_lcd, SPI and GPIO drivers, `esp_try` |
 | L0 | Text renderer | `shared/components/text/` — 16 × 32 font and `text_render`/`text_width`, pure C | nothing |
 | L0 | Board support | `shared/components/tdisplay_s3_amoled/` — header-only pin and panel constants, pure | nothing |
+| L0 | BME280 sensor | `shared/components/bme280/` — calibration, integer compensation and the forced-mode sequence over an abstract bus (core pure); `i2c_master` transport configured by `bme280_config_t` | esp_driver_i2c, `esp_try` |
 | L0 | Error propagation | `shared/components/esp_try/` — header-only `ESP_TRY` (return the error, never abort) | esp_err |
 | L1 | Serial Log Interface (FSD §7) | `components/web_log/` (line formatting core pure; emit via esp_log) | esp_log |
 | L1 | WiFi network (FSD §8) | `shared/components/wifi_net/` — station, SoftAP, stored credentials in NVS, station events through a callback | esp_wifi, esp_netif, esp_event, nvs_flash, `esp_try` |
@@ -20,6 +21,7 @@
 | L1 | BOOT Button (FSD §18) | `shared/components/button/` (hold detector core pure); threshold and release through callbacks | GPIO driver, esp_timer |
 | L1 | Deep Sleep (FSD §21) | `shared/components/deep_sleep/` (period and wake-cause core pure); arms the timer and the user-key wake (`CONFIG_DEEP_SLEEP_WAKE_GPIO` 21), runs the prepare callbacks the composition root registers (`lcd_sleep`, `wifi_net_stop`), sleeps | esp_sleep, RTC GPIO, `esp_try` |
 | L1 | Time (FSD §22) | `shared/components/time_sync/` (synced-at-boot core pure); time zone from `CONFIG_TIME_SYNC_TZ`, SNTP from `CONFIG_TIME_SYNC_SERVER` started with the services, each sync reported through a callback (L20) | esp_netif SNTP |
+| L1 | Weather Sensor (FSD §23) | `components/weather/` (history ring and every rendering of a reading core pure); reads the BME280 at 0x76 on GPIO 43/44, keeps 144 readings in RTC memory, registers `GET /api/readings` on the server handle and gives `status_http` the page's reading section (`extra_html`) | `bme280`, `time_sync`, esp_http_server |
 | L1 | Device Identity (FSD §20) | `shared/components/identity/` (name formatting core pure, prefixes passed in) | nothing |
 | — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces, and wires each interface's callbacks to `web_log` | all of the above |
 | host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler; `test_lcd_text.py` uses the `compile_harness` fixture in `conftest.py` | the pure cores only |
@@ -89,7 +91,7 @@ IDF Component Manager git dependency pinned to a tag, or as a submodule.
   The identity prefixes are read by the composition root and passed to
   `id_softap_ssid` / `id_hostname`, so the `identity` core stays free of
   ESP-IDF headers.
-- `lcd`, `device_logic` and `web_log` stay in `components/`: they are this
+- `lcd`, `device_logic`, `web_log` and `weather` stay in `components/`: they are this
   app's screen, state machine and log vocabulary.
 
 ## Test builds

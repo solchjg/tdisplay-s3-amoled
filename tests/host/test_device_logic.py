@@ -38,8 +38,9 @@ int main(int argc, char **argv)
 {
     if (strcmp(argv[1], "screen") == 0) {
         // screen <state> <softap_ssid> <stored_ssid> <ip> <requests> <hostname>
+        // optional 8th: line 4's reading text (FR-23.6)
         dl_view_t v = {conn(argv[2]), argv[3], argv[4], argv[5],
-                       (uint32_t)strtoul(argv[6], NULL, 10), argv[7]};
+                       (uint32_t)strtoul(argv[6], NULL, 10), argv[7], argc > 8 ? argv[8] : NULL};
         char lines[DL_LINES][DL_LINE_MAX];
         dl_screen(&v, lines);
         for (int i = 0; i < DL_LINES; i++) {
@@ -331,3 +332,12 @@ def test_no_task_before_provisioning_is_complete(run):
     assert sleep(run, "none", 600, provisioned=0) == (False, False)
     assert sleep(run, "key", 600, provisioned=0) == (False, False)
     assert sleep(run, "none", 600, provisioned=1) == (False, True)
+
+
+# TC-WX-03 · FR-23.6 (core): line 4 is the reading in every state, empty when none is given
+@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
+def test_line_four_is_the_reading_in_every_state(run, state):
+    lines = run("screen", state, *ONLINE[1:], "21.4C 45% 1013hPa").split("\n")
+    assert lines[3] == "21.4C 45% 1013hPa"
+    assert lines[:3] == screen(run, state), "lines 1 - 3 unchanged"
+    assert run("screen", state, *ONLINE[1:]).split("\n")[3] == ""

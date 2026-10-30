@@ -215,3 +215,15 @@ void web_log_time_synced(void)
     wl_fmt_time_synced(line, sizeof line, iso);
     ESP_LOGI(TAG, "%s", line);
 }
+
+void web_log_reading(const char *text)
+{
+    ESP_LOGI(TAG, "%s", text);
+}
+
+void web_log_bme280_failed(esp_err_t err)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_bme280_failed(line, sizeof line, esp_err_to_name(err));
+    ESP_LOGE(TAG, "%s", line);
+}
