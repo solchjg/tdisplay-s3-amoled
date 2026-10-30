@@ -17,6 +17,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "identity.h"
 #include "lcd.h"
@@ -26,6 +27,7 @@
 #include "sdkconfig.h"
 #include "setup_check.h"
 #include "status_http.h"
+#include "summary.h"
 #include "time_sync.h"
 #include "udp_log.h"
 #include "weather.h"
@@ -42,6 +44,7 @@ static const char *TAG = "main";
 #define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
 #define LEAVE_MS 200                          // a planned restart leaves the AP first
 #define TASK_PERIOD_S 600                     // FR-23.2: one reading every 10 min
+#define MAIL_WIFI_MS (15 * 1000)              // FR-25.7: no WiFi within 15 s drops the summary
 #ifdef TDS3_TEST_HOLD_S
 #define HOLD_TIMEOUT_S TDS3_TEST_HOLD_S  // the sleep test builds cut the hold (R-22)
 #else
@@ -344,12 +347,72 @@ static void show_live_reading(void)
     wx_screen_line(weather_sample(&r) == ESP_OK ? &r : NULL, reading_line);
 }
 
-// The task (FR-21.4, FR-21.9): takes a reading (FR-23.1), then returns the sleep
-// period it asks for (FR-23.2), 0 to stay awake. The sleep test build sleeps
-// twice per flash with its own period, then stays awake.
+// ── Summary email region (FSD §25) ───────────────────────────────────────
+
+static esp_err_t wifi_stop_cb(void *arg);
+
+static SemaphoreHandle_t lean_ip;  // given when a timer wake's station gets an address
+
+static void on_lean_net(wifi_net_event_t ev, const char *addr)
+{
+    if (ev == WIFI_NET_EV_GOT_IP) {
+        xSemaphoreGive(lean_ip);
+    }
+}
+
+// FR-25.6: on a timer wake WiFi is off; bring the station up for the summary
+// only. False if it gets no address within 15 s (FR-25.7).
+static bool lean_wifi_up(void)
+{
+    uint8_t mac[6];
+    wifi_net_base_mac(mac);
+    id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);
+    lean_ip = xSemaphoreCreateBinary();
+    if (lean_ip == NULL || wifi_net_init(on_lean_net, hostname) != ESP_OK) {
+        return false;
+    }
+    deep_sleep_on_prepare(wifi_stop_cb, NULL);  // FR-21.7: leave the AP before sleeping
+    if (!wifi_net_creds_load(stored.ssid, stored.password) ||
+        wifi_net_sta_start(stored.ssid, stored.password) != ESP_OK) {
+        return false;
+    }
+    return xSemaphoreTake(lean_ip, pdMS_TO_TICKS(MAIL_WIFI_MS)) == pdTRUE;
+}
+
+// FR-25.3 – FR-25.9: a due summary is sent once, or dropped and logged.
+static void send_summary(void)
+{
+    bool lean = wake == DL_WAKE_TIMER;
+    bool up = lean ? lean_wifi_up() : view.conn == DL_ONLINE;
+    if (!up) {
+        web_log_mail_failed("wifi");  // L26
+        return;
+    }
+    if (!lean) {
+        esp_task_wdt_delete(NULL);  // the send blocks this task for up to 30 s (FR-25.7)
+    }
+    uint32_t count = 0;
+    mail_tx_result_t why = MAIL_TX_OK;
+    if (summary_send(hostname, &count, &why) == ESP_OK) {
+        web_log_mail_sent(summary_recipient(), count);  // L25
+    } else {
+        web_log_mail_failed(mail_tx_result_name(why));  // L26
+    }
+    if (!lean) {
+        esp_task_wdt_add(NULL);
+    }
+}
+
+// The task (FR-21.4, FR-21.9): takes a reading (FR-23.1), sends a due summary
+// (FR-25.3), then returns the sleep period it asks for (FR-23.2), 0 to stay
+// awake. The sleep test build sleeps twice per flash with its own period, then
+// stays awake.
 static uint32_t run_task(void)
 {
     take_reading();
+    if (summary_due()) {
+        send_summary();
+    }
 #ifdef TDS3_TEST_SLEEP_S
     return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
 #else
@@ -535,6 +598,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("credentials store", err);
         }
+        err = summary_store_submitted();  // FR-25.2
+        if (err != ESP_OK) {
+            web_log_warn("mail settings store", err);
+        }
         web_log_provisioned(stored.ssid);
     }
     if (a & DL_C_MARK_SETUP) {
@@ -551,7 +618,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         web_log_portal(softap_ssid);
         esp_err_t err = wifi_net_softap_start(softap_ssid);
         if (err == ESP_OK) {
-            err = portal_start(on_submit);
+            err = portal_start_extra(on_submit, &summary_portal);  // FR-25.1
         }
         if (err != ESP_OK) {
             web_log_warn("portal start", err);
@@ -631,6 +698,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = setup_check_mark(false);  // FR-24.1
         if (err != ESP_OK) {
             web_log_warn("setup check clear", err);
+        }
+        err = summary_erase();  // FR-25.2
+        if (err != ESP_OK) {
+            web_log_warn("mail settings erase", err);
         }
     }
     if (a & DL_C_RESTART) {
@@ -734,6 +805,10 @@ void app_main(void)
     err = wifi_net_init(on_net, hostname);
     if (err == ESP_OK) {
         deep_sleep_on_prepare(wifi_stop_cb, NULL);
+        err = summary_load();  // FR-25.2: NVS is up; timer wakes use this copy
+        if (err != ESP_OK) {
+            web_log_warn("mail settings load", err);
+        }
     } else {
         web_log_warn("network init", err);
     }

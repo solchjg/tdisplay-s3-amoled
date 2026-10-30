@@ -57,6 +57,10 @@ int main(int argc, char **argv)
         wl_fmt_setup_pending(line, sizeof line);
     } else if (strcmp(argv[1], "setup_done") == 0) {
         wl_fmt_setup_done(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "mail_sent") == 0) {
+        wl_fmt_mail_sent(line, sizeof line, argv[2], (uint32_t)strtoul(argv[3], NULL, 10));
+    } else if (strcmp(argv[1], "mail_failed") == 0) {
+        wl_fmt_mail_failed(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "time") == 0) {
         wl_fmt_time_synced(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "wake") == 0) {
@@ -170,3 +174,10 @@ def test_setup_check_lines(fmt):
     assert fmt("setup_pending") == "setup check pending"
     assert fmt("setup_done", "key") == "setup check done by=key"
     assert fmt("setup_done", "timeout") == "setup check done by=timeout"
+
+
+# TC-ML-04 · FR-25.7, FR-25.9 (core): L25, L26
+def test_mail_lines(fmt):
+    assert fmt("mail_sent", "joe@example.com", "36") == "mail sent to=joe@example.com readings=36"
+    for reason in ("wifi", "dns", "connect", "tls", "cert", "auth", "refused", "timeout"):
+        assert fmt("mail_failed", reason) == f"mail failed: {reason}"

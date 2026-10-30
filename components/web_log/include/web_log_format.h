@@ -70,3 +70,7 @@ void wl_fmt_bme280_failed(char *buf, size_t len, const char *err);
 // L23: "setup check pending"; L24: "setup check done by=<key|timeout>"
 void wl_fmt_setup_pending(char *buf, size_t len);
 void wl_fmt_setup_done(char *buf, size_t len, const char *by);
+
+// L25: "mail sent to=<recipient> readings=<n>"; L26: "mail failed: <reason>"
+void wl_fmt_mail_sent(char *buf, size_t len, const char *to, uint32_t readings);
+void wl_fmt_mail_failed(char *buf, size_t len, const char *reason);

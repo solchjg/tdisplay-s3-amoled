@@ -76,3 +76,5 @@ void web_log_bme280_failed(esp_err_t err);
 // "timeout" (FR-24.5, FR-24.6).
 void web_log_setup_pending(void);
 void web_log_setup_done(const char *by);
+void web_log_mail_sent(const char *to, uint32_t readings);  // L25
+void web_log_mail_failed(const char *reason);                // L26
