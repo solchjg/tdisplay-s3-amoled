@@ -20,8 +20,8 @@ typedef struct {
     const char *ip;           // dotted quad
     uint32_t requests;        // FR-14.6
     const char *hostname;     // FR-20.1, without ".local"
-    const char *reading;      // line 4 in every state (FR-23.11)
-    const char *prompt;       // line 5 in every state, the setup check (FR-24.4)
+    const char *reading;      // line 4 in every state (FR-23.12)
+    const char *prompt;       // line 5 in every state, the setup check (FR-24.10)
 } dl_view_t;
 
 // The five lines of FSD §5.4 for v's state.
@@ -148,9 +148,16 @@ typedef struct {
 dl_hold_step_t dl_hold_step(dl_hold_t state, dl_hold_event_t event, bool guard,
                             dl_wake_t wake, uint32_t held_s, uint32_t timeout_s);
 
-// FR-24.4: "Press key to continue <mm>:<ss>" for the seconds left (0 at or past
+// FR-24.10: "Press blinking key to start <mm>:<ss>" for the seconds left (0 at or past
 // the timeout).
 void dl_hold_line(uint32_t held_s, uint32_t timeout_s, char out[DL_LINE_MAX]);
+
+#define DL_LED_HALF_MS 500  // FR-24.9: 1 Hz, half on, half off
+
+// FR-24.9: whether the LED by the user key is lit, held_ms into the hold. It
+// flashes while the hold is on, lit from the hold's first moment; outside the
+// hold it stays lit with the panel.
+bool dl_led_lit(dl_hold_t hold, uint32_t held_ms);
 
 // FR-7.33: whether redrawing line i (0-based) from `was` to `now` logs L7. Every
 // line does, except the countdown on line 5 while its minutes stay the same,

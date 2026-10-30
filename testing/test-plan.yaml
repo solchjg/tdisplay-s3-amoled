@@ -1958,9 +1958,9 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-23.11, FR-24.4]
+    verifies: [FR-23.12, FR-24.10]
     needs: []
-    observable: "'70.6F Hum 45% 1013.25 hPa', '-40.0F Hum 100% 1100.00 hPa', 'Sensor --'; at most 33 characters; lines 1 - 3 unchanged"
+    observable: "'70.6F Hum 45% 1013.25 mbar', '-40.0F Hum 100% 1100.00 mbar', 'Sensor --'; at most 33 characters; lines 1 - 3 unchanged"
     impl: [tests/host/test_weather.py::test_screen_line, tests/host/test_weather.py::test_screen_line_without_a_reading, tests/host/test_device_logic.py::test_lines_four_and_five_in_every_state]
     result: {status: not done}
 
@@ -1984,9 +1984,9 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: host
-    verifies: [FR-23.8]
+    verifies: [FR-23.13]
     needs: []
-    observable: "valid JSON, exactly time, synced, temp_f, rh_pct, p_hpa with the stated decimals"
+    observable: "valid JSON, exactly time, synced, temp_f, rh_pct, p_mbar with the stated decimals"
     impl: [tests/host/test_weather.py::test_json_element_has_exactly_the_five_keys, tests/host/test_weather.py::test_json_keeps_the_stated_decimals]
     result: {status: not done}
 
@@ -2012,7 +2012,7 @@ tests:
     tier: host
     verifies: [NFR-23.2, FR-23.1, FR-23.4]
     needs: []
-    observable: "datasheet example 25.08 C / 1006.53 hPa; humidity within 0.05 % of the double formula; ranges clamped; ctrl_hum 01 and config 00, then ctrl_meas 25; ID 0x58 and NAK keep no reading"
+    observable: "datasheet example 25.08 C / 1006.53 mbar; humidity within 0.05 % of the double formula; ranges clamped; ctrl_hum 01 and config 00, then ctrl_meas 25; ID 0x58 and NAK keep no reading"
     impl: [shared/tests/host/test_bme280.py]
     result: {status: not done}
 
@@ -2025,7 +2025,7 @@ tests:
     tier: target
     verifies: [FR-23.3, FR-23.5, NFR-23.1]
     needs: [bench-flash, bench-serial-monitor, dut-amoled-slot1, dut-bme280]
-    observable: "after a USB reset, L21 before L2 with 14 - 113 F, 5 - 95 %, 870 - 1085 hPa; no L22"
+    observable: "after a USB reset, L21 before L2 with 14 - 113 F, 5 - 95 %, 870 - 1085 mbar; no L22"
     impl: []
     result: {status: not done}
 
@@ -2062,7 +2062,7 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: bench
-    verifies: [FR-23.11, FR-6.12]
+    verifies: [FR-23.12, FR-6.12]
     needs: [bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280]
     observable: "operator confirms line 4 equals the latest L21, rounded, unclipped"
     impl: []
@@ -2075,7 +2075,7 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: bench
-    verifies: [FR-23.7, FR-23.8]
+    verifies: [FR-23.7, FR-23.13]
     needs: [bench-flash, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1, dut-bme280]
     observable: "GET / shows the newest values; GET /api/readings parses as FSD 23.2 and its first element equals the latest L21"
     impl: []
@@ -2128,9 +2128,9 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-24.4]
+    verifies: [FR-24.10]
     needs: []
-    observable: "'Press key to continue 30:00', '... 29:59', '... 01:01', '... 00:00'; at most 33 characters"
+    observable: "'Press blinking key to start 30:00', '... 29:59', '... 01:01', '... 00:00'; at most 33 characters"
     impl: tests/host/test_device_logic.py::test_countdown_line
     result: {status: not done}
 
@@ -2219,9 +2219,35 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: bench
-    verifies: [FR-24.3, FR-24.4]
+    verifies: [FR-24.3, FR-24.10]
     needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280]
     observable: "operator watching 15 s with a finger on the sensor: line 5 counts down once a second; line 4 changes at least once"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-SC-11
+    title: "The LED flashes during the hold"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: host
+    verifies: [FR-24.9]
+    needs: []
+    observable: "lit at 0 and 499 ms, dark at 500 and 999 ms, lit at 1000 ms into the hold; lit outside the hold"
+    impl: tests/host/test_device_logic.py::test_led_flashes_during_the_hold
+    result: {status: not done}
+
+  - id: TC-SC-12
+    title: "The LED next to the key flashes until the press"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 6
+    tier: bench
+    verifies: [FR-24.9]
+    needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
+    observable: "operator watching 10 s: the LED next to the user key flashes about ten times; after the press it stays lit"
     impl: []
     result: {status: not done}
 

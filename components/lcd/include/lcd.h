@@ -17,6 +17,10 @@ esp_err_t lcd_draw_line(int line, const char *text);
 // An AMOLED has no backlight: on sets the panel's brightness, off darkens it.
 void lcd_backlight(bool on);
 
+// FR-24.9: the LED on the panel power GPIO (non-touch board) on or off. Only
+// while the panel is started; the pin is configured by lcd_start.
+esp_err_t lcd_led(bool on);
+
 // Before deep sleep (FR-21.6): dark, display off, sleep in, and the panel power
 // GPIO held low. A panel never started (a timer wake) only gets its power held off.
 esp_err_t lcd_sleep(void);

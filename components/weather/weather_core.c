@@ -60,7 +60,7 @@ void wx_fmt_hum(char *out, size_t len, uint32_t q10, int decimals)
 
 void wx_fmt_press(char *out, size_t len, uint32_t q8_pa, int decimals)
 {
-    fixed(out, len, q8_pa, 256 * 100, decimals);  // 1/256 Pa to hPa
+    fixed(out, len, q8_pa, 256 * 100, decimals);  // 1/256 Pa to mbar
 }
 
 void wx_screen_line(const wx_reading_t *r, char out[WX_LINE_MAX])
@@ -70,12 +70,12 @@ void wx_screen_line(const wx_reading_t *r, char out[WX_LINE_MAX])
         return;
     }
     // The sensor's ranges keep this within 33 characters ("185.0F Hum 100%
-    // 1100.00 hPa", 27); anything longer is cut, never overflowing the line.
+    // 1100.00 mbar", 28); anything longer is cut, never overflowing the line.
     char t[16], h[16], p[16], line[64];
     wx_fmt_temp_f(t, sizeof t, r->temp_centi_c, 1);
     wx_fmt_hum(h, sizeof h, r->hum_q10_pct, 0);
     wx_fmt_press(p, sizeof p, r->press_q8_pa, 2);
-    snprintf(line, sizeof line, "%sF Hum %s%% %s hPa", t, h, p);
+    snprintf(line, sizeof line, "%sF Hum %s%% %s mbar", t, h, p);
     snprintf(out, WX_LINE_MAX, "%.33s", line);
 }
 
@@ -112,7 +112,7 @@ void wx_json(const wx_reading_t *r, const char *iso, char *out, size_t len)
         snprintf(time, sizeof time, "\"%s\"", iso);
     }
     snprintf(out, len,
-             "{\"time\":%s,\"synced\":%s,\"temp_f\":%s,\"rh_pct\":%s,\"p_hpa\":%s}", time,
+             "{\"time\":%s,\"synced\":%s,\"temp_f\":%s,\"rh_pct\":%s,\"p_mbar\":%s}", time,
              r->synced ? "true" : "false", x.t, x.h, x.p);
 }
 
@@ -128,7 +128,7 @@ void wx_html(const wx_reading_t *r, const char *iso, char *out, size_t len)
              "<h2>Weather</h2><table>"
              "<tr><th>Temperature</th><td>%s &deg;F</td></tr>"
              "<tr><th>Humidity</th><td>%s %%</td></tr>"
-             "<tr><th>Pressure</th><td>%s hPa</td></tr>"
+             "<tr><th>Pressure</th><td>%s mbar</td></tr>"
              "<tr><th>Taken</th><td>%s%s</td></tr></table>",
              x.t, x.h, x.p, wx_time_set(r) ? iso : "no time", r->synced ? "" : " (unsynced)");
 }

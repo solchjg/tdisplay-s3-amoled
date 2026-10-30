@@ -35,8 +35,9 @@ With no stored credentials the display shows `Setup WiFi`, the network name
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
 4. The device now waits for you to check it before it starts its sleep cycle.
    The fourth line shows a live reading, updated every 5 seconds, and the fifth
-   shows `Press key to continue` with a countdown from 30:00. Check the readings,
-   then press the user key (the one that also wakes the board). The device stays
+   shows `Press blinking key to start` with a countdown from 30:00, while the LED
+   next to the user key flashes once a second. Check the readings, then press
+   that key (the one that also wakes the board). The device stays
    up for one more minute, takes its first reading and goes to sleep.
 
    If nobody presses the key within 30 minutes, the device goes to sleep
@@ -48,7 +49,7 @@ With no stored credentials the display shows `Setup WiFi`, the network name
 
 When connected, the display shows `IP <address>`, `Req: <count>` (requests
 answered since start) and `<name>.local`. The fourth line, in every state, is
-the latest weather reading, e.g. `75.7F Hum 47% 996.62 hPa`, or `Sensor --` if
+the latest weather reading, e.g. `75.7F Hum 47% 996.62 mbar`, or `Sensor --` if
 there is none. The fifth line is empty except while the device waits after setup.
 
 - Status page: `http://<address>/`
@@ -59,7 +60,7 @@ there is none. The fifth line is empty except while the device waits after setup
   if the board had not had any time at all since it was powered up).
 - Every reading kept since the board was plugged in (up to 144, the last
   24 hours), newest first: `http://<address>/api/readings` — each with `time`,
-  `synced`, `temp_f` (°F), `rh_pct`, `p_hpa`.
+  `synced`, `temp_f` (°F), `rh_pct`, `p_mbar`.
 - On networks that resolve mDNS names, `http://tds3-xxxxxx.local/` also works.
 
 There is no login: anyone on your network can read it.

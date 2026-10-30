@@ -48,6 +48,11 @@ void lcd_backlight(bool on)
     rm67162_brightness(on ? TDISPLAY_S3_AMOLED_LCD_BRIGHTNESS : 0);
 }
 
+esp_err_t lcd_led(bool on)
+{
+    return gpio_set_level(TDISPLAY_S3_AMOLED_LCD_PWR, on);
+}
+
 esp_err_t lcd_start(void)
 {
     return rm67162_start(&panel_cfg);

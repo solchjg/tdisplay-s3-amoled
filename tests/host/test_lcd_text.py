@@ -99,7 +99,7 @@ def test_five_lines_are_stacked_inside_the_visible_area(run):
 
 # TC-LCD-06 · FR-6.13
 def test_thirty_three_characters_fit_one_row(run):
-    text = "-40.0F Hum 100% 1100.00 hPa######"   # 33 characters, the widest FSD §5.4 allows
+    text = "-40.0F Hum 100% 1100.00 mbar#####"   # 33 characters, the widest FSD §5.4 allows
     minx, maxx, miny, maxy, width = map(int, run("ink", "1", text).split())
     assert width == 33 * 16
     assert maxx <= 527, f"rightmost pixel at x={maxx}"

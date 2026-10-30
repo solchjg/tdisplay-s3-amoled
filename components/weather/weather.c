@@ -87,7 +87,7 @@ void weather_html(char *out, size_t len)
     wx_html(r, iso, out, len);
 }
 
-// FR-23.8: the array is sent one element per chunk, so 144 readings need no
+// FR-23.13: the array is sent one element per chunk, so 144 readings need no
 // page-sized buffer. Watched while it runs, like every handler (FR-19.2).
 static esp_err_t get_readings(httpd_req_t *req)
 {
