@@ -112,7 +112,10 @@ def test_key_wake_gets_the_window(bench, dut):
     time.sleep(40)
     entries = ring(bench, dut, mark)
     save_evidence("sleep-key", [e["text"] for e in entries])
-    key = history(entries)[-1]
+    # The bench's USB reset may follow the wake, so take the last sleep wake.
+    wakes = [b for b in history(entries) if b["reset"] == "deepsleep"]
+    assert wakes, "no deep-sleep wake in the history"
+    key = wakes[-1]
     assert key["reset"] == "deepsleep" and key["wake"] == "button", f"no key wake: {key}"
     assert key["asleep_ms"] < (300 - 30) * 1000, f"woke only at the period's end: {key}"
     assert first(entries, "web: state=", asked), "key wake did not start the connectivity region"
