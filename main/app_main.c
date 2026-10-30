@@ -395,6 +395,7 @@ static void send_due_summary(void)
     } else {
         web_log_mail_sent(summary_to(), n);  // L25
     }
+    summary_done();
     if (timer) {
         wifi_net_stop();  // FR-21.7, FR-25.6: WiFi only while the summary is sent
     }

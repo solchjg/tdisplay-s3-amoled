@@ -138,7 +138,8 @@ as it wakes every 10 minutes to take a reading), then sleeps again. If the
 email cannot be sent (no WiFi, the server refuses the login, the network is
 down) that summary is skipped and the serial log says why
 (`mail failed: ...`); the next one covers the readings since the last summary
-that did arrive. To change any of these settings, do a factory reset (chapter 5)
+that did arrive. If the board is reset or loses power while it is sending,
+it tries that summary once more the next time it is awake. To change any of these settings, do a factory reset (chapter 5)
 and set the device up again. The password is never shown or logged.
 
 ## 6. Troubleshooting

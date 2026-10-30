@@ -24,6 +24,7 @@ static int64_t at(const char *ymd_hm)  // "YYYY-MM-DD hh:mm"
 // argv: parse <body>
 //     | due <hh:mm> <every> <clock 0|1> <last "YYYY-MM-DD hh:mm" or 0> <now ...>
 //     | body <since> [<time> <centi_c> <q8_pa> <q10_pct>]...
+//     | lasttry <slot> <tried>
 //     | subject <host> <date>
 int main(int argc, char **argv)
 {
@@ -63,6 +64,8 @@ int main(int argc, char **argv)
         char out[SM_BODY_MAX];
         uint32_t n = sm_body("tds3-a1b2c3", &h, strtoll(argv[2], NULL, 10), iso, out, sizeof out);
         printf("%" PRIu32 "\n%s", n, out);
+    } else if (!strcmp(argv[1], "lasttry")) {
+        printf("%d", sm_last_try(strtoll(argv[2], NULL, 10), strtoll(argv[3], NULL, 10)));
     } else {
         char out[SM_SUBJECT_MAX];
         sm_subject(argv[2], argv[3], out);
@@ -173,6 +176,14 @@ def test_first_look_arms_without_sending(core):
 def test_never_due_with_the_clock_unset(core):
     assert core("due", "07:00", 6, 0, "2026-10-30 01:00", "2026-10-30 07:00") == "none"
     assert core("due", "07:00", 6, 0, "0", "2026-10-30 07:00") == "none"
+
+
+# TC-MAIL-15 · FR-25.11 (core): a send cut short by a reset gets one more try
+def test_a_send_cut_short_is_tried_once_more(core):
+    slot = 1793358000
+    assert core("lasttry", slot, 0) == "0"            # no send begun: the first try
+    assert core("lasttry", slot, slot - 3600) == "0"  # an older slot's send was cut short
+    assert core("lasttry", slot, slot) == "1"         # this slot's send was cut short: last try
 
 
 # TC-MAIL-13 · FR-25.4, FR-25.10 (core): subject and body

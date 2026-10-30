@@ -24,9 +24,13 @@ esp_err_t summary_store(void);
 esp_err_t summary_erase(void);
 
 // FR-25.3, FR-25.8: whether this task run owes a summary. Initialises NVS if
-// nothing else has. A due slot counts as handled from here on, whether the
-// summary is then sent or dropped, so it is never retried.
+// nothing else has. A slot whose send a reset cut short is due once more
+// (FR-25.11); after that try it counts as handled from here on.
 bool summary_due(void);
+
+// FR-25.7, FR-25.11: the due summary was sent or dropped (and logged); its slot
+// is handled, never retried.
+void summary_done(void);
 
 // The recipient, for L25.
 const char *summary_to(void);

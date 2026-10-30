@@ -53,6 +53,14 @@ typedef enum {
 sm_due_t sm_due(const sm_settings_t *s, bool clock_set, int64_t local, int64_t last,
                 int64_t *slot);
 
+// FR-25.11: whether the slot about to be sent counts as handled before the
+// send. `tried` is the slot of a send that a reset cut short (0: none); that
+// slot gets one more try, and this is it.
+static inline bool sm_last_try(int64_t slot, int64_t tried)
+{
+    return slot == tried;
+}
+
 // A reading's time as text, e.g. weather_iso.
 typedef void (*sm_iso_fn_t)(const wx_reading_t *r, char out[WX_ISO_MAX]);
 

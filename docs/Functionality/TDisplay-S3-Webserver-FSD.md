@@ -1775,6 +1775,10 @@ leaves email off.
   dropped one as L26 (§7.2).
 - **FR-25.10** [Must] [derived from §9.1] The device shall not output
   `mail_password` on serial, UDP, any HTTP response or in any email (FR-9.3).
+- **FR-25.11** [Must] [derived from FR-25.3 and FR-25.9] A send that a reset
+  or power loss cuts short, before L25 or L26 is logged, shall be tried once
+  more on the next task run; if that try is cut short too, the summary is
+  dropped.
 - **NFR-25.1** [Must] [derived from FR-25.7] A timer wake that sends a summary
   shall be back asleep within **50 s** of the wake, success or failure.
 
@@ -1787,6 +1791,8 @@ leaves email off.
 | FR-25.4, FR-25.10 (core) | Body for 0, 1 and 144 readings | Subject and body as FR-25.4; min/max correct; no password in the text | The password anywhere in the message | host |
 | FR-25.5 (core) | SMTP core against scripted server replies for 465 and 587, AUTH LOGIN and PLAIN, a 535 refusal, a reply split across reads | The commands of RFC 5321 in order, dot-stuffed body, success only on the final 250; the 535 reported | Data sent before 220/EHLO; success on a refusal | host |
 | FR-25.6, FR-25.9, NFR-25.1 | Sleep test build with a mail slot due on the next timer wake, test server reachable | `web: wake cause=timer`, L25, `web: sleep` within 50 s; panel dark | WiFi on a timer wake with no slot due; L2 or L7 lines | target / bench (operator) |
+| FR-25.11 (core) | Due slot with no send begun; the same slot after a send begun and cut short | First try; last try (handled before the send) | A third try; the slot handled before the first try | host |
+| FR-25.11 | Provisioned, a slot due on the next timer wake; the testbench resets the chip about 3 s into the wake | No L25 or L26 from the cut-short wake; L25 at the end of the next boot's window | No summary at all; two summaries | bench |
 | FR-25.7 | Same build, `mail_host` unreachable | L26 with the reason, then `web: sleep` within 50 s | A retry; no sleep | target |
 | FR-25.4 | Operator's own Gmail account, provisioned through the portal | The summary arrives as FR-25.4 | A missing field; mbar not stated | bench (operator) |
 
@@ -1993,7 +1999,7 @@ change_history:
   - 0.8.1 2026-10-30 FR-22.6 from the user's request: a reading from a never-set clock shows no time (page, `null` in /api/readings, `at=none` in L21)
   - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)
   - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
-  - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key
+  - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2]
 open_decisions: []
 related_test_baseline: none yet

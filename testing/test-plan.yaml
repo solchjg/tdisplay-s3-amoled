@@ -2303,6 +2303,19 @@ tests:
     impl: [tests/host/test_summary.py::test_due_rule, tests/host/test_summary.py::test_every_5_hours_restarts_at_mail_time_each_day, tests/host/test_summary.py::test_daily_summary, tests/host/test_summary.py::test_first_look_arms_without_sending, tests/host/test_summary.py::test_never_due_with_the_clock_unset]
     result: {status: not done}
 
+  - id: TC-MAIL-15
+    title: "A send cut short by a reset is tried once more"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.11]
+    needs: []
+    observable: "no send begun: first try; this slot's send cut short: last try, handled before the send"
+    impl: tests/host/test_summary.py::test_a_send_cut_short_is_tried_once_more
+    result: {status: not done}
+
   - id: TC-MAIL-13
     title: "Summary subject and body"
     shape: atomic
