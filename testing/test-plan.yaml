@@ -1845,7 +1845,7 @@ tests:
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, dut-amoled-slot1]
     observable: "The build's boot history: flash boot slept >= 59 s after start; two deep-sleep boots with wake cause timer, each 9-13 s after the previous sleep; the first slept again within 3 s; three boots in all"
     impl: tests/bench/test_sleep.py::test_window_then_timer_sleep_and_lean_wake
-    result: {status: not done}
+    result: {status: successful, commit: c55b4c9, firmware: "0.0.0-sleep-10 (c55b4c9, Build Firmware run 40997968059)", date: 2026-10-30, evidence: "run 3; NVS history: window sleep at 60.6 s, timer wakes after 10.8 s (re-slept at 107 ms) and 10.4 s; evidence/sleep-timer.log on the bench PC"}
 
   - id: TC-SLP-11
     title: "Panel dark in sleep; the user key wakes early into the window"
@@ -1858,7 +1858,7 @@ tests:
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-amoled-slot1]
     observable: "operator sees a dark panel; after the key press the boot history shows a deep-sleep boot with wake cause button long before 300 s; L2 follows, no L18 for 40 s"
     impl: tests/bench/test_sleep.py::test_key_wake_gets_the_window
-    result: {status: not done}
+    result: {status: successful, commit: 59c7722, firmware: "0.0.0-sleep-300 (c55b4c9, Build Firmware run 40997968059)", date: 2026-10-30, evidence: "operator DONE on both prompts; NVS history seq 8 reset=deepsleep wake=button after 28.0 s; evidence/sleep-key.log on the bench PC"}
 
   - id: TC-SLP-12
     title: "Key wake adds at most 5 uA to the sleep current"
@@ -1923,7 +1923,7 @@ tests:
     needs: [bench-internet, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1]
     observable: "after L5, L20 within 10 s with a year >= 2026 and offset -0500 or -0400 (US Eastern build)"
     impl: tests/bench/test_time.py::test_clock_synced_after_online
-    result: {status: not done}
+    result: {status: successful, commit: 4fa0c8f, firmware: "0.0.0-40bdedf (BME280 build already on SLOT1)", date: 2026-10-30, evidence: "L20 2.26 s after L5 over the owner's IOTID WiFi, not the bench AP (bench-internet stays unproven); reset boot, not a key wake; evidence/time-sync.log on the bench PC"}
 
   - id: TC-WX-01
     title: "Readings kept across sleep: the newest 144, newest first"
