@@ -314,7 +314,12 @@ capabilities:
       bench's USB reset clears RTC memory.
   dut-user-key:
     what: Firmware on the T-Display-S3 AMOLED in SLOT1 wakes from deep sleep when an operator presses the user key (GPIO 21)
-    available: unproven
+    available: yes
+    observed: 2026-10-30
+    evidence: >
+      TC-SLP-11 (59c7722): NVS history boot seq 8 reset=deepsleep
+      wake=button after 28.0 s of a 300 s sleep; operator confirmed the
+      panel dark while asleep.
     consequence: >
       GPIO 21 is the user key per LilyGO's factory pins_config.h, not yet
       observed on this unit; TC-SLP-11 is its first run.
