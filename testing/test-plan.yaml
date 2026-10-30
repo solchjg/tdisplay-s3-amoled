@@ -1921,7 +1921,7 @@ tests:
     tier: bench
     verifies: [FR-22.1, FR-22.2, NFR-22.1, FR-22.5]
     needs: [bench-internet, bench-serial-monitor, dut-wifi-slot1, dut-amoled-slot1]
-    observable: "after L5, L20 within 10 s with a year >= 2026 and offset +0000 (UTC0 build)"
+    observable: "after L5, L20 within 10 s with a year >= 2026 and offset -0500 or -0400 (US Eastern build)"
     impl: tests/bench/test_time.py::test_clock_synced_after_online
     result: {status: not done}
 

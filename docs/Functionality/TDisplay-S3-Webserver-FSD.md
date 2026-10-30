@@ -1477,7 +1477,8 @@ time zone turns the synced UTC clock into local time.
   clock from it: over WiFi, by SNTP from **`pool.ntp.org`** on each
   entry into ONLINE.
 - **FR-22.2** [Must] [user] The device shall apply a time zone to the synced
-  clock: **a POSIX TZ string fixed at build time, default `UTC0`**.
+  clock: **a POSIX TZ string fixed at build time, `EST5EDT,M3.2.0,M11.1.0`** (US Eastern, daylight
+  saving from the second Sunday in March to the first Sunday in November).
 - **FR-22.3** [Must] [user] A reading taken before the first sync since the
   last power-on or reset shall be marked unsynced.
 - **FR-22.4** [Must] [derived from FR-22.3 and §21] A sync shall stay valid
@@ -1493,7 +1494,7 @@ time zone turns the synced UTC clock into local time.
 |----|------------------------|----------------------|-----------------|------|
 | FR-22.3, FR-22.4 (core) | Synced flag: power-on; a sync; a timer wake after a sync; a reset after a sync | unsynced; synced; synced; unsynced | A reading marked synced before any sync | host |
 | FR-22.1, NFR-22.1, FR-22.5 | Device reaches ONLINE on an AP with internet | L20 within 10 s of L5, with a year ≥ 2026 | No L20 | bench (needs internet on the bench AP, R-19) |
-| FR-22.2 | Build with a non-UTC TZ string | L20 shows local time with the zone's offset | UTC shown as local | bench |
+| FR-22.2 | Shipped build (US Eastern) | L20 shows local time with offset `-0500` (EST) or `-0400` (EDT) | `+0000`; UTC shown as local | bench |
 
 ---
 
@@ -1684,7 +1685,7 @@ Build-time constants:
 | Awake window after a boot that is not a deep-sleep wake | ≥ 60 s | [user] |
 | Wake key | GPIO 21, active low | [user] |
 | Time server | `pool.ntp.org` (SNTP) | [user] |
-| Time zone | POSIX TZ string at build time, default `UTC0` | [user] |
+| Time zone | POSIX TZ string at build time, `EST5EDT,M3.2.0,M11.1.0` (US Eastern) | [user] |
 | Sync after entering ONLINE | ≤ 10 s | [user] |
 | Sleep current added by the key wake | ≤ 5 µA | [user] |
 | BME280 address / SDA / SCL | 0x76 / GPIO 43 / GPIO 44 | [user] |
@@ -1740,7 +1741,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.7.0
+fsd_version: 0.7.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -1769,6 +1770,7 @@ change_history:
   - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.12, NFR-21.1) from the user's answers and weather-station example, approved by the user; L18, L19
   - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and 10 s deadline approved by the user
   - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; approved by the user
+  - 0.7.1 2026-10-30 FR-22.2 time zone set to US Eastern (EST5EDT) by the user
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9]
 open_decisions: []
 related_test_baseline: none yet

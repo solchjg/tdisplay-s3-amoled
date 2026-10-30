@@ -19,4 +19,4 @@ CONFIG_DEEP_SLEEP_WAKE_GPIO=21
 
 # FSD FR-22.1, FR-22.2: time server and zone (POSIX TZ string, fixed at build time).
 CONFIG_TIME_SYNC_SERVER="pool.ntp.org"
-CONFIG_TIME_SYNC_TZ="UTC0"
+CONFIG_TIME_SYNC_TZ="EST5EDT,M3.2.0,M11.1.0"
