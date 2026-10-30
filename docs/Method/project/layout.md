@@ -92,6 +92,23 @@ IDF Component Manager git dependency pinned to a tag, or as a submodule.
 - `lcd`, `device_logic` and `web_log` stay in `components/`: they are this
   app's screen, state machine and log vocabulary.
 
+## Deep sleep (FSD §21)
+
+Reference: done.land, [Adding Deep Sleep](https://done.land/components/microcontroller/families/esp/esp32/developmentboards/esp32s/t-display/programming/usingesphome/addingdeepsleep/)
+(ESPHome, on the original ESP32 T-Display with an ST7789 panel, not this board).
+What carries over, and how this firmware applies it:
+
+- The panel controller draws milliamps unless told to sleep (about 6.5 mA there):
+  `rm67162_sleep` sends brightness 0, DISPOFF and SLPIN, waits 120 ms, then cuts
+  the panel supply (GPIO 38) and holds it low through the sleep.
+- An ext0 / RTC-IO wake costs about 2 mA more there than ext1: the user key is
+  armed with `esp_sleep_enable_ext1_wakeup_io` (any low).
+- A key that is still held when the device sleeps wakes it at once, so the key
+  that wakes the device never puts it to sleep; GPIO 0 (BOOT) stays off the wake
+  mask because it is a strapping pin.
+- Its whole-board figure (about 300 µA, with the battery-ADC supply off) is for
+  that board; this one's sleep current is unmeasured (R-17).
+
 ## Test builds
 
 Each is built by CI as a test artefact under `tests/target/` and never released.
