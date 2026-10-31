@@ -178,7 +178,7 @@ dl_hold_step_t dl_hold_step(dl_hold_t state, dl_hold_event_t event, bool guard,
         break;
     case DL_HEV_KEY:
         if (state == DL_HOLD_ON) {
-            return (dl_hold_step_t){DL_HOLD_KEY,                                // FR-24.5
+            return (dl_hold_step_t){DL_HOLD_KEY,                                // FR-24.11
                                     DL_H_CLEAR_MARK | DL_H_LOG_KEY | DL_H_START_WINDOW};
         }
         break;
@@ -191,7 +191,7 @@ dl_hold_step_t dl_hold_step(dl_hold_t state, dl_hold_event_t event, bool guard,
     return (dl_hold_step_t){state, 0};
 }
 
-#define HOLD_PROMPT "Press blinking key to start "
+#define HOLD_PROMPT "Press BOOT to start "
 
 void dl_hold_line(uint32_t held_s, uint32_t timeout_s, char out[DL_LINE_MAX])
 {

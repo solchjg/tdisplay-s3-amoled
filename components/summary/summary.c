@@ -17,19 +17,23 @@
 #define NVS_NS "mail"
 #define KEY_SETTINGS "settings"
 #define KEY_SLOT "slot"
+#define KEY_TRY "try"  // the slot whose send has begun (FR-25.11)
 #define MAIL_STACK 8192  // the TLS handshake runs on it
+
+// No capitals, corrections or suggestions from a phone keyboard in these fields.
+#define NO_ASSIST " autocapitalize=\"none\" autocorrect=\"off\" spellcheck=\"false\""
 
 // FR-25.1: §25.2's fields, all optional as a group.
 static const char FORM_HTML[] =
     "<h2>Email summary (optional)</h2>"
-    "<p><label>SMTP server <input name=\"mail_host\" maxlength=\"64\" "
-    "placeholder=\"smtp.gmail.com\"></label></p>"
+    "<p><label>SMTP server (Gmail: smtp.gmail.com) "
+    "<input name=\"mail_host\" maxlength=\"64\"" NO_ASSIST "></label></p>"
     "<p><label>Port <select name=\"mail_port\"><option value=\"\">-</option>"
     "<option>465</option><option>587</option></select></label></p>"
-    "<p><label>Login (sender address) <input name=\"mail_user\" maxlength=\"64\"></label></p>"
+    "<p><label>Login (sender address) <input name=\"mail_user\" maxlength=\"64\"" NO_ASSIST "></label></p>"
     "<p><label>Password (Gmail: app password) <input name=\"mail_password\" "
     "type=\"password\" maxlength=\"64\"></label></p>"
-    "<p><label>Send to <input name=\"mail_to\" type=\"email\" maxlength=\"64\"></label></p>"
+    "<p><label>Send to <input name=\"mail_to\" type=\"email\" maxlength=\"64\"" NO_ASSIST "></label></p>"
     "<p><label>First summary at <input name=\"mail_time\" type=\"time\"></label></p>"
     "<p><label>Then every <input name=\"mail_every\" type=\"number\" min=\"1\" max=\"24\"> "
     "hours</label></p>";
@@ -37,6 +41,7 @@ static const char FORM_HTML[] =
 static sm_settings_t taken;     // from the accepted submission, until T3
 static sm_settings_t settings;  // as stored
 static bool loaded;
+static int64_t due_slot;  // the slot summary_due found due, until summary_done
 
 // FR-25.4: the previous summary's time, so the next covers only newer readings;
 // a power loss or reset forgets it with the readings themselves (FR-23.9).
@@ -97,22 +102,22 @@ esp_err_t summary_erase(void)
     return err;
 }
 
-static int64_t stored_slot(void)
+static int64_t stored_slot(const char *key)
 {
     nvs_handle_t h;
     int64_t slot = 0;
     if (nvs_open(NVS_NS, NVS_READONLY, &h) == ESP_OK) {
-        nvs_get_i64(h, KEY_SLOT, &slot);
+        nvs_get_i64(h, key, &slot);
         nvs_close(h);
     }
     return slot;
 }
 
-static void store_slot(int64_t slot)
+static void store_slot(const char *key, int64_t slot)
 {
     nvs_handle_t h;
     if (open_rw(&h) == ESP_OK) {
-        if (nvs_set_i64(h, KEY_SLOT, slot) == ESP_OK) {
+        if (nvs_set_i64(h, key, slot) == ESP_OK) {
             nvs_commit(h);
         }
         nvs_close(h);
@@ -151,12 +156,23 @@ bool summary_due(void)
     load();
     time_t now = time(NULL);
     int64_t slot = 0;
-    sm_due_t d = sm_due(&settings, now >= WX_TIME_SET_MIN, local_now(now), stored_slot(), &slot);
+    sm_due_t d = sm_due(&settings, now >= WX_TIME_SET_MIN, local_now(now), stored_slot(KEY_SLOT),
+                        &slot);
     if (d == SM_NONE) {
         return false;
     }
-    store_slot(slot);  // handled from here on: sent or dropped, never retried
+    if (d == SM_ARM || sm_last_try(slot, stored_slot(KEY_TRY))) {
+        store_slot(KEY_SLOT, slot);  // handled from here on: a second reset drops it
+    } else {
+        store_slot(KEY_TRY, slot);  // a reset before summary_done tries once more
+    }
+    due_slot = slot;
     return d == SM_SEND;
+}
+
+void summary_done(void)
+{
+    store_slot(KEY_SLOT, due_slot);
 }
 
 const char *summary_to(void)

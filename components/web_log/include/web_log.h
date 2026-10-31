@@ -73,7 +73,7 @@ void web_log_reading(const char *text);
 void web_log_bme280_failed(esp_err_t err);
 
 // L23 on entering the setup check hold (FR-24.8); L24 when it ends, by "key" or
-// "timeout" (FR-24.5, FR-24.6).
+// "timeout" (FR-24.11, FR-24.6).
 void web_log_setup_pending(void);
 void web_log_setup_done(const char *by);
 

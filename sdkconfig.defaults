@@ -20,3 +20,10 @@ CONFIG_DEEP_SLEEP_WAKE_GPIO=21
 # FSD FR-22.1, FR-22.2: time server and zone (POSIX TZ string, fixed at build time).
 CONFIG_TIME_SYNC_SERVER="pool.ntp.org"
 CONFIG_TIME_SYNC_TZ="EST5EDT,M3.2.0,M11.1.0"
+
+# FSD FR-24.11: the BOOT key, next to the LED that blinks in the hold, ends it too.
+CONFIG_SETUP_CHECK_KEY2_GPIO=0
+
+# FSD FR-25.5: verify a chain whose top certificate is a cross-signed root (Gmail sends
+# GTS Root R1 signed by GlobalSign Root CA, which the bundle no longer holds).
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y

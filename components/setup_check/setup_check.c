@@ -7,11 +7,12 @@
 #include "setup_check_core.h"
 
 #define PIN_KEY CONFIG_SETUP_CHECK_KEY_GPIO
+#define PIN_KEY2 CONFIG_SETUP_CHECK_KEY2_GPIO  // -1: none
 #define NVS_NS CONFIG_SETUP_CHECK_NVS_NAMESPACE
 #define NVS_KEY "pending"
 #define SAMPLE_US (10 * 1000)
 
-static sk_state_t state;
+static sk_state_t state, state2;
 static setup_check_press_cb_t press_cb;
 static esp_timer_handle_t timer;
 
@@ -52,7 +53,12 @@ esp_err_t setup_check_mark(bool pending)
 
 static void sample(void *arg)
 {
-    if (sk_sample(&state, gpio_get_level(PIN_KEY) == 0, now_ms())) {
+    uint32_t now = now_ms();
+    bool pressed = sk_sample(&state, gpio_get_level(PIN_KEY) == 0, now);
+#if PIN_KEY2 >= 0
+    pressed |= sk_sample(&state2, gpio_get_level(PIN_KEY2) == 0, now);
+#endif
+    if (pressed) {
         press_cb();
     }
 }
@@ -63,13 +69,18 @@ esp_err_t setup_check_key_start(setup_check_press_cb_t on_press)
         return ESP_ERR_INVALID_STATE;
     }
     press_cb = on_press;
-    gpio_config_t io = {.pin_bit_mask = 1ULL << PIN_KEY, .mode = GPIO_MODE_INPUT,
+    uint64_t pins = 1ULL << PIN_KEY;
+#if PIN_KEY2 >= 0
+    pins |= 1ULL << PIN_KEY2;
+#endif
+    gpio_config_t io = {.pin_bit_mask = pins, .mode = GPIO_MODE_INPUT,
                         .pull_up_en = GPIO_PULLUP_ENABLE};
     esp_err_t err = gpio_config(&io);
     if (err != ESP_OK) {
         return err;
     }
     sk_init(&state, now_ms());
+    sk_init(&state2, now_ms());
     const esp_timer_create_args_t args = {.callback = sample, .name = "setup_key"};
     err = esp_timer_create(&args, &timer);
     if (err == ESP_OK) {
