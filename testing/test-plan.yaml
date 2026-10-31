@@ -312,6 +312,12 @@ capabilities:
     consequence: >
       Built by the CI job sleep; its boot history lives in NVS because the
       bench's USB reset clears RTC memory.
+  seam-mail-fast-build:
+    what: "Test build with one mail_every unit worth 5 minutes instead of an hour (FSD §25)"
+    available: unproven
+    consequence: >
+      Built by the CI job mail-fast; it keeps the stored mail settings when
+      flashed without an erase.
   dut-user-key:
     what: Firmware on the T-Display-S3 AMOLED in SLOT1 wakes from deep sleep when an operator presses the user key (GPIO 21)
     available: yes
@@ -2417,6 +2423,19 @@ tests:
     verifies: [FR-25.12, FR-25.13]
     needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
     observable: "provisioned with the operator's provider, mail_from an identity of the login and mail_to2 a second address: L25 twice at the first task run after the slot; two emails arrive, each showing mail_from as the sender"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-MAIL-23
+    title: "Summaries on short periods"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: bench
+    verifies: [FR-25.3, FR-25.12, FR-25.15]
+    needs: [seam-mail-fast-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
+    observable: "fast mail build, about an hour: one summary per 5-minute slot, L25 per recipient, none doubled; every finished average listed exactly once across the emails; after a reboot a first email with no table"
     impl: []
     result: {status: not done}
 

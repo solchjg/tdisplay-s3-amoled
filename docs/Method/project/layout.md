@@ -143,6 +143,12 @@ shipped build's so the bench can tell the two apart in the boot line.
 `app` blocks the application task 20 s after startup, `http` adds a `GET /hang`
 handler that never returns.
 
+### Fast mail build (FSD §25)
+
+`tests/target/mail_fast/`: the shipped `main/` with `SM_EVERY_UNIT_S` set to 300,
+so one `mail_every` unit is 5 minutes instead of an hour. It keeps the stored
+settings, so a flash without an erase needs no new provisioning.
+
 ## Toolchain
 
 - ESP-IDF v6.0.2 via the container image `espressif/idf:v6.0.2` (FSD C-10.2).

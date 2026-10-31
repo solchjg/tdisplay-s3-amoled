@@ -110,6 +110,8 @@ Other builds sharing the components:
   artefact only, never released.
 - `tests/target/sleep/` — shipped `main/` with a stand-in task that sleeps
   `SLEEP_S` (10 or 300) seconds twice per power-on (FSD §21.3); test artefact only.
+- `tests/target/mail_fast/` — shipped `main/` with one `mail_every` unit worth 5
+  minutes instead of an hour (FSD §25); test artefact only.
 - `commissioning/{forward-path,lcd-probe}/` — Phase 2 bring-up programs, never released.
 
 ## Testing
