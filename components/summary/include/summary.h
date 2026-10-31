@@ -10,6 +10,7 @@
 #include "esp_err.h"
 #include "mail_tx_core.h"
 #include "portal.h"
+#include "summary_core.h"
 
 #define SUMMARY_TIMEOUT_MS 30000  // FR-25.14: the final 250 within 30 s of connecting
 
