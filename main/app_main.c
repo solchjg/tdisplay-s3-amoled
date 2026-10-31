@@ -44,7 +44,7 @@ static const char *TAG = "main";
 #define CONFIRM_DEADLINE_US (60 * 1000000LL)  // T13: 60 s from reset
 #define LEAVE_MS 200                          // a planned restart leaves the AP first
 #define TASK_PERIOD_S 600                     // FR-23.2: one reading every 10 min
-#define MAIL_WIFI_MS 15000                    // FR-25.7: no WiFi within 15 s drops the summary
+#define MAIL_WIFI_MS 15000                    // FR-25.14: no WiFi within 15 s drops the summary
 #ifdef TDS3_TEST_HOLD_S
 #define HOLD_TIMEOUT_S TDS3_TEST_HOLD_S  // the sleep test builds cut the hold (R-22)
 #else
@@ -382,18 +382,15 @@ static void send_due_summary(void)
         return;
     }
     bool timer = wake == DL_WAKE_TIMER;
-    const char *failed = NULL;
-    uint32_t n = 0;
-    if (timer ? !mail_wifi_up() : view.conn != DL_ONLINE) {
-        failed = "wifi";
-    } else {
-        mt_reason_t why = summary_send(hostname, &n);
-        failed = why == MT_OK ? NULL : mt_reason_name(why);
-    }
-    if (failed) {
-        web_log_mail_failed(failed);  // L26
-    } else {
-        web_log_mail_sent(summary_to(), n);  // L25
+    bool net = timer ? mail_wifi_up() : view.conn == DL_ONLINE;
+    for (int i = 0; summary_to(i); i++) {  // FR-25.12: each recipient its own email
+        uint32_t n = 0;
+        mt_reason_t why = net ? summary_send(hostname, i, &n) : MT_OK;
+        if (!net || why != MT_OK) {
+            web_log_mail_failed(summary_to(i), net ? mt_reason_name(why) : "wifi");  // L26
+        } else {
+            web_log_mail_sent(summary_to(i), n);  // L25
+        }
     }
     summary_done();
     if (timer) {

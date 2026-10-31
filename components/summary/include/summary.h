@@ -1,7 +1,7 @@
 // Summary Email (FSD §25): the mail settings taken from the portal and kept in
 // NVS, the due slot, and sending one summary through mail_tx. Every call
 // reports what happened; none retries: a summary that fails is dropped
-// (FR-25.7), and logging it is the composition root's job.
+// (FR-25.14), and logging it is the composition root's job.
 #pragma once
 
 #include <stdbool.h>
@@ -11,7 +11,7 @@
 #include "mail_tx_core.h"
 #include "portal.h"
 
-#define SUMMARY_TIMEOUT_MS 30000  // FR-25.7: the final 250 within 30 s of connecting
+#define SUMMARY_TIMEOUT_MS 30000  // FR-25.14: the final 250 within 30 s of connecting
 
 // FR-25.1: the form fields and their check, for portal_start_extra. The
 // settings of an accepted submission are held until summary_store.
@@ -28,14 +28,15 @@ esp_err_t summary_erase(void);
 // (FR-25.11); after that try it counts as handled from here on.
 bool summary_due(void);
 
-// FR-25.7, FR-25.11: the due summary was sent or dropped (and logged); its slot
-// is handled, never retried.
+// FR-25.14, FR-25.11: the due summary was sent or dropped (and logged) for every
+// recipient; its slot is handled, never retried.
 void summary_done(void);
 
-// The recipient, for L25.
-const char *summary_to(void);
+// FR-25.12: recipient i (0, 1), or NULL past the last one; for L25 and L26.
+const char *summary_to(int i);
 
-// Send the summary due (network up). Blocks up to SUMMARY_TIMEOUT_MS in a
-// helper task, feeding the calling task's watchdog if it is watched.
+// Send the summary due to recipient i, its own email (network up). All
+// recipients of a slot share one SUMMARY_TIMEOUT_MS budget; each call blocks
+// in a helper task, feeding the calling task's watchdog if it is watched.
 // MT_OK with *readings set, or why it was dropped.
-mt_reason_t summary_send(const char *hostname, uint32_t *readings);
+mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings);

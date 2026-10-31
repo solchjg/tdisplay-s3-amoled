@@ -27,3 +27,6 @@ CONFIG_SETUP_CHECK_KEY2_GPIO=0
 # FSD FR-25.5: verify a chain whose top certificate is a cross-signed root (Gmail sends
 # GTS Root R1 signed by GlobalSign Root CA, which the bundle no longer holds).
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
+
+# FSD §25.2: the WiFi and nine mail fields, percent-encoded, fit.
+CONFIG_PORTAL_BODY_MAX=2048

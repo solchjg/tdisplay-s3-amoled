@@ -9,19 +9,35 @@
 
 #include "weather_core.h"
 
-#define SM_FIELD_MAX 64      // §25.2: host, user, password and recipient
+#define SM_FIELD_MAX 64      // §25.2: host, user, password and addresses
+#define SM_TO_MAX 2          // FR-25.12: recipients, each sent its own email
 #define SM_SUBJECT_MAX 64
 #define SM_BODY_MAX 512
 
 typedef struct {
     char host[SM_FIELD_MAX + 1];  // empty: email off
     uint16_t port;                // 465 or 587
-    char user[SM_FIELD_MAX + 1];  // login, also the sender
+    char user[SM_FIELD_MAX + 1];  // login
     char password[SM_FIELD_MAX + 1];
     char to[SM_FIELD_MAX + 1];
     uint16_t time_min;            // first summary, minutes after local midnight
     uint8_t every_h;              // 1 .. 24
+    // Added later: settings stored before them read back with both empty.
+    char from[SM_FIELD_MAX + 1];  // sender; empty: the login (FR-25.13)
+    char to2[SM_FIELD_MAX + 1];   // second recipient; empty: none (FR-25.12)
 } sm_settings_t;
+
+// FR-25.13: the sender address, mail_from or else the login.
+static inline const char *sm_from(const sm_settings_t *s)
+{
+    return s->from[0] ? s->from : s->user;
+}
+
+// FR-25.12: recipient i (0, 1) or NULL past the last one.
+static inline const char *sm_to(const sm_settings_t *s, int i)
+{
+    return i == 0 ? s->to : i == 1 && s->to2[0] ? s->to2 : NULL;
+}
 
 // FR-25.1: the mail fields of a portal submission. NULL when valid: all empty
 // or absent (out->host empty, email off), or all valid per §25.2. Otherwise the
@@ -64,10 +80,10 @@ static inline bool sm_last_try(int64_t slot, int64_t tried)
 // A reading's time as text, e.g. weather_iso.
 typedef void (*sm_iso_fn_t)(const wx_reading_t *r, char out[WX_ISO_MAX]);
 
-// FR-25.4: "<hostname> summary <YYYY-MM-DD> <hh:mm>" (local time of sending).
+// FR-25.12: "<hostname> summary <YYYY-MM-DD> <hh:mm>" (local time of sending).
 void sm_subject(const char *hostname, const char *date_hhmm, char out[SM_SUBJECT_MAX]);
 
-// FR-25.4: the body over the kept readings newer than `since` (UTC seconds of
+// FR-25.12: the body over the kept readings newer than `since` (UTC seconds of
 // the previous summary; 0 takes them all). Returns how many it covers.
 uint32_t sm_body(const char *hostname, const wx_history_t *h, int64_t since,
                  sm_iso_fn_t iso, char *out, size_t cap);

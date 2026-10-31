@@ -119,15 +119,18 @@ The device can email you a short summary of its readings: how many it took,
 the period they cover, the newest reading, and the lowest and highest
 temperature (°F), humidity (%) and pressure (mbar). It sends directly to your
 mail provider's server over an encrypted connection. Fill in all of these on
-the setup page (chapter 2), or none of them:
+the setup page (chapter 2), or none of them; *From* and *Also send to* may
+stay empty:
 
 | Field | What to enter |
 |-------|---------------|
 | SMTP server | `smtp.gmail.com` for Gmail, or your own server's name |
 | Port | `465` (Gmail and most providers) or `587` |
-| Login (sender address) | your full email address; the summary comes from it |
+| Login | your login, usually your full email address |
 | Password | for Gmail an *app password* (Google account → Security → App passwords; it needs 2-step verification), not your normal password |
-| Send to | the one address that receives the summaries |
+| From | the address the summary comes from, if not your login, e.g. an alias your provider lets you send as; empty: your login |
+| Send to | the address that receives the summaries |
+| Also send to | a second address, which gets its own copy; empty: none |
 | First summary at | a time of day, e.g. 07:00 |
 | Then every | 1 – 24 hours, counted again from the first time each day |
 
@@ -137,7 +140,7 @@ sends it the next time it is awake at or after that time (within 10 minutes,
 as it wakes every 10 minutes to take a reading), then sleeps again. If the
 email cannot be sent (no WiFi, the server refuses the login, the network is
 down) that summary is skipped and the serial log says why
-(`mail failed: ...`); the next one covers the readings since the last summary
+(`mail failed: ... to=<address>`, one line per address); the next one covers the readings since the last summary
 that did arrive. If the board is reset or loses power while it is sending,
 it tries that summary once more the next time it is awake. To change any of these settings, do a factory reset (chapter 5)
 and set the device up again. The password is never shown or logged.

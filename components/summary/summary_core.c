@@ -10,8 +10,9 @@
 
 // ── Settings (FR-25.1, §25.2) ────────────────────────────────────────────
 
-static const char *const FIELDS[] = {"mail_host", "mail_port", "mail_user", "mail_password",
-                                     "mail_to", "mail_time", "mail_every"};
+static const char *const FIELDS[] = {"mail_host", "mail_port",  "mail_user", "mail_password",
+                                     "mail_from", "mail_to",   "mail_to2",  "mail_time",
+                                     "mail_every"};
 #define N_FIELDS (sizeof FIELDS / sizeof FIELDS[0])
 
 static bool host_ok(const char *s, int n)
@@ -31,8 +32,17 @@ static bool host_ok(const char *s, int n)
 
 static bool to_ok(const char *s, int n)
 {
+    if (n < 3) {
+        return false;  // also absent or unreadable: s is not set
+    }
     const char *at = strchr(s, '@');
-    return n >= 3 && at && at != s && at[1] != '\0' && !strchr(at + 1, '@');
+    return at && at != s && at[1] != '\0' && !strchr(at + 1, '@');
+}
+
+// An optional field given: filled, or too long to read.
+static bool given(int n)
+{
+    return n != 0 && n != PC_FIELD_ABSENT;
 }
 
 static bool digits(const char *s, size_t n)
@@ -95,7 +105,7 @@ const char *sm_parse(const char *body, size_t len, sm_settings_t *out)
         if (i != 3) {  // a password may begin or end with a space
             n[i] = trim(v[i], n[i]);
         }
-        any |= n[i] != 0 && n[i] != PC_FIELD_ABSENT;  // filled, or too long to read
+        any |= given(n[i]);
     }
     if (!any) {
         return NULL;  // email off
@@ -112,22 +122,34 @@ const char *sm_parse(const char *body, size_t len, sm_settings_t *out)
     if (n[3] < 1) {
         return FIELDS[3];
     }
-    if (!to_ok(v[4], n[4])) {
+    if (given(n[4]) && !to_ok(v[4], n[4])) {
         return FIELDS[4];
     }
-    int t = hhmm(v[5], n[5]);
-    if (t < 0) {
+    if (!to_ok(v[5], n[5])) {
         return FIELDS[5];
     }
-    int every = small(v[6], n[6], 1, 24);
-    if (every < 0) {
+    if (given(n[6]) && !to_ok(v[6], n[6])) {
         return FIELDS[6];
+    }
+    int t = hhmm(v[7], n[7]);
+    if (t < 0) {
+        return FIELDS[7];
+    }
+    int every = small(v[8], n[8], 1, 24);
+    if (every < 0) {
+        return FIELDS[8];
     }
     strcpy(out->host, v[0]);
     out->port = v[1][0] == '4' ? 465 : 587;
     strcpy(out->user, v[2]);
     strcpy(out->password, v[3]);
-    strcpy(out->to, v[4]);
+    if (n[4] > 0) {
+        strcpy(out->from, v[4]);
+    }
+    strcpy(out->to, v[5]);
+    if (n[6] > 0) {
+        strcpy(out->to2, v[6]);
+    }
     out->time_min = (uint16_t)t;
     out->every_h = (uint8_t)every;
     memset(v, 0, sizeof v);  // held the password
@@ -172,7 +194,7 @@ sm_due_t sm_due(const sm_settings_t *s, bool clock_set, int64_t local, int64_t l
     return *slot > last ? SM_SEND : SM_NONE;
 }
 
-// ── Message (FR-25.4) ────────────────────────────────────────────────────
+// ── Message (FR-25.12) ────────────────────────────────────────────────────
 
 void sm_subject(const char *hostname, const char *date_hhmm, char out[SM_SUBJECT_MAX])
 {

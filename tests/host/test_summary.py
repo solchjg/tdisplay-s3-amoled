@@ -38,6 +38,10 @@ int main(int argc, char **argv)
         } else {
             printf("on %s|%u|%s|%s|%s|%u|%u", s.host, s.port, s.user, s.password, s.to,
                    s.time_min, s.every_h);
+            printf("|from=%s|to=", sm_from(&s));
+            for (int i = 0; sm_to(&s, i); i++) {
+                printf("%s%s", i ? "," : "", sm_to(&s, i));
+            }
         }
     } else if (!strcmp(argv[1], "due")) {
         memset(&s, 0, sizeof s);
@@ -102,7 +106,7 @@ def test_wifi_only_submission_leaves_email_off(core):
 
 def test_full_submission_is_parsed(core):
     assert core("parse", FULL) == ("on smtp.gmail.com|465|me@gmail.com|abcd efgh ijkl mnop|"
-                                   "you@example.org|420|6")
+                                   "you@example.org|420|6|from=me@gmail.com|to=you@example.org")
     assert core("parse", with_field("mail_port", "587")).startswith("on smtp.gmail.com|587|")
 
 
@@ -117,6 +121,8 @@ def test_full_submission_is_parsed(core):
     ("mail_to", "a@b@c"), ("mail_to", "a@"), ("mail_to", ""),
     ("mail_time", "7:00"), ("mail_time", "24:00"), ("mail_time", "07:60"), ("mail_time", "0700"),
     ("mail_every", "0"), ("mail_every", "25"), ("mail_every", "1.5"), ("mail_every", ""),
+    ("mail_from", "me.example.com"), ("mail_from", "@x"), ("mail_from", "f" * 65),
+    ("mail_to2", "them.example.net"), ("mail_to2", "a@b@c"), ("mail_to2", "t" * 65),
 ])
 def test_each_invalid_field_is_named(core, name, value):
     assert core("parse", with_field(name, value)) == f"bad {name}"
@@ -126,7 +132,30 @@ def test_spaces_around_a_value_are_dropped(core):
     body = with_field("mail_host", "+smtp.gmail.com+")
     body = body.replace("mail_to=you%40example.org", "mail_to=you%40example.org%20")
     body = body.replace("mail_password=abcd+efgh+ijkl+mnop", "mail_password=+pw+")
-    assert core("parse", body) == "on smtp.gmail.com|465|me@gmail.com| pw |you@example.org|420|6"
+    assert core("parse", body).startswith("on smtp.gmail.com|465|me@gmail.com| pw |you@example.org|420|6|")
+
+
+# TC-MAIL-16 · FR-25.12, FR-25.13 (core): a sender other than the login, a second recipient
+def test_a_separate_sender_address(core):
+    out = core("parse", with_field("mail_from", "weather%40example.com"))
+    assert out.endswith("|from=weather@example.com|to=you@example.org")
+    assert "|me@gmail.com|" in out  # still the login
+
+
+@pytest.mark.parametrize("value", [None, "", "+"])
+def test_no_sender_address_is_the_login(core, value):
+    assert core("parse", with_field("mail_from", value)).endswith("|from=me@gmail.com|to=you@example.org")
+
+
+def test_a_second_recipient(core):
+    out = core("parse", with_field("mail_to2", "them%40example.net"))
+    assert out.endswith("|to=you@example.org,them@example.net")
+    assert core("parse", with_field("mail_to2", "")).endswith("|to=you@example.org")
+
+
+def test_sender_or_second_recipient_alone_is_a_partial_group(core):
+    assert core("parse", "ssid=a&password=&mail_from=me%40x.org") == "bad mail_host"
+    assert core("parse", "ssid=a&password=&mail_to2=me%40x.org") == "bad mail_host"
 
 
 def test_a_partial_group_is_refused(core):
@@ -186,7 +215,7 @@ def test_a_send_cut_short_is_tried_once_more(core):
     assert core("lasttry", slot, slot) == "1"         # this slot's send was cut short: last try
 
 
-# TC-MAIL-13 · FR-25.4, FR-25.10 (core): subject and body
+# TC-MAIL-13 · FR-25.12, FR-25.10 (core): subject and body
 def test_subject(core):
     assert core("subject", "tds3-a1b2c3", "2026-10-30 07:00") == \
         "tds3-a1b2c3 summary 2026-10-30 07:00"

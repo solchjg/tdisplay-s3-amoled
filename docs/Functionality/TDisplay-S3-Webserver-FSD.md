@@ -834,7 +834,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
 | L24 | Setup check hold ended (FR-24.11, FR-24.6) | `web: setup check done by=<key\|timeout>` | I |
 | L25 | Summary sent (FR-25.9) | `web: mail sent to=<mail_to> readings=<n>` | I |
-| L26 | Summary dropped (FR-25.7) | `web: mail failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|timeout>` | W |
+| L26 | Summary email dropped (FR-25.14) | `web: mail failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|timeout> to=<address>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1705,7 +1705,8 @@ factory reset (§18).
 ### 25.1 Purpose & peer
 
 At a time and interval the user sets, the device emails one plain-text summary
-of the readings it kept since the last summary to one recipient. It sends
+of the readings it kept since the last summary to one recipient, or as two
+separate emails to two. It sends
 directly to the user's SMTP server (Gmail or the user's own, with a public
 certificate) over TLS; no relay service is involved. The mail settings are
 entered in the provisioning portal next to the WiFi credentials and kept in
@@ -1727,9 +1728,11 @@ leaves email off.
 |-------|--------|-------|
 | `mail_host` | SMTP server host name, e.g. `smtp.gmail.com` | 1 – 64 bytes, letters, digits, `.` and `-` |
 | `mail_port` | `465` (TLS from the start) or `587` (STARTTLS) | exactly one of the two |
-| `mail_user` | login name, also the sender address | 1 – 64 bytes |
+| `mail_user` | login name | 1 – 64 bytes |
 | `mail_password` | for Gmail an app password | 1 – 64 bytes |
+| `mail_from` | sender address, if not the login; one the server lets this login send as | empty, or 3 – 64 bytes, one `@` with text on both sides |
 | `mail_to` | recipient address | 3 – 64 bytes, one `@` with text on both sides |
+| `mail_to2` | second recipient address | empty, or as `mail_to` |
 | `mail_time` | first summary, local time | `hh:mm`, 00:00 – 23:59 |
 | `mail_every` | interval between summaries | whole hours, 1 – 24 |
 
@@ -1747,14 +1750,18 @@ leaves email off.
   task (§21) shall send one summary on its first run at or after a due time;
   due times missed in between (the device was off, or a send failed) are
   skipped, never sent late in a batch.
-- **FR-25.4** [Must] [user] The summary shall be one plain-text email from
-  `mail_user` to `mail_to` with the subject `<hostname> summary
+- **FR-25.12** [Must] [user] The summary shall be one plain-text email from
+  the sender (FR-25.13) to `mail_to` and, when `mail_to2` is given, a separate
+  email with the same text to `mail_to2`, with the subject `<hostname> summary
   <YYYY-MM-DD> <hh:mm>` (local time of sending) and a body giving: the device
   name (FR-20.1), the period covered (time of the oldest and newest reading
   included), the number of readings, the newest reading in the format of
   FR-23.12, and the minimum and maximum of temperature (°F), humidity (%) and
   pressure (mbar) over the readings kept (FR-23.9) since the previous summary
   was sent, or all kept readings for the first summary after a boot.
+- **FR-25.13** [Must] [user] The sender, both the SMTP envelope (`MAIL FROM`)
+  and the `From:` header, shall be `mail_from` when given, else `mail_user`;
+  the login is always `mail_user`.
 - **FR-25.5** [Must] [user] The device shall connect to `mail_host` on
   `mail_port`: on 465 with TLS from the first byte, on 587 by plain SMTP then
   STARTTLS; it shall verify the server certificate against the ESP-IDF CA
@@ -1764,11 +1771,12 @@ leaves email off.
   shall start WiFi as a station with the stored credentials, send the summary,
   stop WiFi (FR-21.7) and sleep; the panel stays dark. On a timer wake with no
   summary due, WiFi stays off (FR-21.13).
-- **FR-25.7** [Must] [user] A summary that cannot be sent (no WiFi within
+- **FR-25.14** [Must] [user] An email that cannot be sent (no WiFi within
   **15 s**, a DNS, TCP, TLS or certificate failure, a server refusal, or no
-  final `250` within **30 s** of connecting) shall be dropped and logged as L26
-  with the reason; it shall not be retried, and the device goes on to sleep as
-  usual.
+  final `250` within **30 s** of the summary's first connection, a budget both
+  recipients share) shall be dropped and logged as L26 with the reason and the
+  recipient; it shall not be retried, the other recipient's email is still
+  tried, and the device goes on to sleep as usual.
 - **FR-25.8** [Must] [derived from FR-25.3 and FR-22.6] With the clock never
   set (FR-22.6), no summary shall be due; the task logs nothing for it.
 - **FR-25.9** [Must] [derived] Each summary sent shall be logged as L25, each
@@ -1779,7 +1787,7 @@ leaves email off.
   or power loss cuts short, before L25 or L26 is logged, shall be tried once
   more on the next task run; if that try is cut short too, the summary is
   dropped.
-- **NFR-25.1** [Must] [derived from FR-25.7] A timer wake that sends a summary
+- **NFR-25.1** [Must] [derived from FR-25.14] A timer wake that sends a summary
   shall be back asleep within **50 s** of the wake, success or failure.
 
 ### 25.4 Verification contracts
@@ -1788,13 +1796,15 @@ leaves email off.
 |----|------------------------|----------------------|-----------------|------|
 | FR-25.1 (core) | Form bodies: WiFi only; all mail fields valid; each field invalid in turn; port 25; `mail_to` without `@`; `mail_every` 0 and 25 | Valid, email off; valid, settings parsed; 400 naming that field each time | A partial mail group accepted | host |
 | FR-25.3, FR-25.8 (core) | Due check for `mail_time` 07:00 and `mail_every` 6 at 06:59, 07:00, 12:59, 13:05, after a send at 07:02 the same day, after two missed slots, with the clock never set | not due, due, not due, due, not due until 13:00, one due (no batch), never due | Two summaries for one slot; a summary with the clock unset | host |
-| FR-25.4, FR-25.10 (core) | Body for 0, 1 and 144 readings | Subject and body as FR-25.4; min/max correct; no password in the text | The password anywhere in the message | host |
+| FR-25.12, FR-25.10 (core) | Body for 0, 1 and 144 readings | Subject and body as FR-25.12; min/max correct; no password in the text | The password anywhere in the message | host |
 | FR-25.5 (core) | SMTP core against scripted server replies for 465 and 587, AUTH LOGIN and PLAIN, a 535 refusal, a reply split across reads | The commands of RFC 5321 in order, dot-stuffed body, success only on the final 250; the 535 reported | Data sent before 220/EHLO; success on a refusal | host |
 | FR-25.6, FR-25.9, NFR-25.1 | Sleep test build with a mail slot due on the next timer wake, test server reachable | `web: wake cause=timer`, L25, `web: sleep` within 50 s; panel dark | WiFi on a timer wake with no slot due; L2 or L7 lines | target / bench (operator) |
 | FR-25.11 (core) | Due slot with no send begun; the same slot after a send begun and cut short | First try; last try (handled before the send) | A third try; the slot handled before the first try | host |
 | FR-25.11 | Provisioned, a slot due on the next timer wake; the testbench resets the chip about 3 s into the wake | No L25 or L26 from the cut-short wake; L25 at the end of the next boot's window | No summary at all; two summaries | bench |
-| FR-25.7 | Same build, `mail_host` unreachable | L26 with the reason, then `web: sleep` within 50 s | A retry; no sleep | target |
-| FR-25.4 | Operator's own Gmail account, provisioned through the portal | The summary arrives as FR-25.4 | A missing field; mbar not stated | bench (operator) |
+| FR-25.12, FR-25.13 (core) | Form bodies with `mail_from` and `mail_to2` empty, absent, valid and invalid | Sender the login unless `mail_from` is given; one or two recipients; 400 naming the invalid field | `mail_from` used as the login; a second recipient from an empty field | host |
+| FR-25.14 | Same build, `mail_host` unreachable | L26 with the reason, then `web: sleep` within 50 s | A retry; no sleep | target |
+| FR-25.12 | Operator's own Gmail account, provisioned through the portal | The summary arrives as FR-25.12 | A missing field; mbar not stated | bench (operator) |
+| FR-25.12, FR-25.13 | Operator's own provider, provisioned with `mail_from` an identity of the login and `mail_to2` a second address | Two emails arrive, one per address, each showing `mail_from` as the sender; L25 twice | One email to both; the login shown as the sender | bench (operator) |
 
 ---
 
@@ -1953,6 +1963,8 @@ the bench gains the capability.
 | FR-24.10 | Line 5 as `Press blinking key to start <mm>:<ss>` | FR-24.12 (`Press BOOT to start <mm>:<ss>`) |
 | FR-24.5 | Only the user key ends the setup check | FR-24.11 (the BOOT key or the user key) |
 | FR-18.2 | A short BOOT press changes nothing | FR-18.5 (except that it ends the setup check) |
+| FR-25.4 | One email from `mail_user` to `mail_to` | FR-25.12 (from the sender of FR-25.13, a separate email to `mail_to2`) |
+| FR-25.7 | 30 s from connecting for the one email; L26 without the recipient | FR-25.14 (one 30 s budget for both recipients; L26 names the recipient) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
 | FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
 | FR-15.5 | 409 while an upload is in progress | FR-15.12 (while a download is in progress) |
@@ -1964,7 +1976,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.11.0
+fsd_version: 0.12.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2000,7 +2012,8 @@ change_history:
   - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)
   - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
   - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2]
+  - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient)
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7]
 open_decisions: []
 related_test_baseline: none yet
 ```

@@ -77,7 +77,7 @@ void web_log_bme280_failed(esp_err_t err);
 void web_log_setup_pending(void);
 void web_log_setup_done(const char *by);
 
-// L25 for each summary sent, L26 (warning) for each dropped, with its reason
-// (FR-25.9, FR-25.7).
+// L25 for each summary sent, L26 (warning) for each dropped, with its reason,
+// one line per recipient (FR-25.9, FR-25.14, FR-25.12).
 void web_log_mail_sent(const char *to, uint32_t readings);
-void web_log_mail_failed(const char *reason);
+void web_log_mail_failed(const char *to, const char *reason);
