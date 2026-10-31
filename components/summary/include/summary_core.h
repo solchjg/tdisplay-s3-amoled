@@ -12,7 +12,8 @@
 #define SM_FIELD_MAX 64      // §25.2: host, user, password and addresses
 #define SM_TO_MAX 2          // FR-25.12: recipients, each sent its own email
 #define SM_SUBJECT_MAX 64
-#define SM_BODY_MAX 512
+#define SM_BODY_MAX 4608     // the summary block and WX_AVG_KEEP table lines
+#define SM_STAMP_MAX 17      // "YYYY-MM-DD hh:mm" plus the terminator
 
 typedef struct {
     char host[SM_FIELD_MAX + 1];  // empty: email off
@@ -38,6 +39,20 @@ static inline const char *sm_to(const sm_settings_t *s, int i)
 {
     return i == 0 ? s->to : i == 1 && s->to2[0] ? s->to2 : NULL;
 }
+
+// FR-23.14, FR-23.15: how often a reading is taken and how long each average
+// runs, in minutes.
+typedef struct {
+    uint16_t sample_min;   // 1 .. 60, dividing average_min
+    uint16_t average_min;  // greater than sample_min, dividing a day
+} sm_collect_t;
+
+#define SM_SAMPLE_DEFAULT 10
+#define SM_AVERAGE_DEFAULT 60
+
+// FR-23.14: sample_min and average_min of a portal submission, each defaulting
+// when empty or absent. NULL when valid, else the name of the invalid field.
+const char *sm_parse_collect(const char *body, size_t len, sm_collect_t *out);
 
 // FR-25.1: the mail fields of a portal submission. NULL when valid: all empty
 // or absent (out->host empty, email off), or all valid per §25.2. Otherwise the
@@ -80,10 +95,16 @@ static inline bool sm_last_try(int64_t slot, int64_t tried)
 // A reading's time as text, e.g. weather_iso.
 typedef void (*sm_iso_fn_t)(const wx_reading_t *r, char out[WX_ISO_MAX]);
 
+// A period's start as local "YYYY-MM-DD hh:mm".
+typedef void (*sm_stamp_fn_t)(int64_t utc, char out[SM_STAMP_MAX]);
+
 // FR-25.12: "<hostname> summary <YYYY-MM-DD> <hh:mm>" (local time of sending).
 void sm_subject(const char *hostname, const char *date_hhmm, char out[SM_SUBJECT_MAX]);
 
-// FR-25.12: the body over the kept readings newer than `since` (UTC seconds of
-// the previous summary; 0 takes them all). Returns how many it covers.
-uint32_t sm_body(const char *hostname, const wx_history_t *h, int64_t since,
-                 sm_iso_fn_t iso, char *out, size_t cap);
+// FR-25.12, FR-25.15: the body: the summary of `st`, the readings since the
+// previous summary, `newest` the newest of them; then the table of the newest
+// `lines` finished averages of `a`, oldest first, with `dropped` more that were
+// not kept. Returns st->n.
+uint32_t sm_body(const char *hostname, const wx_stats_t *st, const wx_reading_t *newest,
+                 const wx_avgs_t *a, uint32_t lines, uint32_t dropped, sm_iso_fn_t iso,
+                 sm_stamp_fn_t stamp, char *out, size_t cap);

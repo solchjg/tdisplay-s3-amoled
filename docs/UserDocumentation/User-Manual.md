@@ -106,18 +106,41 @@ reach it while it sleeps, press the user key (the button that is not BOOT): it
 wakes fully, with the screen, WiFi and status page, for at least 60 seconds,
 then runs the task and sleeps again. This firmware's task reads the BME280
 weather sensor (temperature, humidity, pressure; SDA on GPIO 43, SCL on GPIO 44,
-address 0x76) and sleeps 10 minutes, so it takes a reading every 10 minutes
-and one more at each power-on, reset or key wake. Unplugging or resetting the
-board clears the kept readings.
+address 0x76) and sleeps until the next reading is due, every 10 minutes
+unless you set another time on the setup page, plus one more at each power-on,
+reset or key wake. Unplugging or resetting the board clears the kept readings
+and averages.
+
+The setup page's *Readings* section sets how often a reading is taken and how
+long each average runs:
+
+| Field | What to enter |
+|-------|---------------|
+| Take a reading every | 1 – 60 minutes; empty: 10 |
+| Average them over | more than the reading time, a whole number of readings, and dividing a day evenly (e.g. 15, 30, 60, 120, 1440); empty: 60 |
+
+Averages start at local midnight and on each multiple of that time (with 60,
+on every full hour); the device keeps the newest 96. A short reading time
+wears the battery faster: the board wakes for a few seconds at every reading.
 
 A sleeping board does not appear on USB; to flash it, press the user key first
 or unplug and replug it, and flash within 60 seconds.
 
 ## 5b. Summary email
 
-The device can email you a short summary of its readings: how many it took,
-the period they cover, the newest reading, and the lowest and highest
-temperature (°F), humidity (%) and pressure (mbar). It sends directly to your
+The device can email you a short summary of its readings since the previous
+summary: how many it took, the period they cover, the newest reading, and the
+lowest and highest temperature (°F), humidity (%) and pressure (mbar). Below
+it comes a table of the averages (chapter 5a) finished since then, oldest
+first, one line per period, which a spreadsheet opens as CSV:
+
+```
+"Time","Temp F","Hum %","ATM mbar"
+"2026-10-31 07:00","68.4","47","1012.86"
+```
+
+Each line's time is the start of its period; a period without readings has no
+line. With 60-minute averages and a daily summary that is 24 lines. It sends directly to your
 mail provider's server over an encrypted connection. Fill in all of these on
 the setup page (chapter 2), or none of them; *From* and *Also send to* may
 stay empty:
@@ -136,8 +159,8 @@ stay empty:
 
 The first summary goes out at the first of those times after the device has
 the correct time from the internet, then one every so many hours. The device
-sends it the next time it is awake at or after that time (within 10 minutes,
-as it wakes every 10 minutes to take a reading), then sleeps again. If the
+sends it the next time it is awake at or after that time (within one reading
+time, as it wakes for each reading), then sleeps again. If the
 email cannot be sent (no WiFi, the server refuses the login, the network is
 down) that summary is skipped and the serial log says why
 (`mail failed: ... to=<address>`, one line per address); the next one covers the readings since the last summary

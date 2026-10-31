@@ -28,6 +28,82 @@ const wx_reading_t *wx_get(const wx_history_t *h, uint32_t i)
     return &h->r[(h->next + WX_KEEP - 1 - i) % WX_KEEP];
 }
 
+// ── Averages ─────────────────────────────────────────────────────────────
+
+static bool avgs_ok(const wx_avgs_t *s)
+{
+    return s->count <= WX_AVG_KEEP && s->next < WX_AVG_KEEP;
+}
+
+void wx_avg_add(wx_avgs_t *s, const wx_reading_t *r, int64_t period_start)
+{
+    if (!avgs_ok(s)) {
+        *s = (wx_avgs_t){0};
+    }
+    if (s->cur_n > 0 && period_start != s->cur_start) {
+        int64_t n = s->cur_n;
+        s->a[s->next] = (wx_avg_t){
+            .start = s->cur_start,
+            .temp_centi_c = (int32_t)((s->t_sum + (s->t_sum < 0 ? -n / 2 : n / 2)) / n),
+            .press_q8_pa = (uint32_t)((s->p_sum + n / 2) / n),
+            .hum_q10_pct = (uint32_t)((s->h_sum + n / 2) / n),
+            .n = s->cur_n,
+        };
+        s->next = (s->next + 1) % WX_AVG_KEEP;
+        if (s->count < WX_AVG_KEEP) {
+            s->count++;
+        }
+        s->closed++;
+        s->cur_n = 0;
+    }
+    if (s->cur_n == 0) {
+        s->cur_start = period_start;
+        s->t_sum = 0;
+        s->p_sum = s->h_sum = 0;
+    }
+    s->t_sum += r->temp_centi_c;
+    s->p_sum += r->press_q8_pa;
+    s->h_sum += r->hum_q10_pct;
+    s->cur_n++;
+}
+
+uint32_t wx_avg_count(const wx_avgs_t *s)
+{
+    return avgs_ok(s) ? s->count : 0;
+}
+
+const wx_avg_t *wx_avg_get(const wx_avgs_t *s, uint32_t i)
+{
+    if (i >= wx_avg_count(s)) {
+        return NULL;
+    }
+    return &s->a[(s->next + WX_AVG_KEEP - 1 - i) % WX_AVG_KEEP];
+}
+
+int64_t wx_period_start(int64_t utc, int32_t offset_s, uint32_t every_s)
+{
+    int64_t local = utc + offset_s;
+    int64_t into = ((local % 86400) + 86400) % 86400 % every_s;  // every_s divides a day
+    return utc - into;
+}
+
+void wx_stats_add(wx_stats_t *s, const wx_reading_t *r)
+{
+    if (s->n++ == 0) {
+        s->first = r->time;
+        s->t_lo = s->t_hi = r->temp_centi_c;
+        s->p_lo = s->p_hi = r->press_q8_pa;
+        s->h_lo = s->h_hi = r->hum_q10_pct;
+    }
+    s->last = r->time;
+    s->t_lo = r->temp_centi_c < s->t_lo ? r->temp_centi_c : s->t_lo;
+    s->t_hi = r->temp_centi_c > s->t_hi ? r->temp_centi_c : s->t_hi;
+    s->p_lo = r->press_q8_pa < s->p_lo ? r->press_q8_pa : s->p_lo;
+    s->p_hi = r->press_q8_pa > s->p_hi ? r->press_q8_pa : s->p_hi;
+    s->h_lo = r->hum_q10_pct < s->h_lo ? r->hum_q10_pct : s->h_lo;
+    s->h_hi = r->hum_q10_pct > s->h_hi ? r->hum_q10_pct : s->h_hi;
+}
+
 // value / scale with `decimals` decimals (scale and 10^decimals divide each other
 // out exactly in integers), rounded half away from zero.
 static void fixed(char *out, size_t len, int64_t value, int64_t scale, int decimals)

@@ -18,11 +18,18 @@ esp_err_t weather_read(wx_reading_t *out);
 // FR-24.3: a reading like weather_read, but not kept.
 esp_err_t weather_sample(wx_reading_t *out);
 
+// FR-23.15: the length of an average period, set before the task's reading.
+void weather_set_average(uint32_t minutes);
+
+// FR-23.15, FR-23.16: the finished averages and the period in progress.
+const wx_avgs_t *weather_averages(void);
+
+// FR-25.12: the readings since the summary last sent; cleared once one is.
+const wx_stats_t *weather_stats(void);
+void weather_stats_clear(void);
+
 // The newest kept reading, NULL when none is kept.
 const wx_reading_t *weather_newest(void);
-
-// Every kept reading (FR-23.9), e.g. for the summary email (FR-25.12).
-const wx_history_t *weather_history(void);
 
 // A reading's time as <YYYY-MM-DD>T<hh:mm:ss><±hhmm> in local time (FR-22.2).
 void weather_iso(const wx_reading_t *r, char out[WX_ISO_MAX]);

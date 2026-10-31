@@ -17,6 +17,10 @@
 // settings of an accepted submission are held until summary_store.
 const portal_extra_t *summary_portal_fields(void);
 
+// FR-23.14: the sample and average minutes, as stored (the defaults if none).
+// Initialises NVS if nothing else has.
+sm_collect_t summary_collect(void);
+
 // FR-25.2: at T3, store the held settings (or none: email off) in NVS.
 esp_err_t summary_store(void);
 

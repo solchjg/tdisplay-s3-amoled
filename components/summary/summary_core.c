@@ -1,7 +1,9 @@
 #include "summary_core.h"
 
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "portal_core.h"
@@ -92,6 +94,38 @@ static int trim(char *s, int n)
     memmove(s, s + a, (size_t)(n - a));
     s[n - a] = '\0';
     return n - a;
+}
+
+// ── Collection (FR-23.14) ────────────────────────────────────────────────
+
+// A whole number of minutes, or `dflt` when empty or absent; -1 if not valid.
+static int minutes(const char *body, size_t len, const char *name, int dflt)
+{
+    char v[8];
+    int n = pc_field(body, len, name, v, sizeof v - 1);
+    n = trim(v, n);
+    if (n == 0 || n == PC_FIELD_ABSENT) {
+        return dflt;
+    }
+    if (n < 0 || n > 4 || !digits(v, (size_t)n)) {
+        return -1;
+    }
+    return atoi(v);
+}
+
+const char *sm_parse_collect(const char *body, size_t len, sm_collect_t *out)
+{
+    int s = minutes(body, len, "sample_min", SM_SAMPLE_DEFAULT);
+    int a = minutes(body, len, "average_min", SM_AVERAGE_DEFAULT);
+    if (s < 1 || s > 60) {
+        return "sample_min";
+    }
+    if (a <= s || a > 1440 || 1440 % a != 0 || a % s != 0) {
+        return "average_min";
+    }
+    out->sample_min = (uint16_t)s;
+    out->average_min = (uint16_t)a;
+    return NULL;
 }
 
 const char *sm_parse(const char *body, size_t len, sm_settings_t *out)
@@ -201,64 +235,76 @@ void sm_subject(const char *hostname, const char *date_hhmm, char out[SM_SUBJECT
     snprintf(out, SM_SUBJECT_MAX, "%s summary %s", hostname, date_hhmm);
 }
 
-static void time_text(const wx_reading_t *r, sm_iso_fn_t iso, char out[WX_ISO_MAX])
+static void time_text(int64_t t, sm_iso_fn_t iso, char out[WX_ISO_MAX])
 {
-    if (wx_time_set(r)) {
-        iso(r, out);
+    wx_reading_t r = {.time = t};
+    if (wx_time_set(&r)) {
+        iso(&r, out);
     } else {
         snprintf(out, WX_ISO_MAX, "no time");  // FR-22.6
     }
 }
 
-uint32_t sm_body(const char *hostname, const wx_history_t *h, int64_t since,
-                 sm_iso_fn_t iso, char *out, size_t cap)
+// Appends to out at *k, never past cap.
+static void put(char *out, size_t cap, size_t *k, const char *fmt, ...)
 {
-    uint32_t n = 0;
-    const wx_reading_t *newest = NULL, *oldest = NULL;
-    int32_t t_lo = 0, t_hi = 0;
-    uint32_t h_lo = 0, h_hi = 0, p_lo = 0, p_hi = 0;
-    for (uint32_t i = 0; i < wx_count(h); i++) {
-        const wx_reading_t *r = wx_get(h, i);  // newest first
-        if (r->time <= since) {
-            break;
-        }
-        if (n++ == 0) {
-            newest = r;
-            t_lo = t_hi = r->temp_centi_c;
-            h_lo = h_hi = r->hum_q10_pct;
-            p_lo = p_hi = r->press_q8_pa;
-        }
-        oldest = r;
-        t_lo = r->temp_centi_c < t_lo ? r->temp_centi_c : t_lo;
-        t_hi = r->temp_centi_c > t_hi ? r->temp_centi_c : t_hi;
-        h_lo = r->hum_q10_pct < h_lo ? r->hum_q10_pct : h_lo;
-        h_hi = r->hum_q10_pct > h_hi ? r->hum_q10_pct : h_hi;
-        p_lo = r->press_q8_pa < p_lo ? r->press_q8_pa : p_lo;
-        p_hi = r->press_q8_pa > p_hi ? r->press_q8_pa : p_hi;
+    if (*k >= cap) {
+        return;
     }
-    int k = snprintf(out, cap, "Summary from %s\n", hostname);
-    if (n == 0) {
-        snprintf(out + k, cap - (size_t)k, "Readings: 0\nNo readings were kept in this period.\n");
-        return 0;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(out + *k, cap - *k, fmt, ap);
+    va_end(ap);
+    *k = n < 0 ? *k : *k + (size_t)n < cap ? *k + (size_t)n : cap;
+}
+
+uint32_t sm_body(const char *hostname, const wx_stats_t *st, const wx_reading_t *newest,
+                 const wx_avgs_t *a, uint32_t lines, uint32_t dropped, sm_iso_fn_t iso,
+                 sm_stamp_fn_t stamp, char *out, size_t cap)
+{
+    size_t k = 0;
+    out[0] = '\0';
+    put(out, cap, &k, "Summary from %s\n", hostname);
+    if (st->n == 0 || newest == NULL) {
+        put(out, cap, &k, "Readings: 0\nNo readings were kept in this period.\n");
+    } else {
+        char from[WX_ISO_MAX], to[WX_ISO_MAX], line[WX_LINE_MAX];
+        char t0[16], t1[16], h0[16], h1[16], p0[16], p1[16];
+        time_text(st->first, iso, from);
+        time_text(st->last, iso, to);
+        wx_screen_line(newest, line);
+        wx_fmt_temp_f(t0, sizeof t0, st->t_lo, 1);
+        wx_fmt_temp_f(t1, sizeof t1, st->t_hi, 1);
+        wx_fmt_hum(h0, sizeof h0, st->h_lo, 0);
+        wx_fmt_hum(h1, sizeof h1, st->h_hi, 0);
+        wx_fmt_press(p0, sizeof p0, st->p_lo, 2);
+        wx_fmt_press(p1, sizeof p1, st->p_hi, 2);
+        put(out, cap, &k,
+            "Period: %s to %s\n"
+            "Readings: %" PRIu32 "\n"
+            "Newest: %s\n"
+            "Temperature: min %sF, max %sF\n"
+            "Humidity: min %s%%, max %s%%\n"
+            "Pressure: min %s mbar, max %s mbar\n",
+            from, to, st->n, line, t0, t1, h0, h1, p0, p1);
     }
-    char from[WX_ISO_MAX], to[WX_ISO_MAX], line[WX_LINE_MAX];
-    char a[16], b[16], c[16], d[16], e[16], f[16];
-    time_text(oldest, iso, from);
-    time_text(newest, iso, to);
-    wx_screen_line(newest, line);
-    wx_fmt_temp_f(a, sizeof a, t_lo, 1);
-    wx_fmt_temp_f(b, sizeof b, t_hi, 1);
-    wx_fmt_hum(c, sizeof c, h_lo, 0);
-    wx_fmt_hum(d, sizeof d, h_hi, 0);
-    wx_fmt_press(e, sizeof e, p_lo, 2);
-    wx_fmt_press(f, sizeof f, p_hi, 2);
-    snprintf(out + k, cap - (size_t)k,
-             "Period: %s to %s\n"
-             "Readings: %" PRIu32 "\n"
-             "Newest: %s\n"
-             "Temperature: min %sF, max %sF\n"
-             "Humidity: min %s%%, max %s%%\n"
-             "Pressure: min %s mbar, max %s mbar\n",
-             from, to, n, line, a, b, c, d, e, f);
-    return n;
+    uint32_t kept = wx_avg_count(a);
+    lines = lines < kept ? lines : kept;
+    if (dropped > 0) {
+        put(out, cap, &k, "Averages not kept: %" PRIu32 " earlier periods\n", dropped);
+    }
+    if (lines == 0) {
+        return st->n;
+    }
+    put(out, cap, &k, "\n\"Time\",\"Temp F\",\"Hum %%\",\"ATM mbar\"\n");
+    for (uint32_t i = lines; i-- > 0;) {  // oldest first
+        const wx_avg_t *v = wx_avg_get(a, i);
+        char when[SM_STAMP_MAX], t[16], hu[16], p[16];
+        stamp(v->start, when);
+        wx_fmt_temp_f(t, sizeof t, v->temp_centi_c, 1);
+        wx_fmt_hum(hu, sizeof hu, v->hum_q10_pct, 0);
+        wx_fmt_press(p, sizeof p, v->press_q8_pa, 2);
+        put(out, cap, &k, "\"%s\",\"%s\",\"%s\",\"%s\"\n", when, t, hu, p);
+    }
+    return st->n;
 }
