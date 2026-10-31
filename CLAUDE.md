@@ -79,7 +79,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   in NVS and the keys that end the hold (user key GPIO 21, BOOT GPIO 0); `setup_check_core.c` is the pure debouncer.
   When to hold is `device_logic`'s `dl_hold_step`.
 - `components/hello_log/` (L1) — serial log lines; `hello_log_format.c` is the pure core.
-- `components/weather/` (L1) — the BME280 task's readings (FSD §23): kept in RTC
+- `components/weather/` (L1) — the BME280 task's readings and period averages (FSD §23): kept in RTC
   memory, shown on line 4, logged (L21/L22), served at `/api/readings`;
   `weather_core.c` is the pure core. The sensor driver is `shared/components/bme280/`.
 - `components/summary/` (L1) — the summary email (FSD §25): mail settings from

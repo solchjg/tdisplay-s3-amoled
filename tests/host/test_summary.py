@@ -14,6 +14,11 @@ static void iso(const wx_reading_t *r, char out[WX_ISO_MAX])
     snprintf(out, WX_ISO_MAX, "T%" PRId64, r->time);
 }
 
+static void stamp(int64_t utc, char out[SM_STAMP_MAX])
+{
+    snprintf(out, SM_STAMP_MAX, "S%" PRId64, utc);
+}
+
 static int64_t at(const char *ymd_hm)  // "YYYY-MM-DD hh:mm"
 {
     int y, mo, d, h, mi;
@@ -23,7 +28,9 @@ static int64_t at(const char *ymd_hm)  // "YYYY-MM-DD hh:mm"
 
 // argv: parse <body>
 //     | due <hh:mm> <every> <clock 0|1> <last "YYYY-MM-DD hh:mm" or 0> <now ...>
-//     | body <since> [<time> <centi_c> <q8_pa> <q10_pct>]...
+//     | body <lines> <dropped> [<time> <centi_c> <q8_pa> <q10_pct>]...
+//       (each reading into the stats and into hourly UTC averages)
+//     | collect <body>
 //     | lasttry <slot> <tried>
 //     | subject <host> <date>
 int main(int argc, char **argv)
@@ -38,6 +45,10 @@ int main(int argc, char **argv)
         } else {
             printf("on %s|%u|%s|%s|%s|%u|%u", s.host, s.port, s.user, s.password, s.to,
                    s.time_min, s.every_h);
+            printf("|from=%s|to=", sm_from(&s));
+            for (int i = 0; sm_to(&s, i); i++) {
+                printf("%s%s", i ? "," : "", sm_to(&s, i));
+            }
         }
     } else if (!strcmp(argv[1], "due")) {
         memset(&s, 0, sizeof s);
@@ -53,17 +64,31 @@ int main(int argc, char **argv)
                    (int)(m % 3600 / 60));
         }
     } else if (!strcmp(argv[1], "body")) {
-        static wx_history_t h;
-        for (int i = 3; i + 3 < argc; i += 4) {
+        static wx_stats_t st;
+        static wx_avgs_t a;
+        static wx_reading_t last;
+        for (int i = 4; i + 3 < argc; i += 4) {
             wx_reading_t r = {.time = strtoll(argv[i], NULL, 10), .temp_centi_c = atoi(argv[i + 1]),
                               .press_q8_pa = (uint32_t)strtoul(argv[i + 2], NULL, 10),
                               .hum_q10_pct = (uint32_t)strtoul(argv[i + 3], NULL, 10),
                               .synced = true};
-            wx_add(&h, &r);
+            wx_stats_add(&st, &r);
+            wx_avg_add(&a, &r, wx_period_start(r.time, 0, 3600));
+            last = r;
         }
-        char out[SM_BODY_MAX];
-        uint32_t n = sm_body("tds3-a1b2c3", &h, strtoll(argv[2], NULL, 10), iso, out, sizeof out);
+        static char out[SM_BODY_MAX];
+        uint32_t n = sm_body("tds3-a1b2c3", &st, st.n ? &last : NULL, &a,
+                             (uint32_t)atoi(argv[2]), (uint32_t)atoi(argv[3]), iso, stamp, out,
+                             sizeof out);
         printf("%" PRIu32 "\n%s", n, out);
+    } else if (!strcmp(argv[1], "collect")) {
+        sm_collect_t c;
+        const char *bad = sm_parse_collect(argv[2], strlen(argv[2]), &c);
+        if (bad) {
+            printf("bad %s", bad);
+        } else {
+            printf("%u/%u", c.sample_min, c.average_min);
+        }
     } else if (!strcmp(argv[1], "lasttry")) {
         printf("%d", sm_last_try(strtoll(argv[2], NULL, 10), strtoll(argv[3], NULL, 10)));
     } else {
@@ -102,7 +127,7 @@ def test_wifi_only_submission_leaves_email_off(core):
 
 def test_full_submission_is_parsed(core):
     assert core("parse", FULL) == ("on smtp.gmail.com|465|me@gmail.com|abcd efgh ijkl mnop|"
-                                   "you@example.org|420|6")
+                                   "you@example.org|420|6|from=me@gmail.com|to=you@example.org")
     assert core("parse", with_field("mail_port", "587")).startswith("on smtp.gmail.com|587|")
 
 
@@ -117,6 +142,8 @@ def test_full_submission_is_parsed(core):
     ("mail_to", "a@b@c"), ("mail_to", "a@"), ("mail_to", ""),
     ("mail_time", "7:00"), ("mail_time", "24:00"), ("mail_time", "07:60"), ("mail_time", "0700"),
     ("mail_every", "0"), ("mail_every", "25"), ("mail_every", "1.5"), ("mail_every", ""),
+    ("mail_from", "me.example.com"), ("mail_from", "@x"), ("mail_from", "f" * 65),
+    ("mail_to2", "them.example.net"), ("mail_to2", "a@b@c"), ("mail_to2", "t" * 65),
 ])
 def test_each_invalid_field_is_named(core, name, value):
     assert core("parse", with_field(name, value)) == f"bad {name}"
@@ -126,7 +153,30 @@ def test_spaces_around_a_value_are_dropped(core):
     body = with_field("mail_host", "+smtp.gmail.com+")
     body = body.replace("mail_to=you%40example.org", "mail_to=you%40example.org%20")
     body = body.replace("mail_password=abcd+efgh+ijkl+mnop", "mail_password=+pw+")
-    assert core("parse", body) == "on smtp.gmail.com|465|me@gmail.com| pw |you@example.org|420|6"
+    assert core("parse", body).startswith("on smtp.gmail.com|465|me@gmail.com| pw |you@example.org|420|6|")
+
+
+# TC-MAIL-16 · FR-25.12, FR-25.13 (core): a sender other than the login, a second recipient
+def test_a_separate_sender_address(core):
+    out = core("parse", with_field("mail_from", "weather%40example.com"))
+    assert out.endswith("|from=weather@example.com|to=you@example.org")
+    assert "|me@gmail.com|" in out  # still the login
+
+
+@pytest.mark.parametrize("value", [None, "", "+"])
+def test_no_sender_address_is_the_login(core, value):
+    assert core("parse", with_field("mail_from", value)).endswith("|from=me@gmail.com|to=you@example.org")
+
+
+def test_a_second_recipient(core):
+    out = core("parse", with_field("mail_to2", "them%40example.net"))
+    assert out.endswith("|to=you@example.org,them@example.net")
+    assert core("parse", with_field("mail_to2", "")).endswith("|to=you@example.org")
+
+
+def test_sender_or_second_recipient_alone_is_a_partial_group(core):
+    assert core("parse", "ssid=a&password=&mail_from=me%40x.org") == "bad mail_host"
+    assert core("parse", "ssid=a&password=&mail_to2=me%40x.org") == "bad mail_host"
 
 
 def test_a_partial_group_is_refused(core):
@@ -186,7 +236,7 @@ def test_a_send_cut_short_is_tried_once_more(core):
     assert core("lasttry", slot, slot) == "1"         # this slot's send was cut short: last try
 
 
-# TC-MAIL-13 · FR-25.4, FR-25.10 (core): subject and body
+# TC-MAIL-13 · FR-25.12, FR-25.10 (core): subject and body
 def test_subject(core):
     assert core("subject", "tds3-a1b2c3", "2026-10-30 07:00") == \
         "tds3-a1b2c3 summary 2026-10-30 07:00"
@@ -196,13 +246,17 @@ def reading(t, centi_c=2143, q8=25932800, q10=46285):
     return [t, centi_c, q8, q10]
 
 
+def body(core, lines, dropped, *args):
+    return core("body", lines, dropped, *args)
+
+
 def test_body_with_no_readings(core):
-    out = core("body", 0)
+    out = body(core, 0, 0)
     assert out == "0\nSummary from tds3-a1b2c3\nReadings: 0\nNo readings were kept in this period.\n"
 
 
 def test_body_with_one_reading(core):
-    out = core("body", 0, *reading(1793358000)).splitlines()
+    out = body(core, 0, 0, *reading(1793358000)).splitlines()
     assert out == ["1", "Summary from tds3-a1b2c3",
                    "Period: T1793358000 to T1793358000", "Readings: 1",
                    "Newest: 70.6F Hum 45% 1013.00 mbar",
@@ -210,13 +264,13 @@ def test_body_with_one_reading(core):
                    "Pressure: min 1013.00 mbar, max 1013.00 mbar"]
 
 
-def test_body_min_max_over_readings_since_the_last_summary(core):
+def test_body_min_max_over_the_readings_since_the_last_summary(core):
     t = 1793300000
-    args = reading(t + 1) + reading(t + 2, centi_c=-4000, q8=30000 * 256, q10=0) + \
+    args = reading(t + 2, centi_c=-4000, q8=30000 * 256, q10=0) + \
         reading(t + 3, centi_c=1000, q8=100000 * 256, q10=50 * 1024) + \
         reading(t + 4, centi_c=3000, q8=101325 * 256, q10=60 * 1024)
-    out = core("body", t + 1, *args).splitlines()
-    assert out[0] == "3"  # the reading at 1000 went into the previous summary
+    out = body(core, 0, 0, *args).splitlines()
+    assert out[0] == "3"
     assert out[2] == "Period: T1793300002 to T1793300004"
     assert out[4] == "Newest: 86.0F Hum 60% 1013.25 mbar"
     assert out[5:] == ["Temperature: min -40.0F, max 86.0F", "Humidity: min 0%, max 60%",
@@ -227,15 +281,89 @@ def test_body_over_a_full_day_of_readings(core):
     args = []
     for i in range(1, 145):
         args += reading(1793300000 + 600 * i, centi_c=2000 + i)
-    out = core("body", 0, *args).splitlines()
+    out = body(core, 0, 0, *args).splitlines()
     assert out[0] == "144" and out[3] == "Readings: 144"
     assert out[5] == "Temperature: min 68.0F, max 70.6F"
 
 
 def test_body_shows_no_time_for_a_clock_never_set(core):
-    assert core("body", 0, *reading(1000)).splitlines()[2] == "Period: no time to no time"
+    assert body(core, 0, 0, *reading(1000)).splitlines()[2] == "Period: no time to no time"
 
 
 def test_body_never_holds_the_password(core):
-    out = core("body", 0, *reading(1793358000))
+    out = body(core, 0, 0, *reading(1793358000))
     assert "abcd efgh" not in out and "password" not in out.lower()
+
+
+# TC-MAIL-17 · FR-25.15 (core): the averages table after the summary block
+H0 = 1793300400  # a whole UTC hour
+
+
+def test_table_lists_the_finished_averages_oldest_first(core):
+    args = reading(H0, centi_c=2000, q10=40 * 1024) + reading(H0 + 1800, centi_c=2100, q10=42 * 1024) + \
+        reading(H0 + 3600, centi_c=2500, q8=100000 * 256) + reading(H0 + 7200, centi_c=1000)
+    out = body(core, 2, 0, *args).split("\n\n")
+    assert len(out) == 2
+    assert out[1].splitlines() == [
+        '"Time","Temp F","Hum %","ATM mbar"',
+        f'"S{H0}","68.9","41","1013.00"',          # 20.50 °C, 41 %, mean of two readings
+        f'"S{H0 + 3600}","77.0","45","1000.00"',
+    ]  # the hour from H0 + 7200 is still running: not listed
+
+
+def test_table_lists_only_the_averages_since_the_last_summary(core):
+    args = []
+    for h in range(4):
+        args += reading(H0 + 3600 * h, centi_c=2000 + 100 * h)
+    table = body(core, 1, 0, *args).split("\n\n")[1].splitlines()
+    assert table[1:] == [f'"S{H0 + 7200}","71.6","45","1013.00"']
+
+
+def test_no_finished_average_no_table(core):
+    out = body(core, 0, 0, *reading(H0))
+    assert '"Time"' not in out and not out.endswith("\n\n")
+
+
+def test_dropped_averages_are_counted(core):
+    args = []
+    for h in range(100):
+        args += reading(H0 + 3600 * h)
+    out = body(core, 99, 3, *args)
+    assert "Averages not kept: 3 earlier periods\n" in out
+    assert len(out.split("\n\n")[1].splitlines()) == 1 + 96  # header + every kept average
+
+
+def test_a_full_table_fits_the_body(core):
+    args = []
+    for h in range(97):
+        args += reading(H0 + 3600 * h, centi_c=-4000, q8=110000 * 256, q10=100 * 1024)
+    out = body(core, 96, 0, *args)
+    assert out.endswith('"-40.0","100","1100.00"\n')
+
+
+# TC-WX-17 · FR-23.14 (core): sample and average minutes from the portal
+@pytest.mark.parametrize("form,expect", [
+    ("ssid=a&password=", "10/60"),
+    ("ssid=a&sample_min=&average_min=", "10/60"),
+    ("sample_min=15&average_min=60", "15/60"),
+    ("sample_min=+5+&average_min=30", "5/30"),
+    ("sample_min=30", "30/60"),
+    ("sample_min=60&average_min=1440", "60/1440"),
+    ("sample_min=1&average_min=2", "1/2"),
+    ("average_min=120", "10/120"),
+])
+def test_collect_values(core, form, expect):
+    assert core("collect", form) == expect
+
+
+@pytest.mark.parametrize("form,bad", [
+    ("sample_min=0", "sample_min"), ("sample_min=61&average_min=120", "sample_min"),
+    ("sample_min=x", "sample_min"), ("sample_min=1.5", "sample_min"),
+    ("sample_min=15&average_min=50", "average_min"),   # 50 does not divide a day
+    ("sample_min=20&average_min=30", "average_min"),   # 20 does not divide 30
+    ("sample_min=60&average_min=60", "average_min"),   # not greater
+    ("sample_min=10&average_min=2880", "average_min"),
+    ("average_min=7", "average_min"),
+])
+def test_collect_refused(core, form, bad):
+    assert core("collect", form) == f"bad {bad}"

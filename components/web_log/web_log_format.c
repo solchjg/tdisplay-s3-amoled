@@ -119,7 +119,7 @@ void wl_fmt_mail_sent(char *buf, size_t len, const char *to, uint32_t readings)
     snprintf(buf, len, "mail sent to=%s readings=%" PRIu32, to, readings);
 }
 
-void wl_fmt_mail_failed(char *buf, size_t len, const char *reason)
+void wl_fmt_mail_failed(char *buf, size_t len, const char *to, const char *reason)
 {
-    snprintf(buf, len, "mail failed: %s", reason);
+    snprintf(buf, len, "mail failed: %s to=%s", reason, to);
 }

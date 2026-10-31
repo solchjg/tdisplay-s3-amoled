@@ -249,9 +249,9 @@ void web_log_mail_sent(const char *to, uint32_t readings)
     ESP_LOGI(TAG, "%s", line);
 }
 
-void web_log_mail_failed(const char *reason)
+void web_log_mail_failed(const char *to, const char *reason)
 {
     char line[WL_LINE_MAX];
-    wl_fmt_mail_failed(line, sizeof line, reason);
+    wl_fmt_mail_failed(line, sizeof line, to, reason);
     ESP_LOGW(TAG, "%s", line);
 }

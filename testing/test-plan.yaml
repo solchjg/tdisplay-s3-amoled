@@ -2036,7 +2036,7 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: bench
-    verifies: [FR-23.2, FR-23.9, FR-23.5]
+    verifies: [FR-23.14, FR-23.9, FR-23.5]
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-wifi-slot1, dut-amoled-slot1, dut-bme280]
     observable: "an L21 on each timer wake of the 10 s sleep build; after a key wake, /api/readings lists them newest first"
     impl: []
@@ -2264,6 +2264,32 @@ tests:
     impl: [tests/host/test_weather.py::test_a_never_set_clock_shows_no_time, tests/host/test_weather.py::test_a_set_but_unsynced_clock_keeps_its_time]
     result: {status: not done}
 
+  - id: TC-WX-17
+    title: "Sample and average minutes from the portal"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.14, FR-23.15]
+    needs: []
+    observable: "empty: 10 and 60; 15 and 60 accepted; refused by name: sample 0 or 61, average not above sample, not dividing a day or not a whole number of samples"
+    impl: [tests/host/test_summary.py::test_collect_values, tests/host/test_summary.py::test_collect_refused]
+    result: {status: not done}
+
+  - id: TC-WX-18
+    title: "Averages over periods from local midnight, 96 kept"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 5
+    tier: host
+    verifies: [FR-23.15, FR-23.16]
+    needs: []
+    observable: "period starts on local multiples of average_min; an average finished by the next period's first reading; empty periods left out; means rounded half away from zero; the newest 96 kept"
+    impl: [tests/host/test_weather.py::test_period_start, tests/host/test_weather.py::test_an_average_is_finished_by_the_first_reading_of_the_next_period, tests/host/test_weather.py::test_a_period_with_no_readings_has_no_average, tests/host/test_weather.py::test_negative_means_round_half_away_from_zero, tests/host/test_weather.py::test_the_newest_96_averages_are_kept]
+    result: {status: not done}
+
   - id: TC-MAIL-01
     title: "SMTP core: implicit TLS, AUTH PLAIN, the RFC 5321 sequence"
     shape: atomic
@@ -2316,6 +2342,32 @@ tests:
     impl: tests/host/test_summary.py::test_a_send_cut_short_is_tried_once_more
     result: {status: not done}
 
+  - id: TC-MAIL-16
+    title: "A sender other than the login, a second recipient"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.12, FR-25.13]
+    needs: []
+    observable: "mail_from given: the sender, the login unchanged; empty or absent: the login; mail_to2 given: two recipients, empty: one; either alone refused as a partial group; invalid ones named"
+    impl: [tests/host/test_summary.py::test_a_separate_sender_address, tests/host/test_summary.py::test_no_sender_address_is_the_login, tests/host/test_summary.py::test_a_second_recipient, tests/host/test_summary.py::test_sender_or_second_recipient_alone_is_a_partial_group, tests/host/test_summary.py::test_each_invalid_field_is_named]
+    result: {status: not done}
+
+  - id: TC-MAIL-17
+    title: "The averages table after the summary"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: host
+    verifies: [FR-25.15, FR-23.16]
+    needs: []
+    observable: "header \"Time\",\"Temp F\",\"Hum %\",\"ATM mbar\" then one line per finished average since the previous summary, oldest first, period start, no units; none finished: no table; more than 96: the count not kept; 96 lines fit the body"
+    impl: [tests/host/test_summary.py::test_table_lists_the_finished_averages_oldest_first, tests/host/test_summary.py::test_table_lists_only_the_averages_since_the_last_summary, tests/host/test_summary.py::test_no_finished_average_no_table, tests/host/test_summary.py::test_dropped_averages_are_counted, tests/host/test_summary.py::test_a_full_table_fits_the_body]
+    result: {status: not done}
+
   - id: TC-MAIL-13
     title: "Summary subject and body"
     shape: atomic
@@ -2323,10 +2375,10 @@ tests:
     wave: 1
     fsd_phase: 7
     tier: host
-    verifies: [FR-25.4, FR-25.10]
+    verifies: [FR-25.12, FR-25.10]
     needs: []
     observable: "subject '<hostname> summary <date> <hh:mm>'; body for 0, 1 and 144 readings with period, count, newest line and min/max in F, % and mbar; no password"
-    impl: [tests/host/test_summary.py::test_subject, tests/host/test_summary.py::test_body_with_no_readings, tests/host/test_summary.py::test_body_with_one_reading, tests/host/test_summary.py::test_body_min_max_over_readings_since_the_last_summary, tests/host/test_summary.py::test_body_over_a_full_day_of_readings, tests/host/test_summary.py::test_body_never_holds_the_password]
+    impl: [tests/host/test_summary.py::test_subject, tests/host/test_summary.py::test_body_with_no_readings, tests/host/test_summary.py::test_body_with_one_reading, tests/host/test_summary.py::test_body_min_max_over_the_readings_since_the_last_summary, tests/host/test_summary.py::test_body_over_a_full_day_of_readings, tests/host/test_summary.py::test_body_never_holds_the_password]
     result: {status: not done}
 
   - id: TC-MAIL-14
@@ -2349,9 +2401,22 @@ tests:
     wave: 1
     fsd_phase: 7
     tier: bench
-    verifies: [FR-25.4, FR-25.5, FR-25.9]
+    verifies: [FR-25.12, FR-25.5, FR-25.9]
     needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
-    observable: "provisioned through the portal with the operator's own Gmail account and a slot a few minutes ahead: L25 at the first task run after it, and the email arrives with every FR-25.4 field, pressure in mbar"
+    observable: "provisioned through the portal with the operator's own Gmail account and a slot a few minutes ahead: L25 at the first task run after it, and the email arrives with every FR-25.12 field, pressure in mbar"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-MAIL-22
+    title: "Two recipients, each its own email, from mail_from"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 7
+    tier: bench
+    verifies: [FR-25.12, FR-25.13]
+    needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
+    observable: "provisioned with the operator's provider, mail_from an identity of the login and mail_to2 a second address: L25 twice at the first task run after the slot; two emails arrive, each showing mail_from as the sender"
     impl: []
     result: {status: not done}
 
@@ -2362,7 +2427,7 @@ tests:
     wave: 1
     fsd_phase: 7
     tier: target
-    verifies: [FR-25.7, NFR-25.1]
+    verifies: [FR-25.14, NFR-25.1]
     needs: [bench-serial-monitor, dut-amoled-slot1]
     observable: "mail_host that does not resolve, slot due: L26 'mail failed: dns', then 'web: sleep'; no second attempt"
     impl: []

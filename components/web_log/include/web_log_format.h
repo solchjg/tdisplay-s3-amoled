@@ -73,4 +73,4 @@ void wl_fmt_setup_done(char *buf, size_t len, const char *by);
 
 // L25 and L26 (FR-25.9).
 void wl_fmt_mail_sent(char *buf, size_t len, const char *to, uint32_t readings);
-void wl_fmt_mail_failed(char *buf, size_t len, const char *reason);
+void wl_fmt_mail_failed(char *buf, size_t len, const char *to, const char *reason);

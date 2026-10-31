@@ -27,6 +27,9 @@ static const bme280_config_t sensor_cfg = {
 // FR-23.9: kept in RTC memory, so a deep sleep keeps it and a power loss or
 // reset (which reloads RTC data from the image) empties it.
 static RTC_DATA_ATTR wx_history_t history;
+static RTC_DATA_ATTR wx_avgs_t averages;  // FR-23.15, FR-23.16
+static RTC_DATA_ATTR wx_stats_t stats;    // FR-25.12: since the last summary
+static uint32_t average_s = 60 * 60;
 
 static bool started;
 static weather_note_cb_t note_cb;
@@ -55,23 +58,55 @@ esp_err_t weather_sample(wx_reading_t *out)
     return ESP_OK;
 }
 
+// Local time minus UTC at t, in seconds.
+static int32_t utc_offset(time_t t)
+{
+    struct tm lt, gt;
+    localtime_r(&t, &lt);
+    gmtime_r(&t, &gt);
+    int days = lt.tm_yday - gt.tm_yday;
+    days = days > 1 ? -1 : days < -1 ? 1 : days;  // across a new year
+    return days * 86400 + (lt.tm_hour - gt.tm_hour) * 3600 + (lt.tm_min - gt.tm_min) * 60 +
+           (lt.tm_sec - gt.tm_sec);
+}
+
 esp_err_t weather_read(wx_reading_t *out)
 {
     esp_err_t err = weather_sample(out);
     if (err == ESP_OK) {
         wx_add(&history, out);
+        wx_stats_add(&stats, out);
+        if (wx_time_set(out)) {  // a period needs the clock (FR-22.6)
+            wx_avg_add(&averages, out,
+                       wx_period_start(out->time, utc_offset((time_t)out->time), average_s));
+        }
     }
     return err;
+}
+
+void weather_set_average(uint32_t minutes)
+{
+    average_s = minutes * 60;
+}
+
+const wx_avgs_t *weather_averages(void)
+{
+    return &averages;
+}
+
+const wx_stats_t *weather_stats(void)
+{
+    return &stats;
+}
+
+void weather_stats_clear(void)
+{
+    stats = (wx_stats_t){0};
 }
 
 const wx_reading_t *weather_newest(void)
 {
     return wx_get(&history, 0);
-}
-
-const wx_history_t *weather_history(void)
-{
-    return &history;
 }
 
 void weather_iso(const wx_reading_t *r, char out[WX_ISO_MAX])

@@ -21,7 +21,7 @@ static wx_reading_t reading(char **a)
                           .synced = atoi(a[4]) != 0};
 }
 
-// argv: hist <n> | garbage | line [<t> <c> <p> <h> <s>] | log|json|html [<t> <c> <p> <h> <s> <iso>]
+// argv: hist <n> | garbage | period <utc> <offset> <every> | avg <every> [<t> <centi_c>]... | line [<t> <c> <p> <h> <s>] | log|json|html [<t> <c> <p> <h> <s> <iso>]
 int main(int argc, char **argv)
 {
     char out[512];
@@ -34,6 +34,21 @@ int main(int argc, char **argv)
         printf("%" PRIu32, wx_count(&hist));
         for (uint32_t i = 0; wx_get(&hist, i); i++) {
             printf(" %" PRId64, wx_get(&hist, i)->time);
+        }
+    } else if (!strcmp(argv[1], "period")) {
+        printf("%" PRId64, wx_period_start(strtoll(argv[2], NULL, 10), atoi(argv[3]),
+                                           (uint32_t)atoi(argv[4])));
+    } else if (!strcmp(argv[1], "avg")) {
+        static wx_avgs_t a;
+        uint32_t every = (uint32_t)atoi(argv[2]);
+        for (int i = 3; i + 1 < argc; i += 2) {
+            wx_reading_t r = {.time = strtoll(argv[i], NULL, 10), .temp_centi_c = atoi(argv[i + 1])};
+            wx_avg_add(&a, &r, wx_period_start(r.time, 0, every));
+        }
+        printf("%" PRIu32 " %" PRIu32, wx_avg_count(&a), a.closed);
+        for (uint32_t i = 0; wx_avg_get(&a, i); i++) {
+            printf(" %" PRId64 ":%" PRId32 ":%" PRIu32, wx_avg_get(&a, i)->start,
+                   wx_avg_get(&a, i)->temp_centi_c, wx_avg_get(&a, i)->n);
         }
     } else if (!strcmp(argv[1], "garbage")) {
         memset(&hist, 0xA5, sizeof hist);
@@ -88,6 +103,52 @@ def test_history_keeps_the_newest_144_newest_first(core, n, count):
 
 def test_history_in_uninitialised_rtc_memory_holds_nothing(core):
     assert core("garbage").split() == ["0", "1", "1", "7"]
+
+
+# TC-WX-18 · FR-23.15, FR-23.16 (core): periods from local midnight, averages kept
+@pytest.mark.parametrize("utc,offset,every,start", [
+    (1793404800 + 3599, 0, 3600, 1793404800),          # 00:59:59 UTC: the 00:00 hour
+    (1793404800 + 3600, 0, 3600, 1793404800 + 3600),
+    (1793404800 + 900 * 5 + 1, 0, 900, 1793404800 + 4500),
+    (1793404800 + 7200, -4 * 3600, 3600, 1793404800 + 7200),  # EDT: hours still on the hour
+    (1793404800 + 4 * 3600 + 60, -4 * 3600, 86400, 1793404800 + 4 * 3600),  # local midnight
+    (1793404800 + 60, -4 * 3600, 86400, 1793404800 - 20 * 3600),  # still the day before, locally
+])
+def test_period_start(core, utc, offset, every, start):
+    assert int(core("period", utc, offset, every)) == start
+
+
+H = 1793404800
+
+
+def averages(core, every, *pairs):
+    out = core("avg", every, *[v for p in pairs for v in p]).split()
+    return int(out[0]), int(out[1]), [tuple(map(int, x.split(":"))) for x in out[2:]]
+
+
+def test_an_average_is_finished_by_the_first_reading_of_the_next_period(core):
+    kept, closed, avgs = averages(core, 3600, (H, 2000), (H + 900, 2100), (H + 1800, 2201))
+    assert (kept, closed, avgs) == (0, 0, [])  # still running
+    kept, closed, avgs = averages(core, 3600, (H, 2000), (H + 900, 2100), (H + 1800, 2201),
+                                  (H + 3600, 1000))
+    assert avgs == [(H, 2100, 3)]  # (2000 + 2100 + 2201) / 3, rounded
+
+
+def test_a_period_with_no_readings_has_no_average(core):
+    _, _, avgs = averages(core, 3600, (H, 2000), (H + 3 * 3600, 2500), (H + 4 * 3600, 0))
+    assert [a[0] for a in avgs] == [H + 3 * 3600, H]  # newest first, the gap left out
+
+
+def test_negative_means_round_half_away_from_zero(core):
+    _, _, avgs = averages(core, 3600, (H, -1001), (H + 1, -1002), (H + 3600, 0))
+    assert avgs == [(H, -1002, 2)]  # -1001.5
+
+
+def test_the_newest_96_averages_are_kept(core):
+    pairs = [(H + 3600 * i, i) for i in range(98)]
+    kept, closed, avgs = averages(core, 3600, *pairs)
+    assert (kept, closed) == (96, 97)
+    assert avgs[0][0] == H + 96 * 3600 and avgs[-1][0] == H + 3600
 
 
 # TC-WX-03 · FR-23.12 (core)

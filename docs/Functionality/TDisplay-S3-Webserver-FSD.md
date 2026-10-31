@@ -834,7 +834,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
 | L24 | Setup check hold ended (FR-24.11, FR-24.6) | `web: setup check done by=<key\|timeout>` | I |
 | L25 | Summary sent (FR-25.9) | `web: mail sent to=<mail_to> readings=<n>` | I |
-| L26 | Summary dropped (FR-25.7) | `web: mail failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|timeout>` | W |
+| L26 | Summary email dropped (FR-25.14) | `web: mail failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|timeout> to=<address>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1561,6 +1561,17 @@ sensor is in its sleep mode.
 A reading is the triple temperature (shown in °F; the sensor reports °C),
 relative humidity (%) and pressure (mbar), with the time it was taken and the synced mark of FR-22.3.
 
+How often a reading is taken and how long each average runs are set in the
+provisioning portal next to the WiFi credentials (§13.2), with email on or off:
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `sample_min` | minutes between readings | whole minutes, 1 – 60 | 10 |
+| `average_min` | minutes each average runs | whole minutes, greater than `sample_min`, a whole multiple of it, and dividing 1440 | 60 |
+
+Average periods start at local midnight (FR-22.2) and follow each other, so
+with 60 they run 00:00, 01:00, 02:00 and so on.
+
 ### 23.2 Readings route
 
 | Method | Path | Response |
@@ -1580,8 +1591,11 @@ relative humidity (%) and pressure (mbar), with the time it was taken and the sy
 - **FR-23.1** [Must] [user] Each time the task runs (§21, FR-21.4) it shall take
   one reading from the BME280 at 0x76 on SDA GPIO 43 / SCL GPIO 44, in forced
   mode, oversampling ×1 for all three quantities, IIR filter off.
-- **FR-23.2** [Must] [user] After its reading the task shall tell the device to
-  sleep for **600 s** (FR-21.9).
+- **FR-23.14** [Must] [user] After its reading the task shall tell the device to
+  sleep for `sample_min` minutes (FR-21.9). The portal shall refuse a
+  submission whose `sample_min` or `average_min` is not valid per §23.1 with
+  400 naming the field; valid values are stored in NVS at T3 and erased by a
+  factory reset (T10); a device provisioned without them uses the defaults.
 - **FR-23.3** [Must] [derived from FR-23.12, FR-23.7] On every boot that is not a
   timer wake, the device shall also take a reading before the window opens, so
   the panel and the web page have a value during the window.
@@ -1604,8 +1618,16 @@ relative humidity (%) and pressure (mbar), with the time it was taken and the sy
   the §23.2 object holding every kept reading, newest first; `[]` when none is
   kept.
 - **FR-23.9** [Must] [user] The device shall keep the newest **144** readings
-  (24 h at 600 s) across deep sleep in RTC memory, dropping the oldest when
+  (24 h at the default 10-minute `sample_min`) across deep sleep in RTC memory, dropping the oldest when
   full. A power loss or reset empties them.
+- **FR-23.15** [Must] [user] Each reading taken with the clock set (FR-22.6)
+  shall be added to the average period it falls in; the first reading of a
+  later period finishes the one in progress, as the mean temperature, humidity
+  and pressure of its readings with the period's start time and the number of
+  readings. A period with no readings has no average.
+- **FR-23.16** [Must] [user] The device shall keep the newest **96** finished
+  averages and the period in progress across deep sleep in RTC memory,
+  dropping the oldest when full. A power loss or reset empties them.
 - **FR-23.10** [Must] [derived from §21] While the device sleeps the sensor
   shall be in its sleep mode (forced mode returns to it after each measurement).
 - **NFR-23.1** [Must] [user] A reading, from the forced-mode trigger to the
@@ -1628,7 +1650,9 @@ relative humidity (%) and pressure (mbar), with the time it was taken and the sy
 | FR-23.12 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 mbar; −40.0 °C 100 % 1100 mbar; 85 °C; none kept | `70.6F Hum 45% 1013.25 mbar`; `-40.0F Hum 100% 1100.00 mbar`; `185.0F …`; `Sensor --` | More than 33 characters | host |
 | FR-23.13 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced | Valid JSON, exactly the five keys per element, newest first | Extra or missing key; invalid JSON | host |
 | FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within 14 – 113 °F, 5 – 95 %, 870 – 1085 mbar | L22; no L21 | target |
-| FR-23.2, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
+| FR-23.14 (core) | Form bodies: no fields; 15 / 60; 5 / 30; 60 / 1440; 0; 61; 15 / 50; 20 / 30; 60 / 60 | 10 / 60; valid as given; 400 naming `sample_min` (0, 61) or `average_min` (50, 30, 60) | A sample period not dividing the average; an average not dividing a day | host |
+| FR-23.15, FR-23.16 (core) | Averages core: readings in one hour, then one in the next; a gap of hours; 98 hours; period starts at UTC −4 | One average, the mean of the hour's readings, when the next hour's first reading comes; no average for the empty hours; 96 kept, newest first; periods on the local hour and local midnight | An average of a period still running; an average for a period with no readings; more than 96 | host |
+| FR-23.14, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
 | FR-23.4 | Fault build reading address 0x77 | L22 with `ESP_ERR_TIMEOUT`, then the window, ONLINE and `web: sleep` as usual | A restart; a reading kept; no sleep | target |
 | FR-23.12 | ONLINE with the sensor fitted | Operator confirms line 4 matches the latest L21 | Line 4 missing, clipped or stale | bench (operator) |
 | FR-23.7, FR-23.13 | ONLINE; relay `GET /` and `GET /api/readings` | Page shows the newest reading's values; JSON parses as §23.2 and its first element equals the latest L21 | 404; a value differing from L21 | bench |
@@ -1705,7 +1729,8 @@ factory reset (§18).
 ### 25.1 Purpose & peer
 
 At a time and interval the user sets, the device emails one plain-text summary
-of the readings it kept since the last summary to one recipient. It sends
+of the readings it kept since the last summary to one recipient, or as two
+separate emails to two. It sends
 directly to the user's SMTP server (Gmail or the user's own, with a public
 certificate) over TLS; no relay service is involved. The mail settings are
 entered in the provisioning portal next to the WiFi credentials and kept in
@@ -1727,9 +1752,11 @@ leaves email off.
 |-------|--------|-------|
 | `mail_host` | SMTP server host name, e.g. `smtp.gmail.com` | 1 – 64 bytes, letters, digits, `.` and `-` |
 | `mail_port` | `465` (TLS from the start) or `587` (STARTTLS) | exactly one of the two |
-| `mail_user` | login name, also the sender address | 1 – 64 bytes |
+| `mail_user` | login name | 1 – 64 bytes |
 | `mail_password` | for Gmail an app password | 1 – 64 bytes |
+| `mail_from` | sender address, if not the login; one the server lets this login send as | empty, or 3 – 64 bytes, one `@` with text on both sides |
 | `mail_to` | recipient address | 3 – 64 bytes, one `@` with text on both sides |
+| `mail_to2` | second recipient address | empty, or as `mail_to` |
 | `mail_time` | first summary, local time | `hh:mm`, 00:00 – 23:59 |
 | `mail_every` | interval between summaries | whole hours, 1 – 24 |
 
@@ -1747,14 +1774,26 @@ leaves email off.
   task (§21) shall send one summary on its first run at or after a due time;
   due times missed in between (the device was off, or a send failed) are
   skipped, never sent late in a batch.
-- **FR-25.4** [Must] [user] The summary shall be one plain-text email from
-  `mail_user` to `mail_to` with the subject `<hostname> summary
+- **FR-25.12** [Must] [user] The summary shall be one plain-text email from
+  the sender (FR-25.13) to `mail_to` and, when `mail_to2` is given, a separate
+  email with the same text to `mail_to2`, with the subject `<hostname> summary
   <YYYY-MM-DD> <hh:mm>` (local time of sending) and a body giving: the device
   name (FR-20.1), the period covered (time of the oldest and newest reading
   included), the number of readings, the newest reading in the format of
   FR-23.12, and the minimum and maximum of temperature (°F), humidity (%) and
-  pressure (mbar) over the readings kept (FR-23.9) since the previous summary
-  was sent, or all kept readings for the first summary after a boot.
+  pressure (mbar) over every reading taken since the previous summary was
+  sent, or since the boot for the first summary after a power loss or reset.
+- **FR-25.15** [Must] [user] After that summary, the body shall hold a blank
+  line, the header line `"Time","Temp F","Hum %","ATM mbar"`, and one line per
+  average (FR-23.15) finished since the previous summary was sent, oldest
+  first: `"<YYYY-MM-DD hh:mm>","<t>","<rh>","<p>"`, the period's local start
+  time, temperature in °F with 1 decimal, humidity a whole number, pressure in
+  mbar with 2 decimals, no units. When averages were dropped (FR-23.16) before
+  they could be sent, the summary block first says `Averages not kept: <n>
+  earlier periods`. With no finished average there is no table.
+- **FR-25.13** [Must] [user] The sender, both the SMTP envelope (`MAIL FROM`)
+  and the `From:` header, shall be `mail_from` when given, else `mail_user`;
+  the login is always `mail_user`.
 - **FR-25.5** [Must] [user] The device shall connect to `mail_host` on
   `mail_port`: on 465 with TLS from the first byte, on 587 by plain SMTP then
   STARTTLS; it shall verify the server certificate against the ESP-IDF CA
@@ -1764,11 +1803,12 @@ leaves email off.
   shall start WiFi as a station with the stored credentials, send the summary,
   stop WiFi (FR-21.7) and sleep; the panel stays dark. On a timer wake with no
   summary due, WiFi stays off (FR-21.13).
-- **FR-25.7** [Must] [user] A summary that cannot be sent (no WiFi within
+- **FR-25.14** [Must] [user] An email that cannot be sent (no WiFi within
   **15 s**, a DNS, TCP, TLS or certificate failure, a server refusal, or no
-  final `250` within **30 s** of connecting) shall be dropped and logged as L26
-  with the reason; it shall not be retried, and the device goes on to sleep as
-  usual.
+  final `250` within **30 s** of the summary's first connection, a budget both
+  recipients share) shall be dropped and logged as L26 with the reason and the
+  recipient; it shall not be retried, the other recipient's email is still
+  tried, and the device goes on to sleep as usual.
 - **FR-25.8** [Must] [derived from FR-25.3 and FR-22.6] With the clock never
   set (FR-22.6), no summary shall be due; the task logs nothing for it.
 - **FR-25.9** [Must] [derived] Each summary sent shall be logged as L25, each
@@ -1779,7 +1819,7 @@ leaves email off.
   or power loss cuts short, before L25 or L26 is logged, shall be tried once
   more on the next task run; if that try is cut short too, the summary is
   dropped.
-- **NFR-25.1** [Must] [derived from FR-25.7] A timer wake that sends a summary
+- **NFR-25.1** [Must] [derived from FR-25.14] A timer wake that sends a summary
   shall be back asleep within **50 s** of the wake, success or failure.
 
 ### 25.4 Verification contracts
@@ -1788,13 +1828,16 @@ leaves email off.
 |----|------------------------|----------------------|-----------------|------|
 | FR-25.1 (core) | Form bodies: WiFi only; all mail fields valid; each field invalid in turn; port 25; `mail_to` without `@`; `mail_every` 0 and 25 | Valid, email off; valid, settings parsed; 400 naming that field each time | A partial mail group accepted | host |
 | FR-25.3, FR-25.8 (core) | Due check for `mail_time` 07:00 and `mail_every` 6 at 06:59, 07:00, 12:59, 13:05, after a send at 07:02 the same day, after two missed slots, with the clock never set | not due, due, not due, due, not due until 13:00, one due (no batch), never due | Two summaries for one slot; a summary with the clock unset | host |
-| FR-25.4, FR-25.10 (core) | Body for 0, 1 and 144 readings | Subject and body as FR-25.4; min/max correct; no password in the text | The password anywhere in the message | host |
+| FR-25.12, FR-25.10 (core) | Body for 0, 1 and 144 readings | Subject and body as FR-25.12; min/max correct; no password in the text | The password anywhere in the message | host |
 | FR-25.5 (core) | SMTP core against scripted server replies for 465 and 587, AUTH LOGIN and PLAIN, a 535 refusal, a reply split across reads | The commands of RFC 5321 in order, dot-stuffed body, success only on the final 250; the 535 reported | Data sent before 220/EHLO; success on a refusal | host |
 | FR-25.6, FR-25.9, NFR-25.1 | Sleep test build with a mail slot due on the next timer wake, test server reachable | `web: wake cause=timer`, L25, `web: sleep` within 50 s; panel dark | WiFi on a timer wake with no slot due; L2 or L7 lines | target / bench (operator) |
 | FR-25.11 (core) | Due slot with no send begun; the same slot after a send begun and cut short | First try; last try (handled before the send) | A third try; the slot handled before the first try | host |
 | FR-25.11 | Provisioned, a slot due on the next timer wake; the testbench resets the chip about 3 s into the wake | No L25 or L26 from the cut-short wake; L25 at the end of the next boot's window | No summary at all; two summaries | bench |
-| FR-25.7 | Same build, `mail_host` unreachable | L26 with the reason, then `web: sleep` within 50 s | A retry; no sleep | target |
-| FR-25.4 | Operator's own Gmail account, provisioned through the portal | The summary arrives as FR-25.4 | A missing field; mbar not stated | bench (operator) |
+| FR-25.15 (core) | Body after 2 finished hours (two readings in the first); 1 of 4 since the last summary; none finished; 99 since, 3 dropped; 96 at the sensor's limits | Header and two lines, the means of each hour, oldest first; only the newest; no table; the note and 96 lines; every line fits the body | The running period listed; units in the table; the body cut short | host |
+| FR-25.12, FR-25.13 (core) | Form bodies with `mail_from` and `mail_to2` empty, absent, valid and invalid | Sender the login unless `mail_from` is given; one or two recipients; 400 naming the invalid field | `mail_from` used as the login; a second recipient from an empty field | host |
+| FR-25.14 | Same build, `mail_host` unreachable | L26 with the reason, then `web: sleep` within 50 s | A retry; no sleep | target |
+| FR-25.12 | Operator's own Gmail account, provisioned through the portal | The summary arrives as FR-25.12 | A missing field; mbar not stated | bench (operator) |
+| FR-25.12, FR-25.13 | Operator's own provider, provisioned with `mail_from` an identity of the login and `mail_to2` a second address | Two emails arrive, one per address, each showing `mail_from` as the sender; L25 twice | One email to both; the login shown as the sender | bench (operator) |
 
 ---
 
@@ -1898,7 +1941,9 @@ Build-time constants:
 | Sleep current added by the key wake | ≤ 5 µA | [user] |
 | BME280 address / SDA / SCL | 0x76 / GPIO 43 / GPIO 44 | [user] |
 | BME280 mode | forced, oversampling ×1 (T, P, H), filter off | [user] |
-| Task sleep period | 600 s | [user] |
+| Task sleep period | `sample_min`, 1 – 60 min, default 10 | [user] |
+| Average period | `average_min`, default 60 min, dividing a day | [user] |
+| Averages kept across sleep | 96 | [user] |
 | Readings kept across sleep | 144 | [user] |
 | Reading duration | ≤ 50 ms | [user] |
 | I2C clock | 100 kHz, internal pull-ups on | [user] |
@@ -1953,6 +1998,9 @@ the bench gains the capability.
 | FR-24.10 | Line 5 as `Press blinking key to start <mm>:<ss>` | FR-24.12 (`Press BOOT to start <mm>:<ss>`) |
 | FR-24.5 | Only the user key ends the setup check | FR-24.11 (the BOOT key or the user key) |
 | FR-18.2 | A short BOOT press changes nothing | FR-18.5 (except that it ends the setup check) |
+| FR-23.2 | Sleep 600 s after each reading | FR-23.14 (`sample_min` minutes, set in the portal) |
+| FR-25.4 | One email from `mail_user` to `mail_to` | FR-25.12 (from the sender of FR-25.13, a separate email to `mail_to2`) |
+| FR-25.7 | 30 s from connecting for the one email; L26 without the recipient | FR-25.14 (one 30 s budget for both recipients; L26 names the recipient) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
 | FR-7.15 | OTA outcome lines L11/L14 in their 0.1.0 meaning | FR-7.31 |
 | FR-15.5 | 409 while an upload is in progress | FR-15.12 (while a download is in progress) |
@@ -1964,7 +2012,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.11.0
+fsd_version: 0.12.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2000,7 +2048,8 @@ change_history:
   - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)
   - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
   - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2]
+  - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2]
 open_decisions: []
 related_test_baseline: none yet
 ```
