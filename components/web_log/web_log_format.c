@@ -123,3 +123,23 @@ void wl_fmt_mail_failed(char *buf, size_t len, const char *to, const char *reaso
 {
     snprintf(buf, len, "mail failed: %s to=%s", reason, to);
 }
+
+void wl_fmt_ble_on(char *buf, size_t len, const char *reason)
+{
+    snprintf(buf, len, "ble on reason=%s", reason);
+}
+
+void wl_fmt_ble_pairing(char *buf, size_t len, int ok)
+{
+    snprintf(buf, len, "ble pairing %s", ok ? "ok" : "failed");
+}
+
+void wl_fmt_ble_settings(char *buf, size_t len, const char *result)
+{
+    snprintf(buf, len, "ble settings %s", result);
+}
+
+void wl_fmt_ble_off(char *buf, size_t len, const char *reason)
+{
+    snprintf(buf, len, "ble off reason=%s", reason);
+}

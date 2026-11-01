@@ -92,6 +92,10 @@ capabilities:
   bench-ble-scan:
     what: BLE scan from the bench
     available: yes
+  bench-ble-pair-passkey:
+    what: The bench BLE central completes LE Secure Connections passkey pairing (passkey typed from the operator) and then reads/writes protected characteristics
+    available: unproven
+    # R-24: ble_connect / ble_write exist; passkey pairing is not declared.
   bench-flash-erase:
     what: Erase the whole flash of SLOT1 before writing (Harness /api/flash, field erase)
     available: yes
@@ -465,7 +469,7 @@ tests:
     wave: 1
     fsd_phase: 3
     tier: bench
-    verifies: [FR-5.25, FR-5.26, FR-7.33]
+    verifies: [FR-5.25, FR-5.26, FR-7.34]
     needs: [bench-serial-monitor, bench-http-relay, lcd-rm67162, dut-wifi-slot1]
     observable: "`web: lcd line1=\"IP <step 4's ip>\"` and, within 2 s of step 5's answer, `web: lcd line2=\"Req: <its requests value>\"`"
     impl: tests/bench/test_journey.py::test_jrn_01_6_display_mirror
@@ -547,19 +551,6 @@ tests:
     needs: []
     observable: "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y"
     impl: tests/host/test_build.py::test_bootloader_rollback_enabled
-    result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "Build Firmware run 40039430162 inspect step; rerun locally on its artefact: 8 passed"}
-
-  - id: TC-SEC-02
-    title: No BLE controller linked
-    shape: atomic
-    kind: standard
-    wave: 1
-    fsd_phase: 1
-    tier: host
-    verifies: [FR-9.2]
-    needs: []
-    observable: "no esp_bt_controller_init in the ELF symbol table"
-    impl: tests/host/test_build.py::test_no_ble_controller_linked
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "Build Firmware run 40039430162 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-LCD-01
@@ -712,7 +703,7 @@ tests:
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [FR-5.26, FR-7.33]
+    verifies: [FR-5.26, FR-7.34]
     needs: []
     observable: "draws on the tick; next LCD_OK; actions = LOG_LINES"
     impl: tests/host/test_device_logic.py::test_d4_changed_tick_redraws_and_mirrors
@@ -777,7 +768,7 @@ tests:
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [FR-7.33]
+    verifies: [FR-7.34]
     needs: []
     observable: "lcd line<k>=\"<text>\""
     impl: tests/host/test_web_log.py::test_lcd_line_mirror
@@ -1709,13 +1700,13 @@ tests:
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev and test builds (e5d36e3, Build Firmware runs 40039430162 and 40039764823)", date: 2026-10-24, evidence: "release-candidate run (run 2), junit in scratchpad rc-e5d36e3"}
 
   - id: TC-SEC-13
-    title: "No BLE advertiser at the derived MACs"
+    title: "No BLE advertiser at the derived MACs outside a window"
     shape: atomic
     kind: security
     wave: 3
     fsd_phase: 1
     tier: bench
-    verifies: [FR-9.2]
+    verifies: [FR-26.18]
     needs: [bench-ble-scan, dut-amoled-slot1]
     observable: "bench BLE scan: no advertiser at base MAC + 0..3"
     impl: tests/bench/test_security.py::test_no_ble_advertiser
@@ -2154,7 +2145,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-7.33]
+    verifies: [FR-7.34]
     needs: []
     observable: "line 5 logs when its minutes change and at 00:00; every other line logs every redraw"
     impl: tests/host/test_device_logic.py::test_countdown_logs_when_its_minutes_change
@@ -2431,4 +2422,225 @@ tests:
     needs: [bench-serial-monitor, dut-amoled-slot1]
     observable: "mail_host that does not resolve, slot due: L26 'mail failed: dns', then 'web: sleep'; no second attempt"
     impl: []
+    result: {status: not done}
+
+  - id: TC-BLE-01
+    title: "The provisioning window opens with PROVISIONING and closes at T3"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.1]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_provisioning_window
+    result: {status: not done}
+
+  - id: TC-BLE-02
+    title: "A key hold opens a key window only where allowed"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.2, FR-26.4]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_key_window_opens_only_where_allowed
+    result: {status: not done}
+
+  - id: TC-BLE-03
+    title: "Key window idle, done and written closes; awake window restarts"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.3, FR-26.5]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_key_window_closes
+    result: {status: not done}
+
+  - id: TC-BLE-04
+    title: "Three failed pairings close a key window or pause provisioning"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.13]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_failed_pairings
+    result: {status: not done}
+
+  - id: TC-BLE-05
+    title: "Line 5 in a BLE window"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.14]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_line_five
+    result: {status: not done}
+
+  - id: TC-BLE-06
+    title: "A provisioning-window write is a portal submission"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.6]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_provisioning_write_is_a_portal_submission
+    result: {status: not done}
+
+  - id: TC-BLE-09
+    title: "A key-window write keeps absent secrets"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.7]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_key_window_write_keeps_absent_secrets
+    result: {status: not done}
+
+  - id: TC-BLE-10
+    title: "A settings read carries no password"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.9]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_dump_has_no_secret
+    result: {status: not done}
+
+  - id: TC-BLE-11
+    title: "The user key held 3 s fires once"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.2]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_three_second_hold
+    result: {status: not done}
+
+  - id: TC-BLE-12
+    title: "L27 - L30 spelled as tabled"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.16]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_log_lines
+    result: {status: not done}
+
+  - id: TC-BLE-07
+    title: "The BLE countdown logs L7 once a minute"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-7.34]
+    needs: []
+    observable: "BLE setup <mm>:<ss> logs when its minutes change and at 00:00"
+    impl: tests/host/test_device_logic.py::test_ble_countdown_logs_when_its_minutes_change
+    result: {status: not done}
+
+  - id: TC-BLE-14
+    title: "The BLE passkey on line 5 is not logged"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.16]
+    needs: []
+    observable: "a line 5 redraw to BLE code <nnnnnn> logs no L7"
+    impl: tests/host/test_device_logic.py::test_ble_passkey_line_is_not_logged
+    result: {status: not done}
+
+  - id: TC-BLE-08
+    title: "T14 stores the settings and restarts"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.7, FR-26.8]
+    needs: []
+    observable: "BS in CONNECTING, ONLINE, WIFI_LOST: STORE_SETTINGS | RESTART; impossible elsewhere"
+    impl: tests/host/test_device_logic.py::test_t14_ble_settings_store_and_restart
+    result: {status: not done}
+
+  - id: TC-BLE-13
+    title: "NimBLE built as one peripheral, no bonds kept"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.15, FR-26.13]
+    needs: []
+    observable: "sdkconfig: NimBLE on, one connection, no central or observer, no NVS bonds"
+    impl: tests/host/test_build.py::test_ble_is_a_lone_peripheral
+    result: {status: not done}
+
+  - id: TC-BLE-20
+    title: "Advertising in PROVISIONING carries the name and service"
+    shape: atomic
+    kind: standard
+    wave: 3
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.1]
+    needs: [bench-ble-scan, bench-flash-erase, dut-amoled-slot1]
+    observable: "after an erase: an advertiser named TDS3-<XXXXXX>; L27 reason=provisioning"
+    impl: tests/bench/test_ble.py::test_provisioning_advertises
+    result: {status: not done}
+
+  - id: TC-BLE-21
+    title: "Protected characteristics refuse an unpaired central"
+    shape: atomic
+    kind: security
+    wave: 3
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.12]
+    needs: [bench-ble-scan, dut-amoled-slot1]
+    observable: "info readable; settings read refused before pairing"
+    impl: tests/bench/test_ble.py::test_unpaired_central_is_refused
+    result: {status: not done}
+
+  - id: TC-BLE-22
+    title: "Provisioning over BLE reaches ONLINE"
+    shape: journey
+    kind: standard
+    wave: 3
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.1, FR-26.6, FR-26.11]
+    needs: [bench-ble-pair-passkey, bench-wifi-ap, operator-at-bench, dut-amoled-slot1]
+    observable: "result ok, L29 ok, L4, K4, L30 reason=provisioned, then ONLINE on the bench AP"
+    impl: tests/bench/test_ble.py::test_provision_over_ble
     result: {status: not done}

@@ -1,5 +1,6 @@
 #include "web_log.h"
 
+#include <string.h>
 #include <time.h>
 
 #include "esp_app_desc.h"
@@ -254,4 +255,40 @@ void web_log_mail_failed(const char *to, const char *reason)
     char line[WL_LINE_MAX];
     wl_fmt_mail_failed(line, sizeof line, to, reason);
     ESP_LOGW(TAG, "%s", line);
+}
+
+void web_log_ble_on(const char *reason)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ble_on(line, sizeof line, reason);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_ble_pairing(bool ok)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ble_pairing(line, sizeof line, ok);
+    if (ok) {
+        ESP_LOGI(TAG, "%s", line);
+    } else {
+        ESP_LOGW(TAG, "%s", line);
+    }
+}
+
+void web_log_ble_settings(const char *result)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ble_settings(line, sizeof line, result);
+    if (strcmp(result, "ok") == 0) {
+        ESP_LOGI(TAG, "%s", line);
+    } else {
+        ESP_LOGW(TAG, "%s", line);
+    }
+}
+
+void web_log_ble_off(const char *reason)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ble_off(line, sizeof line, reason);
+    ESP_LOGI(TAG, "%s", line);
 }

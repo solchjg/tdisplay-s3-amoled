@@ -139,6 +139,11 @@ dl_conn_step_t dl_conn_step(dl_conn_t state, dl_conn_event_t event, bool guard, 
             return (dl_conn_step_t){DL_BOOT, DL_C_RESTART, n};                       // T13
         }
         break;
+    case DL_EV_BLE_SETTINGS:
+        if (state == DL_CONNECTING || state == DL_ONLINE || state == DL_WIFI_LOST) {
+            return (dl_conn_step_t){DL_BOOT, DL_C_STORE_SETTINGS | DL_C_RESTART, n}; // T14
+        }
+        break;
     }
     return (dl_conn_step_t){state, 0, n};
 }
@@ -205,10 +210,18 @@ bool dl_led_lit(dl_hold_t hold, uint32_t held_ms)
     return hold != DL_HOLD_ON || held_ms / DL_LED_HALF_MS % 2 == 0;
 }
 
+#define BLE_PROMPT "BLE setup "
+#define BLE_CODE "BLE code "
+
 bool dl_line_logged(int i, const char *was, const char *now)
 {
-    size_t p = strlen(HOLD_PROMPT);
-    if (i != 4 || strncmp(was, HOLD_PROMPT, p) != 0 || strncmp(now, HOLD_PROMPT, p) != 0) {
+    if (i == 4 && strncmp(now, BLE_CODE, strlen(BLE_CODE)) == 0) {
+        return false;  // FR-26.16: the passkey is never logged
+    }
+    const char *prompt = strncmp(now, BLE_PROMPT, strlen(BLE_PROMPT)) == 0 ? BLE_PROMPT
+                                                                             : HOLD_PROMPT;
+    size_t p = strlen(prompt);
+    if (i != 4 || strncmp(was, prompt, p) != 0 || strncmp(now, prompt, p) != 0) {
         return true;
     }
     // "<mm>:<ss>" after the prompt: log when mm changes, or at 00:00.
@@ -228,4 +241,122 @@ bool dl_task_due(dl_wake_t wake, uint32_t s_in_window, bool pending_verify,
         return false;
     }
     return !pending_verify && (hold == DL_HOLD_TIMEOUT || s_in_window >= DL_AWAKE_WINDOW_S);
+}
+
+static dl_ble_step_t ble_open(dl_ble_ctx_t *c, dl_ble_t state, uint32_t now_s, const char *why)
+{
+    *c = (dl_ble_ctx_t){.state = state, .since_s = now_s};
+    return (dl_ble_step_t){DL_B_START | DL_B_LOG_ON, why};
+}
+
+static dl_ble_step_t ble_close(dl_ble_ctx_t *c, dl_ble_t next, uint32_t now_s, const char *why)
+{
+    unsigned extra = c->state == DL_BLE_KEY ? DL_B_START_WINDOW : 0;  // FR-26.5
+    *c = (dl_ble_ctx_t){.state = next, .since_s = now_s};
+    return (dl_ble_step_t){DL_B_STOP | DL_B_LOG_OFF | extra, why};
+}
+
+dl_ble_step_t dl_ble_step(dl_ble_ctx_t *c, dl_ble_event_t event, uint32_t now_s,
+                          bool allowed, bool provisioning)
+{
+    dl_ble_step_t none = {0, NULL};
+    bool open = c->state == DL_BLE_PROV || c->state == DL_BLE_KEY;
+    switch (event) {
+    case DL_BEV_PROVISIONING:
+        if (c->state == DL_BLE_OFF && allowed) {
+            return ble_open(c, DL_BLE_PROV, now_s, "provisioning");          // FR-26.1
+        }
+        break;
+    case DL_BEV_PROVISIONED:
+        if (c->state == DL_BLE_PROV) {
+            return ble_close(c, DL_BLE_OFF, now_s, "provisioned");           // FR-26.1
+        }
+        if (c->state == DL_BLE_PAUSED) {
+            *c = (dl_ble_ctx_t){0};
+        }
+        break;
+    case DL_BEV_KEY_HELD:
+        if (c->state == DL_BLE_OFF && allowed && !provisioning) {
+            return ble_open(c, DL_BLE_KEY, now_s, "key");                    // FR-26.2
+        }
+        break;
+    case DL_BEV_CONNECTED:
+        if (open) {
+            c->connected = true;
+        }
+        break;
+    case DL_BEV_DISCONNECTED:
+        if (open) {
+            c->connected = false;
+            c->since_s = now_s;                                              // FR-26.3
+        }
+        break;
+    case DL_BEV_PAIRED:
+        if (open) {
+            return (dl_ble_step_t){DL_B_LOG_PAIRED, NULL};
+        }
+        break;
+    case DL_BEV_PAIR_FAILED:
+        if (!open) {
+            break;
+        }
+        if (++c->failures < DL_BLE_PAIR_TRIES) {
+            return (dl_ble_step_t){DL_B_LOG_PAIR_FAIL, NULL};
+        }
+        {                                                                    // FR-26.13
+            dl_ble_step_t r = ble_close(c, c->state == DL_BLE_PROV ? DL_BLE_PAUSED : DL_BLE_OFF,
+                                        now_s, "pairing");
+            r.actions |= DL_B_LOG_PAIR_FAIL;
+            return r;
+        }
+    case DL_BEV_DONE:
+        if (c->state == DL_BLE_KEY) {
+            return ble_close(c, DL_BLE_OFF, now_s, "done");                  // FR-26.3
+        }
+        break;
+    case DL_BEV_WRITTEN:
+        if (c->state == DL_BLE_KEY) {
+            return ble_close(c, DL_BLE_OFF, now_s, "written");               // FR-26.7
+        }
+        break;
+    case DL_BEV_TICK:
+        if (c->state == DL_BLE_KEY && !c->connected && now_s - c->since_s >= DL_BLE_IDLE_S) {
+            return ble_close(c, DL_BLE_OFF, now_s, "idle");                  // FR-26.3
+        }
+        if (c->state == DL_BLE_PAUSED && now_s - c->since_s >= DL_BLE_PAUSE_S) {
+            if (provisioning && allowed) {
+                return ble_open(c, DL_BLE_PROV, now_s, "provisioning");      // FR-26.13
+            }
+            *c = (dl_ble_ctx_t){0};
+        }
+        break;
+    }
+    return none;
+}
+
+bool dl_ble_holds_task(const dl_ble_ctx_t *c)
+{
+    return c->state == DL_BLE_KEY;
+}
+
+void dl_ble_line(const dl_ble_ctx_t *c, uint32_t now_s, int32_t passkey, char out[DL_LINE_MAX])
+{
+    out[0] = '\0';
+    if (c->state != DL_BLE_PROV && c->state != DL_BLE_KEY) {
+        return;
+    }
+    if (passkey >= 0) {
+        snprintf(out, DL_LINE_MAX, BLE_CODE "%06" PRId32, passkey % 1000000);
+        return;
+    }
+    if (c->state != DL_BLE_KEY) {
+        return;
+    }
+    if (c->connected) {
+        snprintf(out, DL_LINE_MAX, "BLE connected");
+        return;
+    }
+    uint32_t idle = now_s - c->since_s;
+    uint32_t left = idle >= DL_BLE_IDLE_S ? 0 : DL_BLE_IDLE_S - idle;
+    snprintf(out, DL_LINE_MAX, BLE_PROMPT "%02" PRIu32 ":%02" PRIu32, left / 60, left % 60);
 }

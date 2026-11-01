@@ -74,3 +74,10 @@ void wl_fmt_setup_done(char *buf, size_t len, const char *by);
 // L25 and L26 (FR-25.9).
 void wl_fmt_mail_sent(char *buf, size_t len, const char *to, uint32_t readings);
 void wl_fmt_mail_failed(char *buf, size_t len, const char *to, const char *reason);
+
+// L27 "ble on reason=<provisioning|key>"; L28 "ble pairing <ok|failed>";
+// L29 "ble settings <ok|invalid=<field>>"; L30 "ble off reason=<why>" (FR-26.16).
+void wl_fmt_ble_on(char *buf, size_t len, const char *reason);
+void wl_fmt_ble_pairing(char *buf, size_t len, int ok);
+void wl_fmt_ble_settings(char *buf, size_t len, const char *result);
+void wl_fmt_ble_off(char *buf, size_t len, const char *reason);
