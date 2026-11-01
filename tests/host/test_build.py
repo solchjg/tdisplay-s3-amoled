@@ -15,13 +15,14 @@ import pytest
 APP_DESC_MAGIC = 0xABCD5432
 OTA_SLOT_SIZE = 0x400000  # C-10.7
 PART_MAGIC = b"\xaa\x50"
-# C-10.6: (label, type, subtype, offset, size); app=0, data=1
+# C-10.9: (label, type, subtype, offset, size); app=0, data=1
 PARTITIONS = [
     ("nvs", 1, 0x02, 0x9000, 0x6000),
     ("otadata", 1, 0x00, 0xF000, 0x2000),
     ("phy_init", 1, 0x01, 0x11000, 0x1000),
     ("ota_0", 0, 0x10, 0x20000, 0x400000),
     ("ota_1", 0, 0x11, 0x420000, 0x400000),
+    ("history", 1, 0x40, 0x820000, 0x180000),
 ]
 
 
@@ -128,7 +129,7 @@ def test_flash_size_is_stated_16mb(sdkconfig):
     assert not others, others
 
 
-# TC-BUILD-06 · C-10.6
+# TC-BUILD-06 · C-10.9
 def test_partition_table_is_exactly_the_stated_one(sdkconfig, partition_table):
     assert "CONFIG_PARTITION_TABLE_CUSTOM=y" in sdkconfig
     assert _partitions(partition_table) == PARTITIONS

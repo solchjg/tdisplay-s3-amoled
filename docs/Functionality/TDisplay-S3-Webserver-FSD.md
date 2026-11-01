@@ -2073,8 +2073,9 @@ skipped); the composition root appends and reads, a pure core formats.
 
 A record holds one reading: the time (seconds since the epoch, 0 for a clock
 never set, FR-22.6), the synced mark (FR-22.3), temperature in 0.01 °C,
-humidity in 0.01 % and pressure in Pa. It is padded to 16 bytes, so a record
-with the ring's trailer takes 24 bytes and a 4 KB sector holds 170.
+humidity in 1/1024 % and pressure in 1/256 Pa, the sensor's own units, so a
+history line shows the values of its L21. It takes 16 bytes, so a record with
+the ring's trailer takes 24 bytes and a 4 KB sector holds 170.
 
 A history line is CSV, oldest first, after the header
 `time,synced,temp_f,rh_pct,p_mbar`:
@@ -2145,6 +2146,9 @@ Added to the §26.2 service:
 `range=<from>,<to>` (FR-27.10; `range=,` for all; either sets n to 0); the
 client asks for the next n by adding the lines it received. An invalid date is
 refused like any malformed `control` write (§26.2).
+
+When the `history` partition exists, `info` ends with `&history=<the §27.1
+header>`; the page offers **Download history** only then (FR-27.8).
 
 ### 27.4 Verification contracts
 

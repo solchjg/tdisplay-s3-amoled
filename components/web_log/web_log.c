@@ -292,3 +292,17 @@ void web_log_ble_off(const char *reason)
     wl_fmt_ble_off(line, sizeof line, reason);
     ESP_LOGI(TAG, "%s", line);
 }
+
+void web_log_history_unavailable(void)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_history_unavailable(line, sizeof line);
+    ESP_LOGW(TAG, "%s", line);
+}
+
+void web_log_history_failed(esp_err_t err)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_history_failed(line, sizeof line, esp_err_to_name(err));
+    ESP_LOGW(TAG, "%s", line);
+}

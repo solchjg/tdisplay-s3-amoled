@@ -143,3 +143,13 @@ void wl_fmt_ble_off(char *buf, size_t len, const char *reason)
 {
     snprintf(buf, len, "ble off reason=%s", reason);
 }
+
+void wl_fmt_history_unavailable(char *buf, size_t len)
+{
+    snprintf(buf, len, "history unavailable");
+}
+
+void wl_fmt_history_failed(char *buf, size_t len, const char *err)
+{
+    snprintf(buf, len, "history failed: %s", err);
+}

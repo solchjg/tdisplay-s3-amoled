@@ -81,3 +81,7 @@ void wl_fmt_ble_on(char *buf, size_t len, const char *reason);
 void wl_fmt_ble_pairing(char *buf, size_t len, int ok);
 void wl_fmt_ble_settings(char *buf, size_t len, const char *result);
 void wl_fmt_ble_off(char *buf, size_t len, const char *reason);
+
+// L31 "history unavailable" (FR-27.8); "history failed: <ERR>" (FR-27.9).
+void wl_fmt_history_unavailable(char *buf, size_t len);
+void wl_fmt_history_failed(char *buf, size_t len, const char *err);

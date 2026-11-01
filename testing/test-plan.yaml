@@ -515,17 +515,17 @@ tests:
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "Build Firmware run 40039430162 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-06
-    title: Partition table is exactly C-10.6
+    title: Partition table is exactly C-10.9
     shape: atomic
     kind: standard
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [C-10.6]
+    verifies: [C-10.9]
     needs: []
-    observable: "parsed partition-table.bin equals the five C-10.6 rows"
+    observable: "parsed partition-table.bin equals the six C-10.9 rows"
     impl: tests/host/test_build.py::test_partition_table_is_exactly_the_stated_one
-    result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "Build Firmware run 40039430162 inspect step; rerun locally on its artefact: 8 passed"}
+    result: {status: not done}
 
   - id: TC-BUILD-07
     title: Application image fits a 4 MB slot
@@ -2643,4 +2643,56 @@ tests:
     needs: [bench-ble-pair-passkey, bench-wifi-ap, operator-at-bench, dut-amoled-slot1]
     observable: "result ok, L29 ok, L4, K4, L30 reason=provisioned, then ONLINE on the bench AP"
     impl: tests/bench/test_ble.py::test_provision_over_ble
+    result: {status: not done}
+
+  - id: TC-HIST-01
+    title: "A history record keeps a reading and its CSV line shows the L21 values"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 9
+    tier: host
+    verifies: [FR-27.1, FR-27.4]
+    needs: []
+    observable: "16-byte record round trip; lines for synced, unsynced, never-set clock, -40 °C and 85 °C"
+    impl: tests/host/test_history.py::test_record_round_trip_and_line
+    result: {status: not done}
+
+  - id: TC-HIST-02
+    title: "The history date range"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 9
+    tier: host
+    verifies: [FR-27.10]
+    needs: []
+    observable: "valid, open and bad dates; from after to refused; never-set and set-back times judged alone"
+    impl: tests/host/test_history.py::test_dates
+    result: {status: not done}
+
+  - id: TC-HIST-03
+    title: "BLE history pages hold whole lines and join to the whole history"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 9
+    tier: host
+    verifies: [FR-27.5]
+    needs: []
+    observable: "0, 1, 10 and 65,110 lines paged: each page <= 512 bytes of whole lines, in order, a repeated read equal, empty past the end"
+    impl: tests/host/test_history.py::test_pages_join_to_every_line
+    result: {status: not done}
+
+  - id: TC-HIST-04
+    title: "L31 history log lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 9
+    tier: host
+    verifies: [FR-27.8, FR-27.9]
+    needs: []
+    observable: "history unavailable; history failed: <ERR>"
+    impl: tests/host/test_history.py::test_l31_lines
     result: {status: not done}
