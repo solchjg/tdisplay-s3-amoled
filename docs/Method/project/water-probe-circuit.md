@@ -21,12 +21,25 @@ from distributor pages and memory; check them against current datasheets.
 | Connection | Parts | Purpose |
 |------------|-------|---------|
 | Probe output → A0 | 10 kΩ output to node, 10 kΩ node to GND, 1 kΩ in series to A0, 100 nF A0 to GND | Scales 4.5 V to about 2.3 V; filters and protects the input |
-| A0 clamp | BAT54S: A0 to 3V3 and to GND | Limits a fault on the probe wire |
+| Clamp | BAT54S: the divider node, before the 1 kΩ, to 3V3 and to GND | Limits a fault on the probe wire; the 1 kΩ then protects A0 |
 | Boost 5 V → A1 | The same divider, 1 kΩ and 100 nF, no clamp; resistors 1% or better, matched between dividers | The reference of the ratio |
 | 5 V at the probe | 10 µF and 100 nF to GND | Steadies the supply, reduces boost ripple |
 | ADS1115 VDD | 100 nF to GND, close to the chip (often on the breakout) | Decoupling |
 | GPIO 2 → EN | 100 kΩ EN to GND | Probe off through sleep and resets |
 | ADDR | To GND | Address `0x48`; the BME280 is `0x76` |
+
+## Divider parts
+
+| Ref | Part | Spec | Note |
+|-----|------|------|------|
+| R1, R2, R4, R5 | 10 kΩ thin film | 0.1%, 25 ppm/°C, 0603 or 0805, at least 0.1 W | Matching sets the accuracy: 1% parts allow up to about 1.1% of full scale, 0.1% parts about 0.11% |
+| R3, R6 | 1 kΩ | 1%, 0603 or 0805, at least 0.1 W | Keep the two equal |
+| C1, C2 | 100 nF ceramic | X7R, at least 10 V, 0603 or 0805 | Settles in about 6 ms; wait for it before reading |
+| D1 | BAT54S dual Schottky | 30 V, 200 mA, SOT-23 | Leakage flows through about 5 kΩ and does not cancel: 1 µA is 5 mV. Measure it, or use a lower-leakage part |
+
+Node voltages: A0 reaches about 2.34 V and A1 about 2.6 V with the boost at 5.2 V, both
+inside the ±4.096 V range. The reference divider draws about 260 µA, only while the boost
+is on.
 
 ## Reading
 
