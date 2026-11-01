@@ -1196,9 +1196,12 @@ void app_main(void)
         // FR-21.13: a timer wake runs the task with the panel dark and WiFi off
         // (but for a due summary, FR-25.6), then sleeps again. Only a task that asks to stay awake gets past here.
         run_task_and_sleep();
-        if (test_result || run->running) {
-            wake = DL_WAKE_KEY;  // FR-28.11: the tests are over; on as after a key wake
-        }
+    }
+    // FR-23.3: a reading before the window, unless this boot was a timer wake
+    // whose task just took one (the end of a test, FR-28.11).
+    bool have_reading = wake == DL_WAKE_TIMER;
+    if (wake == DL_WAKE_TIMER && (test_result || run->running)) {
+        wake = DL_WAKE_KEY;  // FR-28.11: the tests are over; on as after a key wake
     }
     const esp_partition_t *invalid = esp_ota_get_last_invalid_partition();
     if (invalid) {
@@ -1209,7 +1212,9 @@ void app_main(void)
     if (herr != ESP_OK && herr != ESP_ERR_NOT_FOUND) {
         web_log_history_failed(herr);  // FR-27.9
     }
-    take_reading();  // FR-23.3: a value for the panel and the page during the window
+    if (!have_reading) {
+        take_reading();  // FR-23.3: a value for the panel and the page during the window
+    }
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
                        .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname,
                        .reading = reading_line, .prompt = prompt_line};
