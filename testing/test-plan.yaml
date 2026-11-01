@@ -2510,3 +2510,16 @@ tests:
     observable: "a warning; readings, email and sleep go on; the CSV route answers 503"
     impl: []
     result: {status: not done}
+
+  - id: TC-FLG-13
+    title: "The clear button fits on the status page"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.8]
+    needs: []
+    observable: "the page's extra HTML at its longest is shorter than SC_EXTRA_MAX"
+    impl: [tests/host/test_flash_log.py::test_page_html_fits]
+    result: {status: not done}

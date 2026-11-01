@@ -166,8 +166,5 @@ esp_err_t flash_log_register(httpd_handle_t server, flash_log_note_cb_t note,
 
 void flash_log_html(char *out, size_t len)
 {
-    snprintf(out, len,
-             "<p><a href=/api/history.csv>History CSV</a></p>"
-             "<form method=post action=/api/history/clear "
-             "onsubmit=\"return confirm('Erase history?')\"><button>Clear history</button></form>");
+    fl_html(out, len);
 }

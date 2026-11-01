@@ -2,6 +2,7 @@
 // ring it is kept in is shared/components/flash_ring. No ESP-IDF headers.
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "weather_core.h"
@@ -21,6 +22,9 @@ typedef struct {
 _Static_assert(sizeof(fl_payload_t) == 24, "FR-26.4: a record is 32 bytes");
 
 void fl_payload(fl_payload_t *out, const wx_avg_t *a);
+
+// FR-26.5, FR-26.8: the status page's link and clear button.
+void fl_html(char *out, size_t len);
 
 // FR-26.5: one CSV line, the same columns as the summary's table (FR-25.15).
 void fl_csv_line(const fl_payload_t *p, const char *stamp, char out[FL_CSV_LINE_MAX]);

@@ -17,3 +17,11 @@ void fl_csv_line(const fl_payload_t *r, const char *stamp, char out[FL_CSV_LINE_
     wx_fmt_press(p, sizeof p, r->press_q8_pa, 2);
     snprintf(out, FL_CSV_LINE_MAX, "\"%s\",\"%s\",\"%s\",\"%s\"\n", stamp, t, h, p);
 }
+
+void fl_html(char *out, size_t len)
+{
+    snprintf(out, len,
+             "<p><a href=/api/history.csv>History CSV</a></p>"
+             "<form method=post action=/api/history/clear "
+             "onsubmit=\"return confirm('Erase history?')\"><button>Clear history</button></form>");
+}
