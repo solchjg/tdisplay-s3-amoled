@@ -315,10 +315,15 @@ capabilities:
       bench's USB reset clears RTC memory.
   seam-mail-fast-build:
     what: "Test build with one mail_every unit worth 5 minutes instead of an hour (FSD §25)"
-    available: unproven
+    available: yes
+    observed: 2026-10-31
+    evidence: >
+      CI run 41251914176, off the bench USB: summaries on 5-minute slots with 4 or
+      5 readings each; table rows 20:05 to 20:25 listed once each with no gap across
+      four emails. The 20:20 slot sent nothing; the next email covered its readings.
     consequence: >
       Built by the CI job mail-fast; it keeps the stored mail settings when
-      flashed without an erase.
+      flashed without an erase. On the bench USB each summary covers only its boot.
   dut-user-key:
     what: Firmware on the T-Display-S3 AMOLED in SLOT1 wakes from deep sleep when an operator presses the user key (GPIO 21)
     available: yes
