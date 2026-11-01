@@ -1,4 +1,4 @@
-"""Flash log core (FSD §26): what a record holds and its CSV text."""
+"""Flash log core (FSD §27): what a record holds and its CSV text."""
 import pytest
 
 HARNESS = r"""
@@ -45,17 +45,17 @@ def core(compile_harness):
                            ["flash_log/include", "weather/include", "status_http/include"])
 
 
-# TC-FLG-03 · FR-26.5: the columns of the summary's table
+# TC-FLG-03 · FR-27.5: the columns of the summary's table
 def test_csv_line(core):
     assert core() == '"2026-10-31 16:20","73.1","48","997.40"\n'
 
 
-# TC-FLG-13 · FR-26.8: the clear button fits on the page, whole
+# TC-FLG-13 · FR-27.8: the clear button fits on the page, whole
 def test_page_html_fits(core):
     assert core("fits") == "1"
 
 
-# TC-FLG-04 · FR-26.4: the record holds a reading count and a water value, none yet
+# TC-FLG-04 · FR-27.4: the record holds a reading count and a water value, none yet
 @pytest.mark.parametrize("count, kept", [(5, 5), (65535, 65535), (70000, 65535)])
 def test_record_fields(core, count, kept):
     assert core("record", count) == f"{kept} 65535 24"

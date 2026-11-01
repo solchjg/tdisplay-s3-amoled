@@ -145,11 +145,13 @@ def test_bootloader_rollback_enabled(sdkconfig):
     assert "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y" in sdkconfig
 
 
-# TC-SEC-02 · FR-9.2
-def test_no_ble_controller_linked(app_elf):
-    symbols = _defined_symbols(app_elf)
-    assert "app_main" in symbols, "symbol table not read (positive control)"
-    assert "esp_bt_controller_init" not in symbols
+# TC-BLE-13 · FR-26.15, FR-26.13: NimBLE as one peripheral, nothing more, no bonds kept
+def test_ble_is_a_lone_peripheral(sdkconfig):
+    assert "CONFIG_BT_NIMBLE_ENABLED=y" in sdkconfig
+    assert "CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1" in sdkconfig
+    for role in ("CENTRAL", "OBSERVER"):
+        assert f"CONFIG_BT_NIMBLE_ROLE_{role}=y" not in sdkconfig, role
+    assert "CONFIG_BT_NIMBLE_NVS_PERSIST=y" not in sdkconfig
 
 
 # TC-LOG-14 · FR-7.30, FR-5.31 (image)

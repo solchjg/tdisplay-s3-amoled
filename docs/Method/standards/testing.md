@@ -17,15 +17,16 @@ verifiable, and every change ships the test that proves it.
   with the requirement IDs it verifies.
 - **Every change ships its test.** Bug fixes write the regression test first.
 - **Coverage is generated**, never hand-maintained.
-- **State machines are covered per transition** (FSD §5.3 T1 – T13 and D1 – D6), not per state.
+- **State machines are covered per transition** (FSD §5.3 T1 – T14 and D1 – D6), not per state.
 - **No silent gaps.** A specified-but-unbuilt case is marked with its prerequisite.
 - **The suite is green before commit.**
 
 ## Security testing
 
-The FSD's profile (§9.1, trusted LAN) justifies exactly the protections of FR-9.2 –
-FR-9.5 and FR-13.7: no BLE controller, the WiFi password never output, the SoftAP
-only in PROVISIONING, port 80 the only open TCP port, portal input HTML-escaped.
+The FSD's profile (§9.1, trusted LAN) justifies exactly the protections of FR-9.3 –
+FR-9.5, FR-13.7 and §26: the WiFi password never output, the SoftAP only in
+PROVISIONING, port 80 the only open TCP port, portal input HTML-escaped, BLE only
+inside a setup window and its settings only after passkey pairing.
 Anything else needs a profile change in the FSD first.
 
 ---

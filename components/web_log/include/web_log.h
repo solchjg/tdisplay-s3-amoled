@@ -1,6 +1,7 @@
 // Serial Log Interface (FSD §7): emits the `web:` lines over the console.
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -8,7 +9,7 @@
 // L1, once per boot, before any other `web:` line (FR-7.7).
 void web_log_boot(void);
 
-// L7: the text drawn on line k (1 .. 5) (FR-7.33).
+// L7: the text drawn on line k (1 .. 5) (FR-7.34).
 void web_log_lcd_line(int k, const char *text);
 
 // L8 (FR-7.12) and L9 (FR-7.13), at error level.
@@ -81,3 +82,9 @@ void web_log_setup_done(const char *by);
 // one line per recipient (FR-25.9, FR-25.14, FR-25.12).
 void web_log_mail_sent(const char *to, uint32_t readings);
 void web_log_mail_failed(const char *to, const char *reason);
+
+// L27 – L30 (FR-26.16). The passkey is never logged.
+void web_log_ble_on(const char *reason);
+void web_log_ble_pairing(bool ok);
+void web_log_ble_settings(const char *result);
+void web_log_ble_off(const char *reason);

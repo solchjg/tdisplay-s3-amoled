@@ -6,9 +6,12 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "ble_settings_core.h"
+#include "ble_setup.h"
 #include "button.h"
 #include "deep_sleep.h"
 #include "device_logic.h"
+#include "esp_app_desc.h"
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
@@ -51,11 +54,12 @@ static const char *TAG = "main";
 #define HOLD_TIMEOUT_S DL_HOLD_TIMEOUT_S  // FR-24.6
 #endif
 
-typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY, APP_CLEAR_LOG } app_kind_t;
+typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY, APP_CLEAR_LOG, APP_BLE } app_kind_t;
 
 typedef struct {
     app_kind_t kind;
     dl_conn_event_t ev;
+    dl_ble_event_t bev;  // APP_BLE
     bool guard;
     pc_creds_t creds;  // DL_EV_CREDS_SUBMITTED
     char ip[16];       // DL_EV_IP
@@ -97,6 +101,10 @@ static uint32_t hold_start_s;  // uptime when the hold began
 static int64_t hold_start_us;  // the same, for the LED's half periods (FR-24.9)
 static uint32_t live_read_s;   // uptime of the last live reading (FR-24.3)
 static uint32_t window_start_s;  // uptime the window counts from (FR-24.11)
+
+static dl_ble_ctx_t ble;               // the BLE setup windows (FSD §26)
+static volatile int32_t ble_passkey = -1;  // shown on line 5 while pairing (FR-26.14)
+static dl_disp_t disp = DL_LCD_START;
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
@@ -181,9 +189,16 @@ static void on_ota(const ota_rx_result_t *r)
     post_conn(r->ok ? DL_EV_OTA_SUCCEEDED : DL_EV_OTA_FAILED);
 }
 
+// FR-26.17: no download while a BLE key window is open.
+static const char *ota_hold(void)
+{
+    return dl_ble_holds_task(&ble) ? "ble setup active" : NULL;
+}
+
 static const ota_rx_hooks_t ota_hooks = {.on_result = on_ota,
                                          .on_refused = web_log_ota_refused,
-                                         .note = status_http_note};
+                                         .note = status_http_note,
+                                         .hold = ota_hold};
 
 static void on_button_reset(void)
 {
@@ -220,6 +235,122 @@ static void on_submit(const pc_creds_t *c)
 {
     app_event_t e = {.kind = APP_CONN, .ev = DL_EV_CREDS_SUBMITTED, .guard = true, .creds = *c};
     post(&e);
+}
+
+// ── BLE setup region (FSD §26) ───────────────────────────────────────────
+
+static void post_ble(dl_ble_event_t ev)
+{
+    app_event_t e = {.kind = APP_BLE, .bev = ev};
+    post(&e);
+}
+
+static void on_key_held(void)
+{
+    post_ble(DL_BEV_KEY_HELD);  // FR-26.2
+}
+
+static size_t ble_read_info(char *out, size_t cap)
+{
+    return bset_info(esp_app_get_description()->version, hostname, dl_conn_name(view.conn),
+                     out, cap);
+}
+
+static size_t ble_read_settings(char *out, size_t cap)
+{
+    sm_collect_t col = summary_collect();
+    return bset_dump(&stored, summary_settings(), &col, out, cap);  // FR-26.9
+}
+
+// FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.
+static void ble_apply(const char *body, size_t len, char *result, size_t cap)
+{
+    static char merged[CONFIG_BLE_SETUP_BODY_MAX + BSET_MERGE_EXTRA];
+    bool provisioning = ble.state == DL_BLE_PROV;
+    size_t n = 0;
+    const char *bad = bset_prepare(body, len, provisioning ? BSET_PROVISION : BSET_CHANGE,
+                                   &stored, summary_settings()->password, merged,
+                                   sizeof merged, &n);
+    app_event_t e = {.kind = APP_CONN, .guard = true,
+                     .ev = provisioning ? DL_EV_CREDS_SUBMITTED : DL_EV_BLE_SETTINGS};
+    if (!bad) {
+        bad = summary_take(merged, n);
+    }
+    if (!bad && pc_parse_form(merged, n, &e.creds) != PC_OK) {
+        bad = "ssid";  // bset_prepare already passed the same check
+    }
+    memset(merged, 0, sizeof merged);  // held the passwords
+    if (bad) {
+        snprintf(result, cap, "invalid=%s", bad);
+    } else {
+        snprintf(result, cap, "ok");
+        post(&e);
+    }
+    web_log_ble_settings(result);  // L29
+}
+
+static void ble_passkey_cb(uint32_t passkey, bool shown_now)
+{
+    ble_passkey = shown_now ? (int32_t)passkey : -1;
+}
+
+static void ble_event_cb(ble_setup_event_t ev)
+{
+    switch (ev) {
+    case BLE_SETUP_EV_CONNECTED: post_ble(DL_BEV_CONNECTED); break;
+    case BLE_SETUP_EV_DISCONNECTED: post_ble(DL_BEV_DISCONNECTED); break;
+    case BLE_SETUP_EV_PAIRED: post_ble(DL_BEV_PAIRED); break;
+    case BLE_SETUP_EV_PAIR_FAILED: post_ble(DL_BEV_PAIR_FAILED); break;
+    case BLE_SETUP_EV_DONE: post_ble(DL_BEV_DONE); break;
+    }
+}
+
+static const ble_setup_config_t ble_cfg = {.name = softap_ssid,
+                                           .read_info = ble_read_info,
+                                           .read_settings = ble_read_settings,
+                                           .on_apply = ble_apply,
+                                           .on_passkey = ble_passkey_cb,
+                                           .on_event = ble_event_cb};
+
+static uint32_t uptime_s(void);
+
+static void ble_event(dl_ble_event_t ev)
+{
+    // FR-26.4, FR-26.17: never on a timer wake, with a failed panel, or during a download.
+    bool allowed = wake != DL_WAKE_TIMER && disp != DL_LCD_FAILED && !ota_rx_busy();
+    dl_ble_step_t step = dl_ble_step(&ble, ev, uptime_s(), allowed,
+                                     view.conn == DL_PROVISIONING);
+    unsigned a = step.actions;
+    if (a & DL_B_STOP) {
+        esp_err_t err = ble_setup_stop();  // FR-26.3, FR-26.18
+        ble_passkey = -1;
+        if (err != ESP_OK) {
+            web_log_warn("ble stop", err);
+        }
+    }
+    if (a & DL_B_LOG_OFF) {
+        web_log_ble_off(step.reason);  // L30
+    }
+    if (a & DL_B_START) {
+        esp_err_t err = ble_setup_start(&ble_cfg);
+        if (err != ESP_OK) {
+            web_log_warn("ble start", err);
+        }
+    }
+    if (a & DL_B_LOG_ON) {
+        web_log_ble_on(step.reason);  // L27
+    }
+    if (a & (DL_B_LOG_PAIRED | DL_B_LOG_PAIR_FAIL)) {
+        web_log_ble_pairing(a & DL_B_LOG_PAIRED);  // L28
+    }
+    if (a & DL_B_START_WINDOW) {
+        window_start_s = uptime_s();  // FR-26.5
+    }
+}
+
+static esp_err_t ble_stop_cb(void *arg)
+{
+    return ble_setup_stop();  // a backstop: no window is open when the task runs
 }
 
 // ── Sleep region (FSD §21) ───────────────────────────────────────────────
@@ -355,9 +486,9 @@ static void take_reading(void)
     esp_err_t err = weather_read(&r);
     if (err == ESP_OK) {
         if (weather_averages()->closed != closed) {
-            esp_err_t log_err = flash_log_append(wx_avg_get(weather_averages(), 0));  // FR-26.1
+            esp_err_t log_err = flash_log_append(wx_avg_get(weather_averages(), 0));  // FR-27.1
             if (log_err != ESP_OK) {
-                web_log_warn("flash log append", log_err);  // FR-26.9
+                web_log_warn("flash log append", log_err);  // FR-27.9
             }
         }
         char iso[WX_ISO_MAX], line[WL_LINE_MAX];
@@ -478,7 +609,7 @@ static esp_err_t draw_changed(char want[DL_LINES][DL_LINE_MAX])
             if (err != ESP_OK) {
                 return err;
             }
-            redrawn[i] = dl_line_logged(i, shown[i], want[i]);  // FR-7.33
+            redrawn[i] = dl_line_logged(i, shown[i], want[i]);  // FR-7.34
             strcpy(shown[i], want[i]);
         }
     }
@@ -623,6 +754,19 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         }
         web_log_provisioned(stored.ssid);
     }
+    if (a & DL_C_STORE_SETTINGS) {  // T14 (FR-26.7)
+        stored = e->creds;
+        esp_err_t err = wifi_net_creds_store(stored.ssid, stored.password);
+        if (err != ESP_OK) {
+            web_log_warn("credentials store", err);
+        }
+        err = summary_store();  // FR-25.16
+        if (err != ESP_OK) {
+            web_log_warn("mail settings store", err);
+        }
+        vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));  // FR-26.8: the result notification first
+        ble_event(DL_BEV_WRITTEN);
+    }
     if (a & DL_C_MARK_SETUP) {
         esp_err_t err = setup_check_mark(true);  // FR-24.1
         if (err != ESP_OK) {
@@ -670,7 +814,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
             err = weather_register(status_http_handle(), status_http_note);  // FR-23.13
         }
         if (err == ESP_OK) {
-            err = flash_log_register(status_http_handle(), status_http_note, on_clear_log);  // FR-26.5
+            err = flash_log_register(status_http_handle(), status_http_note, on_clear_log);  // FR-27.5
         }
 #ifdef TDS3_TEST_HANG_HTTP
         static const httpd_uri_t hang = {.uri = "/hang", .method = HTTP_GET,
@@ -725,16 +869,17 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("mail settings erase", err);
         }
-        lcd_draw_line(0, "Clearing log");  // FR-26.10
-        err = flash_log_clear(feed_watchdog);  // FR-26.7
+        lcd_draw_line(0, "Clearing log");  // FR-27.10
+        err = flash_log_clear(feed_watchdog);  // FR-27.7
         if (err != ESP_OK) {
-            web_log_warn("flash log clear", err);  // FR-26.9
+            web_log_warn("flash log clear", err);  // FR-27.9
         }
     }
     if (a & DL_C_RESTART) {
         if (e->ev == DL_EV_CONFIRM_DEADLINE) {
             web_log_ota_not_confirmed();
         }
+        ble_setup_stop();     // FR-26.18: no window survives a restart
         wifi_net_sta_stop();  // leave the AP (deauth) before a planned restart
         vTaskDelay(pdMS_TO_TICKS(LEAVE_MS));
         esp_restart();
@@ -764,6 +909,12 @@ static void conn_event(const app_event_t *e)
         }
     }
     execute_conn(e, step);
+    if (step.actions & DL_C_START_SOFTAP) {
+        ble_event(DL_BEV_PROVISIONING);  // FR-26.1
+    }
+    if (step.actions & DL_C_STORE_CREDS) {
+        ble_event(DL_BEV_PROVISIONED);   // FR-26.1: T3 from either path
+    }
     if (step.actions & DL_C_MARK_SETUP) {
         hold_event(DL_HEV_MARKED, true);
     }
@@ -810,7 +961,7 @@ void app_main(void)
     }
     dl_disp_step_t dstep = dl_disp_step(DL_LCD_START, DL_EV_START_DONE, false, err == ESP_OK);
     execute_disp(dstep.actions, err);
-    dl_disp_t disp = dstep.next;
+    disp = dstep.next;
 
     const esp_timer_create_args_t tick_args = {.callback = on_tick, .name = "tick"};
     const esp_timer_create_args_t retry_args = {.callback = on_retry, .name = "retry"};
@@ -832,16 +983,17 @@ void app_main(void)
     if (err == ESP_OK) {
         net_ready = true;
         deep_sleep_on_prepare(wifi_stop_cb, NULL);
+        deep_sleep_on_prepare(ble_stop_cb, NULL);
     } else {
         web_log_warn("network init", err);
     }
     hold_event(DL_HEV_BOOT, setup_check_pending());  // FR-24.2: NVS is up
 
-    if (flash_log_clear_pending()) {  // FR-26.10: a clear that a power loss cut short
+    if (flash_log_clear_pending()) {  // FR-27.10: a clear that a power loss cut short
         lcd_draw_line(0, "Clearing log");
         esp_err_t clear_err = flash_log_clear(NULL);
         if (clear_err != ESP_OK) {
-            web_log_warn("flash log clear", clear_err);  // FR-26.9
+            web_log_warn("flash log clear", clear_err);  // FR-27.9
         }
         lcd_draw_line(0, want[0]);
     }
@@ -856,6 +1008,10 @@ void app_main(void)
     err = button_start(web_log_button_held, on_button_reset);  // sampled only after BOOT exits (§18.1)
     if (err != ESP_OK) {
         web_log_warn("button start", err);
+    }
+    err = setup_check_hold_start(DL_BLE_HOLD_MS, on_key_held);  // FR-26.2
+    if (err != ESP_OK) {
+        web_log_warn("user key start", err);
     }
 
     esp_timer_start_periodic(tick_timer, TICK_US);
@@ -877,10 +1033,14 @@ void app_main(void)
             continue;
         }
         if (e.kind == APP_CLEAR_LOG) {
-            esp_err_t clear_err = flash_log_clear(feed_watchdog);  // FR-26.8
+            esp_err_t clear_err = flash_log_clear(feed_watchdog);  // FR-27.8
             if (clear_err != ESP_OK) {
-                web_log_warn("flash log clear", clear_err);  // FR-26.9
+                web_log_warn("flash log clear", clear_err);  // FR-27.9
             }
+            continue;
+        }
+        if (e.kind == APP_BLE) {
+            ble_event(e.bev);
             continue;
         }
         esp_task_wdt_reset();
@@ -894,10 +1054,14 @@ void app_main(void)
         }
 #endif
         hold_tick();
+        if (hold != DL_HOLD_ON) {
+            dl_ble_line(&ble, uptime_s(), ble_passkey, prompt_line);  // FR-26.14
+        }
         disp = disp_tick(disp);
         hold_event(DL_HEV_TICK, false);
+        ble_event(DL_BEV_TICK);
         bool provisioned = view.conn != DL_BOOT && view.conn != DL_PROVISIONING;
-        if (!task_ran && !flash_log_downloading() &&  // FR-26.6
+        if (!task_ran && !flash_log_downloading() && !dl_ble_holds_task(&ble) &&  // FR-27.6
             dl_task_due(wake, uptime_s() - window_start_s, image_pending_verify(),
                         provisioned, task_ran, hold)) {
             run_task_and_sleep();  // FR-21.2 – FR-21.4, FR-24.11, FR-24.6: after the window

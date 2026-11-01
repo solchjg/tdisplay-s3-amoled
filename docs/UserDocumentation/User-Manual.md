@@ -95,7 +95,7 @@ credentials are erased, the device restarts, and it shows the setup screen of
 chapter 2 again. A shorter press does nothing. Do not hold BOOT while plugging the
 board in: that starts the chip's download mode instead.
 
-A factory reset also erases the history log (chapter 5c), which can take about a
+A factory reset also erases the history log (chapter 5d), which can take about a
 minute and a half when the log is full; the display says `Clearing log`. Download the
 history first if you want to keep it. Changing a mail setting needs a factory reset, so
 it erases the history too.
@@ -170,10 +170,50 @@ email cannot be sent (no WiFi, the server refuses the login, the network is
 down) that summary is skipped and the serial log says why
 (`mail failed: ... to=<address>`, one line per address); the next one covers the readings since the last summary
 that did arrive. If the board is reset or loses power while it is sending,
-it tries that summary once more the next time it is awake. To change any of these settings, do a factory reset (chapter 5)
+it tries that summary once more the next time it is awake. To change any of these settings, use your phone (chapter 5c), or do a factory reset (chapter 5)
 and set the device up again. The password is never shown or logged.
 
-## 5c. History log
+## 5c. Setting up with your phone (Bluetooth)
+
+Instead of the `TDS3-…` WiFi portal you can use Bluetooth from a phone or
+computer, with Chrome or Edge (on an iPhone, the Bluefy browser), on the
+device setup page that ships with the shared components
+(`shared/components/ble_setup/web/index.html`, served over HTTPS, e.g. from
+GitHub Pages). nRF Connect works too: write the form text to the `settings`
+characteristic, then `apply` to `control`.
+
+- **First setup.** While the display says `Setup WiFi`, the device is also
+  visible over Bluetooth as `TDS3-…` (the same name as its WiFi portal). Open
+  the page, press **Connect to device**, pick it, and type the 6-digit code the
+  display shows on line 5 (`BLE code 123456`). Fill in the network and, if you
+  like, the email settings, and press **Save settings**. The device connects
+  exactly as if you had used the portal.
+- **Changing settings later.** While the device is awake (after a reset or a
+  press of the user key that wakes it), hold the **user key** for 3 seconds.
+  Line 5 shows `BLE setup 05:00`, counting down. Connect with the page and
+  type the code; the page shows the current settings. Leave a password box
+  empty to keep the stored password. **Save settings** stores them and the
+  device restarts with them. Press **Done**, or wait 5 minutes without a
+  connection, to turn Bluetooth off again.
+
+The device does not sleep while Bluetooth is on. Passwords are never shown on
+the page or sent back by the device. Three wrong codes end the session. If
+the display has failed, Bluetooth stays off; use the WiFi portal instead.
+
+**Chrome on Linux** shows no code prompt of its own. Pair first in a terminal,
+then use the page over the paired link:
+
+```
+bluetoothctl
+agent KeyboardOnly
+default-agent
+scan le            # until TDS3-… appears, then: scan off
+pair <address>     # type the code the display shows
+```
+
+Leave `bluetoothctl` connected and press **Connect to device** on the page.
+
+## 5d. History log
 
 The device keeps each finished average in its own flash, so the history survives a
 reboot or power loss; only the period in progress is lost. With 5-minute averages it

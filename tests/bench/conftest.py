@@ -13,14 +13,16 @@ import pytest
 
 from testbench_driver import TestbenchDriver, TestbenchError
 
-SLOT = "SLOT1"
+# The recorded unit is in SLOT1; DUT_SLOT and DUT_MAC point the suite at another
+# unit (e.g. SLOT4 holding 48:27:e2:ea:4b:04), whose SoftAP SSID follows FR-13.1.
+SLOT = os.environ.get("DUT_SLOT", "SLOT1")
 # The bench AP the journey provisions the device onto (isolated bench network;
 # the passphrase protects nothing, FSD §9.1).
 BENCH_SSID = "tds3-bench"
 BENCH_PASS = "bench-0441-pass"
-SOFTAP_SSID = "TDS3-EA483C"   # FR-13.1 for the recorded MAC 48:27:e2:ea:48:3c
 CHIP = "esp32s3"
-MAC = "48:27:e2:ea:48:3c"   # testing/test-plan.yaml dut_record
+MAC = os.environ.get("DUT_MAC", "48:27:e2:ea:48:3c")   # testing/test-plan.yaml dut_record
+SOFTAP_SSID = "TDS3-" + MAC.replace(":", "")[-6:].upper()   # FR-13.1
 
 LOG_LINE = re.compile(r"([IEWD]) \((\d+)\) web: (.*)$")
 

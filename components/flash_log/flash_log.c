@@ -14,7 +14,7 @@
 
 #define CHUNK_MAX 3072
 #define SEND_WAIT_S 5    // per try, shorter than the task watchdog (FR-19.2)
-#define STALL_S 30       // FR-26.6
+#define STALL_S 30       // FR-27.6
 
 static volatile bool downloading;
 static flash_log_note_cb_t note_cb;
@@ -46,7 +46,7 @@ bool flash_log_downloading(void)
     return downloading;
 }
 
-// FR-26.6: a stalled peer ends the download after STALL_S, in tries short enough
+// FR-27.6: a stalled peer ends the download after STALL_S, in tries short enough
 // to keep feeding the watchdog that watches this handler (FR-19.2).
 static int send_watched(httpd_handle_t hd, int fd, const char *buf, size_t len, int flags)
 {

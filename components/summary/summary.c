@@ -74,6 +74,11 @@ static const char *take(const char *body, size_t len)
 
 static const portal_extra_t extra = {.html = FORM_HTML, .take = take};
 
+const char *summary_take(const char *body, size_t len)
+{
+    return take(body, len);
+}
+
 const portal_extra_t *summary_portal_fields(void)
 {
     return &extra;
@@ -179,6 +184,12 @@ sm_collect_t summary_collect(void)
 {
     load();
     return collect;
+}
+
+const sm_settings_t *summary_settings(void)
+{
+    load();
+    return &settings;
 }
 
 static int64_t local_now(time_t now)

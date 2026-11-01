@@ -15,7 +15,7 @@ numbers are not reading order).
 | 2 | Every contract has a non-empty *Must NOT happen* / `prohibited_outcomes` | FSD | Column "Must NOT happen" of each compact row (a row pointing to another contract, e.g. FR-18.3 → FR-5.21, is acceptable only if the target has one); `prohibited_outcomes:` in each YAML block |
 | 3 | Every requirement has a priority and a provenance tag | FSD | `[Must/Should/May]` then `[user…]`, `[derived…]` or `[pack:esp32]` |
 | 4 | Both state models are complete | FSD §5.3 | Connectivity T1 – T13 and display D1 – D6 tables, each followed by a completeness paragraph covering every state × event |
-| 5 | Security profile precedes the security requirements | FSD §9.1 before FR-9.2 – FR-9.5 | Profile table with accepted risks |
+| 5 | Security profile precedes the security requirements | FSD §9.1 before FR-9.3 – FR-9.5 | Profile table with accepted risks |
 | 6 | Every number a build reads is stated | FSD §10, §6.3 | C-10.1 – C-10.3, C-10.5 – C-10.8 (partition rows with offsets), C-6.1 – C-6.5 |
 | 7 | Each phase is enterable from the previous one | FSD §3 | For every exit criterion of Phase n, each capability it rests on is delivered by a phase ≤ n or is a testbench capability |
 | 8 | Superseded ids are listed, never reused | FSD Appendix B | Superseded table and `superseded_requirements:`; none of those ids appears as a requirement bullet |

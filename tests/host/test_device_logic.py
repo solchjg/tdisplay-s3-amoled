@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "conn") == 0) {
         // conn <state> <event> <guard> <n>
         static const char *ev[] = {"CR", "CS", "IP", "AF", "DC", "RT", "IC", "FR", "OS",
-                                   "OF", "60"};
+                                   "OF", "60", "BS"};
         int e = 0;
         while (strcmp(ev[e], argv[3]) != 0) {
             e++;
@@ -464,7 +464,7 @@ def test_led_is_lit_outside_the_hold(run, state):
     assert run("led", state, 500) == "1"
 
 
-# TC-SC-05 · FR-7.33 (core): the countdown logs L7 once a minute and at 00:00
+# TC-SC-05 · FR-7.34 (core): the countdown logs L7 once a minute and at 00:00
 def test_countdown_logs_when_its_minutes_change(run):
     p = "Press BOOT to start "
     assert run("logged", 4, "", p + "30:00") == "1"
@@ -474,3 +474,28 @@ def test_countdown_logs_when_its_minutes_change(run):
     assert run("logged", 4, p + "00:00", "") == "1"
     assert run("logged", 3, "70.6F Hum 45% 1013.25 mbar", "70.8F Hum 45% 1013.25 mbar") == "1"
     assert run("logged", 1, "Req: 1", "Req: 2") == "1"
+
+
+# TC-BLE-07 · FR-7.34 (core): the BLE key-window countdown logs like the hold's
+def test_ble_countdown_logs_when_its_minutes_change(run):
+    p = "BLE setup "
+    assert run("logged", 4, "", p + "05:00") == "1"
+    assert run("logged", 4, p + "05:00", p + "04:59") == "1"
+    assert run("logged", 4, p + "04:59", p + "04:58") == "0"
+    assert run("logged", 4, p + "00:01", p + "00:00") == "1"
+    assert run("logged", 4, "BLE code 004207", p + "04:58") == "1"
+
+
+# TC-BLE-14 · FR-26.16 (core): the passkey on line 5 is never logged
+def test_ble_passkey_line_is_not_logged(run):
+    assert run("logged", 4, "BLE setup 04:58", "BLE code 004207") == "0"
+    assert run("logged", 4, "", "BLE code 656600") == "0"
+
+
+# TC-BLE-08 · T14 (FR-26.7, FR-26.8): an accepted key-window write stores and restarts
+def test_t14_ble_settings_store_and_restart(run):
+    for state in ("CONNECTING", "ONLINE", "WIFI_LOST"):
+        assert conn(run, state, "BS", guard=1, n=2) == \
+            ("BOOT", cacts(run, "STORE_SETTINGS", "RESTART"), 2), state
+    for state in ("BOOT", "PROVISIONING"):
+        assert conn(run, state, "BS", guard=1) == (state, 0, 0), f"{state} x BS is impossible"
