@@ -309,6 +309,19 @@ testbench.
   and the window), §24 (the hold a key press ends); a testbench BLE central
   that can pair with a passkey (R-24).
 
+### 3.9 Phase 9: Reading history
+
+- **Scope.** The `history` partition, appending each reading to the shared
+  `flash_ring`, the CSV core, `GET /api/history`, the BLE `history`
+  characteristic and the page's download.
+- **Deliverables.** §27, C-10.9, L31, R-26.
+- **Exit criteria.** Readings from timer wakes appear in `GET /api/history`;
+  the history survives a power cycle; the BLE download equals the HTTP one;
+  a factory reset empties it; an app-only flash over the old table runs
+  without history.
+- **Dependencies.** §23 (the readings), §26 (the key window and service),
+  §14 (the HTTP server), §18 (factory reset).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -341,6 +354,7 @@ testbench.
 | R-21 | The bench has no reference thermometer, hygrometer or barometer, so accuracy is not verified, only plausibility and response | Certain | Low | The sensor's own accuracy (±1 °C, ±3 %, ±1 mbar per datasheet) is relied on; contracts check plausible ranges and a finger-warmth response |
 | R-24 | The testbench's BLE tools (`ble_scan`, `ble_connect`, `ble_write`) may not complete LE Secure Connections passkey pairing, so paired steps may need an operator and a phone | Medium | Medium | Scans and the unpaired refusal (FR-26.12) run on the bench; paired steps run by operator prompt with the Web Bluetooth page until the bench declares passkey pairing (testbench change request, never a project workaround) |
 | R-25 | BLE and WiFi share one 2.4 GHz radio and internal RAM (no PSRAM); a window slows WiFi and takes tens of KB of heap; NimBLE adds about 360 KB to the image (1.38 MB of the 4 MB slot, C-10.7) | Certain | Medium | BLE only inside windows (FR-26.18); no OTA download in a key window (FR-26.17); the task, and so the summary send, never runs in one (FR-26.5); NFR-14.1 is measured with no window open; NFR-26.1 checks the heap comes back |
+| R-26 | OTA never rewrites the partition table, so a device updated only by OTA has no `history` partition | Certain | Low | FR-27.8: it runs without history and says so (L31); a USB flash of the full image adds the partition |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
 
 ### 4.2 Assumptions
@@ -865,6 +879,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L28 | BLE pairing ended (FR-26.16) | `web: ble pairing <ok\|failed>` | I (W when failed) |
 | L29 | BLE `settings` written (FR-26.16) | `web: ble settings <ok\|invalid=<field>>` | I (W when invalid) |
 | L30 | BLE window closed (FR-26.16) | `web: ble off reason=<provisioned\|idle\|done\|written\|pairing>` | I |
+| L31 | History unavailable or failed (FR-27.8, FR-27.9) | `web: history unavailable` or `web: history failed: <ERR>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1359,6 +1374,20 @@ The numbers a build will otherwise take from a default.
   | ota_1 | app / ota_1 | 0x420000 | 0x400000 |
 
   No factory partition; flash above 0x820000 is unused.
+- **C-10.9** [Must] [user: two 4 MB slots; history size proposed; offsets derived]
+  The partition table shall be exactly the rows of C-10.6 and a history
+  partition:
+
+  | Name | Type / subtype | Offset | Size |
+  |------|----------------|--------|------|
+  | nvs | data / nvs | 0x9000 | 0x6000 |
+  | otadata | data / ota | 0xF000 | 0x2000 |
+  | phy_init | data / phy | 0x11000 | 0x1000 |
+  | ota_0 | app / ota_0 | 0x20000 | 0x400000 |
+  | ota_1 | app / ota_1 | 0x420000 | 0x400000 |
+  | history | data / 0x40 | 0x820000 | 0x180000 [user] |
+
+  No factory partition; flash above 0x9A0000 is unused.
 - **C-10.7** [Must] [derived from C-10.6] The application image shall be at most
   0x400000 bytes.
 - **C-10.8** [Must] [derived from FR-5.24] The bootloader shall be built with app
@@ -1371,7 +1400,7 @@ The numbers a build will otherwise take from a default.
 | C-10.3 | Inspect `sdkconfig` | `CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y` | Other size; default | host |
 | C-10.3 (board) | Read the flash ID in SLOT1 | 16 MB | Smaller | bench |
 | C-10.5 | Flash and reset SLOT1 using only USB | Flash succeeds; L1 and L17 appear | Need for EN/BOOT or a button | bench |
-| C-10.6 | Parse the built partition table binary | Exactly the five rows tabled | Any other row, offset or size | host |
+| C-10.9 | Parse the built partition table binary | Exactly the six rows tabled | Any other row, offset or size | host |
 | C-10.7 | `idf.py size` / image file size | ≤ 0x400000 bytes | Larger | host |
 | C-10.8 | Inspect `sdkconfig` | `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y` | Absent | host |
 
@@ -2031,6 +2060,113 @@ Coexistence:
 
 # Part E — Operations & Verification
 
+## 27. Reading History
+
+### 27.1 Purpose & peer
+
+Keeps every reading (§23) in flash, so the history survives a power loss or
+reset and covers more than a year rather than the 24 h kept in RTC memory (FR-23.9). The
+history can be downloaded as CSV over WiFi (`GET /api/history`) or over BLE in a
+key window (§26). Built on the shared `flash_ring` component (fixed-size
+records in a data partition, the oldest sector reused when full, a torn record
+skipped); the composition root appends and reads, a pure core formats.
+
+A record holds one reading: the time (seconds since the epoch, 0 for a clock
+never set, FR-22.6), the synced mark (FR-22.3), temperature in 0.01 °C,
+humidity in 1/1024 % and pressure in 1/256 Pa, the sensor's own units, so a
+history line shows the values of its L21. It takes 16 bytes, so a record with
+the ring's trailer takes 24 bytes and a 4 KB sector holds 170.
+
+A history line is CSV, oldest first, after the header
+`time,synced,temp_f,rh_pct,p_mbar`:
+
+| Column | Format | Example |
+|--------|--------|---------|
+| `time` | `<YYYY-MM-DD>T<hh:mm:ss><±hhmm>`, local time (FR-22.2); empty for a clock never set | `2026-11-01T12:31:07-0500` |
+| `synced` | `0` or `1` | `1` |
+| `temp_f` | °F, 2 decimals | `70.62` |
+| `rh_pct` | %, 1 decimal | `45.2` |
+| `p_mbar` | mbar, 2 decimals | `1013.25` |
+
+### 27.2 Requirements
+
+- **FR-27.1** [Must] [user] Each kept reading (FR-23.1, FR-23.3) shall also be
+  appended to the history, on every wake including timer wakes.
+- **FR-27.2** [Must] [user] The history shall live in the `history` partition
+  of C-10.9: **1.5 MB** [user], about **65,000 readings**, 15 months at the
+  default 10-minute `sample_min`. When it is full the oldest sector's
+  readings are dropped.
+- **FR-27.3** [Must] [derived from `flash_ring`] A reading cut short by a
+  power loss or reset shall be skipped on the next read, and the history
+  otherwise kept; it never stops the device starting.
+- **FR-27.4** [Must] [user] In ONLINE, `GET /api/history` shall answer 200
+  `text/csv` with the header and every history line, oldest first, sent in
+  chunks so the response never needs the whole history in RAM; only the header
+  when the history is empty. `GET /` shall link to it.
+- **FR-27.10** [Must] [user] `GET /api/history?from=<YYYY-MM-DD>&to=<YYYY-MM-DD>`
+  shall send only the lines whose local time (FR-22.2) falls on or after the
+  `from` date and on or before the `to` date, both whole days, oldest first,
+  still with the header; either may be left out for an open end. With either
+  given, lines with a clock never set are left out. A date that is not valid,
+  or `from` after `to`, answers 400 with a one-line reason. Lines are chosen by their time, not by their place in the ring, so
+  a clock set back still gives every matching line.
+- **FR-27.5** [Must] [user] In a key window, a paired central shall read the
+  history through the `history` characteristic (§27.3), starting at the line
+  set by `control` `hist=<n>` (0 is the oldest). After `control`
+  `range=<from>,<to>` (dates as in FR-27.10, either empty for an open end),
+  the lines and n count only the lines FR-27.10 would send for that range; a
+  new connection starts with all lines.
+- **FR-27.6** [Must] [user] The Web Bluetooth page shall offer **Download
+  history** with optional **From** and **To** dates (empty for an open end),
+  read every line through FR-27.5 after setting that range, show progress and save the result
+  as `<hostname>-history.csv` with the header of §27.1.
+- **FR-27.7** [Must] [user] A factory reset (T10) shall erase the history
+  with the settings; a reset cut short finishes the erase on the next boot.
+- **FR-27.8** [Must] [derived from OTA (§15)] A device whose partition table
+  has no `history` partition (one updated only by OTA, which never rewrites
+  the table) shall run as before: log L31 once per boot, answer
+  `GET /api/history` with 404, and give empty `history` reads.
+- **FR-27.9** [Must] [derived] A history append or read that fails shall be
+  logged as L31 with its error; the reading is still kept in RTC memory
+  (FR-23.9) and the device carries on.
+- **NFR-27.1** [Must] [user] An append, including a sector erase, shall
+  take at most **500 ms**.
+- **NFR-27.2** [Must] [user] `GET /api/history` of a full history shall
+  complete within **30 s** at the bench AP's signal.
+
+### 27.3 BLE history characteristic
+
+Added to the §26.2 service:
+
+| Characteristic | UUID | Access | Link required | Value |
+|----------------|------|--------|---------------|-------|
+| `history` | `6e0a0006-…` | read | encrypted, authenticated (MITM) | As many whole history lines (no header) as fit in 512 bytes, starting at the line set by `control` `hist=<n>` (0 after connecting); empty past the last line |
+
+`control` also accepts `hist=<n>`, n at most 9 digits, and
+`range=<from>,<to>` (FR-27.10; `range=,` for all; either sets n to 0); the
+client asks for the next n by adding the lines it received. An invalid date is
+refused like any malformed `control` write (§26.2).
+
+When the `history` partition exists, `info` ends with `&history=<the §27.1
+header>`; the page offers **Download history** only then (FR-27.8).
+
+### 27.4 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-27.1, FR-27.4 (core) | Format records: synced, unsynced, clock never set, −40 °C, 85 °C | The §27.1 lines, e.g. `2026-11-01T12:31:07-0500,1,70.62,45.2,1013.25`; empty `time` for a never-set clock | Another column order; missing decimals | host |
+| FR-27.5 (core) | Page 0, 1, 10 and 65,110 lines from n = 0, n mid-way, n past the end | Whole lines only, ≤ 512 bytes each page, pages joined equal the full CSV body; empty past the end | A split line; a repeated or skipped line | host |
+| FR-27.10 (core) | Records spanning three days, one with a clock never set, one after the clock was set back; from = to = the middle day; only from; only to; from after the newest; from after to; `2026-02-30`; `x` | Only that day's lines; open ends honoured; header first each time; the header only; 400 for the last three | A never-set line; a set-back line missed; a line from the day after `to`; 200 for a bad range | host |
+| FR-27.2, FR-27.3 (core) | `flash_ring` core with 64 sectors: fill 10,880 records; tear the last record | The oldest sector dropped, newest kept in order; the torn record skipped | A lost newer record; a failed boot | host |
+| C-10.9 | Parse the built partition table binary | Exactly the six rows tabled | Any other row, offset or size | host |
+| FR-27.1, FR-27.4 | Sleep test build, three timer wakes, then a key wake to ONLINE; relay `GET /api/history` | CSV with the header and at least the three wakes' readings, oldest first, each equal to its L21 | A missing timer-wake reading; JSON | bench |
+| FR-27.3 | Reset over USB during the task 5 times; then ONLINE | `GET /api/history` parses; every line equals an L21 | A boot loop; a garbled line | bench |
+| FR-27.5, FR-27.6 | Key window; operator pairs the page and presses **Download history** | The saved file equals `GET /api/history` byte for byte | A different line count | bench (operator) |
+| FR-27.10, FR-27.6 | As above with **From** and **To** set to today | The saved file equals `GET /api/history?from=<today>&to=<today>` byte for byte | An older line | bench (operator) |
+| FR-27.7 | Operator factory reset, then provision | `GET /api/history` is the header only | An old reading | bench (operator) |
+| FR-27.8 | Build flashed over the old five-row table (app only) | L31 `history unavailable` once; `GET /api/history` 404; readings and the rest unchanged | A restart; a write outside the app slot | target |
+| NFR-27.1 | Time appends across a sector boundary | Each ≤ 500 ms | Longer | target |
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2087,6 +2223,7 @@ Runtime configuration (the only persisted items):
 | `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2), BLE (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
+| `history` | readings (§27.1) | empty | 1.5 MB, about 65,000 readings | flash partition (C-10.9) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
 Build-time constants:
 
@@ -2148,6 +2285,9 @@ Build-time constants:
 | Restart after an accepted key-window write (T14) | ≤ 2 s | [user] |
 | Heap returned 10 s after a window | within 8 KB | [user] |
 | BLE service UUID | `6e0a0001-7d3b-4c2a-9f1e-54445333424c` | [derived] |
+| History record / per sector | 16-byte payload + 8-byte trailer / 170 | [derived from `flash_ring`] |
+| History append limit | ≤ 500 ms | [user] |
+| Full `GET /api/history` | ≤ 30 s | [user] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -2212,7 +2352,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.13.1
+fsd_version: 0.14.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2251,7 +2391,9 @@ change_history:
   - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)
   - 0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16, FR-7.33 superseded by FR-7.34 (the BLE countdown logs once a minute); §1, §2, §4.3, §9.1, §11 and Appendix A updated
   - 0.13.1 2026-11-01 all proposed BLE values accepted by the user (FR-26.7, FR-26.8, FR-26.13, FR-26.14, FR-26.17, NFR-26.1)
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33]
+  - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
+  - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6]
 open_decisions: []
 related_test_baseline: none yet
 ```

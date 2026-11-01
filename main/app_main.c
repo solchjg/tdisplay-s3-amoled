@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "ble_settings_core.h"
@@ -22,6 +23,8 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "history.h"
+#include "history_core.h"
 #include "identity.h"
 #include "lcd.h"
 #include "mdns_name.h"
@@ -77,10 +80,20 @@ _Static_assert(sizeof stored.ssid == WIFI_NET_SSID_MAX + 1 &&
                sizeof stored.password == WIFI_NET_PASSWORD_MAX + 1,
                "portal and wifi_net credentials differ in size");
 
+// FR-23.7, FR-27.4: the reading section, then the history link when one is kept.
+static void page_extra(char *out, size_t len)
+{
+    weather_html(out, len);
+    if (history_available()) {
+        size_t n = strlen(out);
+        snprintf(out + n, len - n, "<p><a href=\"/api/history\">Download history (CSV)</a></p>");
+    }
+}
+
 static const status_http_source_t status_source = {.ip = ip, .hostname = hostname,
                                                    .rssi = wifi_net_rssi,
                                                    .log = web_log_http,
-                                                   .extra_html = weather_html};
+                                                   .extra_html = page_extra};
 
 static dl_wake_t wake;  // how this boot began (FSD §21)
 static bool task_ran;
@@ -235,10 +248,16 @@ static void on_key_held(void)
     post_ble(DL_BEV_KEY_HELD);  // FR-26.2
 }
 
+// §27.3: "history=<header>" tells the page this device keeps a history.
 static size_t ble_read_info(char *out, size_t cap)
 {
-    return bset_info(esp_app_get_description()->version, hostname, dl_conn_name(view.conn),
-                     out, cap);
+    size_t n = bset_info(esp_app_get_description()->version, hostname,
+                         dl_conn_name(view.conn), out, cap);
+    if (history_available() && n < cap) {
+        int k = snprintf(out + n, cap - n, "&history=%s", HIST_HEADER);
+        n += k > 0 && (size_t)k < cap - n ? (size_t)k : 0;
+    }
+    return n;
 }
 
 static size_t ble_read_settings(char *out, size_t cap)
@@ -282,7 +301,10 @@ static void ble_passkey_cb(uint32_t passkey, bool shown_now)
 static void ble_event_cb(ble_setup_event_t ev)
 {
     switch (ev) {
-    case BLE_SETUP_EV_CONNECTED: post_ble(DL_BEV_CONNECTED); break;
+    case BLE_SETUP_EV_CONNECTED:
+        history_ble_reset();  // §27.3: every line again
+        post_ble(DL_BEV_CONNECTED);
+        break;
     case BLE_SETUP_EV_DISCONNECTED: post_ble(DL_BEV_DISCONNECTED); break;
     case BLE_SETUP_EV_PAIRED: post_ble(DL_BEV_PAIRED); break;
     case BLE_SETUP_EV_PAIR_FAILED: post_ble(DL_BEV_PAIR_FAILED); break;
@@ -295,7 +317,9 @@ static const ble_setup_config_t ble_cfg = {.name = softap_ssid,
                                            .read_settings = ble_read_settings,
                                            .on_apply = ble_apply,
                                            .on_passkey = ble_passkey_cb,
-                                           .on_event = ble_event_cb};
+                                           .on_event = ble_event_cb,
+                                           .read_history = history_ble_read,       // §27.3
+                                           .on_history_range = history_ble_range};
 
 static uint32_t uptime_s(void);
 
@@ -461,6 +485,22 @@ static void test_log_history(void)
 
 // ── Weather region (FSD §23) ─────────────────────────────────────────────
 
+// FR-27.1: the reading into the history; L31 for a missing partition once per
+// boot (FR-27.8), and for each failed append (FR-27.9).
+static void history_add(const wx_reading_t *r)
+{
+    static bool told;
+    esp_err_t err = history_append(r);
+    if (err == ESP_ERR_NOT_FOUND) {
+        if (!told) {
+            web_log_history_unavailable();
+            told = true;
+        }
+    } else if (err != ESP_OK) {
+        web_log_history_failed(err);
+    }
+}
+
 // One reading, logged (L21) and kept, or the failure logged (L22); either way the
 // boot carries on (FR-23.4). Line 4 shows the newest kept reading.
 static void take_reading(void)
@@ -473,6 +513,7 @@ static void take_reading(void)
         weather_iso(&r, iso);
         wx_log_line(&r, iso, line, sizeof line);
         web_log_reading(line);
+        history_add(&r);
     } else {
         web_log_bme280_failed(err);
     }
@@ -712,6 +753,12 @@ static void start_attempt(void)
     esp_timer_start_once(attempt_timer, ATTEMPT_TIMEOUT_US);
 }
 
+// The erase of a full history takes seconds; this task is watched (FR-19.1).
+static void feed_watchdog(void)
+{
+    esp_task_wdt_reset();
+}
+
 static void execute_conn(const app_event_t *e, dl_conn_step_t step)
 {
     unsigned a = step.actions;
@@ -786,6 +833,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err == ESP_OK) {
             err = weather_register(status_http_handle(), status_http_note);  // FR-23.13
         }
+        if (err == ESP_OK) {
+            err = history_register(status_http_handle(), status_http_note);  // FR-27.4
+        }
 #ifdef TDS3_TEST_HANG_HTTP
         static const httpd_uri_t hang = {.uri = "/hang", .method = HTTP_GET,
                                          .handler = get_hang};
@@ -838,6 +888,12 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = summary_erase();  // FR-25.2
         if (err != ESP_OK) {
             web_log_warn("mail settings erase", err);
+        }
+        if (history_available()) {
+            err = history_clear(feed_watchdog);  // FR-27.7
+            if (err != ESP_OK) {
+                web_log_history_failed(err);
+            }
         }
     }
     if (a & DL_C_RESTART) {
@@ -912,6 +968,10 @@ void app_main(void)
         web_log_rolled_back(invalid->label);  // L14
     }
     queue = xQueueCreate(16, sizeof(app_event_t));
+    esp_err_t herr = history_open();  // FR-27.7: finishes an erase a reset cut short
+    if (herr != ESP_OK && herr != ESP_ERR_NOT_FOUND) {
+        web_log_history_failed(herr);  // FR-27.9
+    }
     take_reading();  // FR-23.3: a value for the panel and the page during the window
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
                        .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname,

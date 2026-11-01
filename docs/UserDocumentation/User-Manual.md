@@ -19,7 +19,9 @@ esptool.py --chip esp32s3 -p /dev/ttyACM0 write_flash @flash_args
 ```
 
 Erasing the whole flash first (`esptool.py erase_flash`) also removes stored WiFi
-credentials. The board starts by itself after flashing.
+credentials and the reading history. The board starts by itself after flashing.
+A board that was only ever updated over WiFi (chapter 4) needs this USB flash
+once to get the reading history (section 3a); until then it works without one.
 
 ## 2. First-time setup (provisioning)
 
@@ -68,6 +70,23 @@ there is none. The fifth line is empty except while the device waits after setup
 
 There is no login: anyone on your network can read it.
 
+## 3a. Reading history
+
+Every reading is also kept in the board's flash, so it survives unplugging,
+resets and firmware updates. It holds about 65,000 readings, about 15 months
+at one every 10 minutes; after that the oldest are dropped.
+
+- All of it as a spreadsheet file (CSV): `http://<address>/api/history`, or the
+  *Download history* link on the status page.
+- Only some days: `http://<address>/api/history?from=2026-10-01&to=2026-10-31`.
+  Both dates count as whole days in local time; leave either out for an open
+  end. A reading taken before the clock was ever set is left out of a range.
+
+Each line is `time,synced,temp_f,rh_pct,p_mbar`, oldest first, for example
+`2026-11-01T12:31:07-0500,1,70.63,45.3,1013.25`. Over Bluetooth, see chapter 5c.
+A factory reset (chapter 5) erases the history; with a full history that
+takes up to about 20 seconds before the device restarts.
+
 ## 4. Updating the firmware
 
 Put the new application image (the release's `.bin`) on any HTTP server the
@@ -91,7 +110,7 @@ trust.
 
 While the device is running, hold the BOOT button for at least 5 seconds, then
 release it. Nothing happens while you hold it; on release the stored WiFi
-credentials are erased, the device restarts, and it shows the setup screen of
+credentials and the reading history (section 3a) are erased, the device restarts, and it shows the setup screen of
 chapter 2 again. A shorter press does nothing. Do not hold BOOT while plugging the
 board in: that starts the chip's download mode instead.
 
@@ -190,6 +209,13 @@ characteristic, then `apply` to `control`.
   empty to keep the stored password. **Save settings** stores them and the
   device restarts with them. Press **Done**, or wait 5 minutes without a
   connection, to turn Bluetooth off again.
+
+- **Downloading the history.** In the same Bluetooth session (after holding
+  the user key and typing the code), the page shows *History* with *From* and
+  *To* dates. Leave them empty for everything, or pick the days you want, then
+  press **Download history**. The page counts the readings as they arrive and
+  saves `<name>-history.csv`, the same as section 3a. Bluetooth is slower than
+  WiFi: a month takes about a minute, the whole history several minutes.
 
 The device does not sleep while Bluetooth is on. Passwords are never shown on
 the page or sent back by the device. Three wrong codes end the session. If
