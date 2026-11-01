@@ -2119,7 +2119,7 @@ A history line is CSV, oldest first, after the header
   history** with optional **From** and **To** dates (empty for an open end),
   read every line through FR-27.5 after setting that range, show progress and save the result
   as `<hostname>-history.csv` with the header of §27.1.
-- **FR-27.7** [Must] [proposed] A factory reset (T10) shall erase the history
+- **FR-27.7** [Must] [user] A factory reset (T10) shall erase the history
   with the settings; a reset cut short finishes the erase on the next boot.
 - **FR-27.8** [Must] [derived from OTA (§15)] A device whose partition table
   has no `history` partition (one updated only by OTA, which never rewrites
@@ -2128,9 +2128,9 @@ A history line is CSV, oldest first, after the header
 - **FR-27.9** [Must] [derived] A history append or read that fails shall be
   logged as L31 with its error; the reading is still kept in RTC memory
   (FR-23.9) and the device carries on.
-- **NFR-27.1** [Must] [proposed] An append, including a sector erase, shall
+- **NFR-27.1** [Must] [user] An append, including a sector erase, shall
   take at most **500 ms**.
-- **NFR-27.2** [Must] [proposed] `GET /api/history` of a full history shall
+- **NFR-27.2** [Must] [user] `GET /api/history` of a full history shall
   complete within **30 s** at the bench AP's signal.
 
 ### 27.3 BLE history characteristic
@@ -2219,7 +2219,7 @@ Runtime configuration (the only persisted items):
 | `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2), BLE (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
-| `history` | readings (§27.1) | empty | 1.5 MB, about 65,000 readings | flash partition (C-10.9) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) [proposed] |
+| `history` | readings (§27.1) | empty | 1.5 MB, about 65,000 readings | flash partition (C-10.9) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
 Build-time constants:
 
@@ -2282,8 +2282,8 @@ Build-time constants:
 | Heap returned 10 s after a window | within 8 KB | [user] |
 | BLE service UUID | `6e0a0001-7d3b-4c2a-9f1e-54445333424c` | [derived] |
 | History record / per sector | 16-byte payload + 8-byte trailer / 170 | [derived from `flash_ring`] |
-| History append limit | ≤ 500 ms | [proposed] |
-| Full `GET /api/history` | ≤ 30 s | [proposed] |
+| History append limit | ≤ 500 ms | [user] |
+| Full `GET /api/history` | ≤ 30 s | [user] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -2348,7 +2348,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.14.0
+fsd_version: 0.14.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2388,10 +2388,8 @@ change_history:
   - 0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16, FR-7.33 superseded by FR-7.34 (the BLE countdown logs once a minute); §1, §2, §4.3, §9.1, §11 and Appendix A updated
   - 0.13.1 2026-11-01 all proposed BLE values accepted by the user (FR-26.7, FR-26.8, FR-26.13, FR-26.14, FR-26.17, NFR-26.1)
   - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
+  - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6]
-open_decisions:
-  - FR-27.7 a factory reset erases the history
-  - NFR-27.1 an append takes at most 500 ms
-  - NFR-27.2 a full GET /api/history completes within 30 s
+open_decisions: []
 related_test_baseline: none yet
 ```
