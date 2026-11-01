@@ -1,0 +1,78 @@
+# Water pressure probe circuit
+
+Proposed hardware for a battery-powered 5 V water pressure probe, read through an
+ADS1115. No FSD requirement covers it yet, and it has not been built. Figures come
+from distributor pages and memory; check them against current datasheets.
+
+![Wiring of the board, MiniBoost, ADS1115 and probe](water-probe-circuit.svg)
+
+## Parts
+
+- LilyGO T-Display-S3 AMOLED.
+- ADS1115 on the BME280's I2C bus (GPIO 43/44), powered from 3V3, address `0x48`.
+- Adafruit MiniBoost 5V 1A (product 4654, TPS61023), chosen for its true output
+  disconnect when `EN` is low. Bare MCP1640/MCP1640B or TPS61023 suit a custom
+  board; the MCP1640C/D pass the input to the output when off, so they do not.
+- A 0.5–4.5 V ratiometric probe, rated at 1.5–2 times the highest water pressure. Not
+  chosen.
+
+## Connections
+
+| Connection | Parts | Purpose |
+|------------|-------|---------|
+| Probe output → A0 | 10 kΩ output to node, 10 kΩ node to GND, 1 kΩ in series to A0, 100 nF A0 to GND | Scales 4.5 V to about 2.3 V; filters and protects the input |
+| A0 clamp | BAT54S: A0 to 3V3 and to GND | Limits a fault on the probe wire |
+| Boost 5 V → A1 | The same divider, 1 kΩ and 100 nF, no clamp; resistors 1% or better, matched between dividers | The reference of the ratio |
+| 5 V at the probe | 10 µF and 100 nF to GND | Steadies the supply, reduces boost ripple |
+| ADS1115 VDD | 100 nF to GND, close to the chip (often on the breakout) | Decoupling |
+| GPIO 2 → EN | 100 kΩ EN to GND | Probe off through sleep and resets |
+| ADDR | To GND | Address `0x48`; the BME280 is `0x76` |
+
+## Reading
+
+`psi = full_scale × (A0 / A1 − 0.1) / 0.8`. With equal dividers, the boost's voltage
+and its drift cancel.
+
+1. Set GPIO 2 high.
+2. Wait for the probe to warm up: 50 ms to start with, then as measured at bring-up.
+3. Read A1 and A0 in single-shot mode at the ±4.096 V range.
+4. Set GPIO 2 low.
+
+## To check before wiring
+
+1. **GPIO 2.** The firmware does not use it, and it is an RTC pin that is not a strapping
+   pin. Whether the header brings it out is unconfirmed: check the silkscreen. GPIO 4 is
+   the battery sense and GPIO 21 the user key.
+2. **Battery connection.** No battery pin on the header is confirmed, so Battery + may be
+   a tap at the battery connector. It bypasses the board's power circuit: keep it short
+   and add a 1 A fuse. Do not feed VIN from 3V3.
+3. **MiniBoost EN.** Whether the breakout pulls `EN` up is unconfirmed. Measure `EN` with
+   only VIN and GND connected. If it sits high, remove that pull-up, or use a stronger
+   pull-down, or hold GPIO 2 low through deep sleep.
+4. **Probe load.** The divider loads the probe with about 20 kΩ; compare it with the
+   probe's minimum load.
+5. **I2C pull-ups.** Check the total with both the ADS1115 and BME280 boards fitted.
+
+## Installation
+
+Keep the electronics dry and strain-relieve the probe cable. Metal pipes can be earthed,
+so a mains or computer USB connection can add a ground path through the probe; test on
+battery. Long cable runs may need more input protection.
+
+## Firmware notes
+
+- A shared `ads1115` component with a pure core; `bme280` may need to accept a shared bus.
+- The water value is 16 bits in 0.01 psi, so RTC memory and record sizes stay the same.
+  The flash log reserves it (`FL_WATER_NONE` is no reading, FR-26.4).
+- Shown in psi on the page, JSON, averages, emails and CSV. Line 4 has no room, so water
+  needs its own display line. A fault shows `--` and stops nothing.
+- Probe full-scale pressure is a portal setting.
+
+## Order of work
+
+1. Requirements in the FSD.
+2. A commissioning program: ADS1115, boost switching, warm-up time, with a variable
+   voltage in place of the probe.
+3. The driver and shared bus.
+4. Integration with readings, averages, emails, log and display.
+5. Accuracy against a reference gauge, and battery current in sleep, reading and email.
