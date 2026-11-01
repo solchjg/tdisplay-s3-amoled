@@ -2102,20 +2102,22 @@ A history line is CSV, oldest first, after the header
   `text/csv` with the header and every history line, oldest first, sent in
   chunks so the response never needs the whole history in RAM; only the header
   when the history is empty. `GET /` shall link to it.
-- **FR-27.10** [Must] [user] `GET /api/history?since=<YYYY-MM-DD>` shall send
-  only the lines whose time is at or after local midnight starting that date
-  (FR-22.2), oldest first, still with the header; lines with a clock never set
-  are left out. A `since` that is not a valid date answers 400 with a one-line
-  reason. Lines are chosen by their time, not by their place in the ring, so
+- **FR-27.10** [Must] [user] `GET /api/history?from=<YYYY-MM-DD>&to=<YYYY-MM-DD>`
+  shall send only the lines whose local time (FR-22.2) falls on or after the
+  `from` date and on or before the `to` date, both whole days, oldest first,
+  still with the header; either may be left out for an open end. With either
+  given, lines with a clock never set are left out. A date that is not valid,
+  or `from` after `to`, answers 400 with a one-line reason. Lines are chosen by their time, not by their place in the ring, so
   a clock set back still gives every matching line.
 - **FR-27.5** [Must] [user] In a key window, a paired central shall read the
   history through the `history` characteristic (§27.3), starting at the line
   set by `control` `hist=<n>` (0 is the oldest). After `control`
-  `since=<YYYY-MM-DD>` (empty for all), the lines and n count only the lines
-  FR-27.10 would send for that date; a new connection starts with all lines.
+  `range=<from>,<to>` (dates as in FR-27.10, either empty for an open end),
+  the lines and n count only the lines FR-27.10 would send for that range; a
+  new connection starts with all lines.
 - **FR-27.6** [Must] [user] The Web Bluetooth page shall offer **Download
-  history** with an optional **Since** date (empty for all), read every line
-  through FR-27.5 after setting that date, show progress and save the result
+  history** with optional **From** and **To** dates (empty for an open end),
+  read every line through FR-27.5 after setting that range, show progress and save the result
   as `<hostname>-history.csv` with the header of §27.1.
 - **FR-27.7** [Must] [proposed] A factory reset (T10) shall erase the history
   with the settings; a reset cut short finishes the erase on the next boot.
@@ -2140,7 +2142,7 @@ Added to the §26.2 service:
 | `history` | `6e0a0006-…` | read | encrypted, authenticated (MITM) | As many whole history lines (no header) as fit in 512 bytes, starting at the line set by `control` `hist=<n>` (0 after connecting); empty past the last line |
 
 `control` also accepts `hist=<n>`, n at most 9 digits, and
-`since=<YYYY-MM-DD>` (FR-27.10; empty for all, which also sets n to 0); the
+`range=<from>,<to>` (FR-27.10; `range=,` for all; either sets n to 0); the
 client asks for the next n by adding the lines it received. An invalid date is
 refused like any malformed `control` write (§26.2).
 
@@ -2150,13 +2152,13 @@ refused like any malformed `control` write (§26.2).
 |----|------------------------|----------------------|-----------------|------|
 | FR-27.1, FR-27.4 (core) | Format records: synced, unsynced, clock never set, −40 °C, 85 °C | The §27.1 lines, e.g. `2026-11-01T12:31:07-0500,1,70.62,45.2,1013.25`; empty `time` for a never-set clock | Another column order; missing decimals | host |
 | FR-27.5 (core) | Page 0, 1, 10 and 65,110 lines from n = 0, n mid-way, n past the end | Whole lines only, ≤ 512 bytes each page, pages joined equal the full CSV body; empty past the end | A split line; a repeated or skipped line | host |
-| FR-27.10 (core) | Records spanning three days, one with a clock never set, one after the clock was set back; `since` of the middle day, a date after the newest, `2026-02-30`, `x` | Only the lines at or after that local midnight, header first; the header only; 400 for both bad dates | A never-set line; a set-back line missed; 200 for a bad date | host |
+| FR-27.10 (core) | Records spanning three days, one with a clock never set, one after the clock was set back; from = to = the middle day; only from; only to; from after the newest; from after to; `2026-02-30`; `x` | Only that day's lines; open ends honoured; header first each time; the header only; 400 for the last three | A never-set line; a set-back line missed; a line from the day after `to`; 200 for a bad range | host |
 | FR-27.2, FR-27.3 (core) | `flash_ring` core with 64 sectors: fill 10,880 records; tear the last record | The oldest sector dropped, newest kept in order; the torn record skipped | A lost newer record; a failed boot | host |
 | C-10.9 | Parse the built partition table binary | Exactly the six rows tabled | Any other row, offset or size | host |
 | FR-27.1, FR-27.4 | Sleep test build, three timer wakes, then a key wake to ONLINE; relay `GET /api/history` | CSV with the header and at least the three wakes' readings, oldest first, each equal to its L21 | A missing timer-wake reading; JSON | bench |
 | FR-27.3 | Reset over USB during the task 5 times; then ONLINE | `GET /api/history` parses; every line equals an L21 | A boot loop; a garbled line | bench |
 | FR-27.5, FR-27.6 | Key window; operator pairs the page and presses **Download history** | The saved file equals `GET /api/history` byte for byte | A different line count | bench (operator) |
-| FR-27.10, FR-27.6 | As above with **Since** set to today | The saved file equals `GET /api/history?since=<today>` byte for byte | An older line | bench (operator) |
+| FR-27.10, FR-27.6 | As above with **From** and **To** set to today | The saved file equals `GET /api/history?from=<today>&to=<today>` byte for byte | An older line | bench (operator) |
 | FR-27.7 | Operator factory reset, then provision | `GET /api/history` is the header only | An old reading | bench (operator) |
 | FR-27.8 | Build flashed over the old five-row table (app only) | L31 `history unavailable` once; `GET /api/history` 404; readings and the rest unchanged | A restart; a write outside the app slot | target |
 | NFR-27.1 | Time appends across a sector boundary | Each ≤ 500 ms | Longer | target |
@@ -2385,7 +2387,7 @@ change_history:
   - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)
   - 0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16, FR-7.33 superseded by FR-7.34 (the BLE countdown logs once a minute); §1, §2, §4.3, §9.1, §11 and Appendix A updated
   - 0.13.1 2026-11-01 all proposed BLE values accepted by the user (FR-26.7, FR-26.8, FR-26.13, FR-26.14, FR-26.17, NFR-26.1)
-  - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a `since` date, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
+  - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6]
 open_decisions:
   - FR-27.7 a factory reset erases the history
