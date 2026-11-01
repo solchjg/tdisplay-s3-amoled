@@ -25,6 +25,7 @@ dut_record:   # the unit this project is verified against (observed 2026-10-29, 
   psram: embedded 8MB (AP_3v3)
   flash: 16MB
   mac: 48:27:e2:ea:48:3c
+  reserved_ip: 192.168.40.150   # router DHCP reservation on IOTID, set 2026-10-31
   usb: USB-Serial/JTAG 303a:1001, /dev/ttyACM0
 
 # ── Capabilities ─────────────────────────────────────────────────────────
