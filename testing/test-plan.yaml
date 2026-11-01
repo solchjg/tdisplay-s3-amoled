@@ -519,7 +519,7 @@ tests:
     tier: host
     verifies: [C-10.6]
     needs: []
-    observable: "parsed partition-table.bin equals the five C-10.6 rows"
+    observable: "parsed partition-table.bin equals the six C-10.6 rows"
     impl: tests/host/test_build.py::test_partition_table_is_exactly_the_stated_one
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "Build Firmware run 40039430162 inspect step; rerun locally on its artefact: 8 passed"}
 
@@ -2430,5 +2430,83 @@ tests:
     verifies: [FR-25.14, NFR-25.1]
     needs: [bench-serial-monitor, dut-amoled-slot1]
     observable: "mail_host that does not resolve, slot due: L26 'mail failed: dns', then 'web: sleep'; no second attempt"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-FLG-01
+    title: "The log reads oldest first and reuses its oldest sector"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.1, FR-26.3]
+    needs: []
+    observable: "in order, the oldest sector reused when full, a rescan finds the same end"
+    impl: [tests/host/test_flash_log.py::test_empty, tests/host/test_flash_log.py::test_appends_read_oldest_first, tests/host/test_flash_log.py::test_full_log_reuses_the_oldest_sector, tests/host/test_flash_log.py::test_a_boot_finds_the_end_again]
+    result: {status: not done}
+
+  - id: TC-FLG-02
+    title: "A torn or damaged record is skipped"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.4]
+    needs: []
+    observable: "the bad record is not listed and appends continue past it"
+    impl: [tests/host/test_flash_log.py::test_torn_record_is_skipped, tests/host/test_flash_log.py::test_torn_last_slot_moves_to_the_next_sector, tests/host/test_flash_log.py::test_damaged_record_is_skipped, tests/host/test_flash_log.py::test_torn_first_slot_of_the_newest_sector]
+    result: {status: not done}
+
+  - id: TC-FLG-03
+    title: "A CSV line"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.5]
+    needs: []
+    observable: "the format of FR-25.15"
+    impl: [tests/host/test_flash_log.py::test_csv_line]
+    result: {status: not done}
+
+  - id: TC-FLG-10
+    title: "History survives a reboot and downloads in full"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.1, FR-26.2, FR-26.5, FR-26.6]
+    needs: [bench-flash, bench-serial-monitor, dut-amoled-slot1]
+    observable: "averages from before a reboot in /api/history.csv, oldest first; the device stays awake to the end of the download, then sleeps"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-FLG-11
+    title: "Clearing the log"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.7, FR-26.8, FR-26.10]
+    needs: [bench-flash, bench-operator-prompt, operator-at-bench, dut-amoled-slot1]
+    observable: "after the page button, and after a factory reset showing Clearing log, the CSV holds only its header"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-FLG-12
+    title: "No log partition"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.9]
+    needs: [bench-flash, bench-serial-monitor, dut-amoled-slot1]
+    observable: "a warning; readings, email and sleep go on; the CSV route answers 503"
     impl: []
     result: {status: not done}

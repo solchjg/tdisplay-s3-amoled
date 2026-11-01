@@ -30,6 +30,7 @@
 #include "summary.h"
 #include "time_sync.h"
 #include "udp_log.h"
+#include "flash_log.h"
 #include "weather.h"
 #include "web_log.h"
 #include "web_log_format.h"
@@ -50,7 +51,7 @@ static const char *TAG = "main";
 #define HOLD_TIMEOUT_S DL_HOLD_TIMEOUT_S  // FR-24.6
 #endif
 
-typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY } app_kind_t;
+typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY, APP_CLEAR_LOG } app_kind_t;
 
 typedef struct {
     app_kind_t kind;
@@ -73,10 +74,18 @@ _Static_assert(sizeof stored.ssid == WIFI_NET_SSID_MAX + 1 &&
                sizeof stored.password == WIFI_NET_PASSWORD_MAX + 1,
                "portal and wifi_net credentials differ in size");
 
+// The status page's own HTML: the newest reading and the flash log's controls.
+static void page_extra(char *out, size_t len)
+{
+    weather_html(out, len);
+    size_t n = strlen(out);
+    flash_log_html(out + n, len - n);
+}
+
 static const status_http_source_t status_source = {.ip = ip, .hostname = hostname,
                                                    .rssi = wifi_net_rssi,
                                                    .log = web_log_http,
-                                                   .extra_html = weather_html};
+                                                   .extra_html = page_extra};
 
 static dl_wake_t wake;  // how this boot began (FSD §21)
 static bool task_ran;
@@ -194,6 +203,12 @@ static esp_err_t get_hang(httpd_req_t *req)
     return ESP_OK;
 }
 #endif
+
+static void on_clear_log(void)
+{
+    app_event_t e = {.kind = APP_CLEAR_LOG};
+    post(&e);
+}
 
 static void on_key(void)
 {
@@ -336,8 +351,15 @@ static void take_reading(void)
 {
     wx_reading_t r;
     weather_set_average(summary_collect().average_min);  // FR-23.15
+    uint32_t closed = weather_averages()->closed;
     esp_err_t err = weather_read(&r);
     if (err == ESP_OK) {
+        if (weather_averages()->closed != closed) {
+            esp_err_t log_err = flash_log_append(wx_avg_get(weather_averages(), 0));  // FR-26.1
+            if (log_err != ESP_OK) {
+                web_log_warn("flash log append", log_err);  // FR-26.9
+            }
+        }
         char iso[WX_ISO_MAX], line[WL_LINE_MAX];
         weather_iso(&r, iso);
         wx_log_line(&r, iso, line, sizeof line);
@@ -581,6 +603,11 @@ static void start_attempt(void)
     esp_timer_start_once(attempt_timer, ATTEMPT_TIMEOUT_US);
 }
 
+static void feed_watchdog(void)
+{
+    esp_task_wdt_reset();
+}
+
 static void execute_conn(const app_event_t *e, dl_conn_step_t step)
 {
     unsigned a = step.actions;
@@ -642,6 +669,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err == ESP_OK) {
             err = weather_register(status_http_handle(), status_http_note);  // FR-23.13
         }
+        if (err == ESP_OK) {
+            err = flash_log_register(status_http_handle(), status_http_note, on_clear_log);  // FR-26.5
+        }
 #ifdef TDS3_TEST_HANG_HTTP
         static const httpd_uri_t hang = {.uri = "/hang", .method = HTTP_GET,
                                          .handler = get_hang};
@@ -694,6 +724,11 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = summary_erase();  // FR-25.2
         if (err != ESP_OK) {
             web_log_warn("mail settings erase", err);
+        }
+        lcd_draw_line(0, "Clearing log");  // FR-26.10
+        err = flash_log_clear(feed_watchdog);  // FR-26.7
+        if (err != ESP_OK) {
+            web_log_warn("flash log clear", err);  // FR-26.9
         }
     }
     if (a & DL_C_RESTART) {
@@ -802,6 +837,15 @@ void app_main(void)
     }
     hold_event(DL_HEV_BOOT, setup_check_pending());  // FR-24.2: NVS is up
 
+    if (flash_log_clear_pending()) {  // FR-26.10: a clear that a power loss cut short
+        lcd_draw_line(0, "Clearing log");
+        esp_err_t clear_err = flash_log_clear(NULL);
+        if (clear_err != ESP_OK) {
+            web_log_warn("flash log clear", clear_err);  // FR-26.9
+        }
+        lcd_draw_line(0, want[0]);
+    }
+
     // FR-19.1: this task is watched; the 1 s tick below feeds it.
     esp_task_wdt_add(NULL);
     ESP_LOGI(TAG, "Init complete, running event-driven");
@@ -832,6 +876,13 @@ void app_main(void)
             hold_event(DL_HEV_KEY, false);
             continue;
         }
+        if (e.kind == APP_CLEAR_LOG) {
+            esp_err_t clear_err = flash_log_clear(feed_watchdog);  // FR-26.8
+            if (clear_err != ESP_OK) {
+                web_log_warn("flash log clear", clear_err);  // FR-26.9
+            }
+            continue;
+        }
         esp_task_wdt_reset();
 #ifdef TDS3_TEST_HANG_APP
         // Hang test build, variant app (FSD §19.3): block 20 s after startup (FR-19.1).
@@ -846,8 +897,9 @@ void app_main(void)
         disp = disp_tick(disp);
         hold_event(DL_HEV_TICK, false);
         bool provisioned = view.conn != DL_BOOT && view.conn != DL_PROVISIONING;
-        if (!task_ran && dl_task_due(wake, uptime_s() - window_start_s, image_pending_verify(),
-                                     provisioned, task_ran, hold)) {
+        if (!task_ran && !flash_log_downloading() &&  // FR-26.6
+            dl_task_due(wake, uptime_s() - window_start_s, image_pending_verify(),
+                        provisioned, task_ran, hold)) {
             run_task_and_sleep();  // FR-21.2 – FR-21.4, FR-24.11, FR-24.6: after the window
         }
         if (++tick % ALIVE_TICKS == 0) {

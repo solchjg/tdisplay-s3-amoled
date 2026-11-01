@@ -290,6 +290,15 @@ testbench.
 - **Dependencies.** §13 (the form), §21 (the task and its sleep), §22 (local
   time), §23 (the kept readings).
 
+### 3.8 Phase 8: Flash log
+
+- **Scope.** Finished averages in their own flash partition, the CSV download,
+  and clearing them.
+- **Deliverables.** §26, the `log` row of C-10.6.
+- **Exit criteria.** Averages from before a reboot download oldest first; the page
+  button and a factory reset each leave the log empty; a failure stops nothing.
+- **Dependencies.** §10 (the partition table), §19 (the watchdog), §23 (the averages).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -1329,8 +1338,9 @@ The numbers a build will otherwise take from a default.
   | phy_init | data / phy | 0x11000 | 0x1000 |
   | ota_0 | app / ota_0 | 0x20000 | 0x400000 |
   | ota_1 | app / ota_1 | 0x420000 | 0x400000 |
+  | log | data / 0x40 | 0x820000 | 0x7E0000 |
 
-  No factory partition; flash above 0x820000 is unused.
+  No factory partition; the log runs to the end of the 16 MB flash.
 - **C-10.7** [Must] [derived from C-10.6] The application image shall be at most
   0x400000 bytes.
 - **C-10.8** [Must] [derived from FR-5.24] The bootloader shall be built with app
@@ -1843,6 +1853,56 @@ leaves email off.
 
 # Part E — Operations & Verification
 
+## 26. Flash Log
+
+### 26.1 Purpose
+
+The device keeps its finished averages (FR-23.15) in internal flash, so they
+survive a power loss and reach further back than RTC memory holds them. At 32
+bytes a record the partition holds 258,048 records, about 2.4 years of 5-minute
+averages; emails keep working from RTC memory (§25).
+
+### 26.2 Requirements
+
+- **FR-26.1** [Must] [user] Each finished average shall be appended to the log
+  when it finishes, on any wake, without starting WiFi.
+- **FR-26.2** [Must] [proposed] The log shall have its own partition, `log`
+  (C-10.6).
+- **FR-26.3** [Must] [user] When the log is full, the oldest 4 KB sector shall be
+  erased and reused. A record is never rewritten in place.
+- **FR-26.4** [Must] [proposed] Each record shall be 32 bytes with a sequence
+  number and a checksum. A torn or invalid record is skipped on reading, and
+  logging carries on after it.
+- **FR-26.5** [Must] [user] In ONLINE, `GET /api/history.csv` shall answer 200
+  `text/csv` with the header line and one line per record, oldest first, in the
+  format of FR-25.15.
+- **FR-26.6** [Must] [derived from FR-26.5] The device shall not sleep while a
+  download is in progress. A download with no progress for **30 s** ends.
+- **FR-26.7** [Must] [user] A factory reset (T10) shall erase the log.
+- **FR-26.8** [Must] [user] A button on the status page, after a confirmation
+  step on the page, shall erase the log through `POST /api/history/clear`. While
+  a download is in progress the request answers 409 and erases nothing.
+- **FR-26.9** [Must] [derived] A log write or read failure, including no `log`
+  partition on the device, shall be logged as a warning and never stop
+  a reading, an email or sleep.
+- **FR-26.10** [Must] [user] A factory reset shall erase only the sectors in use
+  and show `Clearing log` on line 1 until it finishes. An erase that a power loss
+  cuts short shall finish on the next boot, so no old record is left.
+- **NFR-26.1** [Must] [proposed] An append shall take at most **50 ms**, or
+  **100 ms** when a sector must be erased first.
+
+### 26.3 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-26.1, FR-26.3 (core) | RAM image: 0, 3, one sector, a full log, past full; a rescan after each | Oldest first in order; the oldest sector reused when full; the rescan finds the same end | A record out of order; a rescan losing the end | host |
+| FR-26.4 (core) | A torn record, a torn last slot, a damaged record, a torn first slot | The bad record skipped; appends continue past it | A bad record listed; the log stopping | host |
+| FR-26.5 (core) | One record | Its line in the format of FR-25.15 | Units in a line; other columns | host |
+| FR-26.2 | The built partition table | The six rows of C-10.6 | Another offset or size | host |
+| FR-26.1, FR-26.5, FR-26.6 | ONLINE, averages finished; reboot; `GET /api/history.csv` | Averages from before the reboot, oldest first, header first; the device stays awake to the end, then sleeps | Sleep mid-download; lost averages | bench |
+| FR-26.7, FR-26.8, FR-26.10 | Log with records; the page's button, then in a second run a factory reset | CSV holds the header only afterwards; `Clearing log` during the reset | A record surviving | bench (operator) |
+| FR-26.9 | Device flashed with a table without `log` by OTA only | A warning; readings, email and sleep go on; the CSV route answers 503 | A restart; a missed sleep | bench |
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2012,7 +2072,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.12.0
+fsd_version: 0.13.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2049,6 +2109,7 @@ change_history:
   - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
   - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)
   - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)
+  - 0.13.0 2026-10-31 from the user's request and answers: §26 Flash Log (FR-26.1 – FR-26.10, NFR-26.1): finished averages in their own partition, overwrite oldest, CSV download, factory reset and a page button clear it; C-10.6 gains the `log` row
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2]
 open_decisions: []
 related_test_baseline: none yet

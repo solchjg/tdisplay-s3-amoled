@@ -95,6 +95,11 @@ credentials are erased, the device restarts, and it shows the setup screen of
 chapter 2 again. A shorter press does nothing. Do not hold BOOT while plugging the
 board in: that starts the chip's download mode instead.
 
+A factory reset also erases the history log (chapter 5c), which can take about a
+minute and a half when the log is full; the display says `Clearing log`. Download the
+history first if you want to keep it. Changing a mail setting needs a factory reset, so
+it erases the history too.
+
 ## 5a. Sleeping between tasks
 
 A firmware with a task (reading a sensor, for example) never sleeps before its
@@ -167,6 +172,17 @@ down) that summary is skipped and the serial log says why
 that did arrive. If the board is reset or loses power while it is sending,
 it tries that summary once more the next time it is awake. To change any of these settings, do a factory reset (chapter 5)
 and set the device up again. The password is never shown or logged.
+
+## 5c. History log
+
+The device keeps each finished average in its own flash, so the history survives a
+reboot or power loss; only the period in progress is lost. With 5-minute averages it
+holds about 2.4 years, then the oldest are overwritten. The status page links to
+`/api/history.csv` for the download, in the same columns as the email table, and the
+device stays awake until a download ends. Press the user key first if it is asleep. The
+page's **Clear history** button erases the log after asking you to confirm; anyone on the
+same network can use it. Adding the log needs one flash over USB, because an over-the-air
+update cannot change the partition table; without it the device carries on with no log.
 
 ## 6. Troubleshooting
 

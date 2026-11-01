@@ -23,6 +23,7 @@
 | L1 | Time (FSD §22) | `shared/components/time_sync/` (synced-at-boot core pure); time zone from `CONFIG_TIME_SYNC_TZ`, SNTP from `CONFIG_TIME_SYNC_SERVER` started with the services, each sync reported through a callback (L20) | esp_netif SNTP |
 | L1 | Weather Sensor (FSD §23) | `components/weather/` (history ring, period averages and every rendering of a reading core pure); reads the BME280 at 0x76 on GPIO 43/44, keeps 144 readings, 96 averages and the summary's min/max in RTC memory, registers `GET /api/readings` on the server handle and gives `status_http` the page's reading section (`extra_html`) | `bme280`, `time_sync`, esp_http_server |
 | L1 | Setup Check (FSD §24) | `components/setup_check/` (key debounce core pure); the pending mark in NVS (`CONFIG_SETUP_CHECK_NVS_NAMESPACE`) and the keys that end the hold (`CONFIG_SETUP_CHECK_KEY_GPIO` 21, the user key; `CONFIG_SETUP_CHECK_KEY2_GPIO` 0, BOOT) sampled every 10 ms, each press through a callback; when to hold is `device_logic`'s | nvs_flash, GPIO driver, esp_timer |
+| L1 | Flash Log (FSD §26) | `components/flash_log/` (record, end finding, reading and CSV core pure); owns the `log` partition and the routes `/api/history.csv`, `/api/history/clear`; its end position is kept in RTC memory, so a timer wake needs no scan | `weather` core |
 | L1 | Summary Email (FSD §25) | `components/summary/` (settings check, due rule and message core pure); adds the mail and reading-time fields to the portal (`portal_start_extra`), keeps the settings, the sample and average minutes and the last due slot in NVS (namespace `mail`), sends through `mail_tx` in a helper task while feeding the caller's watchdog; on a timer wake the composition root brings the station up only for a due summary | `mail_tx`, `portal`, `weather`, nvs_flash, esp_timer |
 | L1 | Device Identity (FSD §20) | `shared/components/identity/` (name formatting core pure, prefixes passed in) | nothing |
 | — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces, and wires each interface's callbacks to `web_log` | all of the above |
@@ -93,9 +94,9 @@ IDF Component Manager git dependency pinned to a tag, or as a submodule.
   The identity prefixes are read by the composition root and passed to
   `id_softap_ssid` / `id_hostname`, so the `identity` core stays free of
   ESP-IDF headers.
-- `lcd`, `device_logic`, `web_log`, `weather`, `setup_check` and `summary` stay in
+- `lcd`, `device_logic`, `web_log`, `weather`, `setup_check`, `summary` and `flash_log` stay in
   `components/`: they are this app's screen, state machine, log vocabulary,
-  sensor, setup check and summary email.
+  sensor, setup check, summary email and flash log.
 
 ## Deep sleep (FSD §21)
 
