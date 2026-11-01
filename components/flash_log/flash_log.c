@@ -9,6 +9,8 @@
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
 #include "flash_ring.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define CHUNK_MAX 3072
 #define SEND_WAIT_S 5    // per try, shorter than the task watchdog (FR-19.2)
@@ -98,6 +100,7 @@ static esp_err_t get_history(httpd_req_t *req)
         while (k + FL_CSV_LINE_MAX <= sizeof chunk) {
             fl_payload_t p;
             more = flash_ring_next(&ring, &c, &p);
+            esp_task_wdt_reset();  // a full log takes many reads per chunk (FR-19.2)
             if (!more) {
                 break;
             }
@@ -108,10 +111,10 @@ static esp_err_t get_history(httpd_req_t *req)
             memcpy(chunk + k, line, n);
             k += n;
         }
-        esp_task_wdt_reset();
         if (k > 0) {
             err = httpd_resp_send_chunk(req, chunk, k);
         }
+        vTaskDelay(1);  // the idle tasks are watched too
     }
     if (err == ESP_OK) {
         err = httpd_resp_send_chunk(req, NULL, 0);
