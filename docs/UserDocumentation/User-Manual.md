@@ -195,7 +195,9 @@ The device does not sleep while Bluetooth is on. Passwords are never shown on
 the page or sent back by the device. Three wrong codes end the session. If
 the display has failed, Bluetooth stays off; use the WiFi portal instead.
 
-**Chrome on Linux** shows no code prompt of its own. Pair first in a terminal,
+**Browsers.** On an Android phone, use Chrome: it asks for the code itself.
+Brave turns Web Bluetooth off; enable `brave://flags/#brave-web-bluetooth-api`
+or use Chrome. **Chrome on Linux** shows no code prompt of its own. Pair first in a terminal,
 then use the page over the paired link:
 
 ```
