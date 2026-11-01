@@ -483,7 +483,13 @@ def test_ble_countdown_logs_when_its_minutes_change(run):
     assert run("logged", 4, p + "05:00", p + "04:59") == "1"
     assert run("logged", 4, p + "04:59", p + "04:58") == "0"
     assert run("logged", 4, p + "00:01", p + "00:00") == "1"
-    assert run("logged", 4, p + "04:58", "BLE code 004207") == "1"
+    assert run("logged", 4, "BLE code 004207", p + "04:58") == "1"
+
+
+# TC-BLE-14 · FR-26.16 (core): the passkey on line 5 is never logged
+def test_ble_passkey_line_is_not_logged(run):
+    assert run("logged", 4, "BLE setup 04:58", "BLE code 004207") == "0"
+    assert run("logged", 4, "", "BLE code 656600") == "0"
 
 
 # TC-BLE-08 · T14 (FR-26.7, FR-26.8): an accepted key-window write stores and restarts

@@ -163,7 +163,8 @@ bool dl_led_lit(dl_hold_t hold, uint32_t held_ms);
 
 // FR-7.34: whether redrawing line i (0-based) from `was` to `now` logs L7. Every
 // line does, except a countdown on line 5 (the setup check's or the BLE key
-// window's) while its minutes stay the same, unless it reaches 00:00.
+// window's) while its minutes stay the same, unless it reaches 00:00, and
+// line 5 showing the BLE passkey (FR-26.16).
 bool dl_line_logged(int i, const char *was, const char *now);
 
 // FR-21.2 – FR-21.4, FR-24.2: the task runs once per boot, at once on the lean

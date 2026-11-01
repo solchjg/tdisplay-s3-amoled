@@ -211,9 +211,13 @@ bool dl_led_lit(dl_hold_t hold, uint32_t held_ms)
 }
 
 #define BLE_PROMPT "BLE setup "
+#define BLE_CODE "BLE code "
 
 bool dl_line_logged(int i, const char *was, const char *now)
 {
+    if (i == 4 && strncmp(now, BLE_CODE, strlen(BLE_CODE)) == 0) {
+        return false;  // FR-26.16: the passkey is never logged
+    }
     const char *prompt = strncmp(now, BLE_PROMPT, strlen(BLE_PROMPT)) == 0 ? BLE_PROMPT
                                                                              : HOLD_PROMPT;
     size_t p = strlen(prompt);
@@ -342,7 +346,7 @@ void dl_ble_line(const dl_ble_ctx_t *c, uint32_t now_s, int32_t passkey, char ou
         return;
     }
     if (passkey >= 0) {
-        snprintf(out, DL_LINE_MAX, "BLE code %06" PRId32, passkey % 1000000);
+        snprintf(out, DL_LINE_MAX, BLE_CODE "%06" PRId32, passkey % 1000000);
         return;
     }
     if (c->state != DL_BLE_KEY) {

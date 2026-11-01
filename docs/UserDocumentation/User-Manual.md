@@ -195,6 +195,19 @@ The device does not sleep while Bluetooth is on. Passwords are never shown on
 the page or sent back by the device. Three wrong codes end the session. If
 the display has failed, Bluetooth stays off; use the WiFi portal instead.
 
+**Chrome on Linux** shows no code prompt of its own. Pair first in a terminal,
+then use the page over the paired link:
+
+```
+bluetoothctl
+agent KeyboardOnly
+default-agent
+scan le            # until TDS3-… appears, then: scan off
+pair <address>     # type the code the display shows
+```
+
+Leave `bluetoothctl` connected and press **Connect to device** on the page.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |
