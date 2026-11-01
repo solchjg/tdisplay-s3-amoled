@@ -221,11 +221,12 @@ def test_overlong_body_is_refused_whole(bset):
 def test_dump_has_no_secret(bset):
     on = bset("dump", "1")
     assert "secret" not in on
-    assert on == ("ssid=home%20net&mail_host=smtp.example.com&mail_port=465&mail_user=me%40x.org"
-                  "&mail_from=&mail_to=you%40x.org&mail_to2=&mail_time=07%3A05&mail_every=6"
-                  "&sample_min=10&average_min=60&password_set=1&mail_password_set=1")
+    # each secret's flag follows the field it belongs to, so the page shows it there
+    assert on == ("ssid=home%20net&password_set=1&mail_host=smtp.example.com&mail_port=465"
+                  "&mail_user=me%40x.org&mail_password_set=1&mail_from=&mail_to=you%40x.org"
+                  "&mail_to2=&mail_time=07%3A05&mail_every=6&sample_min=10&average_min=60")
     off = bset("dump", "0")
-    assert "mail_host=&mail_port=&" in off and off.endswith("mail_password_set=0")
+    assert "mail_host=&mail_port=&" in off and "mail_password_set=0" in off
 
 
 def test_dump_round_trips_through_a_key_window_write(bset):

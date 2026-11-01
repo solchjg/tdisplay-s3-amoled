@@ -111,10 +111,12 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sm_collect
     bool on = m->host[0] != '\0';
     char num[8], hhmm[6];
     field(&b, "ssid", cur->ssid);
+    field(&b, "password_set", cur->ssid[0] && cur->password[0] ? "1" : "0");
     field(&b, "mail_host", on ? m->host : "");
     snprintf(num, sizeof num, "%u", (unsigned)m->port);
     field(&b, "mail_port", on ? num : "");
     field(&b, "mail_user", on ? m->user : "");
+    field(&b, "mail_password_set", on && m->password[0] ? "1" : "0");
     field(&b, "mail_from", on ? m->from : "");
     field(&b, "mail_to", on ? m->to : "");
     field(&b, "mail_to2", on ? m->to2 : "");
@@ -127,8 +129,6 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sm_collect
     field(&b, "sample_min", num);
     snprintf(num, sizeof num, "%u", (unsigned)col->average_min);
     field(&b, "average_min", num);
-    field(&b, "password_set", cur->ssid[0] && cur->password[0] ? "1" : "0");
-    field(&b, "mail_password_set", on && m->password[0] ? "1" : "0");
     return b.len;
 }
 
