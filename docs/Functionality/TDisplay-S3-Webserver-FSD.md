@@ -9,7 +9,7 @@ map is [`../00-Overview.md`](../00-Overview.md); the other planes are
 `C-x.y` (constraint), each with a priority `[Must/Should/May]` and a provenance tag:
 `[user]` stated or approved by the user; `[derived]` a logical consequence of a
 `[user]` item or a board fact; `[pack:esp32]` proposed by the ESP32 domain pack and
-accepted by the user. A number marked **[proposed]** is a value this document
+accepted by the user. A number marked is a value this document
 proposes that the user has not yet accepted; every one is listed under *Open
 decisions* (Appendix B). Everything else is approved.
 
@@ -1947,13 +1947,13 @@ Settings:
   `ssid` field keeps the stored WiFi credentials, a write with `ssid` but
   without a `password` field keeps the stored WiFi password, and a write with
   mail settings but without a `mail_password` field keeps the stored mail
-  password **[proposed]**. Valid, the settings are stored, `result` becomes
+  password. Valid, the settings are stored, `result` becomes
   `ok` and the device restarts (T14); invalid, NVS is unchanged and `result`
   becomes `invalid=<field>`.
 - **FR-26.8** [Must] [derived from FR-26.7] After an accepted key-window
   write the device shall notify `result`, then restart within **2 s**
-  **[proposed]**; the setup-check mark is not set by this write
-  **[proposed]**.
+ ; the setup-check mark is not set by this write
+ .
 - **FR-26.9** [Must] [derived from §9.1, FR-9.3, FR-25.10] No BLE read or
   notification shall carry `password` or `mail_password`; `settings` reads
   report only whether each is stored (`password_set`, `mail_password_set`).
@@ -1972,7 +1972,7 @@ Security:
   `control` shall answer a central whose link is not encrypted with an
   authenticated (MITM) key with the ATT error *Insufficient Authentication*;
   only `info` is readable before pairing.
-- **FR-26.13** [Must] [proposed] The device shall store no bonds; after
+- **FR-26.13** [Must] [user] The device shall store no bonds; after
   **3** failed pairings in one window it shall close a key window, or pause
   advertising for **60 s** in PROVISIONING.
 - **FR-26.15** [Must] [derived from FR-26.11] At most one central shall be
@@ -1983,7 +1983,7 @@ Display and log:
 - **FR-26.14** [Must] [user] While a passkey is awaited, line 5 shall show
   `BLE code <nnnnnn>`; otherwise, in a key window, `BLE setup <mm>:<ss>`
   counting down the time left of FR-26.3, or `BLE connected` while a central
-  is connected **[proposed]**. In the provisioning window line 5 is empty
+  is connected. In the provisioning window line 5 is empty
   except for the passkey.
 - **FR-26.16** [Must] [derived] Window openings and closings, pairing outcomes
   and settings writes shall log L27 – L30 (§7.2); the passkey shall not be
@@ -1991,14 +1991,14 @@ Display and log:
 
 Coexistence:
 
-- **FR-26.17** [Must] [proposed] A `POST /ota` while a key window is open
+- **FR-26.17** [Must] [user] A `POST /ota` while a key window is open
   shall be answered 409 (FR-15.12) and start no download, and a key hold during
   an OTA download shall open no window.
 - **FR-26.18** [Must] [derived from §9.1 and FR-26.3] The firmware shall
   initialise the BLE controller only when a window opens, and release it when
   the window closes; with no window open, nothing advertises at the ESP32-S3's
   derived MAC addresses (base MAC + 0 … + 3).
-- **NFR-26.1** [Must] [proposed] 10 s after a window closes, `free_heap` shall
+- **NFR-26.1** [Must] [user] 10 s after a window closes, `free_heap` shall
   be within **8 KB** of its value before the window opened.
 
 ### 26.4 Verification contracts
@@ -2142,11 +2142,11 @@ Build-time constants:
 | Reading line decimals (T / RH / P) | 1 / 0 / 2 | [user] |
 | BLE key-window hold (user key) | 3 s | [user] |
 | BLE key-window idle close | 5 min | [user] |
-| BLE pairing | LE Secure Connections, passkey on line 5, DisplayOnly, no bonds | [user] (no bonds [proposed]) |
-| BLE failed pairings per window / provisioning pause | 3 / 60 s | [proposed] |
+| BLE pairing | LE Secure Connections, passkey on line 5, DisplayOnly, no bonds | [user] |
+| BLE failed pairings per window / provisioning pause | 3 / 60 s | [user] |
 | BLE `settings` write limit | 2048 bytes | [derived from `PORTAL_BODY_MAX`] |
-| Restart after an accepted key-window write (T14) | ≤ 2 s | [proposed] |
-| Heap returned 10 s after a window | within 8 KB | [proposed] |
+| Restart after an accepted key-window write (T14) | ≤ 2 s | [user] |
+| Heap returned 10 s after a window | within 8 KB | [user] |
 | BLE service UUID | `6e0a0001-7d3b-4c2a-9f1e-54445333424c` | [derived] |
 
 ## Appendix B — Lifecycle Metadata
@@ -2212,7 +2212,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.13.0
+fsd_version: 0.13.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2250,13 +2250,8 @@ change_history:
   - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)
   - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)
   - 0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16, FR-7.33 superseded by FR-7.34 (the BLE countdown logs once a minute); §1, §2, §4.3, §9.1, §11 and Appendix A updated
+  - 0.13.1 2026-11-01 all proposed BLE values accepted by the user (FR-26.7, FR-26.8, FR-26.13, FR-26.14, FR-26.17, NFR-26.1)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33]
-open_decisions:
-  - FR-26.7 absent secret fields keep the stored secret in a key-window write
-  - FR-26.8 restart within 2 s of the notification; a key-window write sets no setup-check mark
-  - FR-26.13 no bonds; 3 failed pairings close a key window or pause provisioning advertising 60 s
-  - FR-26.14 line 5 texts `BLE setup <mm>:<ss>` and `BLE connected`
-  - FR-26.17 POST /ota answered 409 in a key window; no window during a download
-  - NFR-26.1 heap within 8 KB 10 s after a window
+open_decisions: []
 related_test_baseline: none yet
 ```
