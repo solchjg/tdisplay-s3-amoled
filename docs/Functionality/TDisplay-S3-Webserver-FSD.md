@@ -347,8 +347,8 @@ testbench.
   C-10.10, L34 – L36; the shared `ads1115` and `loop420` components; a
   commissioning program for the loop hardware.
 - **Exit criteria.** With a calibrator at 4, 8, 12, 16 and 20 mA, every L34
-  value is within ±0.25 % of span; a fault current or an unconnected loop logs
-  L35 and stops nothing, a test included; the value appears on line 6, the page, `ext`, the CSV and the
+  value is within ±0.25 % of span; a fault current logs L35 and stops
+  nothing; with `loop` `off` the loop leaves no trace; the value appears on line 6, the page, `ext`, the CSV and the
   summary; with `loop` `off` nothing changes; the old history is erased once.
 - **Dependencies.** §23 (readings), §27 (history), §28 (tests), §25 (mail),
   §26 (BLE settings), the carrier PCB's loop island.
@@ -2373,6 +2373,11 @@ triple: slot 1 for the RS232 input (planned, not yet specified) and slot 2
 for the loop. Each is a 32-bit float, NaN when the add-on is off or gave no
 value, so every reading has the same size in RTC memory and in the history.
 
+Usually only one add-on is connected at a time, so each is turned on or off
+on its own, and only those that are on are read, counted in a §28 verdict,
+given a CSV column, an `ext` key, an average, a summary line and a place on
+line 6. An add-on that is off leaves no trace anywhere (FR-29.14).
+
 | Where | An enabled add-on shows as |
 |-------|----------------------------|
 | `GET /api/readings` (FR-23.18) | `"ext": {"<loop_name>": <value or null>}` in each element; `{}` when every add-on is off |
@@ -2424,11 +2429,16 @@ Recording and showing:
   one line `<loop_name> min <v> max <v> mean <v> <loop_unit> (<n> values)`
   after the BME280's min and max, and a loop column to the averages table
   (FR-25.15), empty for a period with no value.
-- **FR-29.10** [Must] [user] A missing loop value (no transmitter connected,
-  a fault, or no answer) shall never fail a §28 test or stop data collection:
-  a test reading counts by FR-28.10 alone. With `loop` `in`, the test's L33
-  line shall end with ` <loop_name>=<v>/<n>`, v the test readings with a loop
-  value and n its readings, so the result email (FR-28.13) reports it too.
+- **FR-29.10** [Must] [user] With `loop` `off` the loop shall play no part
+  in a §28 test. With `loop` `in`, a test reading shall count (FR-28.10) only
+  if it also has a loop value, and the test's L33 line shall end with
+  ` <loop_name>=<v>/<n>`, v the test readings with a loop value and n its
+  readings, so the result email (FR-28.13) reports it too. A missing loop
+  value never stops data collection: the BME280 reading is kept and
+  appended as usual.
+- **FR-29.14** [Must] [user] Each add-on of §29.2 shall be turned on and off
+  on its own; one that is off shall add nothing to the readings' `ext`, the
+  CSV, the averages, the summary, line 6, the log or a §28 verdict.
 
 Settings and history format:
 
@@ -2454,13 +2464,13 @@ Settings and history format:
 | FR-29.11 (core) | Bodies: none; `loop=in`; `loop=on`; `loop_name=a%20b`; 13-character name; `loop_unit=a,b`; `loop_lo=5&loop_hi=5`; `loop_warm_ms=49`; 5001; `loop=off&loop_lo=x` | off; in with defaults; 400 `loop`; 400 `loop_name`; 400 `loop_name`; 400 `loop_unit`; 400 `loop_hi`; 400 `loop_warm_ms` twice; off (not checked) | A stored invalid value | host |
 | FR-29.6, §29.2 (core) | History records and JSON with the loop off, on with a value, on with none | CSV without the column; with `<loop_name>` and 3 decimals; an empty field. JSON `ext` `{}`, a number, null | A column while off; `NaN` in JSON or CSV | host |
 | FR-29.8 (core) | Line 6 for `Tank`, 12.3456, `psi`; none; a 12-character name with −99999.999 and a 6-character unit | `Tank 12.346 psi`; `Tank --`; at most 44 characters | Wrapping; more than 44 characters | host |
-| FR-29.10 (core) | Verdicts: `quick` 12 / 12 readings with the loop off; on with 12 values; on with 0 values | `result=pass` without a loop field; `result=pass … loop=12/12`; `result=pass … loop=0/12` | A fail caused by the loop; a loop field while off | host |
+| FR-29.10, FR-29.14 (core) | Verdicts: `quick` 12 / 12 readings with the loop off; on with 12 values; on with 11 values | `result=pass` without a loop field; `result=pass … loop=12/12`; `result=fail … loop=11/12` | A loop field or loop effect while off | host |
 | FR-29.9 (core) | Summary with 3 loop values and one reading without | The loop line with n = 3; the averages column empty where none | A NaN printed | host |
 | FR-29.12 (core) | `flash_ring` holding 16-byte records, then opened with the 24-byte format | Erased once, L36; a second open keeps the new records | A mixed history; erasing on every boot | host |
 | FR-29.2, FR-29.5, NFR-29.2 | Commissioning rig: a 4-20 mA calibrator in place of the transmitter, set to 12 mA; reset over USB | L34 with `ma=` within 12.000 ± 0.040; the enable GPIO high for at most 350 ms, measured on the bench's logic input or a scope | No L34; the supply on during sleep | bench (operator) |
 | NFR-29.1 | Calibrator at 4, 8, 12, 16, 20 mA, `loop_lo` 0, `loop_hi` 100 | Each L34 value within ±0.25 of the set point's value | An error over 0.25 | bench (operator) |
 | FR-29.4 | Calibrator at 3.0 mA, then the terminal open, then the ADS1115 unplugged | L35 `fault ma=3.000`; L35 `fault ma=0.000`; L35 with `ESP_ERR_TIMEOUT`; the window and sleep as usual | A restart; a value kept | bench (operator) |
-| FR-29.10 | `loop` `in` with nothing on the terminals; double press for `quick` | L33 `result=pass … loop=0/12`; line 5 `Test pass 12/12` | `result=fail`; a reading missing from the history | bench (operator) |
+| FR-29.10, FR-29.14 | Double press for `quick`, first with `loop` `off` and nothing on the terminals, then `in` with nothing on them | `result=pass` and no L34/L35; then `result=fail … loop=0/12` with all 12 readings in the history | A loop line while off; a reading missing from the history | bench (operator) |
 | C-29.1 | Board on USB; ohmmeter between the loop terminals and USB ground | Above 100 MΩ | Continuity | bench (operator) |
 | FR-29.7, FR-29.8, §29.2 | ONLINE with the calibrator at 12 mA; relay `GET /`, `GET /api/readings`, `GET /api/history` | Page, `ext`, CSV column and line 6 all show the L34 value | A value differing from L34 | bench |
 | FR-29.12 | Flash over a board holding a 16-byte history (all four images), then ONLINE | L36 once; `GET /api/history` holds only new readings | A garbled line; L36 on the next boot | bench |
@@ -2707,7 +2717,7 @@ change_history:
   - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
   - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
   - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
-  - 0.16.0 2026-11-01 from the user's answers to the 4-20 mA plan (input only, 24 V on the board, isolation in the first build, old history erased once, ±0.25 % of span, 300 ms settle, 3.6 / 21.0 mA faults, a sixth line in a smaller font): §29 4-20 mA Loop Input (FR-29.1 – FR-29.13, NFR-29.1, NFR-29.2, C-29.1), §29.2 add-on values shared with the planned RS232 input, FR-6.2 superseded by FR-6.15, FR-6.12 by FR-6.14, FR-23.13 by FR-23.18, FR-27.2 by FR-27.11, C-10.9 by C-10.10, L34 – L36, Phase 11; Appendix A updated
+  - 0.16.0 2026-11-01 from the user's answers to the 4-20 mA plan (input only, 24 V on the board, isolation in the first build, old history erased once, ±0.25 % of span, 300 ms settle, 3.6 / 21.0 mA faults, a sixth line in a smaller font): §29 4-20 mA Loop Input (FR-29.1 – FR-29.14, NFR-29.1, NFR-29.2, C-29.1), §29.2 add-on values shared with the planned RS232 input, FR-6.2 superseded by FR-6.15, FR-6.12 by FR-6.14, FR-23.13 by FR-23.18, FR-27.2 by FR-27.11, C-10.9 by C-10.10, L34 – L36, Phase 11; Appendix A updated
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
   - "§29.1: supply enable GPIO 3 (to confirm the header brings it out)"
