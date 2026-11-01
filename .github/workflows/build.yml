@@ -125,7 +125,7 @@ jobs:
         with:
           submodules: true
       # The shipped sdkconfig.defaults names partitions.csv relative to the
-      # project directory; the test build uses the shipped table (C-10.6).
+      # project directory; the test build uses the shipped table (C-10.9).
       - name: Use the shipped partition table
         run: cp "$GITHUB_WORKSPACE/partitions.csv" .
       - name: Build

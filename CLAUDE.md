@@ -82,6 +82,9 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/weather/` (L1) — the BME280 task's readings and period averages (FSD §23): kept in RTC
   memory, shown on line 4, logged (L21/L22), served at `/api/readings`;
   `weather_core.c` is the pure core. The sensor driver is `shared/components/bme280/`.
+- `components/history/` (L1) — the reading history (FSD §27): each kept reading appended to the
+  `history` partition through the shared `flash_ring`, served as CSV at `/api/history`
+  (`?from=&to=` dates) and paged over BLE; `history_core.c` is the pure core.
 - `components/summary/` (L1) — the summary email (FSD §25): mail settings from
   the portal form in NVS, the due rule, the message (`summary_core.c` pure), sent
   through the shared `mail_tx`; a timer wake starts WiFi only for a due summary.
@@ -93,7 +96,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `mail_tx`, `ble_setup` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `mail_tx`, `ble_setup`, `flash_ring` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through
