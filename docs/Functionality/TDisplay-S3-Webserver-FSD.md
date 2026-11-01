@@ -49,6 +49,8 @@ reused.
 | 24 | Setup Check | cross-cutting |
 | 25 | Summary Email | L1 |
 | 26 | BLE Setup | L1 |
+| 27 | Reading History | L1 |
+| 28 | Sampling Setups | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -321,6 +323,18 @@ testbench.
   without history.
 - **Dependencies.** §23 (the readings), §26 (the key window and service),
   §14 (the HTTP server), §18 (factory reset).
+
+### 3.10 Phase 10: Sampling setups
+
+- **Scope.** The setup list and its selection in the portal and over BLE,
+  the `quick` and `cycle` tests, the double press, the verdict on line 5 and
+  the result email.
+- **Deliverables.** §28, FR-23.17, the FR-21.13 exception, L32, L33.
+- **Exit criteria.** A BLE write of `setup=cycle,std` runs 20 readings over
+  timer wakes and ends with `Test pass 20/20`; a double press runs `quick`;
+  a key press ends a test as failed; existing settings keep their periods.
+- **Dependencies.** §23 (readings, averages), §21 (sleep, the key wake),
+  §25 (mail), §26 (BLE settings), §27 (history).
 
 ---
 
@@ -880,6 +894,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L29 | BLE `settings` written (FR-26.16) | `web: ble settings <ok\|invalid=<field>>` | I (W when invalid) |
 | L30 | BLE window closed (FR-26.16) | `web: ble off reason=<provisioned\|idle\|done\|written\|pairing>` | I |
 | L31 | History unavailable or failed (FR-27.8, FR-27.9) | `web: history unavailable` or `web: history failed: <ERR>` | W |
+| L32 | Test started (FR-28.12) | `web: test start id=<quick\|cycle>` | I |
+| L33 | Test ended (FR-28.12) | `web: test end id=<quick\|cycle> readings=<n>/<m> averages=<a>/<b> result=<pass\|fail>[ by=<key\|reset>]` | I (W when failed) |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1522,7 +1538,8 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
   wake the device shall leave the panel dark and the WiFi radio off, run the
   task, and sleep again; no window, no web server. The one exception is a
   summary email due on that wake (FR-25.6), for which WiFi runs as a station
-  only while it is sent.
+  only while it is sent; the other is the wake whose reading ends the last
+  test (FR-28.11), which continues as after a key wake.
 - **FR-21.11** [Must] [user] A key wake
   shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
   server, then the task (local maintenance and OTA).
@@ -1627,7 +1644,8 @@ provisioning portal next to the WiFi credentials (§13.2), with email on or off:
 | `average_min` | minutes each average runs | whole minutes, greater than `sample_min`, a whole multiple of it, and dividing 1440 | 60 |
 
 Average periods start at local midnight (FR-22.2) and follow each other, so
-with 60 they run 00:00, 01:00, 02:00 and so on.
+with 60 they run 00:00, 01:00, 02:00 and so on. These two fields are the
+`custom` setup's; the setup in use is chosen from the list of §28.
 
 ### 23.2 Readings route
 
@@ -1648,11 +1666,11 @@ with 60 they run 00:00, 01:00, 02:00 and so on.
 - **FR-23.1** [Must] [user] Each time the task runs (§21, FR-21.4) it shall take
   one reading from the BME280 at 0x76 on SDA GPIO 43 / SCL GPIO 44, in forced
   mode, oversampling ×1 for all three quantities, IIR filter off.
-- **FR-23.14** [Must] [user] After its reading the task shall tell the device to
-  sleep for `sample_min` minutes (FR-21.9). The portal shall refuse a
-  submission whose `sample_min` or `average_min` is not valid per §23.1 with
-  400 naming the field; valid values are stored in NVS at T3 and erased by a
-  factory reset (T10); a device provisioned without them uses the defaults.
+- **FR-23.17** [Must] [user] After its reading the task shall tell the
+  device to sleep for the reading period of the normal setup (§28.1), or 30 s
+  during `cycle` (FR-28.6) (FR-21.9). The portal and BLE shall refuse
+  `sample_min` and `average_min` that are not valid per §23.1 when `custom`
+  is chosen (FR-28.2).
 - **FR-23.3** [Must] [derived from FR-23.12, FR-23.7] On every boot that is not a
   timer wake, the device shall also take a reading before the window opens, so
   the panel and the web page have a value during the window.
@@ -1707,9 +1725,9 @@ with 60 they run 00:00, 01:00, 02:00 and so on.
 | FR-23.12 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 mbar; −40.0 °C 100 % 1100 mbar; 85 °C; none kept | `70.6F Hum 45% 1013.25 mbar`; `-40.0F Hum 100% 1100.00 mbar`; `185.0F …`; `Sensor --` | More than 33 characters | host |
 | FR-23.13 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced | Valid JSON, exactly the five keys per element, newest first | Extra or missing key; invalid JSON | host |
 | FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within 14 – 113 °F, 5 – 95 %, 870 – 1085 mbar | L22; no L21 | target |
-| FR-23.14 (core) | Form bodies: no fields; 15 / 60; 5 / 30; 60 / 1440; 0; 61; 15 / 50; 20 / 30; 60 / 60 | 10 / 60; valid as given; 400 naming `sample_min` (0, 61) or `average_min` (50, 30, 60) | A sample period not dividing the average; an average not dividing a day | host |
+| FR-23.17, FR-28.2 (core) | Form bodies: no fields; 15 / 60; 5 / 30; 60 / 1440; 0; 61; 15 / 50; 20 / 30; 60 / 60 | 10 / 60; valid as given; 400 naming `sample_min` (0, 61) or `average_min` (50, 30, 60) | A sample period not dividing the average; an average not dividing a day | host |
 | FR-23.15, FR-23.16 (core) | Averages core: readings in one hour, then one in the next; a gap of hours; 98 hours; period starts at UTC −4 | One average, the mean of the hour's readings, when the next hour's first reading comes; no average for the empty hours; 96 kept, newest first; periods on the local hour and local midnight | An average of a period still running; an average for a period with no readings; more than 96 | host |
-| FR-23.14, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
+| FR-23.17, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
 | FR-23.4 | Fault build reading address 0x77 | L22 with `ESP_ERR_TIMEOUT`, then the window, ONLINE and `web: sleep` as usual | A restart; a reading kept; no sleep | target |
 | FR-23.12 | ONLINE with the sensor fitted | Operator confirms line 4 matches the latest L21 | Line 4 missing, clipped or stale | bench (operator) |
 | FR-23.7, FR-23.13 | ONLINE; relay `GET /` and `GET /api/readings` | Page shows the newest reading's values; JSON parses as §23.2 and its first element equals the latest L21 | 404; a value differing from L21 | bench |
@@ -2167,6 +2185,123 @@ header>`; the page offers **Download history** only then (FR-27.8).
 | FR-27.8 | Build flashed over the old five-row table (app only) | L31 `history unavailable` once; `GET /api/history` 404; readings and the rest unchanged | A restart; a write outside the app slot | target |
 | NFR-27.1 | Time appends across a sector boundary | Each ≤ 500 ms | Longer | target |
 
+## 28. Sampling Setups
+
+### 28.1 Purpose & peer
+
+The reading and average periods are chosen from a fixed list of **setups**
+instead of only two numbers, and the same list holds **test setups**: short,
+timed runs that check in one go that the sensor, the history, the averages,
+the timer wakes and the email all work, then hand over to normal sampling on
+their own. One normal setup runs until it is changed; tests chosen with it run
+first, once, in table order. Peer: the person setting up the device, through
+the portal (§13) or a BLE settings write (§26), or a double press of the user
+key. The pure `sampling_core` decides (selection, test progress, verdict, log
+and screen text); the composition root reads the sensor, sleeps and sends.
+
+| Id | Kind | Name | Reading every | Average over | Runs for |
+|----|------|------|---------------|--------------|----------|
+| `std` | normal | Standard | 10 min | 60 min | until changed |
+| `fine` | normal | Frequent | 1 min | 15 min | until changed |
+| `slow` | normal | Battery saver | 30 min | 180 min | until changed |
+| `custom` | normal | Custom | `sample_min` | `average_min` | until changed |
+| `quick` | test | Quick check | 10 s, awake | the normal setup's | 12 readings (2 min) |
+| `cycle` | test | Sleep cycle check | 30 s, asleep between | 2 min | 20 readings (10 min) |
+
+During `quick` the device stays awake as in the window (panel, WiFi, web
+server); during `cycle` every reading after the first is a timer wake
+(FR-21.13).
+
+### 28.2 Requirements
+
+Selection:
+
+- **FR-28.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall accept `setup` fields, each a comma-separated list of ids
+  of §28.1; all `setup` values together shall name exactly one normal id and
+  each test id at most once. With no `setup` value, or only empty ones, the
+  normal setup is `custom` when `sample_min` or `average_min` is given and not
+  empty, else `std`. Any other selection is refused with 400 naming `setup`
+  (portal) or `invalid=setup` (BLE).
+- **FR-28.2** [Must] [user] `custom` shall take `sample_min` and `average_min`
+  with the rules of §23.1; the other normal ids shall ignore both fields.
+- **FR-28.3** [Must] [user] A valid selection shall be stored in NVS with the
+  other settings (T3, T14) and erased by a factory reset (T10); a device
+  whose settings were stored before §28 runs `custom` with its stored
+  `sample_min` and `average_min`. The `settings` read (FR-26.9) shall report
+  it as `setup=<normal id>[,<test id>…]` (tests still to run), and `GET /`
+  shall name the normal setup and any tests still to run.
+- **FR-28.4** [Should] [user] While the device is awake, not in PROVISIONING,
+  not holding the setup check and running no test, two presses of the user key
+  (GPIO 21), each held at least 50 ms and less than **1 s**, the second
+  beginning within **1 s** of the first one's release, shall start `quick`
+  at once (FR-28.6), with the normal setup after it. A double press shall not
+  open a BLE window (FR-26.2 needs a 3 s hold).
+
+Running a test:
+
+- **FR-28.5** [Must] [user] Stored tests shall start, in table order, when the
+  task would first run (FR-21.4) after they were stored: at the end of the 60 s
+  window after the T14 restart, or after the setup check (§24) and its window
+  after T3. When the last test ends, the device shall continue with the normal
+  setup.
+- **FR-28.6** [Must] [user] `quick` shall keep the device awake, without
+  running the task, and take a reading every **10 s**, the first at its start,
+  12 in all; `cycle` shall take a reading at its start and on each of 19 timer
+  wakes, sleeping **30 s** after each but the last, 20 in all, with averages
+  over **2 min** (FR-23.15) while it runs.
+- **FR-28.7** [Must] [user] A test reading shall be a reading in every other
+  respect: logged as L21, kept (FR-23.9), averaged (FR-23.15), counted for the
+  summary (FR-25.12) and appended to the history (FR-27.1).
+- **FR-28.8** [Must] [user] A press of the user key during `quick`, or a key
+  wake during `cycle`, shall end the running test as failed with `by=key`; a
+  reset or power loss during a test shall end it as failed with `by=reset` on
+  the next boot. Either way the remaining tests are dropped, and the device
+  continues as after the last test (FR-28.11).
+- **FR-28.9** [Must] [user] Each test, once started, shall be cleared from the
+  stored selection when it ends, so no later boot runs it again.
+
+Result:
+
+- **FR-28.10** [Must] [user] A test shall pass when it was not ended early,
+  each of its readings was taken (no L22) and appended to the history (no
+  L31), and, for `cycle` with the clock set (FR-22.6), every 2 min period its
+  readings moved on from finished an average; otherwise it fails.
+- **FR-28.11** [Must] [user] When the last test ends, or one is ended early,
+  the device shall continue as after a key wake (FR-21.11): panel, WiFi and web
+  server up, and the 60 s window from that moment, then the task with the
+  normal setup. During that window line 5 shall show `Test pass <n>/<m>` or
+  `Test FAIL <n>/<m>`, n the readings that counted and m those planned for the
+  tests that ran, unless the BLE key window shows its own line 5 (FR-26.14).
+- **FR-28.12** [Must] [derived] Each test's start shall log L32 and its end
+  L33 (§7.2).
+- **FR-28.13** [Should] [user] When mail is set up (§25), the device shall
+  send one result email to `mail_to` (and separately to `mail_to2`) once it is
+  ONLINE in that window, from the sender of FR-25.13, with the subject
+  `<hostname> test <pass|FAIL>` and a body of the L33 line of each test that
+  ran, after `web: `. It is logged as L25 (`readings=` the n of FR-28.11) or
+  L26, and if the device is not ONLINE when the window ends, it is dropped with
+  L26 `wifi`. It is not a summary: it changes no due slot (FR-25.3) and clears
+  no readings (FR-25.12).
+
+### 28.3 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-28.1, FR-28.2 (core) | Bodies: none; `setup=std`; `setup=quick%2Cstd`; `setup=std&setup=quick&setup=cycle`; `setup=std,fine`; `setup=quick`; `setup=quick,quick,std`; `setup=nope`; `setup=custom&sample_min=5&average_min=30`; `sample_min=15`; `setup=std&sample_min=0` | std; std; std + quick; std + quick + cycle; `setup`; `setup`; `setup`; `setup`; custom 5 / 30; custom 15 / 60; std | A second normal id; a repeated test; `sample_min` refused under `std` | host |
+| FR-28.3 (core) | `settings` read with std + cycle; custom 5 / 30 | `…&setup=std,cycle&sample_min=10&average_min=60`; `…&setup=custom&sample_min=5&average_min=30` | Tests already run listed | host |
+| FR-28.4 (core) | Double-press detector on 20 ms samples: two 100 ms presses 300 ms apart; a press of 1.2 s then one of 100 ms; two presses 1.5 s apart; a key held from the first sample, then one press | Fires at the second release; none; none; none | Firing on a single press or a long hold | host |
+| FR-28.5, FR-28.6, FR-28.9 (core) | Runner: quick + cycle + std started; 12 quick readings, then 20 cycle readings | Quick: 12 readings 10 s apart, awake; cycle: sleep 30 s after readings 1 – 19, none after 20; both cleared; then std | A 13th quick reading; a sleep after the last cycle reading | host |
+| FR-28.8 (core) | Runner: a key during quick; a key wake during cycle; a boot that is not a wake with a test running | Fail `by=key`, remaining dropped; fail `by=key`; fail `by=reset` | The test resumed; the remaining tests run | host |
+| FR-28.10, FR-28.11 (core) | Verdicts: 12 / 12; 11 / 12 (one L22); 20 / 20 with an average missing; 32 / 32 | `Test pass 12/12`; `Test FAIL 11/12`; `Test FAIL 20/20`; `Test pass 32/32` | More than 25 characters | host |
+| FR-28.12 (core) | L32 and L33 for quick passed, cycle failed by key | `web: test start id=quick`; `web: test end id=quick readings=12/12 averages=0/0 result=pass`; `… id=cycle readings=3/20 averages=0/1 result=fail by=key` | Another field order | host |
+| FR-28.6, FR-28.7, FR-28.11 | Bench: BLE write `setup=cycle,std`, then let it run | L32, then 20 L21 lines 30 – 33 s apart with `web: wake cause=timer` between, L33 `result=pass`, L2 and line 5 `Test pass 20/20`, and `/api/history` holds all 20 | A missing L21; a sleep after the 20th reading; WiFi or panel on a timer wake | bench |
+| FR-28.4, FR-28.6 | Bench: ONLINE; operator double-presses the user key | L32 `id=quick` within 1 s, 12 L21 lines 10 s apart, L33 `result=pass`, no L27 | A BLE window; the task running during the test | bench (operator) |
+| FR-28.8 | Bench: during `cycle`, operator presses the user key | L33 `result=fail by=key`, line 5 `Test FAIL <n>/20` | The test continuing | bench (operator) |
+| FR-28.13 | Bench: mail set up, `quick` | L25 within the window; one email with subject `<hostname> test pass` | A changed summary slot | bench (needs internet on the bench AP, R-19) |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2269,6 +2404,8 @@ Build-time constants:
 | BME280 mode | forced, oversampling ×1 (T, P, H), filter off | [user] |
 | Task sleep period | `sample_min`, 1 – 60 min, default 10 | [user] |
 | Average period | `average_min`, default 60 min, dividing a day | [user] |
+| Setups | `std` 10 / 60, `fine` 1 / 15, `slow` 30 / 180 min, `custom`; tests `quick` 12 × 10 s awake, `cycle` 20 × 30 s asleep with 2 min averages (§28.1) | [user] |
+| Double press | two presses of 50 ms – 1 s, the second within 1 s of the first release (FR-28.4) | [user] |
 | Averages kept across sleep | 96 | [user] |
 | Readings kept across sleep | 144 | [user] |
 | Reading duration | ≤ 50 ms | [user] |
@@ -2337,6 +2474,7 @@ the bench gains the capability.
 | FR-24.5 | Only the user key ends the setup check | FR-24.11 (the BOOT key or the user key) |
 | FR-18.2 | A short BOOT press changes nothing | FR-18.5 (except that it ends the setup check) |
 | FR-23.2 | Sleep 600 s after each reading | FR-23.14 (`sample_min` minutes, set in the portal) |
+| FR-23.14 | Sleep `sample_min` minutes after each reading | FR-23.17 (the period of the setup in use, §28) |
 | FR-25.4 | One email from `mail_user` to `mail_to` | FR-25.12 (from the sender of FR-25.13, a separate email to `mail_to2`) |
 | FR-25.7 | 30 s from connecting for the one email; L26 without the recipient | FR-25.14 (one 30 s budget for both recipients; L26 names the recipient) |
 | FR-18.1 | Factory-reset event after 5 s of holding (restart while still held) | FR-18.3, FR-18.4 (event at release) |
@@ -2352,7 +2490,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.14.1
+fsd_version: 0.15.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2393,7 +2531,8 @@ change_history:
   - 0.13.1 2026-11-01 all proposed BLE values accepted by the user (FR-26.7, FR-26.8, FR-26.13, FR-26.14, FR-26.17, NFR-26.1)
   - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
   - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6]
+  - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14]
 open_decisions: []
 related_test_baseline: none yet
 ```

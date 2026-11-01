@@ -103,11 +103,25 @@ static uint32_t long_hold_ms;
 static setup_check_held_cb_t held_cb;
 static esp_timer_handle_t hold_timer;
 
+static sk_taps_t taps;
+static setup_check_tap_cb_t tap_cb;
+
 static void sample_hold(void *arg)
 {
-    if (sk_hold_sample(&long_hold, gpio_get_level(PIN_KEY) == 0, now_ms(), long_hold_ms)) {
+    bool low = gpio_get_level(PIN_KEY) == 0;
+    uint32_t now = now_ms();
+    if (sk_hold_sample(&long_hold, low, now, long_hold_ms)) {
         held_cb();
     }
+    sk_tap_t t = sk_taps_sample(&taps, low, now);
+    if (t != SK_TAP_NONE && tap_cb) {
+        tap_cb(t == SK_TAP_DOUBLE);
+    }
+}
+
+void setup_check_on_tap(setup_check_tap_cb_t on_tap)
+{
+    tap_cb = on_tap;
 }
 
 esp_err_t setup_check_hold_start(uint32_t hold_ms, setup_check_held_cb_t on_held)
@@ -124,6 +138,7 @@ esp_err_t setup_check_hold_start(uint32_t hold_ms, setup_check_held_cb_t on_held
         return err;
     }
     sk_hold_init(&long_hold);
+    sk_taps_init(&taps);
     const esp_timer_create_args_t args = {.callback = sample_hold, .name = "user_hold"};
     err = esp_timer_create(&args, &hold_timer);
     if (err == ESP_OK) {

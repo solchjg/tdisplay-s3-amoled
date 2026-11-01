@@ -341,7 +341,7 @@ def test_a_full_table_fits_the_body(core):
     assert out.endswith('"-40.0","100","1100.00"\n')
 
 
-# TC-WX-17 · FR-23.14 (core): sample and average minutes from the portal
+# TC-WX-17 · FR-23.17, FR-28.2 (core): sample and average minutes from the portal
 @pytest.mark.parametrize("form,expect", [
     ("ssid=a&password=", "10/60"),
     ("ssid=a&sample_min=&average_min=", "10/60"),

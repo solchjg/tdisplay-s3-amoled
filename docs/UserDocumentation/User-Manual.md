@@ -126,21 +126,52 @@ wakes fully, with the screen, WiFi and status page, for at least 60 seconds,
 then runs the task and sleeps again. This firmware's task reads the BME280
 weather sensor (temperature, humidity, pressure; SDA on GPIO 43, SCL on GPIO 44,
 address 0x76) and sleeps until the next reading is due, every 10 minutes
-unless you set another time on the setup page, plus one more at each power-on,
+unless you pick another setup on the setup page, plus one more at each power-on,
 reset or key wake. Unplugging or resetting the board clears the kept readings
 and averages.
 
-The setup page's *Readings* section sets how often a reading is taken and how
-long each average runs:
+The setup page's *Readings* section picks a **setup**, which sets how often a
+reading is taken and how long each average runs:
 
-| Field | What to enter |
-|-------|---------------|
-| Take a reading every | 1 – 60 minutes; empty: 10 |
-| Average them over | more than the reading time, a whole number of readings, and dividing a day evenly (e.g. 15, 30, 60, 120, 1440); empty: 60 |
+| Setup | A reading every | Averages over |
+|-------|-----------------|---------------|
+| Standard (the default) | 10 minutes | 60 minutes |
+| Frequent | 1 minute | 15 minutes |
+| Battery saver | 30 minutes | 180 minutes |
+| Custom | the *Custom* reading time: 1 – 60 minutes, empty: 10 | the *Custom* average: more than the reading time, a whole number of readings, and dividing a day evenly (e.g. 15, 30, 60, 120, 1440); empty: 60 |
+
+The two *Custom* boxes count only when *Custom* is picked. A device set up
+before setups existed keeps its own two numbers as *Custom*.
 
 Averages start at local midnight and on each multiple of that time (with 60,
 on every full hour); the device keeps the newest 96. A short reading time
 wears the battery faster: the board wakes for a few seconds at every reading.
+
+**Checking that everything works.** Below the setup, tick one or both tests.
+They run once, after the next 60-second window, then the device carries on
+with the setup you picked:
+
+| Test | What it does | Takes |
+|------|--------------|-------|
+| Quick check | Stays awake with the screen and WiFi on and takes a reading every 10 seconds, 12 in all | 2 minutes |
+| Sleep cycle check | Sleeps 30 seconds between readings with the screen dark, the way the device runs for real, 20 readings, with 2-minute averages | 10 minutes |
+
+Every test reading is a real reading: it is kept, averaged, sent in the next
+summary and saved in the history. When the tests are over the device wakes
+fully, as if you pressed the user key, and line 5 shows the result for 60
+seconds, for example `Test pass 32/32` (readings that worked / readings
+planned) or `Test FAIL 30/32`. A test fails if the sensor misses a reading,
+the history cannot save one, or (Sleep cycle check, with the clock set) an
+average is missing. With email set up, the device also sends a short email
+`<name> test pass` (or `FAIL`) with one line per test.
+
+You can also start the Quick check on the spot: while the device is awake,
+press the user key twice quickly (two short presses within a second). A
+single press of the user key during the Quick check, or one that wakes the
+device during the Sleep cycle check, stops the test and counts it as failed;
+so does a reset. Over Bluetooth (chapter 5c) the setup is the `setup` box:
+type, for example, `std,quick` or `fine,cycle` (one of `std`, `fine`, `slow`,
+`custom`, plus any of `quick` and `cycle`).
 
 A sleeping board does not appear on USB; to flash it, press the user key first
 or unplug and replug it, and flash within 60 seconds.

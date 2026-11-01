@@ -2027,7 +2027,7 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: bench
-    verifies: [FR-23.14, FR-23.9, FR-23.5]
+    verifies: [FR-23.17, FR-23.9, FR-23.5]
     needs: [seam-sleep-build, bench-flash, bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-user-key, dut-wifi-slot1, dut-amoled-slot1, dut-bme280]
     observable: "an L21 on each timer wake of the 10 s sleep build; after a key wake, /api/readings lists them newest first"
     impl: []
@@ -2262,7 +2262,7 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: host
-    verifies: [FR-23.14, FR-23.15]
+    verifies: [FR-23.17, FR-23.15, FR-28.2]
     needs: []
     observable: "empty: 10 and 60; 15 and 60 accepted; refused by name: sample 0 or 61, average not above sample, not dividing a day or not a whole number of samples"
     impl: [tests/host/test_summary.py::test_collect_values, tests/host/test_summary.py::test_collect_refused]
@@ -2695,4 +2695,95 @@ tests:
     needs: []
     observable: "history unavailable; history failed: <ERR>"
     impl: tests/host/test_history.py::test_l31_lines
+    result: {status: not done}
+
+  - id: TC-SET-01
+    title: "The setup fields of a settings body"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 10
+    tier: host
+    verifies: [FR-28.1, FR-28.2]
+    needs: []
+    observable: "one normal id and tests once each, from one or several setup fields; empty means std, or custom when sample_min or average_min is given; custom's minutes checked, ignored otherwise; anything else refused as setup"
+    impl: tests/host/test_sampling.py::test_selection
+    result: {status: not done}
+
+  - id: TC-SET-02
+    title: "The settings read reports the setup and the tests still to run"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 10
+    tier: host
+    verifies: [FR-28.3]
+    needs: []
+    observable: "setup=std,cycle with 10 / 60; setup=custom with its minutes; a read written back keeps the setup"
+    impl: [tests/host/test_ble_setup.py::test_dump_has_no_secret, tests/host/test_ble_setup.py::test_dump_round_trips_through_a_key_window_write]
+    result: {status: not done}
+
+  - id: TC-SET-03
+    title: "Tests run in order, each its readings, then the normal setup"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 10
+    tier: host
+    verifies: [FR-28.5, FR-28.6, FR-28.9]
+    needs: []
+    observable: "quick: 12 readings 10 s apart; cycle: asleep 30 s after readings 1 - 19, none after the 20th; then no test left"
+    impl: tests/host/test_sampling.py::test_runs
+    result: {status: not done}
+
+  - id: TC-SET-04
+    title: "A key or a reset ends a test as failed and drops the rest"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 10
+    tier: host
+    verifies: [FR-28.8]
+    needs: []
+    observable: "by=key during quick, cycle not run; by=reset during cycle"
+    impl: [tests/host/test_sampling.py::test_a_key_ends_quick_and_drops_cycle, tests/host/test_sampling.py::test_a_reset_ends_cycle]
+    result: {status: not done}
+
+  - id: TC-SET-05
+    title: "The verdict and line 5"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 10
+    tier: host
+    verifies: [FR-28.10, FR-28.11, FR-28.13]
+    needs: []
+    observable: "a missed reading or a missing average fails; Test pass 32/32 and Test FAIL 11/12 within 25 characters; no averages owed without the clock; mail subject <hostname> test pass|FAIL"
+    impl: [tests/host/test_sampling.py::test_a_failed_reading_fails, tests/host/test_sampling.py::test_a_missing_average_fails, tests/host/test_sampling.py::test_no_averages_are_owed_without_the_clock, tests/host/test_sampling.py::test_verdict_fits_line_five]
+    result: {status: not done}
+
+  - id: TC-SET-06
+    title: "L32 and L33 test log lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 10
+    tier: host
+    verifies: [FR-28.12]
+    needs: []
+    observable: "test start id=<id>; test end id=<id> readings=<n>/<m> averages=<a>/<b> result=<pass|fail>[ by=<key|reset>]"
+    impl: [tests/host/test_sampling.py::test_start_line, tests/host/test_sampling.py::test_runs]
+    result: {status: not done}
+
+  - id: TC-SET-07
+    title: "The double press of the user key"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 10
+    tier: host
+    verifies: [FR-28.4]
+    needs: []
+    observable: "two short presses within 1 s are a double; a long press, presses 1.5 s apart, a key held from the start or a 40 ms glitch are not"
+    impl: [tests/host/test_sampling.py::test_two_short_presses_are_a_double, tests/host/test_sampling.py::test_a_long_press_then_a_short_one_is_no_double, tests/host/test_sampling.py::test_presses_too_far_apart_are_no_double, tests/host/test_sampling.py::test_a_key_held_from_the_start_must_be_released_first, tests/host/test_sampling.py::test_a_glitch_is_not_a_press]
     result: {status: not done}
