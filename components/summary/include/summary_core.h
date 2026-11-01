@@ -40,7 +40,7 @@ static inline const char *sm_to(const sm_settings_t *s, int i)
     return i == 0 ? s->to : i == 1 && s->to2[0] ? s->to2 : NULL;
 }
 
-// FR-23.14, FR-23.15: how often a reading is taken and how long each average
+// FR-28.2, FR-23.15: how often a reading is taken and how long each average
 // runs, in minutes.
 typedef struct {
     uint16_t sample_min;   // 1 .. 60, dividing average_min
@@ -50,7 +50,7 @@ typedef struct {
 #define SM_SAMPLE_DEFAULT 10
 #define SM_AVERAGE_DEFAULT 60
 
-// FR-23.14: sample_min and average_min of a portal submission, each defaulting
+// FR-28.2: the custom setup.s sample_min and average_min of a settings body, each defaulting
 // when empty or absent. NULL when valid, else the name of the invalid field.
 const char *sm_parse_collect(const char *body, size_t len, sm_collect_t *out);
 

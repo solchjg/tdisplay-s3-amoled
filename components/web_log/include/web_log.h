@@ -92,3 +92,7 @@ void web_log_ble_off(const char *reason);
 // L31 (warning): no history partition (FR-27.8), or a history step failed (FR-27.9).
 void web_log_history_unavailable(void);
 void web_log_history_failed(esp_err_t err);
+
+// L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning
+// level when the test failed (ok false).
+void web_log_test(const char *text, bool ok);

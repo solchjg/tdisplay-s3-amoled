@@ -15,7 +15,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/components/weather ${ROOT}/shared/components/bme280
                          ${ROOT}/components/history ${ROOT}/shared/components/flash_ring
                          ${ROOT}/components/ble_settings ${ROOT}/shared/components/ble_setup
-                         ${ROOT}/components/setup_check ${ROOT}/components/summary
+                         ${ROOT}/components/setup_check ${ROOT}/components/summary ${ROOT}/components/sampling
                          ${ROOT}/shared/components/mail_tx
                          ${ROOT}/components/lcd
                          ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/text

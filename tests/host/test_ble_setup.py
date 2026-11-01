@@ -144,11 +144,12 @@ int main(int argc, char **argv)
                                        strcmp(argv[2], "prov") ? BSET_CHANGE : BSET_PROVISION,
                                        &cur, "mail-secret", out, sizeof out, &n);
         if (bad) { printf("bad %s", bad); return 0; }
-        pc_creds_t c; sm_settings_t s; sm_collect_t col;
+        pc_creds_t c; sm_settings_t s; sp_sel_t sel;
         pc_parse_form(out, n, &c);
         sm_parse(out, n, &s);
-        sm_parse_collect(out, n, &col);
-        printf("ok %s|%s|%s|%s|%u", c.ssid, c.password, s.host, s.password, col.sample_min);
+        sp_parse(out, n, &sel);
+        printf("ok %s|%s|%s|%s|%u", c.ssid, c.password, s.host, s.password,
+               sp_collect(&sel).sample_min);
     } else if (!strcmp(argv[1], "dump")) {
         sm_settings_t s = {0};
         if (argv[2][0] == '1') {
@@ -156,8 +157,11 @@ int main(int argc, char **argv)
             strcpy(s.password, "mail-secret"); strcpy(s.to, "you@x.org");
             s.time_min = 7 * 60 + 5; s.every_h = 6;
         }
-        sm_collect_t col = {10, 60};
-        bset_dump(&cur, &s, &col, out, sizeof out);
+        sp_sel_t sel = {SP_STD, SP_BIT(SP_CYCLE), {10, 60}};
+        if (argv[2][0] == '1') {
+            sel = (sp_sel_t){SP_CUSTOM, 0, {5, 30}};
+        }
+        bset_dump(&cur, &s, &sel, out, sizeof out);
         printf("%s", out);
     } else {
         bset_info("0.2.0", "tds3-48c3a2", "ONLINE", out, sizeof out);
@@ -174,10 +178,11 @@ MAIL = ("mail_host=smtp.example.com&mail_port=465&mail_user=me%40x.org&mail_to=y
 @pytest.fixture(scope="module")
 def bset(compile_harness):
     return compile_harness("ble_settings", SET_HARNESS,
-                           ["ble_settings/ble_settings_core.c", "summary/summary_core.c",
-                            "portal/portal_core.c", "weather/weather_core.c"],
-                           ["ble_settings/include", "summary/include", "portal/include",
-                            "weather/include"])
+                           ["ble_settings/ble_settings_core.c", "sampling/sampling_core.c",
+                            "summary/summary_core.c", "portal/portal_core.c",
+                            "weather/weather_core.c"],
+                           ["ble_settings/include", "sampling/include", "summary/include",
+                            "portal/include", "weather/include"])
 
 
 # TC-BLE-06 · FR-26.6 (core): in the provisioning window a write is a portal submission
@@ -208,6 +213,9 @@ def test_provisioning_write_is_a_portal_submission(bset, body, expected):
     (MAIL + "&mail_password=new-one", "ok home net|pw-secret1|smtp.example.com|new-one|10"),
     (MAIL.replace("465", "25"), "bad mail_port"),
     ("sample_min=5", "ok home net|pw-secret1|||5"),
+    ("setup=fine", "ok home net|pw-secret1|||1"),
+    ("setup=std&sample_min=0", "ok home net|pw-secret1|||10"),
+    ("setup=quick", "bad setup"),
 ])
 def test_key_window_write_keeps_absent_secrets(bset, body, expected):
     assert bset("prepare", "change", body) == expected
@@ -224,14 +232,17 @@ def test_dump_has_no_secret(bset):
     # each secret's flag follows the field it belongs to, so the page shows it there
     assert on == ("ssid=home%20net&password_set=1&mail_host=smtp.example.com&mail_port=465"
                   "&mail_user=me%40x.org&mail_password_set=1&mail_from=&mail_to=you%40x.org"
-                  "&mail_to2=&mail_time=07%3A05&mail_every=6&sample_min=10&average_min=60")
+                  "&mail_to2=&mail_time=07%3A05&mail_every=6&setup=custom&sample_min=5"
+                  "&average_min=30")
     off = bset("dump", "0")
     assert "mail_host=&mail_port=&" in off and "mail_password_set=0" in off
+    # TC-SET-02 · FR-28.3 (core): the setup with the tests still to run
+    assert off.endswith("&setup=std%2Ccycle&sample_min=10&average_min=60")
 
 
 def test_dump_round_trips_through_a_key_window_write(bset):
     assert bset("prepare", "change", bset("dump", "1")) == \
-        "ok home net|pw-secret1|smtp.example.com|mail-secret|10"
+        "ok home net|pw-secret1|smtp.example.com|mail-secret|5"
 
 
 def test_info(bset):

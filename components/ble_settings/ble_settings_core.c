@@ -99,11 +99,11 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
     if (bad) {
         return bad;
     }
-    sm_collect_t col;
-    return sm_parse_collect(out, b.len, &col);
+    sp_sel_t sel;
+    return sp_parse(out, b.len, &sel);
 }
 
-size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sm_collect_t *col,
+size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *sel,
                  char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};
@@ -125,6 +125,11 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sm_collect
     field(&b, "mail_time", on ? hhmm : "");
     snprintf(num, sizeof num, "%u", (unsigned)m->every_h);
     field(&b, "mail_every", on ? num : "");
+    char setup[SP_VALUE_MAX];
+    sp_value(sel, setup);
+    field(&b, "setup", setup);
+    sm_collect_t c = sp_collect(sel);
+    sm_collect_t *col = &c;
     snprintf(num, sizeof num, "%u", (unsigned)col->sample_min);
     field(&b, "sample_min", num);
     snprintf(num, sizeof num, "%u", (unsigned)col->average_min);

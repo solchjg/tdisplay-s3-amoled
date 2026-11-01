@@ -85,6 +85,10 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/history/` (L1) — the reading history (FSD §27): each kept reading appended to the
   `history` partition through the shared `flash_ring`, served as CSV at `/api/history`
   (`?from=&to=` dates) and paged over BLE; `history_core.c` is the pure core.
+- `components/sampling/` (L1) — sampling setups (FSD §28): the selection (`std`, `fine`, `slow`,
+  `custom`, plus the `quick` and `cycle` tests) from the portal form or a BLE write, kept in NVS;
+  the run of tests in RTC memory; `sampling_core.c` is the pure core (selection, test progress,
+  verdict, L32/L33). The double press of the user key is `setup_check_core`'s `sk_taps_sample`.
 - `components/summary/` (L1) — the summary email (FSD §25): mail settings from
   the portal form in NVS, the due rule, the message (`summary_core.c` pure), sent
   through the shared `mail_tx`; a timer wake starts WiFi only for a due summary.

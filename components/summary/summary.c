@@ -18,7 +18,6 @@
 
 #define NVS_NS "mail"
 #define KEY_SETTINGS "settings"
-#define KEY_COLLECT "collect"  // FR-23.14, kept with email on or off
 #define KEY_SLOT "slot"
 #define KEY_TRY "try"  // the slot whose send has begun (FR-25.11)
 #define MAIL_STACK 8192  // the TLS handshake runs on it
@@ -43,18 +42,10 @@ static const char FORM_HTML[] =
     "maxlength=\"64\"" NO_ASSIST "></label></p>"
     "<p><label>First summary at <input name=\"mail_time\" type=\"time\"></label></p>"
     "<p><label>Then every <input name=\"mail_every\" type=\"number\" min=\"1\" max=\"24\"> "
-    "hours</label></p>"
-    "<h2>Readings</h2>"
-    "<p><label>Take a reading every <input name=\"sample_min\" type=\"number\" min=\"1\" "
-    "max=\"60\" placeholder=\"10\"> minutes</label></p>"
-    "<p><label>Average them over <input name=\"average_min\" type=\"number\" min=\"2\" "
-    "max=\"1440\" placeholder=\"60\"> minutes (a whole number of readings, dividing a day)"
-    "</label></p>";
+    "hours</label></p>";
 
 static sm_settings_t taken;     // from the accepted submission, until T3
 static sm_settings_t settings;  // as stored
-static sm_collect_t collect_taken;
-static sm_collect_t collect = {SM_SAMPLE_DEFAULT, SM_AVERAGE_DEFAULT};
 static bool loaded;
 static int64_t due_slot;  // the slot summary_due found due, until summary_done
 static int64_t deadline_us;  // FR-25.14: every recipient's send ends by this
@@ -68,8 +59,7 @@ static uint32_t closed_now;  // the same, for the summary being sent
 
 static const char *take(const char *body, size_t len)
 {
-    const char *bad = sm_parse(body, len, &taken);
-    return bad ? bad : sm_parse_collect(body, len, &collect_taken);
+    return sm_parse(body, len, &taken);
 }
 
 static const portal_extra_t extra = {.html = FORM_HTML, .take = take};
@@ -96,19 +86,17 @@ esp_err_t summary_store(void)
     if (err != ESP_OK) {
         return err;
     }
-    err = nvs_erase_all(h);  // a new submission starts a new slot count
+    // A new submission starts a new slot count; the sample and average minutes
+    // kept here before §28 go too, as sampling_store keeps them from now on.
+    err = nvs_erase_all(h);
     if (err == ESP_OK && sm_enabled(&taken)) {
         err = nvs_set_blob(h, KEY_SETTINGS, &taken, sizeof taken);
-    }
-    if (err == ESP_OK) {
-        err = nvs_set_blob(h, KEY_COLLECT, &collect_taken, sizeof collect_taken);
     }
     if (err == ESP_OK) {
         err = nvs_commit(h);
     }
     nvs_close(h);
     settings = taken;
-    collect = collect_taken;
     loaded = err == ESP_OK;
     memset(&taken, 0, sizeof taken);
     return err;
@@ -117,7 +105,6 @@ esp_err_t summary_store(void)
 esp_err_t summary_erase(void)
 {
     memset(&settings, 0, sizeof settings);
-    collect = (sm_collect_t){SM_SAMPLE_DEFAULT, SM_AVERAGE_DEFAULT};
     loaded = true;
     nvs_handle_t h;
     esp_err_t err = open_rw(&h);
@@ -172,18 +159,7 @@ static void load(void)
         len < offsetof(sm_settings_t, from)) {
         memset(&settings, 0, sizeof settings);
     }
-    sm_collect_t c;
-    len = sizeof c;
-    if (nvs_get_blob(h, KEY_COLLECT, &c, &len) == ESP_OK && len == sizeof c) {
-        collect = c;  // none stored (set up before FR-23.14): the defaults
-    }
     nvs_close(h);
-}
-
-sm_collect_t summary_collect(void)
-{
-    load();
-    return collect;
 }
 
 const sm_settings_t *summary_settings(void)
@@ -263,32 +239,25 @@ static void mail_task(void *arg)
     vTaskDelete(NULL);
 }
 
-mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
+static job_t job;  // outlives a helper that is still running when the caller gives up
+
+// One email to recipient i (network up), within the budget that ends at
+// *deadline (set on the first call, FR-25.14). The text must outlive a helper
+// that is still running when the caller gives up.
+static mt_reason_t send(const char *hostname, int i, const char *subject, const char *body,
+                        int64_t *deadline, time_t *ok_at)
 {
-    static job_t job;  // outlives a helper that is still running when the caller gives up
-    *readings = 0;
-    if (job.done) {
-        return MT_ERR_TIMEOUT;  // a helper that never finished still uses the buffers
-    }
-    static char body[SM_BODY_MAX], subject[SM_SUBJECT_MAX];
-    char date[40], stamp[20];
+    static char date[40];
     time_t now = time(NULL);
     struct tm t;
     localtime_r(&now, &t);
     strftime(date, sizeof date, "%a, %d %b %Y %H:%M:%S %z", &t);  // RFC 5322
-    strftime(stamp, sizeof stamp, "%Y-%m-%d %H:%M", &t);
-    sm_subject(hostname, stamp, subject);
-    const wx_avgs_t *a = weather_averages();
-    closed_now = a->closed;
-    uint32_t lines = closed_now - prev_closed, kept = wx_avg_count(a);
-    *readings = sm_body(hostname, weather_stats(), weather_newest(), a, lines,
-                        lines > kept ? lines - kept : 0, iso, stamp_local, body, sizeof body);
 
     // FR-25.14: one 30 s budget for all recipients, from the first connect.
-    if (deadline_us == 0) {
-        deadline_us = esp_timer_get_time() + (int64_t)SUMMARY_TIMEOUT_MS * 1000;
+    if (*deadline == 0) {
+        *deadline = esp_timer_get_time() + (int64_t)SUMMARY_TIMEOUT_MS * 1000;
     }
-    int left_ms = (int)((deadline_us - esp_timer_get_time()) / 1000);
+    int left_ms = (int)((*deadline - esp_timer_get_time()) / 1000);
     if (left_ms <= 0) {
         return MT_ERR_TIMEOUT;
     }
@@ -317,11 +286,50 @@ mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
         if (xSemaphoreTake(job.done, pdMS_TO_TICKS(1000)) == pdTRUE) {
             vSemaphoreDelete(job.done);
             job.done = NULL;
-            if (job.why == MT_OK && !sent_at) {
-                sent_at = now;
+            if (job.why == MT_OK && !*ok_at) {
+                *ok_at = now;
             }
             return job.why;
         }
     }
     return MT_ERR_TIMEOUT;
+}
+
+mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
+{
+    *readings = 0;
+    if (job.done) {
+        return MT_ERR_TIMEOUT;  // a helper that never finished still uses the buffers
+    }
+    static char body[SM_BODY_MAX], subject[SM_SUBJECT_MAX];
+    char stamp[20];
+    time_t now = time(NULL);
+    struct tm t;
+    localtime_r(&now, &t);
+    strftime(stamp, sizeof stamp, "%Y-%m-%d %H:%M", &t);
+    sm_subject(hostname, stamp, subject);
+    const wx_avgs_t *a = weather_averages();
+    closed_now = a->closed;
+    uint32_t lines = closed_now - prev_closed, kept = wx_avg_count(a);
+    *readings = sm_body(hostname, weather_stats(), weather_newest(), a, lines,
+                        lines > kept ? lines - kept : 0, iso, stamp_local, body, sizeof body);
+    return send(hostname, i, subject, body, &deadline_us, &sent_at);
+}
+
+mt_reason_t summary_send_text(const char *hostname, int i, const char *subject,
+                              const char *body)
+{
+    static int64_t deadline;
+    static char subj[SM_SUBJECT_MAX], text[SM_BODY_MAX];
+    time_t ok_at = 0;
+    if (job.done) {
+        return MT_ERR_TIMEOUT;  // a helper that never finished still uses the buffers
+    }
+    if (i == 0) {
+        deadline = 0;  // a new email: its own budget
+    }
+    strlcpy(subj, subject, sizeof subj);
+    strlcpy(text, body, sizeof text);
+    load();
+    return send(hostname, i, subj, text, &deadline, &ok_at);
 }
