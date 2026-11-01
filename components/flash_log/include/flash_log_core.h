@@ -10,6 +10,7 @@
 #define FL_CSV_LINE_MAX 64
 #define FL_CSV_HEADER "\"Time\",\"Temp F\",\"Hum %\",\"ATM mbar\"\n"
 #define FL_STAMP_MAX 20
+#define FL_WATER_NONE 0xFFFF
 
 // FR-26.4: with flash_ring's sequence number and checksum, a 32-byte record.
 typedef struct {
@@ -17,7 +18,8 @@ typedef struct {
     int32_t temp_centi_c;
     uint32_t press_q8_pa;
     uint32_t hum_q10_pct;
-    uint32_t n;
+    uint16_t n;              // readings in the average, at most 65535
+    uint16_t water_centi_psi;  // FL_WATER_NONE: no water reading
 } fl_payload_t;
 _Static_assert(sizeof(fl_payload_t) == 24, "FR-26.4: a record is 32 bytes");
 

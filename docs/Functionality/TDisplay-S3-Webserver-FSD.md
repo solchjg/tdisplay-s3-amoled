@@ -1871,7 +1871,8 @@ averages; emails keep working from RTC memory (§25).
 - **FR-26.3** [Must] [user] When the log is full, the oldest 4 KB sector shall be
   erased and reused. A record is never rewritten in place.
 - **FR-26.4** [Must] [proposed] Each record shall be 32 bytes with a sequence
-  number and a checksum. A torn or invalid record is skipped on reading, and
+  number and a checksum. It holds the average's start, means and reading count,
+  and a water value, `0xFFFF` meaning none. A torn or invalid record is skipped on reading, and
   logging carries on after it.
 - **FR-26.5** [Must] [user] In ONLINE, `GET /api/history.csv` shall answer 200
   `text/csv` with the header line and one line per record, oldest first, in the

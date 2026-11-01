@@ -2523,3 +2523,16 @@ tests:
     observable: "the page's extra HTML at its longest is shorter than SC_EXTRA_MAX"
     impl: [tests/host/test_flash_log.py::test_page_html_fits]
     result: {status: not done}
+
+  - id: TC-FLG-04
+    title: "What a record holds"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.4]
+    needs: []
+    observable: "a 24-byte payload; the reading count capped at 65535; the water value 0xFFFF"
+    impl: [tests/host/test_flash_log.py::test_record_fields]
+    result: {status: not done}

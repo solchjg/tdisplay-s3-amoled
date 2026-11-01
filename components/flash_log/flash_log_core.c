@@ -6,7 +6,8 @@ void fl_payload(fl_payload_t *out, const wx_avg_t *a)
 {
     *out = (fl_payload_t){.start = a->start, .temp_centi_c = a->temp_centi_c,
                           .press_q8_pa = a->press_q8_pa, .hum_q10_pct = a->hum_q10_pct,
-                          .n = a->n};
+                          .n = a->n > UINT16_MAX ? UINT16_MAX : (uint16_t)a->n,
+                          .water_centi_psi = FL_WATER_NONE};
 }
 
 void fl_csv_line(const fl_payload_t *r, const char *stamp, char out[FL_CSV_LINE_MAX])

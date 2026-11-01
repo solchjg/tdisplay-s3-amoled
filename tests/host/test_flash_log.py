@@ -3,12 +3,20 @@ import pytest
 
 HARNESS = r"""
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "flash_log_core.h"
 #include "status_core.h"
 
 int main(int argc, char **argv)
 {
+    if (argc > 2) {  // what a record keeps of an average of argv[2] readings
+        wx_avg_t big = {.n = (uint32_t)atol(argv[2])};
+        fl_payload_t q;
+        fl_payload(&q, &big);
+        printf("%u %u %u", (unsigned)q.n, (unsigned)q.water_centi_psi, (unsigned)sizeof q);
+        return 0;
+    }
     if (argc > 1) {  // the page's extra HTML at its longest: does it fit?
         wx_reading_t r = {.time = 1793493900, .temp_centi_c = -4000, .press_q8_pa = 28160000,
                           .hum_q10_pct = 102400};
@@ -45,3 +53,9 @@ def test_csv_line(core):
 # TC-FLG-13 · FR-26.8: the clear button fits on the page, whole
 def test_page_html_fits(core):
     assert core("fits") == "1"
+
+
+# TC-FLG-04 · FR-26.4: the record holds a reading count and a water value, none yet
+@pytest.mark.parametrize("count, kept", [(5, 5), (65535, 65535), (70000, 65535)])
+def test_record_fields(core, count, kept):
+    assert core("record", count) == f"{kept} 65535 24"
