@@ -205,7 +205,7 @@ testbench.
   the boot screen, the new serial log lines, task watchdog. No WiFi.
 - **Deliverables.** C-10.1 – C-10.3, C-10.5 – C-10.8; §6 (FR-6.x, C-6.x) against
   the BOOT screen; FR-5.25 (BOOT row), FR-5.27, FR-5.29, FR-5.31 (core),
-  FR-7.5 – FR-7.7, FR-7.12, FR-7.13, FR-7.33, FR-7.29, FR-7.30 (image check); FR-19.1,
+  FR-7.5 – FR-7.7, FR-7.12, FR-7.13, FR-7.34, FR-7.29, FR-7.30 (image check); FR-19.1,
   NFR-19.1 (variant app); the LCD fault build and the hang build
   (variant `app`) of §12.0.
 - **Exit criteria.** On SLOT1, after a USB flash of the CI artefact and a USB
@@ -238,7 +238,7 @@ testbench.
   HTTP parts), FR-9.5, FR-19.2, NFR-19.1 (variant http); the hang build variant `http`.
 - **Exit criteria.** Through the bench HTTP relay: `GET /` and `GET /api/status`
   answer per §14 with consistent values; the LCD request count follows (FR-5.25,
-  operator plus FR-7.33 mirror); NFR-14.1 holds; only TCP port 80 is open.
+  operator plus FR-7.34 mirror); NFR-14.1 holds; only TCP port 80 is open.
 - **Dependencies.** Phase 2 (the device must be ONLINE on the bench AP); Phase 1's
   test builds; testbench UDP log capture and port scan.
 
@@ -274,7 +274,7 @@ testbench.
 
 - **Scope.** Five 33-character screen lines, the `Hum` reading line, and the
   hold after WiFi is configured.
-- **Deliverables.** §24, FR-6.12, FR-6.13, FR-7.33, FR-23.12; the sleep test
+- **Deliverables.** §24, FR-6.12, FR-6.13, FR-7.34, FR-23.12; the sleep test
   builds' 60 s hold timeout (§24.3).
 - **Exit criteria.** Provisioning logs L23 and the device does not sleep; the
   panel counts down on line 5; a key press logs L24 `by=key` and the device
@@ -317,7 +317,7 @@ testbench.
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |----|------|-----------|--------|------------|
-| R-1 | The serial mirror proves what the firmware *intended* to draw, not what the panel shows | Certain | Medium | Display content is confirmed by an operator (FR-5.25, FR-6.1, FR-6.3, FR-6.4); FR-7.33 makes the intent automatable |
+| R-1 | The serial mirror proves what the firmware *intended* to draw, not what the panel shows | Certain | Medium | Display content is confirmed by an operator (FR-5.25, FR-6.1, FR-6.3, FR-6.4); FR-7.34 makes the intent automatable |
 | R-2 | The QSPI bus is write-only, so a real panel fault is invisible; the display-failure path can be exercised only by injecting a driver error | Certain | Low | Verified on the LCD fault-injection test build (§12.0) |
 | R-3 | Boot deadlines are read from the device's own log timestamp, which counts from chip reset, not from the bench's reset command | Certain | Low | Accepted: the device clock is the only clock that sees both the reset and the line |
 | R-4 | Wrong mirror, colour-inversion or offset settings produce an image every serial-only test misses | Medium | Medium | Operator checks FR-6.1, FR-6.3, FR-6.4 each name the defect to look for |
@@ -340,7 +340,7 @@ testbench.
 | R-23 | The bench offers no SMTP server and its AP may not reach the internet, so a sent summary has no automatic observer | Certain | Medium | The SMTP core is host-tested against scripted replies; delivery is an operator check with the user's own account; an automatic target test waits for a testbench SMTP peer (testbench change request, never a project workaround) |
 | R-21 | The bench has no reference thermometer, hygrometer or barometer, so accuracy is not verified, only plausibility and response | Certain | Low | The sensor's own accuracy (±1 °C, ±3 %, ±1 mbar per datasheet) is relied on; contracts check plausible ranges and a finger-warmth response |
 | R-24 | The testbench's BLE tools (`ble_scan`, `ble_connect`, `ble_write`) may not complete LE Secure Connections passkey pairing, so paired steps may need an operator and a phone | Medium | Medium | Scans and the unpaired refusal (FR-26.12) run on the bench; paired steps run by operator prompt with the Web Bluetooth page until the bench declares passkey pairing (testbench change request, never a project workaround) |
-| R-25 | BLE and WiFi share one 2.4 GHz radio and internal RAM (no PSRAM); a window slows WiFi and takes tens of KB of heap | Certain | Medium | BLE only inside windows (FR-26.18); no OTA download in a key window (FR-26.17); the task, and so the summary send, never runs in one (FR-26.5); NFR-14.1 is measured with no window open; NFR-26.1 checks the heap comes back |
+| R-25 | BLE and WiFi share one 2.4 GHz radio and internal RAM (no PSRAM); a window slows WiFi and takes tens of KB of heap; NimBLE adds about 360 KB to the image (1.38 MB of the 4 MB slot, C-10.7) | Certain | Medium | BLE only inside windows (FR-26.18); no OTA download in a key window (FR-26.17); the task, and so the summary send, never runs in one (FR-26.5); NFR-14.1 is measured with no window open; NFR-26.1 checks the heap comes back |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
 
 ### 4.2 Assumptions
@@ -477,7 +477,7 @@ CS, not BS.
 | D1 | LCD_START | start done | ok | LCD_OK | Clear to black; draw the BOOT screen; backlight on | 3000 ms after reset |
 | D2 | LCD_START | start done | failed | LCD_FAILED | Log `web: lcd init failed: <ERR>` | 3000 ms after reset |
 | D3 | LCD_OK | 1 s tick | screen unchanged | LCD_OK | none | 1000 ± 100 ms period |
-| D4 | LCD_OK | 1 s tick | changed, write ok | LCD_OK | Redraw each changed line; log FR-7.33 for each | 1000 ± 100 ms period |
+| D4 | LCD_OK | 1 s tick | changed, write ok | LCD_OK | Redraw each changed line; log FR-7.34 for each | 1000 ± 100 ms period |
 | D5 | LCD_OK | 1 s tick | changed, write failed | LCD_FAILED | Log `web: lcd write failed: <ERR>` | same tick |
 | D6 | LCD_FAILED | 1 s tick | — | LCD_FAILED | No LCD call | — |
 
@@ -593,12 +593,12 @@ Compact form:
 | FR-5.32 | ONLINE; request a valid hosted image (FR-15.10) | `OTA succeeded`, then a boot line with the new `fw=` | No restart; old `fw=` after the restart | restart ≤ 2 s after `OTA succeeded` | bench |
 | NFR-5.3 | ONLINE; bench AP stopped | `web: state=WIFI_LOST` | No state change; a boot line; PROVISIONING | ≤ 15 s after the AP stop, by the bench activity log and the serial capture; up to + 3 s late (Appendix A), never before the stop | bench |
 | FR-5.23 | After FR-5.32 | `web: ota confirmed` once ONLINE; a further USB reset boots the same `fw=` | Rollback on the next reset | n/a | bench |
-| FR-5.25 | Each connectivity state reached on the bench; operator prompted per state | Operator confirms the §5.4 lines; the FR-7.33 mirror lines match them | Missing, stale or extra text | n/a | bench (operator) |
+| FR-5.25 | Each connectivity state reached on the bench; operator prompted per state | Operator confirms the §5.4 lines; the FR-7.34 mirror lines match them | Missing, stale or extra text | n/a | bench (operator) |
 | FR-5.25 (core) | Screen function for every state, with sample SSID/IP/n/hostname | The §5.4 strings exactly | Any other string | n/a | host |
-| FR-5.26 | ONLINE; one `GET /api/status` | FR-7.33 line `line2="Req: <n>"` with the new n | No mirror line | ≤ 2 s after the response | bench |
+| FR-5.26 | ONLINE; one `GET /api/status` | FR-7.34 line `line2="Req: <n>"` with the new n | No mirror line | ≤ 2 s after the response | bench |
 | FR-5.27 | LCD fault build failing at start; USB reset; 30 s capture | Exactly one `lcdfi: call` before `web: lcd init failed:` | Any `lcdfi: call` after it | 30 s window | target |
 | FR-5.31 (core) | Screen function for every §5.3 state and every display-region state | No line equals `Hello, world!`; no line starts `Up:` | Either text in any state | n/a | host |
-| FR-5.31 | Shipped build, JRN-01 run from erase to ONLINE with 3 requests; operator prompted at PROVISIONING and ONLINE | No FR-7.33 mirror line with either text; operator confirms neither is on the panel | `Hello, world!` or `Up:` on the panel or in a mirror line | n/a | bench (operator) |
+| FR-5.31 | Shipped build, JRN-01 run from erase to ONLINE with 3 requests; operator prompted at PROVISIONING and ONLINE | No FR-7.34 mirror line with either text; operator confirms neither is on the panel | `Hello, world!` or `Up:` on the panel or in a mirror line | n/a | bench (operator) |
 | FR-5.29 (core) | SSIDs: 32 × `A`; `Caf\xc3\xa9`; empty | `AAAAAAAAAAAAAAAAAAAA`; `Caf??`; empty line | Wider than 20; raw non-ASCII byte | n/a | host |
 | NFR-5.1 | Provisioned; bench AP up; USB reset; 5 runs | `web: online` log timestamp ≤ 10000 ms in every run | A run over 10000 ms; PROVISIONING | ≤ 10 s | bench |
 
@@ -882,9 +882,10 @@ Each line requirement is one row of §7.2:
   log L2 once.
 - **FR-7.9** [Must] [derived from FR-13.1] Entry into PROVISIONING shall log L3.
 - **FR-7.10** [Must] [derived from FR-5.15] Entry into ONLINE and T9 shall log L5.
-- **FR-7.33** [Must] [derived from R-1 and FR-24.12] Each line redrawn by D4
-  shall log L7 with the exact text drawn, except the setup-check countdown on
-  line 5, which logs L7 only when its minutes change (and once at 00:00).
+- **FR-7.34** [Must] [derived from R-1, FR-24.12 and FR-26.14] Each line
+  redrawn by D4 shall log L7 with the exact text drawn, except a countdown on
+  line 5 (the setup check's or the BLE key window's), which logs L7 only when
+  its minutes change (and once at 00:00).
 - **FR-7.12** [Must] [derived from D2] D2 shall log L8 at error level.
 - **FR-7.13** [Must] [derived from D5] D5 shall log L9 at error level.
 - **FR-7.14** [Must] [derived from FR-14.6] Each status-server answer shall log L10.
@@ -953,7 +954,7 @@ concerned, `<ip>` the destination of FR-16.1.
 | FR-7.7 | USB reset | L1 once, first `web:` line; `reason=` one of `USB`, `SW`, `POWERON`; `slot=ota_0` or `ota_1` | Missing; after another `web:` line; numeric reason | target |
 | FR-7.8 – FR-7.10 | Provisioning run (FR-5.13) | L3, L4, L2 sequence PROVISIONING → CONNECTING → ONLINE, L5 with the bench-assigned IP | Missing or duplicated state line | bench |
 | FR-7.8 – FR-7.17 (core) | Format each line with sample values | The §7.2 strings exactly | Any other spelling or level | host |
-| FR-7.33 | ONLINE; one request | L7 `line2="Req: <n>"` | Text differing from the drawn line | bench |
+| FR-7.34 | ONLINE; one request | L7 `line2="Req: <n>"` | Text differing from the drawn line | bench |
 | FR-7.12, FR-7.13 | LCD fault build at start / 5th write | L8 `ESP_ERR_TIMEOUT` / L9 `ESP_ERR_INVALID_STATE` at level E, once | Level I/W; numeric code; repeated | target |
 | FR-7.14 | ONLINE; `GET /nope` | `web: http GET /nope 404 n=<count>` | Missing | bench |
 | FR-7.30 | Inspect the shipped application image (`.bin`) | No NUL-terminated string `hello` (the tag) and no `Hello, world!` in it | Either byte string present | host |
@@ -1892,17 +1893,24 @@ BLE runs only inside a **window**:
 ### 26.2 GATT service
 
 One primary service, UUID `6e0a0001-7d3b-4c2a-9f1e-54445333424c`
-(`T D S 3 B L` in the last six bytes), advertised in the advertising data
-together with the complete local name, the SoftAP SSID of FR-13.1
-(`TDS3-<XXXXXX>`). Every value is UTF-8 text in the
-`application/x-www-form-urlencoded` format of §13.2.
+(`T D S 3 B L` in the last six bytes), carried in the advertising data, with
+the complete local name, the SoftAP SSID of FR-13.1 (`TDS3-<XXXXXX>`), in the
+scan response (both do not fit one 31-byte advertisement). Every value is UTF-8
+text in the `application/x-www-form-urlencoded` format of §13.2.
+
+ATT limits one attribute value to 512 bytes, so a body is **staged**: each
+`settings` write (up to 512 bytes) appends to it, a `control` write of `apply`
+validates and acts on the whole staged body, and the staged body is emptied
+after `apply` and on every new connection. A `settings` read returns 512 bytes
+at most, starting at the offset last set by `control` `read=<offset>` (0 after
+connecting).
 
 | Characteristic | UUID | Access | Link required | Value |
 |----------------|------|--------|---------------|-------|
 | `info` | `6e0a0002-…` | read | none | `fw=<V>&host=<hostname>&state=<S>` |
-| `settings` | `6e0a0003-…` | read, write, long write | encrypted, authenticated (MITM) | Read: the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>`. Write: a submission (FR-26.6, FR-26.7) |
-| `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` before any write; then `ok`, or `invalid=<field>` naming the first invalid field |
-| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `done` closes a key window; any other value is answered with the ATT error *Value Not Allowed* |
+| `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>`. Write: appended to the staged body |
+| `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` after connecting; after each `apply`, `ok` or `invalid=<field>` naming the first invalid field |
+| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; any other value is answered with the ATT error *Value Not Allowed* |
 
 (`…` is the rest of the service UUID.)
 
@@ -1929,12 +1937,12 @@ Windows:
 
 Settings:
 
-- **FR-26.6** [Must] [user] In PROVISIONING, a `settings` write shall be a
-  credentials submission (T3, T4) with the validation of FR-13.4 and FR-25.1:
+- **FR-26.6** [Must] [user] In PROVISIONING, an `apply` of the staged
+  body shall be a credentials submission (T3, T4) with the validation of FR-13.4 and FR-25.1:
   valid, it is stored as a portal submission is (FR-5.13, FR-24.1, FR-25.16) and
   `result` becomes `ok`; invalid, NVS is unchanged and `result` becomes
   `invalid=<field>`.
-- **FR-26.7** [Must] [user] In a key window, a `settings` write shall replace
+- **FR-26.7** [Must] [user] In a key window, an `apply` of the staged body shall replace
   the stored settings, validated as in FR-26.6, except that a write without an
   `ssid` field keeps the stored WiFi credentials, a write with `ssid` but
   without a `password` field keeps the stored WiFi password, and a write with
@@ -1949,9 +1957,10 @@ Settings:
 - **FR-26.9** [Must] [derived from §9.1, FR-9.3, FR-25.10] No BLE read or
   notification shall carry `password` or `mail_password`; `settings` reads
   report only whether each is stored (`password_set`, `mail_password_set`).
-- **FR-26.10** [Must] [derived from FR-13.7 and C-10 limits] A `settings` write
-  longer than **2048** bytes (`PORTAL_BODY_MAX`) shall be refused with the ATT
-  error *Invalid Attribute Value Length* and leave NVS and `result` unchanged.
+- **FR-26.10** [Must] [derived from `PORTAL_BODY_MAX`] A `settings` write that
+  would make the staged body longer than **2048** bytes shall be refused with
+  the ATT error *Invalid Attribute Value Length*, empty the staged body, and
+  leave NVS and `result` unchanged.
 
 Security:
 
@@ -1997,17 +2006,17 @@ Coexistence:
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-26.1 | Erased NVS; bench BLE scan 10 s after L3 | Advertiser `TDS3-<XXXXXX>` carrying the service UUID; L27 `reason=provisioning` | No advertiser; another name | bench |
-| FR-26.1, FR-26.6, FR-26.11 | PROVISIONING; bench pairs (passkey read by operator from line 5) and writes `ssid`/`password` of the bench AP to `settings` | `result` = `ok`; L29 `ok`, L4, K4, L30 `reason=provisioned`; ONLINE on the bench AP | NVS written before the passkey; the SoftAP still up 5 s after the answer | bench (operator) |
+| FR-26.1, FR-26.6, FR-26.11 | PROVISIONING; bench pairs (passkey read by operator from line 5), writes `ssid`/`password` of the bench AP to `settings`, then `apply` to `control` | `result` = `ok`; L29 `ok`, L4, K4, L30 `reason=provisioned`; ONLINE on the bench AP | NVS written before the passkey; the SoftAP still up 5 s after the answer | bench (operator) |
 | FR-26.6 (core) | Form bodies as FR-13.4 and FR-25.1 cores | Same verdicts and field names as the portal | A body the portal refuses accepted, or the reverse | host |
 | FR-26.7 (core) | Key-window writes: no `ssid`; `ssid` without `password`; mail fields without `mail_password`; email turned off; each invalid field | Kept credentials; kept WiFi password; kept mail password; email off; `invalid=<field>` | A secret erased by an absent field; a partial write stored | host |
 | FR-26.2, FR-26.3 | ONLINE; operator holds the user key 3 s; bench scans every 10 s for 6 min, no connection | L27 `reason=key` ≤ 1 s after the 3 s mark; advertiser seen; L30 `reason=idle` 300 – 303 s after L27; no advertiser afterwards | Advertising past the 5 min; a window from a 2 s hold | bench (operator) |
 | FR-26.3 (core) | Window rule fed: open at 0 s, no connection to 300 s; connect at 100 s, disconnect at 250 s; `done` at 10 s | Close at 300 s; close at 550 s; close at 10 s | A close while connected; a close before the 5 min | host |
 | FR-26.4 (core) | Window request on a timer wake; in LCD_FAILED; at LCD start failure | No window each time | A window | host |
 | FR-26.5 (core) | Key window open from 50 s to 400 s after a power-on boot | No task, no sleep before 460 s | The task inside the window | host |
-| FR-26.7, FR-26.8 | ONLINE, key window, paired; write `mail_every=6` with the other stored values | `result` = `ok`, L29 `ok`, L30 `reason=written`, L1 within 2 s (+3 s tolerance); after boot `settings` reads `mail_every=6`; no L23 | A restart before the notification; the WiFi password changed | bench (operator) |
+| FR-26.7, FR-26.8 | ONLINE, key window, paired; stage the stored values read from `settings` with `mail_every=6`, then `apply` | `result` = `ok`, L29 `ok`, L30 `reason=written`, L1 within 2 s (+3 s tolerance); after boot `settings` reads `mail_every=6`; no L23 | A restart before the notification; the WiFi password changed | bench (operator) |
 | FR-26.9 | Provisioned with password `pw-<random 12 hex>` and a mail password marker; read `settings`; capture serial and UDP through a window | `password_set=1`, `mail_password_set=1`; neither marker anywhere | Either marker in a read, a notification or a log line | bench (operator) |
 | FR-26.9 (core) | `dump` of settings holding both passwords | Only the `_set` flags | Any password byte | host |
-| FR-26.10 (core) | Writes of 2048 and 2049 bytes | Accepted for parsing; refused, `result` unchanged | The 2049-byte body parsed | host |
+| FR-26.10 (core) | Staged writes of 4 × 512 bytes, then 1 more byte | Kept; refused and the staged body emptied | A body over 2048 bytes kept | host |
 | FR-26.12 | Window open; bench connects without pairing and reads `settings` | ATT error Insufficient Authentication; `info` readable | A settings value | bench |
 | FR-26.13 | Key window; bench fails the passkey 3 times | L28 `failed` three times, then L30 `reason=pairing` | A fourth attempt accepted | bench (operator) |
 | FR-26.14 (core) | Line 5 for a passkey 4207, 300 s and 61 s left, connected | `BLE code 004207`, `BLE setup 05:00`, `BLE setup 01:01`, `BLE connected` | More than 33 characters | host |
@@ -2178,6 +2187,7 @@ the bench gains the capability.
 | FR-6.10 | Any 20-character line fits one row | FR-6.13 (any 33-character line) |
 | FR-6.11 | Four text lines stacked inside the visible area | FR-6.12 (five lines) |
 | FR-7.11 | Every line redrawn by D4 logs L7 | FR-7.33 (the countdown logs once a minute) |
+| FR-7.33 | Only the setup-check countdown logs L7 once a minute | FR-7.34 (the BLE key-window countdown too) |
 | FR-23.6 | Line 4 as `<t>F <rh>% <p>hPa`, whole humidity and pressure | FR-23.11 (`<t>F Hum <rh>% <p> hPa`) |
 | FR-23.11 | Line 4 as `<t>F Hum <rh>% <p> hPa` | FR-23.12 (`<t>F Hum <rh>% <p> mbar`) |
 | FR-23.8 | `/api/readings` with pressure as `p_hpa` | FR-23.13 (pressure as `p_mbar`) |
@@ -2239,8 +2249,8 @@ change_history:
   - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
   - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)
   - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)
-  - 0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16; §1, §2, §4.3, §9.1, §11 and Appendix A updated
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2]
+  - 0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16, FR-7.33 superseded by FR-7.34 (the BLE countdown logs once a minute); §1, §2, §4.3, §9.1, §11 and Appendix A updated
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33]
 open_decisions:
   - FR-26.7 absent secret fields keep the stored secret in a key-window write
   - FR-26.8 restart within 2 s of the notification; a key-window write sets no setup-check mark

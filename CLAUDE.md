@@ -37,7 +37,7 @@ PYTHONPATH=<harness>/pytest FIRMWARE_DIR=<artefact>/coldflash pytest tests/bench
 pytest tests/bench -m journey     # JRN-01, the release-verification journey
 ```
 
-The app image must fit the 1 MB factory partition (checked in CI). Never commit
+The app image must fit a 4 MB OTA slot (FSD C-10.7, checked in CI). Never commit
 `build/` or a generated `sdkconfig`; do commit `sdkconfig.defaults`.
 
 ## Documentation planes — read before changing anything
@@ -85,10 +85,15 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/summary/` (L1) — the summary email (FSD §25): mail settings from
   the portal form in NVS, the due rule, the message (`summary_core.c` pure), sent
   through the shared `mail_tx`; a timer wake starts WiFi only for a due summary.
+- `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
+  write means in each window (absent secrets keep the stored ones in a key
+  window), the `settings` read without secrets, and `info`. The transport is the
+  shared `ble_setup`; when a window opens and closes is `device_logic`'s
+  `dl_ble_step`.
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `mail_tx` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `mail_tx`, `ble_setup` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through

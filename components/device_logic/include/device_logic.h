@@ -58,7 +58,7 @@ dl_disp_step_t dl_disp_step(dl_disp_t state, dl_disp_event_t event, bool changed
 bool dl_disp_tick_draws(dl_disp_t state, bool changed);
 
 // Connectivity region events (FSD §5.3 completeness: CR, CS, IP, AF, DC, RT, IC,
-// FR, OS, OF, 60). Do not reorder: the host tests index this list.
+// FR, OS, OF, 60, BS). Do not reorder: the host tests index this list.
 typedef enum {
     DL_EV_CREDS_READ,        // guard: credentials stored
     DL_EV_CREDS_SUBMITTED,   // guard: valid (FR-13.4)
@@ -71,6 +71,7 @@ typedef enum {
     DL_EV_OTA_SUCCEEDED,
     DL_EV_OTA_FAILED,
     DL_EV_CONFIRM_DEADLINE,  // 60 s since reset; guard: image pending verify
+    DL_EV_BLE_SETTINGS,      // BS: settings accepted in a BLE key window (FR-26.7)
 } dl_conn_event_t;
 
 // Connectivity actions, executed by the composition root in this bit order.
@@ -89,6 +90,7 @@ enum {
     DL_C_SELECT_SLOT = 1u << 11,
     DL_C_RESTART = 1u << 12,
     DL_C_MARK_SETUP = 1u << 13,     // the setup check is owed (FR-24.1)
+    DL_C_STORE_SETTINGS = 1u << 14, // the settings of a BLE key-window write (T14)
 };
 
 typedef struct {
@@ -97,7 +99,7 @@ typedef struct {
     uint32_t n;  // consecutive failed attempts since the last ONLINE
 } dl_conn_step_t;
 
-// FSD §5.3 connectivity table, T1 – T13. Pairs the table does not list leave the
+// FSD §5.3 connectivity table, T1 – T14. Pairs the table does not list leave the
 // state and n unchanged and return no action.
 dl_conn_step_t dl_conn_step(dl_conn_t state, dl_conn_event_t event, bool guard, uint32_t n);
 
@@ -159,9 +161,9 @@ void dl_hold_line(uint32_t held_s, uint32_t timeout_s, char out[DL_LINE_MAX]);
 // hold it stays lit with the panel.
 bool dl_led_lit(dl_hold_t hold, uint32_t held_ms);
 
-// FR-7.33: whether redrawing line i (0-based) from `was` to `now` logs L7. Every
-// line does, except the countdown on line 5 while its minutes stay the same,
-// unless it reaches 00:00.
+// FR-7.34: whether redrawing line i (0-based) from `was` to `now` logs L7. Every
+// line does, except a countdown on line 5 (the setup check's or the BLE key
+// window's) while its minutes stay the same, unless it reaches 00:00.
 bool dl_line_logged(int i, const char *was, const char *now);
 
 // FR-21.2 – FR-21.4, FR-24.2: the task runs once per boot, at once on the lean
@@ -171,3 +173,63 @@ bool dl_line_logged(int i, const char *was, const char *now);
 // (FR-21.12).
 bool dl_task_due(dl_wake_t wake, uint32_t s_in_window, bool pending_verify,
                  bool provisioned, bool ran, dl_hold_t hold);
+
+// BLE setup region (FSD §26). OFF: no BLE; PROV: the provisioning window;
+// KEY: a key window; PAUSED: provisioning advertising paused after failed
+// pairings (FR-26.13).
+typedef enum { DL_BLE_OFF, DL_BLE_PROV, DL_BLE_KEY, DL_BLE_PAUSED } dl_ble_t;
+
+#define DL_BLE_HOLD_MS 3000        // FR-26.2: user key held this long
+#define DL_BLE_IDLE_S (5 * 60)     // FR-26.3
+#define DL_BLE_PAIR_TRIES 3        // FR-26.13
+#define DL_BLE_PAUSE_S 60          // FR-26.13
+
+typedef struct {
+    dl_ble_t state;
+    bool connected;
+    uint32_t since_s;    // KEY: opened or last disconnected; PAUSED: paused at
+    uint32_t failures;   // failed pairings in this window
+} dl_ble_ctx_t;
+
+typedef enum {
+    DL_BEV_PROVISIONING,  // entered PROVISIONING (T1)
+    DL_BEV_PROVISIONED,   // T3, from the portal or BLE
+    DL_BEV_KEY_HELD,      // the user key held DL_BLE_HOLD_MS (FR-26.2)
+    DL_BEV_CONNECTED,
+    DL_BEV_DISCONNECTED,
+    DL_BEV_PAIRED,
+    DL_BEV_PAIR_FAILED,
+    DL_BEV_DONE,          // `control` written with done
+    DL_BEV_WRITTEN,       // an accepted key-window write (T14 follows)
+    DL_BEV_TICK,          // 1 s tick
+} dl_ble_event_t;
+
+// BLE actions, executed by the composition root in this bit order.
+enum {
+    DL_B_STOP = 1u << 0,         // stop BLE (controller released)
+    DL_B_LOG_OFF = 1u << 1,      // L30 with the returned reason
+    DL_B_START = 1u << 2,        // start BLE
+    DL_B_LOG_ON = 1u << 3,       // L27 with the returned reason
+    DL_B_LOG_PAIRED = 1u << 4,   // L28 ok
+    DL_B_LOG_PAIR_FAIL = 1u << 5,  // L28 failed
+    DL_B_START_WINDOW = 1u << 6, // the 60 s awake window runs from now (FR-26.5)
+};
+
+typedef struct {
+    unsigned actions;
+    const char *reason;  // for DL_B_LOG_ON / DL_B_LOG_OFF, as L27 / L30 spell it
+} dl_ble_step_t;
+
+// FR-26.1 – FR-26.5, FR-26.13. `allowed`: BLE may start now (not a timer wake,
+// the display not failed, no OTA download running) (FR-26.4, FR-26.17);
+// `provisioning`: the connectivity state is PROVISIONING.
+dl_ble_step_t dl_ble_step(dl_ble_ctx_t *ctx, dl_ble_event_t event, uint32_t now_s,
+                          bool allowed, bool provisioning);
+
+// FR-26.5: whether a key window keeps the task from running.
+bool dl_ble_holds_task(const dl_ble_ctx_t *ctx);
+
+// FR-26.14: line 5 for the BLE window; empty when nothing is to be shown.
+// `passkey` < 0: no passkey awaited.
+void dl_ble_line(const dl_ble_ctx_t *ctx, uint32_t now_s, int32_t passkey,
+                 char out[DL_LINE_MAX]);

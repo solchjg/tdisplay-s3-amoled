@@ -22,3 +22,8 @@ esp_err_t setup_check_key_start(setup_check_press_cb_t on_press);
 
 // Stop sampling (the hold is over).
 void setup_check_key_stop(void);
+
+// FR-26.2: sample the user key every 20 ms from now on; on_held runs from the
+// esp_timer task once per hold of at least hold_ms.
+typedef void (*setup_check_held_cb_t)(void);
+esp_err_t setup_check_hold_start(uint32_t hold_ms, setup_check_held_cb_t on_held);

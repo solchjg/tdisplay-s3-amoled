@@ -19,3 +19,17 @@ void sk_init(sk_state_t *s, uint32_t now_ms);
 // Feed one sample (low = key held) taken at now_ms. True once per press: when
 // the key has been held SK_DEBOUNCE_MS after being released as long.
 bool sk_sample(sk_state_t *s, bool low, uint32_t now_ms);
+
+// FR-26.2: a long hold of the user key. Unlike the debouncer above, a key
+// already held at the first sample counts from that sample.
+typedef struct {
+    bool down;
+    bool fired;
+    uint32_t since;  // when the key went down
+} sk_hold_t;
+
+void sk_hold_init(sk_hold_t *h);
+
+// Feed one sample (low = key held). True once per hold, at the first sample at
+// least hold_ms after the key went down without a release in between.
+bool sk_hold_sample(sk_hold_t *h, bool low, uint32_t now_ms, uint32_t hold_ms);

@@ -93,9 +93,25 @@ IDF Component Manager git dependency pinned to a tag, or as a submodule.
   The identity prefixes are read by the composition root and passed to
   `id_softap_ssid` / `id_hostname`, so the `identity` core stays free of
   ESP-IDF headers.
-- `lcd`, `device_logic`, `web_log`, `weather`, `setup_check` and `summary` stay in
-  `components/`: they are this app's screen, state machine, log vocabulary,
-  sensor, setup check and summary email.
+- `lcd`, `device_logic`, `web_log`, `weather`, `setup_check`, `summary` and
+  `ble_settings` stay in `components/`: they are this app's screen, state
+  machine, log vocabulary, sensor, setup check, summary email and the meaning of
+  its BLE settings body.
+
+## BLE setup (FSD §26)
+
+- `shared/components/ble_setup` is the transport: NimBLE peripheral, the GATT
+  service, passkey pairing, started and stopped by the composition root. It
+  never stores anything; it hands the staged body to `on_apply`.
+- `components/ble_settings` (pure) merges a key-window body with the stored
+  secrets and validates it with the portal's and the summary's cores, and
+  renders the `settings` read and the `info` value.
+- `device_logic`'s BLE region (`dl_ble_step`) decides when a window opens and
+  closes; the user-key 3 s hold comes from `setup_check_hold_start`.
+- NimBLE needs `CONFIG_BT_ENABLED` and `CONFIG_BT_NIMBLE_ENABLED` (peripheral
+  only, one connection, no NVS bonds) in `sdkconfig.defaults`; it adds about
+  360 KB to the image. With Bluetooth enabled ESP-IDF requires WiFi modem
+  sleep, which `wifi_net` already leaves on.
 
 ## Deep sleep (FSD §21)
 

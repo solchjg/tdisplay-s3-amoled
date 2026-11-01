@@ -18,6 +18,14 @@
 // settings of an accepted submission are held until summary_store.
 const portal_extra_t *summary_portal_fields(void);
 
+// FR-26.6, FR-26.7: the same check for a BLE settings body; NULL when valid
+// (the settings are then held until summary_store), else the invalid field.
+const char *summary_take(const char *body, size_t len);
+
+// The stored mail settings (email off if none). Initialises NVS if nothing
+// else has.
+const sm_settings_t *summary_settings(void);
+
 // FR-23.14: the sample and average minutes, as stored (the defaults if none).
 // Initialises NVS if nothing else has.
 sm_collect_t summary_collect(void);
