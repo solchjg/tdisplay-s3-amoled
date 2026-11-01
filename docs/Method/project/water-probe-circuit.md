@@ -30,6 +30,8 @@ from distributor pages and memory; check them against current datasheets.
 
 ## Divider parts
 
+![The probe and reference dividers](water-probe-dividers.svg)
+
 | Ref | Part | Spec | Note |
 |-----|------|------|------|
 | R1, R2, R4, R5 | 10 kΩ thin film | 0.1%, 25 ppm/°C, 0603 or 0805, at least 0.1 W | Matching sets the accuracy: 1% parts allow up to about 1.1% of full scale, 0.1% parts about 0.11% |
