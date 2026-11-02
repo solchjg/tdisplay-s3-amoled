@@ -2994,7 +2994,7 @@ Build-time constants:
 | RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 / TRS3221E or MAX3221E / DE-9 male (DTE) | [proposed] |
 | RS232 line / timeout / port-on limit | ≤ 128 bytes, CR, LF or CRLF / `rs_timeout_ms` 100 – 5000 ms, default 1000 / `rs_timeout_ms` + 50 ms | [proposed] |
 | Alert hysteresis (T / RH / P) | 1.0 °F / 2 % / 1.00 mbar | [user] |
-| Alert budgets | ONLINE within 15 s; all alerts of a run within 10 s; asleep within 50 s (60 s with a summary [proposed]) | [user] |
+| Alert budgets | ONLINE within 15 s; all alerts of a run within 10 s; asleep within 50 s (60 s with a summary) | [user] |
 | Alert priority / tags | 4 `warning` (start, test FAIL) / 3 `white_check_mark` (end, test pass) | [user] |
 | History append limit | ≤ 500 ms | [user] |
 | Full `GET /api/history` | ≤ 30 s | [user] |
