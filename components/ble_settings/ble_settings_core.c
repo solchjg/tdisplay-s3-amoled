@@ -104,7 +104,7 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
 }
 
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *sel,
-                 char *out, size_t cap)
+                 const nf_settings_t *alerts, char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
@@ -134,6 +134,20 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
     field(&b, "sample_min", num);
     snprintf(num, sizeof num, "%u", (unsigned)col->average_min);
     field(&b, "average_min", num);
+    field(&b, "ntfy", alerts->on ? "on" : "off");  // FR-31.2
+    field(&b, "ntfy_url", alerts->url);
+    field(&b, "ntfy_topic", alerts->topic);
+    field(&b, "ntfy_token_set", alerts->token[0] ? "1" : "0");
+    static const char *const LIMITS[NF_QTY][2] = {{"alert_t_lo", "alert_t_hi"},
+                                                  {"alert_rh_lo", "alert_rh_hi"},
+                                                  {"alert_p_lo", "alert_p_hi"}};
+    for (int q = 0; q < NF_QTY; q++) {
+        for (int hi = 0; hi < 2; hi++) {
+            char lim[12];
+            nf_limit_text(alerts, (nf_qty_t)q, hi, lim, sizeof lim);
+            field(&b, LIMITS[q][hi], lim);
+        }
+    }
     return b.len;
 }
 
@@ -168,6 +182,24 @@ static const char *const RULES[][15] = {
      "max", "60", NULL},
     {"average_min", "label", "Custom: average them over (minutes)", "type", "number", "min",
      "2", "max", "1440", "hint", "A whole number of readings, dividing a day.", NULL},
+    {"ntfy", "label", "Push alerts", "options", "off,on", "hint",
+     "Alerts through an ntfy server; on needs the server and topic.", NULL},
+    {"ntfy_url", "label", "ntfy server", "maxlength", "96", "pattern",
+     "https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?", "hint", "e.g. http://192.168.2.37:8080", NULL},
+    {"ntfy_topic", "label", "ntfy topic", "maxlength", "64", "pattern", "[A-Za-z0-9_\\-]+", NULL},
+    {"ntfy_token", "label", "ntfy access token (optional)", "maxlength", "64", NULL},
+    {"alert_t_lo", "label", "Alert: temperature below (F)", "type", "number", "step", "0.1",
+     "min", "-40", "max", "185", NULL},
+    {"alert_t_hi", "label", "Alert: temperature above (F)", "type", "number", "step", "0.1",
+     "min", "-40", "max", "185", NULL},
+    {"alert_rh_lo", "label", "Alert: humidity below (%)", "type", "number", "min", "0", "max",
+     "100", NULL},
+    {"alert_rh_hi", "label", "Alert: humidity above (%)", "type", "number", "min", "0", "max",
+     "100", NULL},
+    {"alert_p_lo", "label", "Alert: pressure below (mbar)", "type", "number", "step", "0.01",
+     "min", "300", "max", "1100", NULL},
+    {"alert_p_hi", "label", "Alert: pressure above (mbar)", "type", "number", "step", "0.01",
+     "min", "300", "max", "1100", NULL},
 };
 #undef MAIL
 #undef NEED

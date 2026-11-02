@@ -61,6 +61,10 @@ int main(int argc, char **argv)
         wl_fmt_mail_sent(line, sizeof line, argv[2], (uint32_t)strtoul(argv[3], NULL, 10));
     } else if (strcmp(argv[1], "mail_failed") == 0) {
         wl_fmt_mail_failed(line, sizeof line, argv[2], argv[3]);
+    } else if (strcmp(argv[1], "ntfy_sent") == 0) {
+        wl_fmt_ntfy_sent(line, sizeof line, argv[2]);
+    } else if (strcmp(argv[1], "ntfy_failed") == 0) {
+        wl_fmt_ntfy_failed(line, sizeof line, argv[2], argv[3]);
     } else if (strcmp(argv[1], "time") == 0) {
         wl_fmt_time_synced(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "wake") == 0) {
@@ -180,3 +184,10 @@ def test_setup_check_lines(fmt):
 def test_mail_lines(fmt):
     assert fmt("mail_sent", "you@example.org", "36") == "mail sent to=you@example.org readings=36"
     assert fmt("mail_failed", "you@example.org", "auth") == "mail failed: auth to=you@example.org"
+
+
+# TC-NTFY-12 · FR-31.11, FR-31.12 (core): L39 and L40
+def test_ntfy_lines(fmt):
+    assert fmt("ntfy_sent", "t_high") == "ntfy sent t_high"
+    assert fmt("ntfy_sent", "test_pass") == "ntfy sent test_pass"
+    assert fmt("ntfy_failed", "connect", "sensor_ok") == "ntfy failed: connect sensor_ok"

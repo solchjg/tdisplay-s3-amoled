@@ -93,6 +93,10 @@ void web_log_ble_off(const char *reason);
 void web_log_history_unavailable(void);
 void web_log_history_failed(esp_err_t err);
 
+// L39 (an alert delivered, FR-31.12) and L40 (warning: not delivered, FR-31.11).
+void web_log_ntfy_sent(const char *event);
+void web_log_ntfy_failed(const char *reason, const char *event);
+
 // L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning
 // level when the test failed (ok false).
 void web_log_test(const char *text, bool ok);

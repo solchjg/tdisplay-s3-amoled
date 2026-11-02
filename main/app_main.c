@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "ble_settings_core.h"
 #include "ble_setup.h"
@@ -28,6 +29,7 @@
 #include "identity.h"
 #include "lcd.h"
 #include "mdns_name.h"
+#include "notify.h"
 #include "ota_rx.h"
 #include "portal.h"
 #include "sampling.h"
@@ -112,13 +114,17 @@ static void page_extra(char *out, size_t len)
     }
 }
 
-// FR-25.1, FR-28.1: the portal form's mail section, then its setup section.
-static char form_html[4096];
+// FR-25.1, FR-28.1, FR-31.1: the portal form's mail section, its setup
+// section, then its alerts section.
+static char form_html[6144];
 
 static const char *form_take(const char *body, size_t len)
 {
     const char *bad = summary_take(body, len);
-    return bad ? bad : sampling_take(body, len);
+    if (!bad) {
+        bad = sampling_take(body, len);
+    }
+    return bad ? bad : notify_take(body, len);
 }
 
 static const portal_extra_t form_extra = {.html = form_html, .take = form_take};
@@ -126,8 +132,8 @@ static const portal_extra_t form_extra = {.html = form_html, .take = form_take};
 static const portal_extra_t *form_fields(void)
 {
     if (!form_html[0]) {
-        snprintf(form_html, sizeof form_html, "%s%s", summary_portal_fields()->html,
-                 SAMPLING_FORM_HTML);
+        snprintf(form_html, sizeof form_html, "%s%s%s", summary_portal_fields()->html,
+                 SAMPLING_FORM_HTML, notify_form_html());
     }
     return &form_extra;
 }
@@ -141,6 +147,7 @@ static dl_wake_t wake;  // how this boot began (FSD §21); a test's end counts a
 static sp_run_t *run;           // the run of tests (FSD §28), in RTC memory
 static bool test_result;        // line 5 shows the verdict in this window (FR-28.11)
 static bool test_mail;          // the result email is owed (FR-28.13)
+static bool test_alert;         // the test alert is owed (FR-31.7)
 static uint32_t quick_next_s;   // uptime of quick's next reading (FR-28.6)
 static uint32_t key_used_s;     // a press that ended the hold or a test is no half of a double
 static bool task_ran;
@@ -315,7 +322,8 @@ static size_t ble_read_info(char *out, size_t cap)
 
 static size_t ble_read_settings(char *out, size_t cap)
 {
-    return bset_dump(&stored, summary_settings(), sampling_sel(), out, cap);  // FR-26.9, FR-28.3
+    return bset_dump(&stored, summary_settings(), sampling_sel(), notify_settings(), out,
+                     cap);  // FR-26.9, FR-28.3, FR-31.2
 }
 
 // FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.
@@ -541,6 +549,10 @@ static void test_log_history(void)
 
 // FR-27.1: the reading into the history; L31 for a missing partition once per
 // boot (FR-27.8), and for each failed append (FR-27.9). True when appended.
+// The text of the last sensor and history failure, an alert's body (§31.3),
+// kept across sleep for an alert sent on a later run.
+static RTC_DATA_ATTR char sensor_fail[48], history_fail[48];
+
 static bool history_add(const wx_reading_t *r)
 {
     static bool told;
@@ -550,10 +562,29 @@ static bool history_add(const wx_reading_t *r)
             web_log_history_unavailable();
             told = true;
         }
+        wl_fmt_history_unavailable(history_fail, sizeof history_fail);
     } else if (err != ESP_OK) {
         web_log_history_failed(err);
+        wl_fmt_history_failed(history_fail, sizeof history_fail, esp_err_to_name(err));
     }
     return err == ESP_OK;
+}
+
+// FR-31.4, FR-31.14: a reading (NULL: the sensor failed) against the alert
+// limits and failures; nothing is decided while alerts are off.
+static void observe_alerts(const wx_reading_t *r, bool appended)
+{
+    if (!notify_enabled()) {
+        return;
+    }
+    nf_state_t *st = notify_state();
+    nf_observe(st, NF_SENSOR, r == NULL);
+    if (r) {
+        int32_t v[NF_QTY];
+        nf_values(r, v);
+        nf_observe_values(st, notify_settings(), v);
+        nf_observe(st, NF_HISTORY, !appended);
+    }
 }
 
 // One reading, logged (L21) and kept, or the failure logged (L22); either way the
@@ -573,8 +604,11 @@ static bool take_reading(void)
         wx_log_line(&r, iso, line, sizeof line);
         web_log_reading(line);
         ok = history_add(&r);
+        observe_alerts(&r, ok);
     } else {
         web_log_bme280_failed(err);
+        wl_fmt_bme280_failed(sensor_fail, sizeof sensor_fail, esp_err_to_name(err));
+        observe_alerts(NULL, false);
     }
     wx_screen_line(weather_newest(), reading_line);
     return ok;
@@ -645,12 +679,15 @@ static void tests_over(void)
 {
     test_result = true;
     test_mail = sm_enabled(summary_settings());
+    test_alert = notify_enabled();  // FR-31.7
     task_ran = false;
     window_start_s = uptime_s();
 }
 
 // FR-28.6: quick's next reading when due; after its last, the next test or the end.
 static void run_task_and_sleep(void);
+static void send_alerts_awake(void);
+static void send_summary(bool net);
 
 static void quick_tick(void)
 {
@@ -658,6 +695,7 @@ static void quick_tick(void)
         return;
     }
     uint32_t s = test_reading();
+    send_alerts_awake();  // FR-31.10
     if (s) {
         quick_next_s = uptime_s() + s;
         return;
@@ -690,6 +728,7 @@ static void tap(bool twice)
     test_result = false;
     test_start(SP_QUICK);
     quick_next_s = now + test_reading();
+    send_alerts_awake();  // FR-31.10
 }
 
 // FR-28.13: the result email, once ONLINE in the window after the tests, or
@@ -733,14 +772,121 @@ static bool mail_wifi_up(void)
            xSemaphoreTake(got_ip, pdMS_TO_TICKS(MAIL_WIFI_MS)) == pdTRUE;
 }
 
-// FR-25.3 – FR-25.9: a due summary is sent once, or dropped and logged.
-static void send_due_summary(void)
+// ── Push alerts region (FSD §31) ─────────────────────────────────────────
+
+// §31.3: an alert's body, from the newest reading and the last failure texts.
+static void alert_body(nf_cond_t c, bool end, char out[NF_BODY_MAX])
 {
-    if (!summary_due()) {
+    const wx_reading_t *r = weather_newest();
+    if (c <= NF_P_LOW) {
+        if (!r) {
+            snprintf(out, NF_BODY_MAX, "no reading");
+            return;
+        }
+        int32_t v[NF_QTY];
+        nf_values(r, v);
+        char stamp[20];
+        bool timed = r->time >= WX_TIME_SET_MIN;  // FR-22.6
+        if (timed) {
+            time_t t = (time_t)r->time;
+            struct tm tm;
+            localtime_r(&t, &tm);
+            strftime(stamp, sizeof stamp, "%Y-%m-%d %H:%M", &tm);
+        }
+        nf_limit_body(notify_settings(), c, v, timed ? stamp : NULL, out);
+    } else if (c == NF_SENSOR && !end) {
+        snprintf(out, NF_BODY_MAX, "%s", sensor_fail);
+    } else if (c == NF_SENSOR && r) {
+        char iso[WX_ISO_MAX];
+        weather_iso(r, iso);
+        wx_log_line(r, iso, out, NF_BODY_MAX);  // L21 after "web: "
+    } else if (c == NF_HISTORY && !end) {
+        snprintf(out, NF_BODY_MAX, "%s", history_fail);
+    } else {
+        snprintf(out, NF_BODY_MAX, "%s", c == NF_HISTORY ? "history appended" : "ok");
+    }
+}
+
+// FR-31.8, FR-31.11, FR-31.12: every due alert, each its own message, logged
+// L39 or L40; a failure stays due for one more try on a later run.
+static void send_alerts(bool net)
+{
+    nf_state_t *st = notify_state();
+    notify_begin();
+    bool end;
+    for (nf_cond_t c = nf_next_due(st, 0, &end); c != NF_CONDS;
+         c = nf_next_due(st, (nf_cond_t)(c + 1), &end)) {
+        char title[NF_TITLE_MAX], event[NF_EVENT_MAX];
+        static char body[NF_BODY_MAX];
+        nf_title(hostname, c, end, NULL, title);
+        nf_event(c, end, event);
+        alert_body(c, end, body);
+        nt_reason_t why = net ? notify_send(hostname, title, body, end) : NT_ERR_CONNECT;
+        bool ok = net && why == NT_OK;
+        if (ok) {
+            web_log_ntfy_sent(event);  // L39
+        } else {
+            web_log_ntfy_failed(net ? nt_reason_name(why) : "wifi", event);  // L40
+        }
+        nf_result(st, c, ok);
+    }
+}
+
+// FR-31.10: awake (a quick test's readings), the alerts go out over the WiFi
+// already up.
+static void send_alerts_awake(void)
+{
+    if (notify_enabled() && nf_any_due(notify_state())) {
+        send_alerts(view.conn == DL_ONLINE);
+    }
+}
+
+// FR-31.7: the test alert, once ONLINE in the window after the tests, or
+// dropped (L40 wifi) when the window ends first.
+static void send_test_alert(bool online)
+{
+    test_alert = false;
+    uint32_t n, m;
+    bool pass = sp_verdict(run, &n, &m);
+    char title[NF_TITLE_MAX];
+    static char body[SP_LOG_MAX * SP_TESTS + 8];
+    nf_test_title(hostname, pass, title);
+    sp_mail_body(run, body, sizeof body);
+    const char *event = pass ? "test_pass" : "test_fail";
+    notify_begin();
+    nt_reason_t why = online ? notify_send(hostname, title, body, pass) : NT_ERR_CONNECT;
+    if (online && why == NT_OK) {
+        web_log_ntfy_sent(event);  // L39
+    } else {
+        web_log_ntfy_failed(online ? nt_reason_name(why) : "wifi", event);  // L40
+    }
+}
+
+// FR-25.3 – FR-25.9, FR-31.10: due alerts and a due summary are sent once, or
+// dropped and logged; on a timer wake one WiFi start serves both.
+static void send_due_messages(void)
+{
+    bool mail = summary_due();
+    bool alerts = notify_enabled() && nf_any_due(notify_state());
+    if (!mail && !alerts) {
         return;
     }
     bool timer = wake == DL_WAKE_TIMER;
     bool net = timer ? mail_wifi_up() : view.conn == DL_ONLINE;
+    if (alerts) {
+        send_alerts(net);
+    }
+    if (mail) {
+        send_summary(net);
+    }
+    if (timer) {
+        wifi_net_stop();  // FR-21.7, FR-25.6, FR-31.10: WiFi only while they are sent
+    }
+}
+
+// FR-25.12, FR-25.14: the due summary to each recipient, its own email.
+static void send_summary(bool net)
+{
     for (int i = 0; summary_to(i); i++) {  // FR-25.12: each recipient its own email
         uint32_t n = 0;
         mt_reason_t why = net ? summary_send(hostname, i, &n) : MT_OK;
@@ -751,9 +897,6 @@ static void send_due_summary(void)
         }
     }
     summary_done();
-    if (timer) {
-        wifi_net_stop();  // FR-21.7, FR-25.6: WiFi only while the summary is sent
-    }
 }
 
 // The task (FR-21.4, FR-21.9): takes a reading (FR-23.1), then returns the sleep
@@ -764,6 +907,9 @@ static uint32_t run_task(void)
     if (test_mail) {
         send_test_mail(false);  // FR-28.13: the window ended before ONLINE
     }
+    if (test_alert) {
+        send_test_alert(false);  // FR-31.7: the window ended before ONLINE
+    }
     test_result = false;
     if (!run->running && sampling_sel()->tests) {  // FR-28.5
         sp_begin(run);
@@ -771,11 +917,12 @@ static uint32_t run_task(void)
     }
     if (sp_running(run, SP_QUICK)) {  // FR-28.6: awake; the tick takes the rest
         quick_next_s = uptime_s() + test_reading();
+        send_alerts_awake();  // FR-31.10
         return 0;
     }
     if (sp_running(run, SP_CYCLE)) {  // FR-28.6: asleep between readings
         uint32_t s = test_reading();
-        send_due_summary();
+        send_due_messages();
         if (s) {
             return s;
         }
@@ -786,7 +933,7 @@ static uint32_t run_task(void)
         return 0;
     }
     take_reading();
-    send_due_summary();
+    send_due_messages();
 #ifdef TDS3_TEST_SLEEP_S
     return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
 #else
@@ -986,6 +1133,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("setup store", err);
         }
+        err = notify_store();  // FR-31.2
+        if (err != ESP_OK) {
+            web_log_warn("alert settings store", err);
+        }
         web_log_provisioned(stored.ssid);
     }
     if (a & DL_C_STORE_SETTINGS) {  // T14 (FR-26.7)
@@ -1001,6 +1152,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = sampling_store();  // FR-28.3
         if (err != ESP_OK) {
             web_log_warn("setup store", err);
+        }
+        err = notify_store();  // FR-31.2, FR-31.14
+        if (err != ESP_OK) {
+            web_log_warn("alert settings store", err);
         }
         vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));  // FR-26.8: the result notification first
         ble_event(DL_BEV_WRITTEN);
@@ -1110,6 +1265,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = sampling_erase();  // FR-28.3
         if (err != ESP_OK) {
             web_log_warn("setup erase", err);
+        }
+        err = notify_erase();  // FR-31.2
+        if (err != ESP_OK) {
+            web_log_warn("alert settings erase", err);
         }
         err = ble_setup_forget();  // FR-26.13
         if (err != ESP_OK) {
@@ -1326,6 +1485,9 @@ void app_main(void)
         }
         if (test_mail && view.conn == DL_ONLINE) {
             send_test_mail(true);  // FR-28.13
+        }
+        if (test_alert && view.conn == DL_ONLINE) {
+            send_test_alert(true);  // FR-31.7
         }
         disp = disp_tick(disp);
         hold_event(DL_HEV_TICK, false);

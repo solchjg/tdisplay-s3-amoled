@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "notify_core.h"
 #include "portal_core.h"
 #include "sampling_core.h"
 #include "summary_core.h"
@@ -30,9 +31,11 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
                          size_t cap, size_t *out_len);
 
 // FR-26.9: the stored settings that are not secret, then password_set and
-// mail_password_set, and the setup with its minutes (FR-28.3). Returns the length written (cut to fit cap, terminated).
+// mail_password_set, the setup with its minutes (FR-28.3), and the alert
+// settings with ntfy_token_set (FR-31.2). Returns the length written (cut to
+// fit cap, terminated).
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *mail, const sp_sel_t *sel,
-                 char *out, size_t cap);
+                 const nf_settings_t *alerts, char *out, size_t cap);
 
 // FR-26.19: the rules of every field bset_dump shows, for the page to check
 // before it writes (ble_setup.h read_form). Returns the length (cut to fit cap,
