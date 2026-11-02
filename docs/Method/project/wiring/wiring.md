@@ -69,19 +69,27 @@ battery connector is a JST GH 1.25 mm.
 
 ## Sheet 2 parts
 
+Every part is through-hole or a breakout with 0.1" pins, so sheet 2 builds on
+a breadboard or perfboard.
+
 | Ref | Function (FSD §29.1) | Suggested part | Notes |
 |---|---|---|---|
-| U2 | Load switch with a controlled rise time | TI TPS22918 (1 – 5.5 V in, 2 A) | CT about 1 nF for the soft start; EN on GPIO 3 with R1 |
+| U2 | Load switch with a controlled rise time | onsemi NDP6020P P-MOSFET (TO-220, −20 V, V<sub>GS(th)</sub> −0.4 to −1 V) driven by a 2N3904 (TO-92) | Gate to VSYS through 100 kΩ and 47 nF in parallel; the 2N3904's collector pulls the gate low through 10 kΩ (about 0.5 ms rise); its base on GPIO 3 through 10 kΩ, R1 to GND |
 | U3 | Wide-input converter to 5 V | Pololu S7V8F5 (2.7 – 11.8 V in) | Leave SHDN open: its 100 k pull-up would fight R1, so U2 switches it |
-| U4 | Isolated 1 W DC-DC, 24 V | Mornsun B0524S-1WR3 (5 V in, 24 V at 4.2 – 42 mA, 1500 VDC) | Rated over 10 – 100 % load; the loop plus U5 and U8 keep it above 10 % |
-| U5 | Isolated 3.3 V LDO, at least 40 V in | TI TPS7A1633 (3 – 60 V in, 100 mA) | 1 µF/50 V in, 2.2 µF out |
-| U9 | Loop current limit, about 30 mA | Microchip DN2540N3 depletion MOSFET with a source resistor near 47 Ω | Trim the resistor on the bench so 21 mA passes untouched |
-| D1 | TVS across the terminals | SMAJ30A | K to the + terminal |
-| U7 | Loop ADC | ADS1115 (Adafruit 1085 or TI ADS1115IDGSR) | ADDR to VDD for 0x49 |
-| U8 | I2C isolator, floating while unpowered | TI ISO1540 | Side 1 on the board's 3V3, side 2 on U5 |
-| R2 | Shunt | 100 Ω, 0.1 %, 25 ppm/°C, 0805 | 40 mW at 20 mA |
-| R1 | Enable pull-down | 100 kΩ | |
-| C | Decoupling | 100 nF at U7 and at each side of U8; 10 µF at U3 out | |
+| U4 | Isolated 1 W DC-DC, 24 V | Mornsun B0524S-1WR3, SIP-4 (5 V in, 24 V at 4.2 – 42 mA, 1500 VDC) | Rated over 10 – 100 % load; U5's divider alone keeps it above 10 % |
+| U5 | Isolated 3.3 V regulator, at least 40 V across it | LM317LZ (TO-92, 40 V in – out) with 150 Ω (OUT – ADJ) and 240 Ω (ADJ – 0V iso), 1 %, for 3.25 V | The divider's 8 mA meets the LM317L's 10 mA minimum load with U7 and U8; about 0.25 W in the TO-92. 0.1 µF in, 1 µF out |
+| U9 | Loop current limit, about 30 mA | Microchip DN2540N3 depletion MOSFET (TO-92) with a source resistor near 47 Ω | Trim the resistor on the bench so 21 mA passes untouched |
+| D1 | TVS across the terminals | P6KE33A (DO-15, 28.2 V stand-off) | K to the + terminal |
+| U7 | Loop ADC | Adafruit 1085 ADS1115 breakout | ADDR to VDD for 0x49 |
+| U8 | I2C isolator, floating while unpowered | Adafruit 4903 ISO1540 breakout | Side 1 on the board's 3V3, side 2 on U5; 10 kΩ pull-ups on each side to that side's VCC |
+| R2 | Shunt | TE YR1B100RCC, 100 Ω, 0.1 %, 15 ppm/°C, 0.25 W axial | 40 mW at 20 mA |
+| R1 | Enable pull-down | 100 kΩ axial | |
+| C | Decoupling | 100 nF ceramic at U7 and at each side of U8; 10 µF electrolytic at U3 out | Radial, 0.1" pitch |
+| J1 | Transmitter terminal | 2-pin screw terminal, 5.08 mm | |
 
-A 2-pin 5.08 mm screw terminal takes the transmitter. With the limiter (about
-3 V) and the shunt (2.1 V at 21 mA), about 19 V is left for the transmitter.
+With the limiter (about 3 V) and the shunt (2.1 V at 21 mA), about 19 V is
+left for the transmitter. On the 24 V side, a shorted loop (30 mA) plus U5
+(about 11 mA) stays within U4's 42 mA.
+
+U8's side 1 draws about 3 mA (ISO1540 I<sub>CC1</sub>) whenever the board's 3V3 is
+on, sleep included, plus its power LED.
