@@ -282,6 +282,10 @@ the internet, put it behind `https://` with a Let's Encrypt certificate. The
 device checks the certificate against the ESP-IDF CA bundle, which trusts
 Let's Encrypt, and checks that it is for the host name in `tb_url`.
 
+The production server for these boards is a cloud VM built as in
+[Cloud Server](Cloud-Server.md), which also covers backups and moving the
+boards off the LAN server. This section is the general case, for any server.
+
 **What you need**
 
 - A DNS name for the server, e.g. `tb.example.org`, that resolves from the
