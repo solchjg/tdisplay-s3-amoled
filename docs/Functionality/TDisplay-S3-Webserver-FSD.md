@@ -381,7 +381,8 @@ testbench.
 
 - Authentication on any endpoint; TLS on anything the device serves (the summary email is sent over TLS, §25); signed firmware, secure boot, flash
   encryption (§9.1). [user]
-- BLE outside a setup window (§26), BLE bonding, BLE settings without a passkey; MQTT, IPv6, NTP, static IP, more than one stored network, a network scan
+- BLE outside a setup window (§26), BLE settings without a passkey (a bonded central
+  passed one when it paired, FR-26.13); MQTT, IPv6, NTP, static IP, more than one stored network, a network scan
   list in the portal, a portal timeout. [user]
 - OTA by pushed image body, HTTPS or authenticated downloads, OTA progress on
   the LCD, OTA of the bootloader or partition table. [user]
@@ -2035,7 +2036,11 @@ Security:
   `control` shall answer a central whose link is not encrypted with an
   authenticated (MITM) key with the ATT error *Insufficient Authentication*;
   only `info` is readable before pairing.
-- **FR-26.13** [Must] [user] The device shall store no bonds; after
+- **FR-26.13** [Must] [user] The device shall bond with a central that pairs
+  and keep at most **3** bonds in NVS, so a bonded central reconnects in a
+  window by encryption alone, without a new passkey; a factory reset (T10)
+  erases them. A central that starts encryption with a key the device does not
+  hold is disconnected at once. After
   **3** failed pairings in one window it shall close a key window, or pause
   advertising for **60 s** in PROVISIONING.
 - **FR-26.15** [Must] [derived from FR-26.11] At most one central shall be
@@ -2451,7 +2456,7 @@ Build-time constants:
 | Reading line decimals (T / RH / P) | 1 / 0 / 2 | [user] |
 | BLE key-window hold (user key) | 3 s | [user] |
 | BLE key-window idle close | 5 min | [user] |
-| BLE pairing | LE Secure Connections, passkey on line 5, DisplayOnly, no bonds | [user] |
+| BLE pairing | LE Secure Connections, passkey on line 5, DisplayOnly, at most 3 bonds kept in NVS | [user] |
 | BLE failed pairings per window / provisioning pause | 3 / 60 s | [user] |
 | BLE `settings` write limit | 2048 bytes | [derived from `PORTAL_BODY_MAX`] |
 | Restart after an accepted key-window write (T14) | ≤ 2 s | [user] |

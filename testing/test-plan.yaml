@@ -2594,7 +2594,7 @@ tests:
     result: {status: not done}
 
   - id: TC-BLE-13
-    title: "NimBLE built as one peripheral, no bonds kept"
+    title: "NimBLE built as one peripheral that keeps at most 3 bonds"
     shape: atomic
     kind: standard
     wave: 1
@@ -2602,7 +2602,7 @@ tests:
     tier: host
     verifies: [FR-26.15, FR-26.13]
     needs: []
-    observable: "sdkconfig: NimBLE on, one connection, no central or observer, no NVS bonds"
+    observable: "sdkconfig: NimBLE on, one connection, GATT client, no observer, bonds in NVS, at most 3"
     impl: tests/host/test_build.py::test_ble_is_a_lone_peripheral
     result: {status: not done}
 

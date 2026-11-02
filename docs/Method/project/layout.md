@@ -111,7 +111,7 @@ IDF Component Manager git dependency pinned to a tag, or as a submodule.
 - `device_logic`'s BLE region (`dl_ble_step`) decides when a window opens and
   closes; the user-key 3 s hold comes from `setup_check_hold_start`.
 - NimBLE needs `CONFIG_BT_ENABLED` and `CONFIG_BT_NIMBLE_ENABLED` (one
-  connection, no NVS bonds, no observer role; the central role only because the
+  connection, bonds in NVS (`BLE_SETUP_BOND`, `BT_NIMBLE_NVS_PERSIST`, at most 3), no observer role; the central role only because the
   GATT client needs it: a phone indicates Service Changed on connecting, and
   an unconfirmed indication makes it drop the link after 30 s) in `sdkconfig.defaults`; it adds about
   360 KB to the image. With Bluetooth enabled ESP-IDF requires WiFi modem
