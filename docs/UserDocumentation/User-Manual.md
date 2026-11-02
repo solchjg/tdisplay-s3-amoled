@@ -308,8 +308,11 @@ the boards off the LAN server) is in the [Cloud Server](Cloud-Server.md) guide.
 
 A board with the loop add-on reads one 2-wire 4-20 mA transmitter (a pressure,
 level, flow or temperature sensor) at each reading. The loop side is isolated
-from the board and powered with 24 V only while it is read. Wire the
-transmitter to the two loop terminals; polarity as marked.
+from the board and powered with 24 V only while it is read. The loop circuit is
+an add-on board of its own: plug it into the carrier's 5-pin loop socket with USB
+unplugged and the battery disconnected (the other add-ons, RS232 and the water
+probe, plug in the same way, each into its own socket). Wire the transmitter to
+the two loop terminals; polarity as marked.
 
 Turn it on in the setup form (chapter 2) or over Bluetooth (chapter 5c):
 

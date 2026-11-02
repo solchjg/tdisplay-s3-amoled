@@ -4,7 +4,13 @@ The hardware for the 4-20 mA loop input of FSD §29. It powers and reads one 2-w
 transmitter through an isolated loop side. The firmware is on main, but this circuit
 has not been built yet. Every part is through-hole or a breakout with 0.1" pins, so
 it builds on a breadboard or perfboard. Fritzing
-[sheet 2](wiring/wiring-2-loop-4-20ma.png) shows the wiring. Figures come from the
+[sheet 2](wiring/wiring-2-loop-4-20ma.png) shows the wiring.
+
+The whole circuit, the isolated side, U7 and U8 included, sits on the loop add-on
+board, so the isolation barrier lies within that board. It reaches the carrier through
+the 5-pin loop connector (GND, VSYS, GPIO 3, GPIO 15, GPIO 16), listed in
+[wiring.md](wiring/wiring.md#carrier-and-add-on-boards). The loop ADS1115 cannot be
+shared with another add-on: it measures against the isolated 0 V. Figures come from the
 datasheets listed under Sources; check them against current ones.
 
 ![Blocks of the loop circuit, with the isolation barrier](loop-circuit.svg)
@@ -30,7 +36,7 @@ datasheets listed under Sources; check them against current ones.
 | Connection | Parts | Purpose |
 |------------|-------|---------|
 | VSYS → Q1 source; Q1 drain → U3 VIN | Q1, Q2, R1, R3 – R5, C3 | Battery/system rail to the converter, switched by GPIO 3 with a soft start |
-| GPIO 3 → R5 → Q2 base; GPIO 3 → U8 VCC1 | R1 100 kΩ GPIO 3 to GND | One pin turns the supply on and powers the isolator's board side; R1 holds both off through sleep and reset |
+| GPIO 3 → R5 → Q2 base; GPIO 3 → U8 VCC1 | R1 100 kΩ GPIO 3 to GND, on the add-on board | One pin turns the supply on and powers the isolator's board side; R1 holds both off through sleep and reset |
 | U3 5 V → U4 +VIN; U3, U4 −VIN, Q2 emitter → GND | 10 µF at U3 out | The converter feeds the isolated DC-DC |
 | U4 +VO → Q3 drain and U5 IN; U4 0V → 0 V iso | | The isolated 24 V and its 0 V, which never touches board GND |
 | Q3 → Rs → J1 +; Q3 gate → J1 + | Rs 47 Ω + 200 Ω trimmer | Limits the loop to about 30 mA |

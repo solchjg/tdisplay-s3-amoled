@@ -147,6 +147,8 @@ path: a failing display never stops the network side (FR-5.28).
 | 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail behind a soft-start load switch, enabled by GPIO 3, a 30 mA loop current limit, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) on an isolated 3.3 V LDO, behind an I2C isolator on its own bus (GPIO 15/16), the isolator's board side powered from GPIO 3 (§29) | [user] |
 | RS232 instrument (optional) | One instrument on a DE-9 (DTE) or screw terminal: MAX3232 transceiver (PDIP-16) powered from GPIO 13, UART1 TX GPIO 11, RX GPIO 12 (§30); circuit in `docs/Method/project/rs232-circuit.md` | [user] |
 | Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW on a Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem (§33) | [user]; carrier, bus and power [proposed] |
+| Add-on boards | The loop (§29) and the RS232 circuit (§30), and later the water probe, are each built on a separate board that plugs into a carrier holding the T-Display-S3 and the BME280; the Notecarrier-A (§33) is a board of its own. Each analog add-on carries its own ADS1115, so the board pins carry only power, switch lines and digital buses, and any add-on can be fitted or left off without changing the others | [user] |
+| Add-on connectors | One keyed through-hole JST-XH (2.5 mm) socket on the carrier for each add-on, each with a different pin count so a board fits only its own socket, pin 1 GND: loop 5 pins (GND, VSYS, GPIO 3, GPIO 15, GPIO 16), water probe 6 pins (GND, VSYS, 3V3, GPIO 43, GPIO 44, GPIO 2), RS232 4 pins (GND, GPIO 13, GPIO 11, GPIO 12); each add-on's pull-down on its switch line sits on the add-on; the Notecarrier-A on a Qwiic (JST-SH) socket of the carrier's I2C fan-out; boards are fitted or removed only with USB and battery disconnected | [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
@@ -2495,7 +2497,7 @@ Result:
 An optional input that powers and reads one 2-wire 4-20 mA transmitter (an
 industrial pressure, level, flow or temperature sensor) at each reading, and
 records its value with the BME280 reading. Peer: the transmitter, wired to a
-2-pin terminal on an isolated loop side of the carrier board. It is off by
+2-pin terminal on the isolated side of the loop add-on board. It is off by
 default; a device without the loop hardware runs exactly as before. Built on
 the shared `ads1115` component (pure register core, thin I2C layer) and the
 shared `loop420` component (pure scaling and fault core); the logic layer
@@ -2515,6 +2517,7 @@ switches the supply off.
 | Shunt | 100 Ω, 0.1 %, 25 ppm/°C; 0.4 V at 4 mA, 2.0 V at 20 mA | [user] |
 | Loop ADC | ADS1115 at 0x49 on the isolated side, differential A0 – A1, ±4.096 V range, single shot at 128 SPS (DR 100, about 8 ms a conversion) | [user] |
 | Bus | Its own I2C bus, controller 1 on SDA GPIO 15 and SCL GPIO 16 at 100 kHz, through an I2C isolator whose board side (VCC1 and its pull-ups) is powered from GPIO 3, so it draws nothing while the loop is off; the bus is opened only for a loop read and its pins float otherwise | [user] |
+| Board | The whole loop circuit, the isolated side, the loop ADS1115 and the isolator included, on its own add-on board, so the isolation barrier lies within that board; it reaches the carrier through the 5-pin loop connector of §2.2, and GPIO 3's 100 kΩ pull-down sits on the add-on | [user]; connector [proposed] |
 
 Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
 
@@ -2676,6 +2679,7 @@ or panel-mount, so the circuit builds on perfboard.
 | Transceiver | Analog Devices MAX3232ECPE+ in a DIP socket (PDIP-16, 3.0 – 5.5 V, two drivers and two receivers, ±15 kV ESD); MAX3232EPE+, MAX3232EEPE+ or MAX3232CPE+ fit the same socket | [user] |
 | RTS | Optional: the second driver's input tied to GND holds DE-9 pin 7 (RTS) asserted while the port is powered, for instruments that need it | [proposed] |
 | Connector | DE-9 male, panel mount with solder cups, DTE: pin 2 RXD, pin 3 TXD, pin 5 GND; or a 3-pin 5.08 mm screw terminal (TX, RX, GND) | [user] |
+| Board | The transceiver, its capacitors, GPIO 13's 100 kΩ pull-down and the instrument connector on their own add-on board, reaching the carrier through the 4-pin RS232 connector of §2.2 | [user]; connector [proposed] |
 
 Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
 
@@ -3138,8 +3142,8 @@ holds, the composition root performs it.
 |------|-------|--------|
 | Modem | Blues Notecard Cell+WiFi NOTE-MBGLW (M.2 key E) | [user] |
 | Carrier | Blues Notecarrier-A: M.2 socket, LiPo connector and charger, Qwiic connectors, u.FL antennas | [proposed] |
-| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable; no address clash with 0x76 | [proposed] |
-| Power | The Notecarrier's own LiPo (or USB) supplies the Notecard's modem peaks (up to about 2 A); the board's 3.3 V supplies only the bus; the grounds join through the Qwiic cable | [proposed] |
+| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable from the carrier's I2C fan-out (§2.2), which also feeds the BME280 and the water probe board; no address clash with 0x76 or the water ADS1115's 0x48. The Notecard's own 10 kΩ pull-ups to its VIO join the bus, so the bus's pull-ups in parallel stay at or above about 2.2 kΩ | [proposed] |
+| Power | The Notecarrier's own LiPo (or USB) supplies the Notecard and its modem peaks (up to about 2 A); the cable joins GND, SDA and SCL only, its 3.3 V wire left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
 | ATTN | Not connected in the first build; the device polls the Notecard | [proposed] |
 
 ### 33.3 Settings
@@ -3480,7 +3484,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.25.0
+fsd_version: 0.26.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3537,8 +3541,10 @@ change_history:
   - "0.22.2 2026-11-02 BLE setup from the user's bench report (pairing failed after an erase, the BLE page unlike the WiFi form): FR-26.21 the page draws the portal form (user), FR-26.19 rules gain step, option labels, extras, placeholder, inputmode, unit, section and intro, FR-26.22 a static random address replaced while no bond is held (proposed), FR-26.18 names it"
   - "0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row"
   - "0.25.0 2026-11-02 from the user's acceptance of the RS232 revisit (through-hole and in-stock parts, nothing drawn while off, as the loop's own bus): §30.1 the transceiver is a MAX3232 in a DIP socket powered from GPIO 13 instead of a TRS3221E / MAX3221E with FORCEOFF, GPIO 11/12 float while off, a 10 ms settle and an optional RTS (proposed), a panel-mount DE-9 or 5.08 mm terminal; FR-30.1, FR-30.2 reworded; NFR-30.2 replaced by C-30.2 (no current while off); UART1 and GPIO 11 – 13 accepted (C-30.1); §2.2, Phase 12, Appendix A updated; circuit in rs232-circuit.md"
+  - "0.26.0 2026-11-02 from the user's choice of separate attachable add-on boards: §2.2 gains the add-on boards (each analog add-on with its own ADS1115) and their connectors (proposed); §29.1 and §30.1 gain a Board row; §33.2 the Notecarrier joins by GND, SDA and SCL only, from the carrier's I2C fan-out (proposed); §29.1 peer wording"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
+  - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"
   - "FR-26.23: line 5 `BLE setup on` in the provisioning window"
   - "FR-26.22: a static random BLE address, replaced whenever no bond is held (phones keep a stale entry for the old one)"
   - "§30.1: a 10 ms charge-pump settle; RTS held asserted by the second driver (optional)"

@@ -4,12 +4,18 @@ Proposed hardware for a battery-powered 5 V water pressure probe, read through a
 ADS1115. No FSD requirement covers it yet, and it has not been built. Figures come
 from distributor pages and memory; check them against current datasheets.
 
+Everything below except the board itself sits on the water probe add-on board, its
+own ADS1115 included, so only power, I2C and the boost enable cross the 6-pin water
+connector to the carrier ([wiring.md](wiring/wiring.md#carrier-and-add-on-boards)).
+The divider and clamp nodes stay short and never leave the add-on board.
+
 ![Wiring of the board, MiniBoost, ADS1115 and probe](water-probe-circuit.svg)
 
 ## Parts
 
 - LilyGO T-Display-S3 AMOLED.
-- ADS1115 on the BME280's I2C bus (GPIO 43/44), powered from 3V3, address `0x48`.
+- ADS1115 on the add-on board, on the BME280's I2C bus (GPIO 43/44), powered from 3V3,
+  address `0x48`. Its power-down current, about 0.5 µA, is all it draws in sleep.
 - Adafruit MiniBoost 5V 1A (product 4654, TPS61023), chosen for its true output
   disconnect when `EN` is low. Bare MCP1640/MCP1640B or TPS61023 suit a custom
   board; the MCP1640C/D pass the input to the output when off, so they do not.
@@ -25,7 +31,8 @@ from distributor pages and memory; check them against current datasheets.
 | Boost 5 V → A1 | The same divider, 1 kΩ and 100 nF, no clamp; resistors 1% or better, matched between dividers | The reference of the ratio |
 | 5 V at the probe | 10 µF and 100 nF to GND | Steadies the supply, reduces boost ripple |
 | ADS1115 VDD | 100 nF to GND, close to the chip (often on the breakout) | Decoupling |
-| GPIO 2 → EN | 100 kΩ EN to GND | Probe off through sleep and resets |
+| VSYS → boost VIN | | The battery/system rail, as for the loop; at most 5.5 V, the boost's input limit |
+| GPIO 2 → EN | 100 kΩ EN to GND, on the add-on board | Probe off through sleep and resets, and with the board unplugged |
 | ADDR | To GND | Address `0x48`; the BME280 is `0x76` |
 
 ## Divider parts
@@ -61,15 +68,16 @@ and its drift cancel.
 1. **GPIO 2.** The firmware does not use it, and it is an RTC pin that is not a strapping
    pin. Whether the header brings it out is unconfirmed: check the silkscreen. GPIO 4 is
    the battery sense and GPIO 21 the user key.
-2. **Battery connection.** No battery pin on the header is confirmed, so Battery + may be
-   a tap at the battery connector. It bypasses the board's power circuit: keep it short
-   and add a 1 A fuse. Do not feed VIN from 3V3.
+2. **VSYS.** The boost takes VSYS, the battery/system rail the loop also uses. With USB
+   unplugged, check with a meter that VSYS carries the battery voltage; with USB plugged
+   in, that it stays at or below 5.5 V. Do not feed VIN from 3V3.
 3. **MiniBoost EN.** Whether the breakout pulls `EN` up is unconfirmed. Measure `EN` with
    only VIN and GND connected. If it sits high, remove that pull-up, or use a stronger
    pull-down, or hold GPIO 2 low through deep sleep.
 4. **Probe load.** The divider loads the probe with about 20 kΩ; compare it with the
    probe's minimum load.
-5. **I2C pull-ups.** Check the total with both the ADS1115 and BME280 boards fitted.
+5. **I2C pull-ups.** Check the total with the BME280, the ADS1115 and the Notecard fitted:
+   at or above about 2.2 kΩ.
 
 ## Installation
 

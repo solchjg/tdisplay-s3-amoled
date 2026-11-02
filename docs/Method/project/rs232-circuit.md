@@ -3,7 +3,10 @@
 The hardware for the RS232 instrument input of FSD §30. It connects one instrument
 to UART1 through a MAX3232 transceiver. Neither the firmware nor this circuit is
 built yet. Every part is through-hole or panel-mount, so it builds on a breadboard
-or perfboard. Fritzing [sheet 4](wiring/wiring-4-rs232.png) shows the wiring.
+or perfboard. Fritzing [sheet 4](wiring/wiring-4-rs232.png) shows the wiring. The whole
+circuit, R10 and the connectors included, sits on the RS232 add-on board, which reaches
+the carrier through the 4-pin RS232 connector (GND, GPIO 13, GPIO 11, GPIO 12), listed
+in [wiring.md](wiring/wiring.md#carrier-and-add-on-boards).
 Figures come from the datasheets listed under Sources; check them against current
 ones.
 
