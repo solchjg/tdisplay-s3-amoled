@@ -40,3 +40,40 @@ bool sk_hold_sample(sk_hold_t *h, bool low, uint32_t now_ms, uint32_t hold_ms)
     h->fired = true;
     return true;
 }
+
+void sk_taps_init(sk_taps_t *t)
+{
+    *t = (sk_taps_t){0};
+}
+
+sk_tap_t sk_taps_sample(sk_taps_t *t, bool low, uint32_t now_ms)
+{
+    if (!t->armed) {
+        t->armed = !low;
+        return SK_TAP_NONE;
+    }
+    if (low && !t->down) {
+        t->down = true;
+        t->since = now_ms;
+        if (t->first && now_ms - t->released > SK_TAP_MAX_MS) {
+            t->first = false;  // too late to be a second press
+        }
+        return SK_TAP_NONE;
+    }
+    if (low || !t->down) {
+        return SK_TAP_NONE;
+    }
+    t->down = false;
+    uint32_t held = now_ms - t->since;
+    if (held < SK_DEBOUNCE_MS || held >= SK_TAP_MAX_MS) {
+        t->first = false;
+        return SK_TAP_NONE;
+    }
+    if (t->first) {
+        t->first = false;
+        return SK_TAP_DOUBLE;
+    }
+    t->first = true;
+    t->released = now_ms;
+    return SK_TAP_PRESS;
+}

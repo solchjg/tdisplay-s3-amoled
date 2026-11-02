@@ -26,10 +26,6 @@ const char *summary_take(const char *body, size_t len);
 // else has.
 const sm_settings_t *summary_settings(void);
 
-// FR-23.14: the sample and average minutes, as stored (the defaults if none).
-// Initialises NVS if nothing else has.
-sm_collect_t summary_collect(void);
-
 // FR-25.2: at T3, store the held settings (or none: email off) in NVS.
 esp_err_t summary_store(void);
 
@@ -53,3 +49,9 @@ const char *summary_to(int i);
 // in a helper task, feeding the calling task's watchdog if it is watched.
 // MT_OK with *readings set, or why it was dropped.
 mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings);
+
+// FR-28.13: one plain email with this subject and body to recipient i (network
+// up), from the summary's sender; not a summary (no slot, no readings cleared).
+// Recipients 0 and 1 share one SUMMARY_TIMEOUT_MS budget, started at i == 0.
+mt_reason_t summary_send_text(const char *hostname, int i, const char *subject,
+                              const char *body);

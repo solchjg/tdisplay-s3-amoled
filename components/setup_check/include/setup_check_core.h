@@ -33,3 +33,25 @@ void sk_hold_init(sk_hold_t *h);
 // Feed one sample (low = key held). True once per hold, at the first sample at
 // least hold_ms after the key went down without a release in between.
 bool sk_hold_sample(sk_hold_t *h, bool low, uint32_t now_ms, uint32_t hold_ms);
+
+// FR-28.4, FR-28.8: short presses of the user key. A press counts when held at
+// least SK_DEBOUNCE_MS and less than SK_TAP_MAX_MS; two count as a double press
+// when the second begins within SK_TAP_MAX_MS of the first one's release. A key
+// held at the first sample must be released before anything counts.
+#define SK_TAP_MAX_MS 1000
+
+typedef enum { SK_TAP_NONE, SK_TAP_PRESS, SK_TAP_DOUBLE } sk_tap_t;
+
+typedef struct {
+    bool armed;          // a release has been seen
+    bool down;
+    bool first;          // a counted press is waiting for its second
+    uint32_t since;      // when the key went down
+    uint32_t released;   // when the first press was released
+} sk_taps_t;
+
+void sk_taps_init(sk_taps_t *t);
+
+// Feed one sample (low = key held). SK_TAP_PRESS at the release of a counted
+// press, SK_TAP_DOUBLE instead at the release of the second of a double press.
+sk_tap_t sk_taps_sample(sk_taps_t *t, bool low, uint32_t now_ms);

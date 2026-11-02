@@ -30,6 +30,8 @@
 #include "mdns_name.h"
 #include "ota_rx.h"
 #include "portal.h"
+#include "sampling.h"
+#include "sampling_core.h"
 #include "sdkconfig.h"
 #include "setup_check.h"
 #include "status_http.h"
@@ -56,13 +58,13 @@ static const char *TAG = "main";
 #define HOLD_TIMEOUT_S DL_HOLD_TIMEOUT_S  // FR-24.6
 #endif
 
-typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY, APP_BLE } app_kind_t;
+typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY, APP_BLE, APP_TAP } app_kind_t;
 
 typedef struct {
     app_kind_t kind;
     dl_conn_event_t ev;
     dl_ble_event_t bev;  // APP_BLE
-    bool guard;
+    bool guard;        // APP_TAP: a double press (FR-28.4)
     pc_creds_t creds;  // DL_EV_CREDS_SUBMITTED
     char ip[16];       // DL_EV_IP
 } app_event_t;
@@ -80,14 +82,54 @@ _Static_assert(sizeof stored.ssid == WIFI_NET_SSID_MAX + 1 &&
                sizeof stored.password == WIFI_NET_PASSWORD_MAX + 1,
                "portal and wifi_net credentials differ in size");
 
-// FR-23.7, FR-27.4: the reading section, then the history link when one is kept.
+// FR-23.7, FR-27.4, FR-28.3: the reading section, the history link when one is
+// kept, and the setup with the tests still to run.
 static void page_extra(char *out, size_t len)
 {
     weather_html(out, len);
-    if (history_available()) {
-        size_t n = strlen(out);
+    size_t n = strlen(out);
+    if (history_available() && n < len) {
         snprintf(out + n, len - n, "<p><a href=\"/api/history\">Download history (CSV)</a></p>");
+        n = strlen(out);
     }
+    const sp_sel_t *sel = sampling_sel();
+    sm_collect_t c = sp_collect(sel);
+    if (n < len) {
+        snprintf(out + n, len - n, "<p>Setup: %s, a reading every %u min, %u min averages",
+                 sp_normal_id((sp_normal_t)sel->normal), c.sample_min, c.average_min);
+        n = strlen(out);
+    }
+    for (int t = 0, first = 1; t < SP_TESTS && n < len; t++) {
+        if (sel->tests & SP_BIT(t)) {
+            snprintf(out + n, len - n, "%s%s", first ? "; tests to run: " : ", ",
+                     sp_test_id((sp_test_t)t));
+            first = 0;
+            n = strlen(out);
+        }
+    }
+    if (n < len) {
+        snprintf(out + n, len - n, "</p>");
+    }
+}
+
+// FR-25.1, FR-28.1: the portal form's mail section, then its setup section.
+static char form_html[4096];
+
+static const char *form_take(const char *body, size_t len)
+{
+    const char *bad = summary_take(body, len);
+    return bad ? bad : sampling_take(body, len);
+}
+
+static const portal_extra_t form_extra = {.html = form_html, .take = form_take};
+
+static const portal_extra_t *form_fields(void)
+{
+    if (!form_html[0]) {
+        snprintf(form_html, sizeof form_html, "%s%s", summary_portal_fields()->html,
+                 SAMPLING_FORM_HTML);
+    }
+    return &form_extra;
 }
 
 static const status_http_source_t status_source = {.ip = ip, .hostname = hostname,
@@ -95,7 +137,12 @@ static const status_http_source_t status_source = {.ip = ip, .hostname = hostnam
                                                    .log = web_log_http,
                                                    .extra_html = page_extra};
 
-static dl_wake_t wake;  // how this boot began (FSD §21)
+static dl_wake_t wake;  // how this boot began (FSD §21); a test's end counts as a key wake
+static sp_run_t *run;           // the run of tests (FSD §28), in RTC memory
+static bool test_result;        // line 5 shows the verdict in this window (FR-28.11)
+static bool test_mail;          // the result email is owed (FR-28.13)
+static uint32_t quick_next_s;   // uptime of quick's next reading (FR-28.6)
+static uint32_t key_used_s;     // a press that ended the hold or a test is no half of a double
 static bool task_ran;
 static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.12)
 static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.12)
@@ -229,6 +276,12 @@ static void on_key(void)
     post(&e);
 }
 
+static void on_tap(bool twice)
+{
+    app_event_t e = {.kind = APP_TAP, .guard = twice};
+    post(&e);
+}
+
 static void on_submit(const pc_creds_t *c)
 {
     app_event_t e = {.kind = APP_CONN, .ev = DL_EV_CREDS_SUBMITTED, .guard = true, .creds = *c};
@@ -262,8 +315,7 @@ static size_t ble_read_info(char *out, size_t cap)
 
 static size_t ble_read_settings(char *out, size_t cap)
 {
-    sm_collect_t col = summary_collect();
-    return bset_dump(&stored, summary_settings(), &col, out, cap);  // FR-26.9
+    return bset_dump(&stored, summary_settings(), sampling_sel(), out, cap);  // FR-26.9, FR-28.3
 }
 
 // FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.
@@ -278,7 +330,7 @@ static void ble_apply(const char *body, size_t len, char *result, size_t cap)
     app_event_t e = {.kind = APP_CONN, .guard = true,
                      .ev = provisioning ? DL_EV_CREDS_SUBMITTED : DL_EV_BLE_SETTINGS};
     if (!bad) {
-        bad = summary_take(merged, n);
+        bad = form_take(merged, n);  // FR-25.16, FR-28.1
     }
     if (!bad && pc_parse_form(merged, n, &e.creds) != PC_OK) {
         bad = "ssid";  // bset_prepare already passed the same check
@@ -486,8 +538,8 @@ static void test_log_history(void)
 // ── Weather region (FSD §23) ─────────────────────────────────────────────
 
 // FR-27.1: the reading into the history; L31 for a missing partition once per
-// boot (FR-27.8), and for each failed append (FR-27.9).
-static void history_add(const wx_reading_t *r)
+// boot (FR-27.8), and for each failed append (FR-27.9). True when appended.
+static bool history_add(const wx_reading_t *r)
 {
     static bool told;
     esp_err_t err = history_append(r);
@@ -499,25 +551,31 @@ static void history_add(const wx_reading_t *r)
     } else if (err != ESP_OK) {
         web_log_history_failed(err);
     }
+    return err == ESP_OK;
 }
 
 // One reading, logged (L21) and kept, or the failure logged (L22); either way the
-// boot carries on (FR-23.4). Line 4 shows the newest kept reading.
-static void take_reading(void)
+// boot carries on (FR-23.4). Line 4 shows the newest kept reading. True when the
+// reading was taken and appended to the history (FR-28.10).
+static bool take_reading(void)
 {
     wx_reading_t r;
-    weather_set_average(summary_collect().average_min);  // FR-23.15
+    bool ok = false;
+    weather_set_average(run && sp_running(run, SP_CYCLE)
+                            ? SP_CYCLE_AVG_MIN
+                            : sp_collect(sampling_sel()).average_min);  // FR-23.15, FR-28.6
     esp_err_t err = weather_read(&r);
     if (err == ESP_OK) {
         char iso[WX_ISO_MAX], line[WL_LINE_MAX];
         weather_iso(&r, iso);
         wx_log_line(&r, iso, line, sizeof line);
         web_log_reading(line);
-        history_add(&r);
+        ok = history_add(&r);
     } else {
         web_log_bme280_failed(err);
     }
     wx_screen_line(weather_newest(), reading_line);
+    return ok;
 }
 
 // FR-24.3: during the hold, line 4 shows a live reading, neither kept nor logged.
@@ -525,6 +583,132 @@ static void show_live_reading(void)
 {
     wx_reading_t r;
     wx_screen_line(weather_sample(&r) == ESP_OK ? &r : NULL, reading_line);
+}
+
+// ── Sampling setups region (FSD §28) ─────────────────────────────────────
+
+
+// FR-28.6, FR-28.10: one reading of the running test; the seconds until its next
+// reading, 0 after its last.
+static uint32_t test_reading(void)
+{
+    bool ok = take_reading();
+    const wx_reading_t *r = weather_newest();
+    const wx_avgs_t *a = weather_averages();
+    return sp_reading(run, ok, ok && r && r->time >= WX_TIME_SET_MIN, a->cur_start, a->closed);
+}
+
+// FR-28.9, FR-28.12: the test starts (L32); stored as running, so a reset
+// during it is seen on the next boot (FR-28.8).
+static void test_start(sp_test_t t)
+{
+    sp_start(run, t);
+    esp_err_t err = sampling_set(sampling_sel()->tests & (uint8_t)~SP_BIT(t), (int)t);
+    if (err != ESP_OK) {
+        web_log_warn("test store", err);
+    }
+    char line[SP_LOG_MAX];
+    sp_log_start(t, line);
+    web_log_test(line, true);
+}
+
+// FR-28.8, FR-28.12: the running test ends (L33); ended early, the remaining
+// tests are dropped.
+static void test_end(sp_by_t by)
+{
+    sp_result_t res = sp_end(run, by);
+    char line[SP_LOG_MAX];
+    sp_log_end(&res, line);
+    web_log_test(line, sp_pass(&res));
+    esp_err_t err = sampling_set(by == SP_BY_NONE ? sampling_sel()->tests : 0, -1);
+    if (err != ESP_OK) {
+        web_log_warn("test store", err);
+    }
+}
+
+// FR-28.5: the next stored test starts; false when none is left.
+static bool test_next(void)
+{
+    int t = sp_next(sampling_sel()->tests);
+    if (t < 0) {
+        return false;
+    }
+    test_start((sp_test_t)t);
+    return true;
+}
+
+// FR-28.11, FR-28.13: the run is over: the verdict on line 5 and the 60 s
+// window from now, the result email owed, then the task with the normal setup.
+static void tests_over(void)
+{
+    test_result = true;
+    test_mail = sm_enabled(summary_settings());
+    task_ran = false;
+    window_start_s = uptime_s();
+}
+
+// FR-28.6: quick's next reading when due; after its last, the next test or the end.
+static void run_task_and_sleep(void);
+
+static void quick_tick(void)
+{
+    if (!sp_running(run, SP_QUICK) || uptime_s() < quick_next_s) {
+        return;
+    }
+    uint32_t s = test_reading();
+    if (s) {
+        quick_next_s = uptime_s() + s;
+        return;
+    }
+    test_end(SP_BY_NONE);
+    if (test_next()) {
+        run_task_and_sleep();  // cycle: its first reading, then asleep
+    } else {
+        tests_over();
+    }
+}
+
+// FR-28.4, FR-28.8: a short press of the user key ends quick; a double press
+// starts it when nothing else holds the device awake.
+static void tap(bool twice)
+{
+    uint32_t now = uptime_s();
+    if (sp_running(run, SP_QUICK)) {
+        test_end(SP_BY_KEY);
+        key_used_s = now;
+        tests_over();
+        return;
+    }
+    bool provisioned = view.conn != DL_BOOT && view.conn != DL_PROVISIONING;
+    if (!twice || run->running || hold == DL_HOLD_ON || !provisioned ||
+        dl_ble_holds_task(&ble) || now - key_used_s < 2) {
+        return;
+    }
+    sp_begin(run);
+    test_result = false;
+    test_start(SP_QUICK);
+    quick_next_s = now + test_reading();
+}
+
+// FR-28.13: the result email, once ONLINE in the window after the tests, or
+// dropped (L26 wifi) when the window ends first.
+static void send_test_mail(bool online)
+{
+    test_mail = false;
+    static char body[SP_LOG_MAX * SP_TESTS + 8];
+    char subject[SM_SUBJECT_MAX];
+    sp_mail_subject(run, hostname, subject);
+    sp_mail_body(run, body, sizeof body);
+    uint32_t n, m;
+    sp_verdict(run, &n, &m);
+    for (int i = 0; summary_to(i); i++) {
+        mt_reason_t why = online ? summary_send_text(hostname, i, subject, body) : MT_OK;
+        if (!online || why != MT_OK) {
+            web_log_mail_failed(summary_to(i), online ? mt_reason_name(why) : "wifi");  // L26
+        } else {
+            web_log_mail_sent(summary_to(i), n);  // L25
+        }
+    }
 }
 
 // ── Summary email region (FSD §25) ───────────────────────────────────────
@@ -571,16 +755,40 @@ static void send_due_summary(void)
 }
 
 // The task (FR-21.4, FR-21.9): takes a reading (FR-23.1), then returns the sleep
-// period it asks for (FR-23.14), 0 to stay awake. The sleep test build sleeps
+// period it asks for (FR-23.17), 0 to stay awake; or runs the tests (§28). The sleep test build sleeps
 // twice per flash with its own period, then stays awake.
 static uint32_t run_task(void)
 {
+    if (test_mail) {
+        send_test_mail(false);  // FR-28.13: the window ended before ONLINE
+    }
+    test_result = false;
+    if (!run->running && sampling_sel()->tests) {  // FR-28.5
+        sp_begin(run);
+        test_next();
+    }
+    if (sp_running(run, SP_QUICK)) {  // FR-28.6: awake; the tick takes the rest
+        quick_next_s = uptime_s() + test_reading();
+        return 0;
+    }
+    if (sp_running(run, SP_CYCLE)) {  // FR-28.6: asleep between readings
+        uint32_t s = test_reading();
+        send_due_summary();
+        if (s) {
+            return s;
+        }
+        test_end(SP_BY_NONE);
+        if (!test_next()) {
+            tests_over();  // FR-28.11: awake as after a key wake
+        }
+        return 0;
+    }
     take_reading();
     send_due_summary();
 #ifdef TDS3_TEST_SLEEP_S
     return test_sleeps++ < 2 ? TDS3_TEST_SLEEP_S : 0;
 #else
-    return summary_collect().sample_min * 60u;  // FR-23.14
+    return sp_collect(sampling_sel()).sample_min * 60u;  // FR-23.17
 #endif
 }
 
@@ -772,6 +980,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("mail settings store", err);
         }
+        err = sampling_store();  // FR-28.3
+        if (err != ESP_OK) {
+            web_log_warn("setup store", err);
+        }
         web_log_provisioned(stored.ssid);
     }
     if (a & DL_C_STORE_SETTINGS) {  // T14 (FR-26.7)
@@ -783,6 +995,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = summary_store();  // FR-25.16
         if (err != ESP_OK) {
             web_log_warn("mail settings store", err);
+        }
+        err = sampling_store();  // FR-28.3
+        if (err != ESP_OK) {
+            web_log_warn("setup store", err);
         }
         vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));  // FR-26.8: the result notification first
         ble_event(DL_BEV_WRITTEN);
@@ -801,7 +1017,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         web_log_portal(softap_ssid);
         esp_err_t err = wifi_net_softap_start(softap_ssid);
         if (err == ESP_OK) {
-            err = portal_start_extra(on_submit, summary_portal_fields());  // FR-25.1
+            err = portal_start_extra(on_submit, form_fields());  // FR-25.1, FR-28.1
         }
         if (err != ESP_OK) {
             web_log_warn("portal start", err);
@@ -889,6 +1105,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("mail settings erase", err);
         }
+        err = sampling_erase();  // FR-28.3
+        if (err != ESP_OK) {
+            web_log_warn("setup erase", err);
+        }
         if (history_available()) {
             err = history_clear(feed_watchdog);  // FR-27.7
             if (err != ESP_OK) {
@@ -957,11 +1177,31 @@ void app_main(void)
     wifi_net_base_mac(mac);
     id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
     id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);  // the summary's sender name
+    run = sampling_run();
+    if (wake != DL_WAKE_TIMER) {
+        int was = sampling_running();
+        if (was >= 0) {  // FR-28.8: a test a key wake or a reset cut short
+            if (!sp_running(run, (sp_test_t)was)) {
+                sp_begin(run);  // RTC memory lost with the reset
+                sp_start(run, (sp_test_t)was);
+            }
+            test_end(wake == DL_WAKE_KEY ? SP_BY_KEY : SP_BY_RESET);
+            tests_over();
+        } else if (run->running) {
+            sp_begin(run);  // a new selection replaced the tests (T14)
+        }
+    }
     // A timer wake follows a sleep, which only a provisioned device takes (FR-21.12).
     if (dl_task_due(wake, 0, false, wake == DL_WAKE_TIMER, task_ran, DL_HOLD_NONE)) {
         // FR-21.13: a timer wake runs the task with the panel dark and WiFi off
         // (but for a due summary, FR-25.6), then sleeps again. Only a task that asks to stay awake gets past here.
         run_task_and_sleep();
+    }
+    // FR-23.3: a reading before the window, unless this boot was a timer wake
+    // whose task just took one (the end of a test, FR-28.11).
+    bool have_reading = wake == DL_WAKE_TIMER;
+    if (wake == DL_WAKE_TIMER && (test_result || run->running)) {
+        wake = DL_WAKE_KEY;  // FR-28.11: the tests are over; on as after a key wake
     }
     const esp_partition_t *invalid = esp_ota_get_last_invalid_partition();
     if (invalid) {
@@ -972,7 +1212,9 @@ void app_main(void)
     if (herr != ESP_OK && herr != ESP_ERR_NOT_FOUND) {
         web_log_history_failed(herr);  // FR-27.9
     }
-    take_reading();  // FR-23.3: a value for the panel and the page during the window
+    if (!have_reading) {
+        take_reading();  // FR-23.3: a value for the panel and the page during the window
+    }
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
                        .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname,
                        .reading = reading_line, .prompt = prompt_line};
@@ -1025,6 +1267,7 @@ void app_main(void)
     if (err != ESP_OK) {
         web_log_warn("button start", err);
     }
+    setup_check_on_tap(on_tap);  // FR-28.4, FR-28.8
     err = setup_check_hold_start(DL_BLE_HOLD_MS, on_key_held);  // FR-26.2
     if (err != ESP_OK) {
         web_log_warn("user key start", err);
@@ -1045,7 +1288,12 @@ void app_main(void)
             continue;
         }
         if (e.kind == APP_KEY) {
+            key_used_s = uptime_s();  // not the first half of a double press (FR-28.4)
             hold_event(DL_HEV_KEY, false);
+            continue;
+        }
+        if (e.kind == APP_TAP) {
+            tap(e.guard);
             continue;
         }
         if (e.kind == APP_BLE) {
@@ -1063,14 +1311,21 @@ void app_main(void)
         }
 #endif
         hold_tick();
+        quick_tick();  // FR-28.6
         if (hold != DL_HOLD_ON) {
             dl_ble_line(&ble, uptime_s(), ble_passkey, prompt_line);  // FR-26.14
+            if (!prompt_line[0] && test_result) {
+                sp_verdict_line(run, prompt_line);  // FR-28.11
+            }
+        }
+        if (test_mail && view.conn == DL_ONLINE) {
+            send_test_mail(true);  // FR-28.13
         }
         disp = disp_tick(disp);
         hold_event(DL_HEV_TICK, false);
         ble_event(DL_BEV_TICK);
         bool provisioned = view.conn != DL_BOOT && view.conn != DL_PROVISIONING;
-        if (!task_ran && !dl_ble_holds_task(&ble) && dl_task_due(wake, uptime_s() - window_start_s, image_pending_verify(),
+        if (!task_ran && !run->running && !dl_ble_holds_task(&ble) && dl_task_due(wake, uptime_s() - window_start_s, image_pending_verify(),
                                      provisioned, task_ran, hold)) {
             run_task_and_sleep();  // FR-21.2 – FR-21.4, FR-24.11, FR-24.6: after the window
         }

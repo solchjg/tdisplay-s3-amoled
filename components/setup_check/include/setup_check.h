@@ -27,3 +27,9 @@ void setup_check_key_stop(void);
 // esp_timer task once per hold of at least hold_ms.
 typedef void (*setup_check_held_cb_t)(void);
 esp_err_t setup_check_hold_start(uint32_t hold_ms, setup_check_held_cb_t on_held);
+
+// FR-28.4, FR-28.8: from the same 20 ms samples, on_tap runs from the esp_timer
+// task at the release of each short press of the user key, with `twice` set
+// when it ends a double press. Call before setup_check_hold_start.
+typedef void (*setup_check_tap_cb_t)(bool twice);
+void setup_check_on_tap(setup_check_tap_cb_t on_tap);

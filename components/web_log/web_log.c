@@ -306,3 +306,12 @@ void web_log_history_failed(esp_err_t err)
     wl_fmt_history_failed(line, sizeof line, esp_err_to_name(err));
     ESP_LOGW(TAG, "%s", line);
 }
+
+void web_log_test(const char *text, bool ok)
+{
+    if (ok) {
+        ESP_LOGI(TAG, "%s", text);
+    } else {
+        ESP_LOGW(TAG, "%s", text);
+    }
+}

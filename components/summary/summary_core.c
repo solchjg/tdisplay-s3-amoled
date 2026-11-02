@@ -96,7 +96,7 @@ static int trim(char *s, int n)
     return n - a;
 }
 
-// ── Collection (FR-23.14) ────────────────────────────────────────────────
+// ── Collection (FR-28.2, §23.1) ────────────────────────────────────────────────
 
 // A whole number of minutes, or `dflt` when empty or absent; -1 if not valid.
 static int minutes(const char *body, size_t len, const char *name, int dflt)
