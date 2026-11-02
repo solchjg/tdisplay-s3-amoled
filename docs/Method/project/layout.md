@@ -171,7 +171,8 @@ handler that never returns.
 
 Fritzing sketches of every wired subsystem (board and BME280, the 4-20 mA loop, the
 water probe, RS232, the Notecard), with their pictures and the checks to make
-before wiring, are in [`wiring/wiring.md`](wiring/wiring.md).
+before wiring, are in [`wiring/wiring.md`](wiring/wiring.md), with LilyGO's pinout picture of
+the board ([`wiring/lilygo-t-display-s3-amoled-pinout.jpg`](wiring/lilygo-t-display-s3-amoled-pinout.jpg)).
 
 ## Toolchain
 

@@ -66,7 +66,8 @@ and its drift cancel.
 ## To check before wiring
 
 1. **GPIO 2.** The firmware does not use it, and it is an RTC pin that is not a strapping
-   pin. Whether the header brings it out is unconfirmed: check the silkscreen. GPIO 4 is
+   pin. LilyGO's [pinout picture](wiring/lilygo-t-display-s3-amoled-pinout.jpg) puts it on the
+   left header, third pin from the top; check the silkscreen. GPIO 4 is
    the battery sense and GPIO 21 the user key.
 2. **VSYS.** The boost takes VSYS, the battery/system rail the loop also uses. With USB
    unplugged, check with a meter that VSYS carries the battery voltage; with USB plugged

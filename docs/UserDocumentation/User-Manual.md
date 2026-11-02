@@ -312,7 +312,9 @@ from the board and powered with 24 V only while it is read. The loop circuit is
 an add-on board of its own: plug it into the carrier's 5-pin loop socket with USB
 unplugged and the battery disconnected (the other add-ons, RS232 and the water
 probe, plug in the same way, each into its own socket). Wire the transmitter to
-the two loop terminals; polarity as marked.
+the two loop terminals; polarity as marked. The board's pins are shown in
+LilyGO's [pinout picture](../Method/project/wiring/lilygo-t-display-s3-amoled-pinout.jpg),
+and the add-ons' wiring in [wiring.md](../Method/project/wiring/wiring.md).
 
 Turn it on in the setup form (chapter 2) or over Bluetooth (chapter 5c):
 

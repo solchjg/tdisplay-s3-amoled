@@ -109,7 +109,7 @@ What the RS232 component does after each BME280 reading, with `rs` not `off`
 
 ## To check before wiring
 
-1. **Header pins.** LilyGO's picture puts GPIO 11, 12 and 13 on the left header,
+1. **Header pins.** LilyGO's [pinout picture](wiring/lilygo-t-display-s3-amoled-pinout.jpg) puts GPIO 11, 12 and 13 on the left header,
    between GPIO 10 and 14. The loopback program under Bring-up proves them first.
 2. **No back-powering.** With the port off and the chip fitted, pin 16 should
    read below 0.3 V. If it reads higher, TX is not floating.

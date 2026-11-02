@@ -125,7 +125,7 @@ What `components/loop/loop.c` does, after each BME280 reading:
 
 ## To check before wiring
 
-1. **VSYS.** LilyGO's pinout picture labels these pins VBUS, but the silkscreen says
+1. **VSYS.** LilyGO's [pinout picture](wiring/lilygo-t-display-s3-amoled-pinout.jpg) labels these pins VBUS, but the silkscreen says
    VSYS. With USB unplugged, check with a meter that they carry the battery voltage.
 2. **GPIO 15/16.** They are the ESP32-S3's 32 kHz crystal pins, which this board does
    not use. Check that the header brings them out where the sheet shows them.
