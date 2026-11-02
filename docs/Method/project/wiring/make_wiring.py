@@ -277,7 +277,7 @@ def build_parts(used):
                     w=1300, color="#0d47a1", notes=["Qwiic, I2C 0x17"],
                     desc="Blues Notecarrier-A with Notecard Cell+WiFi NOTE-MBGLW"))
     # 4-20 mA loop input, FSD section 29
-    # Pin names are the suggested parts' own (wiring.md, "Sheet 2 parts").
+    # Pin names are the parts' own (docs/Method/project/loop-circuit.md, "Parts").
     add(module_part("tds3a_load_switch", ["Load switch"], "built",
                     left=["VIN", "GND", "ON"], right=["VOUT", "GND "], w=900,
                     notes=["NDP6020P", "+ 2N3904"],
@@ -296,7 +296,7 @@ def build_parts(used):
                     desc="LM317LZ regulator for the isolated side's 3.3 V"))
     add(module_part("tds3a_loop_limit", ["Limit 30 mA"], "built",
                     left=["IN"], right=["OUT"], w=900, color="#37474f",
-                    notes=["DN2540N3 + 47 R"],
+                    notes=["DN2540N3 + Rs"],
                     desc="Loop current limit DN2540N3, about 30 mA"))
     add(two_pin("tds3a_tvs_v", "diode", "P6KE33A", True, "D", "TVS diode",
                 pins=("K", "A")))
