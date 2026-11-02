@@ -69,7 +69,13 @@ Over four to six pins the 2.5 mm pitch fits 0.1" perfboard.
 
 ## Header pins
 
-Taken from LilyGO's T-Display-S3-AMOLED pinout picture, chip side up, top to
+![LilyGO T-Display-S3 AMOLED pinout](lilygo-t-display-s3-amoled-pinout.jpg)
+
+LilyGO's pinout picture of the board, chip side up with the USB-C end at the
+bottom; the AMOLED is drawn beside it. Source:
+[Xinyuan-LilyGO/T-Display-S3-AMOLED](https://github.com/Xinyuan-LilyGO/T-Display-S3-AMOLED),
+© 2023 Xinyuan-LilyGO, MIT License
+([notice](lilygo-t-display-s3-amoled-pinout.LICENSE)). The header pins, top to
 bottom:
 
 | Left header | Right header |
