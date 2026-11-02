@@ -145,7 +145,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
 | 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail behind a soft-start load switch, enabled by GPIO 3, a 30 mA loop current limit, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) on an isolated 3.3 V LDO, behind an I2C isolator on its own bus (GPIO 15/16), the isolator's board side powered from GPIO 3 (§29) | [user] |
-| RS232 instrument (optional) | One instrument on a DE-9 (DTE): TRS3221E / MAX3221E transceiver, UART1 TX GPIO 11, RX GPIO 12, transceiver power GPIO 13 (§30) | [user]; pins and parts [proposed] |
+| RS232 instrument (optional) | One instrument on a DE-9 (DTE) or screw terminal: MAX3232 transceiver (PDIP-16) powered from GPIO 13, UART1 TX GPIO 11, RX GPIO 12 (§30); circuit in `docs/Method/project/rs232-circuit.md` | [user] |
 | Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW on a Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem (§33) | [user]; carrier, bus and power [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
@@ -366,13 +366,15 @@ testbench.
 - **Scope.** The optional RS232 input as add-on slot 1 of §29.2: poll or
   listen, one number from a text line, scaled, in readings, averages,
   history, page, JSON, line 6, tests and email.
-- **Deliverables.** §30, L37, L38; the shared `serial_port` component; a
-  loopback commissioning program for GPIO 11 – 13; a USB-RS232 adapter on
+- **Deliverables.** §30, L37, L38; the shared `serial_port` component; the
+  through-hole circuit of `rs232-circuit.md`; a loopback commissioning
+  program for GPIO 11 – 13; a USB-RS232 adapter on
   the testbench host for the bench tier (R-27).
 - **Exit criteria.** A scripted instrument on the bench adapter is read at
   every reading in `poll` and `listen`; silence, garbage and a long line log
-  L38 and stop nothing; with `rs` `off` RS232 leaves no trace; the value
-  appears on line 6, the page, `ext`, the CSV and the summary.
+  L38 and stop nothing; with `rs` `off` RS232 leaves no trace and the
+  sleep current is unchanged; the value appears on line 6, the page, `ext`,
+  the CSV and the summary.
 - **Dependencies.** §29.2 (add-on values), §23, §27, §28, §25, §26, the
   carrier PCB's RS232 block.
 
@@ -2659,17 +2661,21 @@ runs exactly as before. Built on the shared `serial_port` component (UART
 and transceiver power, with a pure line and number core); the composition
 root powers the port, reads it and routes the value.
 
-At each reading the board takes the transceiver out of shutdown, opens
-UART1, exchanges one poll or listens, closes the UART and shuts the
-transceiver down again.
+The transceiver is powered only while the port is read: at each reading the
+board sets GPIO 13 high, which is the transceiver's supply, waits for its
+charge pump, opens UART1, exchanges one poll or listens, closes the UART,
+lets GPIO 11 and 12 float, and sets GPIO 13 low. Every part is through-hole
+or panel-mount, so the circuit builds on perfboard.
 
 | Item | Value | Source |
 |------|-------|--------|
-| UART | UART1, no hardware flow control | [proposed] |
-| TX / RX | GPIO 11 (to the transceiver's T1IN) / GPIO 12 (from R1OUT); ADC2 pins, so no ESP32 ADC input is lost | [proposed] |
-| Transceiver power | GPIO 13 to FORCEOFF, active high, pulled low (100 kΩ) through sleep and reset | [proposed] |
-| Transceiver | TI TRS3221E or ADI MAX3221E: one driver, one receiver, 3.3 V, ±15 kV ESD, about 1 µA in shutdown | [proposed] |
-| Connector | DE-9 male, DTE: pin 2 RXD, pin 3 TXD, pin 5 GND; a 3-pin 3.5 mm terminal footprint beside it | [proposed] |
+| UART | UART1, no hardware flow control | [user] |
+| TX / RX | GPIO 11 (to the transceiver's T1IN) / GPIO 12 (from R1OUT); ADC2 pins, so no ESP32 ADC input is lost | [user] |
+| Transceiver power | GPIO 13 is the transceiver's VCC, pulled low (100 kΩ) through sleep and reset; the transceiver draws 0.3 mA typical, about 3 – 6 mA driving an instrument | [user] |
+| Charge-pump settle | **10 ms** [proposed] after GPIO 13 goes high, before UART1 sends or listens | [proposed] |
+| Transceiver | Analog Devices MAX3232ECPE+ in a DIP socket (PDIP-16, 3.0 – 5.5 V, two drivers and two receivers, ±15 kV ESD); MAX3232EPE+, MAX3232EEPE+ or MAX3232CPE+ fit the same socket | [user] |
+| RTS | Optional: the second driver's input tied to GND holds DE-9 pin 7 (RTS) asserted while the port is powered, for instruments that need it | [proposed] |
+| Connector | DE-9 male, panel mount with solder cups, DTE: pin 2 RXD, pin 3 TXD, pin 5 GND; or a 3-pin 5.08 mm screw terminal (TX, RX, GND) | [user] |
 
 Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
 
@@ -2696,11 +2702,13 @@ line, so `ST,GS,+0012.34 g` gives 12.34 as field 1.
 Reading:
 
 - **FR-30.1** [Must] [user] With `rs` `off` the device shall keep GPIO 13
-  low, never install UART1, and behave as without §30.
+  low, never install UART1, leave GPIO 11 and 12 floating without pulls,
+  and behave as without §30.
 - **FR-30.2** [Must] [user] With `rs` not `off`, at each reading (FR-23.1,
   FR-23.3, §28 tests) the device shall, after the BME280 reading, set GPIO 13
-  high, open UART1 at `rs_baud` and `rs_format`, take one value by FR-30.3
-  or FR-30.4, then close UART1 and set GPIO 13 low.
+  high, wait the charge-pump settle of §30.1, open UART1 at `rs_baud` and
+  `rs_format`, take one value by FR-30.3 or FR-30.4, then close UART1, leave
+  GPIO 11 and 12 floating without pulls, and set GPIO 13 low.
 - **FR-30.3** [Must] [user] With `rs` `poll` the device shall discard any
   input already received, send `rs_cmd`, and take the first whole line that
   arrives within `rs_timeout_ms` of the command.
@@ -2716,10 +2724,13 @@ Reading:
 - **FR-30.7** [Must] [derived] Each RS232 value shall be logged as L37; in
   ONLINE it reaches the UDP log by FR-16.1.
 - **NFR-30.1** [Must] [user] With `rs` not `off`, GPIO 13 shall be high at
-  most `rs_timeout_ms` + **50 ms** [proposed] per reading.
-- **NFR-30.2** [Must] [user] With `rs` `off`, and while the device sleeps,
-  the RS232 hardware shall add at most **10 µA** [proposed] to the supply
-  current.
+  most `rs_timeout_ms` + **50 ms** [proposed] per reading, the 10 ms settle
+  included.
+- **C-30.2** [Must] [user] With GPIO 13 low, the RS232 hardware shall draw
+  no current from the board (the transceiver unpowered, GPIO 11 and 12
+  floating without pulls, so TX cannot power the transceiver through its
+  input); the sleep current shall be unchanged within 10 µA with the
+  hardware fitted.
 
 Recording and showing:
 
@@ -2754,8 +2765,8 @@ Settings:
   (BLE); valid values are stored in NVS with the other settings (T3, T14),
   reported by the `settings` read (FR-26.9) and erased by a factory reset
   (T10). Other fields are checked only with `rs` not `off`.
-- **C-30.1** [Must] [proposed] UART1 on TX GPIO 11, RX GPIO 12, and the
-  transceiver's FORCEOFF on GPIO 13, as in §30.1; the pins are confirmed by
+- **C-30.1** [Must] [user] UART1 on TX GPIO 11, RX GPIO 12, and the
+  transceiver's supply on GPIO 13, as in §30.1; the pins are confirmed by
   a loopback commissioning program before the first build that uses them.
 
 ### 30.3 Verification contracts
@@ -2770,8 +2781,8 @@ Settings:
 | FR-30.12, FR-29.14 (core) | Verdicts: `quick` with RS232 off; on with 12 values; on with 11 values; RS232 and loop both on | `result=pass` without an RS232 field; `… rs232=12/12`; `result=fail … rs232=11/12`; the RS232 suffix before the loop's | An RS232 field or effect while off | host |
 | FR-30.11 (core) | Summary with 3 RS232 values and one reading without | The RS232 line with n = 3, before the loop line; the averages column empty where none | A NaN printed | host |
 | C-30.1, FR-30.2 | Commissioning program: GPIO 11 jumpered to GPIO 12 at 3.3 V (no transceiver); send and read 64 bytes at every baud and format of §30.1 | Every byte back; GPIO 13 toggles as commanded | A lost byte; a pin that does not move | target |
-| FR-30.1, NFR-30.2 | Shipped build with `rs` `off`; sleep | No UART1 install in the log; GPIO 13 low; the sleep current unchanged within 10 µA | GPIO 13 high; UART1 installed | target |
-| FR-30.2, FR-30.3, FR-30.7, NFR-30.1 | Transceiver wired; the testbench host's USB-RS232 adapter on the DE-9 runs a scripted instrument answering `R\r` with `+0023.45 C\r`; `rs=poll&rs_cmd=R%5Cr`; reset over USB | L37 `rs232 rs232=23.450`; the script saw one `R\r` per reading; GPIO 13 high at most 1050 ms | No L37; a second command in one reading | bench |
+| FR-30.1, C-30.2 | RS232 hardware fitted, shipped build with `rs` `off`; then `poll` with nothing on the DE-9; sleep each time | No UART1 install in the log; GPIO 13 low; transceiver VCC below 0.3 V while off and asleep (a meter on pin 16); the sleep current with and without the hardware equal within 10 µA | GPIO 13 high while off; VCC raised through GPIO 11 | bench (operator) |
+| FR-30.2, FR-30.3, FR-30.7, NFR-30.1 | Transceiver wired (`rs232-circuit.md`); the testbench host's USB-RS232 adapter on the DE-9 runs a scripted instrument answering `R\r` with `+0023.45 C\r`; `rs=poll&rs_cmd=R%5Cr`; reset over USB | L37 `rs232 rs232=23.450`; the script saw one `R\r` per reading; GPIO 13 high at most 1050 ms | No L37; a second command in one reading | bench |
 | FR-30.4 | As above, the script sending `+0023.45 C\r` every 200 ms; `rs=listen` | L37 with the last line's value | A half line | bench |
 | FR-30.6 | As above, the script silent, then answering `ERR\r`, then 200 bytes without CR, then unplugged | L38 `timeout`, `nonum line=ERR`, `long`, `timeout`; the window and sleep as usual; each BME280 reading still in the history | A restart; a value kept | bench |
 | FR-30.12 | Double press for `quick`, first with `rs` `off` and nothing on the DE-9, then `poll` with the script silent | `result=pass` and no L37/L38; then `result=fail … rs232=0/12` with all 12 readings in the history | An RS232 line while off; a reading missing from the history | bench |
@@ -3385,7 +3396,8 @@ Build-time constants:
 | Loop bus | I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz; isolator VCC1 from GPIO 3 | [user] |
 | Loop fault limits | below 3.6 mA or above 21.0 mA (NAMUR NE43) | [user] |
 | Loop accuracy | ±0.25 % of span | [user] |
-| RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 / TRS3221E or MAX3221E / DE-9 male (DTE) | [proposed] |
+| RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver supply GPIO 13 / MAX3232 (PDIP-16) / DE-9 male panel mount (DTE) or 3-pin 5.08 mm terminal | [user] |
+| RS232 charge-pump settle | 10 ms after GPIO 13 goes high | [proposed] |
 | RS232 line / timeout / port-on limit | ≤ 128 bytes, CR, LF or CRLF / `rs_timeout_ms` 100 – 5000 ms, default 1000 / `rs_timeout_ms` + 50 ms | [proposed] |
 | Alert hysteresis (T / RH / P) | 1.0 °F / 2 % / 1.00 mbar | [user] |
 | Alert budgets | ONLINE within 15 s; all alerts of a run within 10 s; asleep within 50 s (60 s with a summary) | [user] |
@@ -3461,13 +3473,14 @@ the bench gains the capability.
 | FR-9.2 | The firmware never initialises the BLE controller | FR-26.18 (only inside a setup window) |
 | FR-25.2 | Settings change only by a factory reset and a new provisioning | FR-25.16 (or by a BLE write in a key window) |
 | FR-15.2 – FR-15.4, FR-15.6, FR-15.7 | OTA by pushed image body (411, 413, 400, 200 answers; broken upload) | FR-15.8 – FR-15.11 (OTA by URL pull, matching the testbench's OTA flow) |
+| NFR-30.2 | The RS232 hardware adds at most 10 µA with the port off or asleep (a transceiver in shutdown) | C-30.2 (no current while off: the transceiver unpowered) |
 
 FR-6.1 – FR-6.4 and FR-6.7 keep their IDs and meaning; only the name of the state
 they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.24.0
+fsd_version: 0.25.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3523,14 +3536,14 @@ change_history:
   - "0.22.3 2026-11-02 from the user's clarifications: FR-24.13 (user) supersedes FR-24.12, line 5 of the hold reads `Press flashing LED to start <mm>:<ss>`; FR-26.23 (proposed) supersedes FR-26.14, line 5 says `BLE setup on` in the provisioning window, where BLE starts by itself and the user key opens no window"
   - "0.22.2 2026-11-02 BLE setup from the user's bench report (pairing failed after an erase, the BLE page unlike the WiFi form): FR-26.21 the page draws the portal form (user), FR-26.19 rules gain step, option labels, extras, placeholder, inputmode, unit, section and intro, FR-26.22 a static random address replaced while no bond is held (proposed), FR-26.18 names it"
   - "0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row"
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14]
+  - "0.25.0 2026-11-02 from the user's acceptance of the RS232 revisit (through-hole and in-stock parts, nothing drawn while off, as the loop's own bus): §30.1 the transceiver is a MAX3232 in a DIP socket powered from GPIO 13 instead of a TRS3221E / MAX3221E with FORCEOFF, GPIO 11/12 float while off, a 10 ms settle and an optional RTS (proposed), a panel-mount DE-9 or 5.08 mm terminal; FR-30.1, FR-30.2 reworded; NFR-30.2 replaced by C-30.2 (no current while off); UART1 and GPIO 11 – 13 accepted (C-30.1); §2.2, Phase 12, Appendix A updated; circuit in rs232-circuit.md"
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "FR-26.23: line 5 `BLE setup on` in the provisioning window"
   - "FR-26.22: a static random BLE address, replaced whenever no bond is held (phones keep a stale entry for the old one)"
-  - "§30.1, C-30.1: UART1 on TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 (to confirm by loopback commissioning)"
-  - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
+  - "§30.1: a 10 ms charge-pump settle; RTS held asserted by the second driver (optional)"
   - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
-  - "NFR-30.1, NFR-30.2: port on at most rs_timeout_ms + 50 ms; at most 10 µA with the port off or asleep"
+  - "NFR-30.1: port on at most rs_timeout_ms + 50 ms"
   - "§33.3: cell_mail default off (email over cellular needs the user's mail service and route first)"
   - "§33.2: Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier's own LiPo for modem peaks, ATTN not connected"
   - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"

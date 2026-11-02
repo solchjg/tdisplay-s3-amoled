@@ -333,11 +333,11 @@ def build_parts(used):
                 pins=("K", "A")))
     add(two_pin("tds3a_fuse_h", "fuse", "1 A", False, "F", "Fuse"))
     # RS232 instrument, FSD section 30
-    add(module_part("tds3a_rs232_xcvr", ["RS232 transceiver", "TRS3221E / MAX3221E"],
+    add(module_part("tds3a_rs232_xcvr", ["RS232 transceiver", "MAX3232 (PDIP-16)"],
                     "specified", left=["T1OUT", "R1IN", "GND "],
-                    right=["VCC", "T1IN", "R1OUT", "FORCEOFF", "GND"], w=1300,
-                    color="#00695c", notes=["with its charge-pump capacitors"],
-                    desc="RS232 transceiver TRS3221E or MAX3221E"))
+                    right=["VCC", "T1IN", "R1OUT", "GND"], w=1300,
+                    color="#00695c", notes=["C1-C5 0.1 uF, see rs232-circuit.md"],
+                    desc="RS232 transceiver MAX3232 in a DIP socket"))
     add(de9_part())
     return P
 
@@ -839,11 +839,10 @@ def sheet_rs232(S):
     S.place("U12", "tds3a_rs232_xcvr", 2000, 1125)
     S.place("J1", "tds3a_de9_male", 700, 1125)
     S.place("R10", "tds3a_r100k_v", 4000, 1800)
-    S.wire((B, "3V3"), ("U12", "VCC"), "red", ("x", 3700))
     S.wire((B, "IO11"), ("U12", "T1IN"), "green")
     S.wire((B, "IO12"), ("U12", "R1OUT"), "blue", ("x", 3600))
     S.wire((B, "IO13"), ("R10", "1"), "purple")
-    S.wire(("R10", "1"), ("U12", "FORCEOFF"), "purple", ("x", 3500))
+    S.wire(("R10", "1"), ("U12", "VCC"), "purple", ("x", 3500))
     S.wire(("R10", "2"), ("U12", "GND"), "black", ("x", 3400))
     S.wire(("R10", "2"), (B, "GND"), "black", ("x", 4500))
     S.wire(("U12", "T1OUT"), ("J1", "3 TXD"), "green")
@@ -851,12 +850,11 @@ def sheet_rs232(S):
     S.wire(("U12", "GND "), ("J1", "5 GND"), "black")
     S.note(300, 3700, 5900, [
         "# RS232 instrument (FSD 30) - specified, not built",
-        "UART1: GPIO 11 TX to T1IN, GPIO 12 RX from R1OUT. GPIO 13 drives",
-        "FORCEOFF (high = on); the 100k holds it low through sleep and reset.",
-        "DE-9 male, DTE: pin 3 TXD, pin 2 RXD, pin 5 GND. Pins and parts are",
-        "[proposed] in the FSD. Title bars: blue = in the FSD, not built yet.",
+        "UART1: GPIO 11 TX to T1IN, GPIO 12 RX from R1OUT. GPIO 13 is the",
+        "MAX3232's VCC, so it draws nothing while off; the 100k holds it low",
+        "through sleep and reset. DE-9 male, DTE: pin 3 TXD, pin 2 RXD, pin 5 GND",
+        "(or a 3-pin 5.08 mm terminal). Parts and pinout in rs232-circuit.md.",
     ])
-
 
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
@@ -866,7 +864,7 @@ SHEETS = [
     ("wiring-3-water-probe", "3  Water pressure probe (proposed)",
      (10800, 8100), {"IO2", "GND", "IO44", "IO43", "3V3"}, sheet_water),
     ("wiring-4-rs232", "4  RS232 instrument (FSD 30)",
-     (6500, 4400), {"3V3", "IO11", "IO12", "IO13", "GND"}, sheet_rs232),
+     (6500, 4400), {"IO11", "IO12", "IO13", "GND"}, sheet_rs232),
 ]
 
 
