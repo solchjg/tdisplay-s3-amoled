@@ -380,7 +380,7 @@ testbench.
 - **Exit criteria.** With the user's test server at `http://192.168.2.37:8080`
   a reading past a limit puts one message on the topic and the reading back
   inside it one more; an unreachable server logs L40 and the device still
-  sleeps within 50 s; with `ntfy_url` empty nothing changes.
+  sleeps within 50 s; with `ntfy` `off` nothing changes and the settings stay.
 - **Dependencies.** §23 (readings), §25 (the shared timer-wake WiFi start),
   §26 (BLE settings), §28 (test result), §29 and §30 (add-on failures).
 
@@ -2670,8 +2670,10 @@ request and the reply, a thin `esp_http_client` transport). The pure
 `notify_core` decides which alerts are due from the readings and the stored
 alert state; the composition root sends them.
 
-Alerts are off until `ntfy_url` is set. With them off the device behaves as
-without §31.
+Alerts are a selectable item: they run only while `ntfy` is `on`. With
+`ntfy` `off` the device behaves as without §31 and keeps the stored server,
+topic, token and limits, so alerts can be turned back on without entering
+them again.
 
 ### 31.2 Settings
 
@@ -2681,7 +2683,8 @@ valid and leaves alerts off.
 
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
-| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.37:8080` | 10 – 96 [proposed] bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | alerts off [user] |
+| `ntfy` | alerts `on` or `off` | one of the two; `on` needs `ntfy_url` and `ntfy_topic`, given or stored | the stored value; `off` when none is stored [user] |
+| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.37:8080` | 10 – 96 [proposed] bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | none |
 | `ntfy_topic` | topic name | 1 – 64 characters from `A-Z a-z 0-9 _ -` (ntfy's own limit); required with `ntfy_url` | none |
 | `ntfy_token` | access token, sent as `Authorization: Bearer <token>` | 1 – 64 [proposed] printable ASCII characters, no space | no `Authorization` header |
 | `alert_t_lo`, `alert_t_hi` | temperature limits, °F | decimal, at most 1 decimal, −40.0 – 185.0 | no alert on that side |
@@ -2728,10 +2731,14 @@ opens the device page when the phone is on the device's LAN.
 Settings:
 
 - **FR-31.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
-  write (§26) shall carry the fields of §31.2. With `ntfy_url` empty or
-  absent, alerts are off and the other §31.2 fields are not checked; with it
-  given, every §31.2 field given shall be valid, else the portal answers 400
-  naming the first invalid field and BLE answers `invalid=<field>`.
+  write (§26) shall carry the fields of §31.2. Every §31.2 field given shall
+  be valid, else the portal answers 400 naming the first invalid field and
+  BLE answers `invalid=<field>`; `ntfy=on` without a URL and topic, given or
+  stored, is invalid as `ntfy`.
+- **FR-31.14** [Must] [user] Alerts shall be selectable: with `ntfy` `off`
+  no alert is decided or sent, no WiFi is started for one, and L39 and L40
+  never appear; the other §31.2 settings stay stored. Turning `ntfy` `on`
+  starts every condition as normal (FR-31.5).
 - **FR-31.2** [Must] [user] Valid settings shall be stored in NVS with the
   other settings (T3, T14), reported by the `settings` read (FR-26.9) without
   the token (`ntfy_token_set=0|1` instead), and erased by a factory reset
@@ -2798,7 +2805,9 @@ Sending:
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| FR-31.1 (core) | Bodies: none; `ntfy_url` only; URL and topic; each §31.2 field invalid in turn; `ftp://h`; a URL with a path; topic `a b`; `alert_t_lo=70&alert_t_hi=71`; `alert_rh_hi=101`; `ntfy_url` empty with `alert_t_hi=x` | off; 400 `ntfy_topic`; on; 400 naming that field each time; 400 `alert_t_hi` (gap below 2.0); off (not checked) | A stored invalid value; a topic without a URL accepted | host |
+| FR-31.1 (core) | Bodies: none; `ntfy=on` alone with nothing stored; `ntfy=on` with URL and topic; each §31.2 field invalid in turn; `ftp://h`; a URL with a path; topic `a b`; `alert_t_lo=70&alert_t_hi=71`; `alert_rh_hi=101`; `ntfy=maybe` | off; 400 `ntfy`; on; 400 naming that field each time; 400 `alert_t_hi` (gap below 2.0); 400 `ntfy` | A stored invalid value; alerts on without a URL and topic | host |
+| FR-31.14 (core) | Stored URL, topic and `alert_t_hi`; `ntfy=off`; a reading past the limit; then `ntfy=on` with no other field and the same reading | Off: nothing due, settings kept; on: `t_high` due | An alert or WiFi start while off; the URL or topic erased by `off` | host |
+| FR-31.14 | Sleep test build, alerts set up, `ntfy=off` written over BLE, a timer wake with a reading past the limit | `web: wake cause=timer`, L21, `web: sleep`; no L39, L40 or WiFi start | WiFi on that wake | target |
 | FR-31.4, FR-31.5, FR-31.6 (core) | `alert_t_hi` 90.0; readings 89.0, 90.5, 91.0, 89.5, 88.9, 90.1 °F; then the same with the 90.5 alert's send failed, then failed again; then 90.5 failed and 88.9 next | due `t_high` at 90.5; nothing at 91.0 and 89.5; `t_high_ok` at 88.9; `t_high` at 90.1. Failed: tried again at 91.0, then dropped. Failed then ended: nothing due | Two start alerts for one condition; an `ok` without a delivered start; a third try | host |
 | FR-31.4 (core) | Every limit pair at its edge and one hysteresis step inside; a sensor fail and recover; RS232 and loop off with L38/L35-like inputs | Start and end exactly as §31.3; nothing for an add-on that is off | An alert for an add-on that is off (FR-29.14) | host |
 | FR-31.8, FR-31.13 (core) | `ntfy_tx` core builds the request for `t_high` with and without a token; titles and bodies at their longest names | Method, path, the four headers and `Authorization` only with a token; body as §31.3; no request over 1024 bytes | The token in the body or title; a header missing | host |
@@ -2869,7 +2878,7 @@ Runtime configuration (the only persisted items):
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `loop`, `loop_name`, `loop_unit`, `loop_lo`, `loop_hi`, `loop_warm_ms` | text / number | `off` | §29.1 | NVS | operational | portal (§13), BLE (§26) | FR-29.11 | immediate (T3); restart (T14) | erased by factory reset |
 | `rs`, `rs_baud`, `rs_format`, `rs_cmd`, `rs_timeout_ms`, `rs_field`, `rs_scale`, `rs_offset`, `rs_name`, `rs_unit`, `rs_dec` | text / number | `off`, 9600, `8N1` | §30.1 | NVS | operational | portal (§13), BLE (§26) | FR-30.13 | immediate (T3); restart (T14) | erased by factory reset |
-| `ntfy_url`, `ntfy_topic`, `alert_t_lo`, `alert_t_hi`, `alert_rh_lo`, `alert_rh_hi`, `alert_p_lo`, `alert_p_hi` | text / number | none (alerts off) | §31.2 | NVS | operational | portal (§13), BLE (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `ntfy`, `ntfy_url`, `ntfy_topic`, `alert_t_lo`, `alert_t_hi`, `alert_rh_lo`, `alert_rh_hi`, `alert_p_lo`, `alert_p_hi` | text / number | `off` | §31.2 | NVS | operational | portal (§13), BLE (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `ntfy_token` | text | none | 1 – 64 characters | NVS | secret | portal (§13), BLE write only (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
@@ -3062,7 +3071,7 @@ change_history:
   - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
   - 0.16.0 2026-11-01 from the user's answers to the 4-20 mA plan (input only, 24 V on the board, isolation in the first build, old history erased once, ±0.25 % of span, 300 ms settle, 3.6 / 21.0 mA faults, a sixth line in a smaller font): §29 4-20 mA Loop Input (FR-29.1 – FR-29.14, NFR-29.1, NFR-29.2, C-29.1), §29.2 add-on values shared with the planned RS232 input, FR-6.2 superseded by FR-6.15, FR-6.12 by FR-6.14, FR-23.13 by FR-23.18, FR-27.2 by FR-27.11, C-10.9 by C-10.10, L34 – L36, Phase 11; Appendix A updated
   - 0.17.0 2026-11-01 from the user's answers to the RS232 plan (read one instrument, instrument not known yet so generic settings, an add-on that is off leaves no trace, a USB-RS232 adapter on the testbench host): §30 RS232 Instrument Input (FR-30.1 – FR-30.13, NFR-30.1, NFR-30.2, C-30.1), slot 1 of §29.2, L37, L38, R-27, Phase 12; pins, parts and limits proposed; Appendix A updated
-  - 0.18.0 2026-11-01 from the user's answers to the ntfy plan (alerts when something needs attention, not routine readings; a self-hosted server, tested at http://192.168.2.37:8080; the plan's recommendations: limits on temperature, humidity and pressure with hysteresis, alerts may start WiFi on a timer wake, a failed alert tried once more on the next run, an optional token): §31 Push Alerts (FR-31.1 – FR-31.13, NFR-31.1, NFR-31.2), FR-21.13 gains the alert wake, L39, L40, R-28, Phase 13; §4.3, §9.1 and Appendix A updated
+  - 0.18.0 2026-11-01 from the user's answers to the ntfy plan (alerts when something needs attention, not routine readings; a self-hosted server, tested at http://192.168.2.37:8080; the plan's recommendations: limits on temperature, humidity and pressure with hysteresis, alerts may start WiFi on a timer wake, a failed alert tried once more on the next run, an optional token): §31 Push Alerts (FR-31.1 – FR-31.14, NFR-31.1, NFR-31.2; alerts a selectable item, `ntfy` on or off, from the user's request), FR-21.13 gains the alert wake, L39, L40, R-28, Phase 13; §4.3, §9.1 and Appendix A updated
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
   - "§29.1: supply enable GPIO 3 (to confirm the header brings it out)"
