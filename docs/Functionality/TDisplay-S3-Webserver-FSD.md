@@ -2725,9 +2725,9 @@ valid and leaves alerts off.
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
 | `ntfy` | alerts `on` or `off` | one of the two; `on` needs `ntfy_url` and `ntfy_topic`, given or stored | the stored value; `off` when none is stored [user] |
-| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.37:8080` | 10 – 96 [proposed] bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | none |
+| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.37:8080` | 10 – 96 bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | none |
 | `ntfy_topic` | topic name | 1 – 64 characters from `A-Z a-z 0-9 _ -` (ntfy's own limit); required with `ntfy_url` | none |
-| `ntfy_token` | access token, sent as `Authorization: Bearer <token>` | 1 – 64 [proposed] printable ASCII characters, no space | no `Authorization` header |
+| `ntfy_token` | access token, sent as `Authorization: Bearer <token>` | 1 – 64 printable ASCII characters, no space | no `Authorization` header |
 | `alert_t_lo`, `alert_t_hi` | temperature limits, °F | decimal, at most 1 decimal, −40.0 – 185.0 | no alert on that side |
 | `alert_rh_lo`, `alert_rh_hi` | humidity limits, % | whole number, 0 – 100 | no alert on that side |
 | `alert_p_lo`, `alert_p_hi` | pressure limits, mbar | decimal, at most 2 decimals, 300.00 – 1100.00 | no alert on that side |
@@ -2837,8 +2837,8 @@ Sending:
   any alert (FR-9.3).
 - **NFR-31.1** [Must] [user] A timer wake that sends alerts and no summary
   shall be back asleep within **50 s** of the wake, success or failure; one
-  that sends both within **60 s** [proposed].
-- **NFR-31.2** [Should] [proposed] An alert shall be delivered within
+  that sends both within **60 s**.
+- **NFR-31.2** [Should] [user] An alert shall be delivered within
   **5 s** of the reading that made it due when the device is already ONLINE
   and the server answers.
 
@@ -3127,8 +3127,5 @@ open_decisions:
   - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
   - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
   - "NFR-30.1, NFR-30.2: port on at most rs_timeout_ms + 50 ms; at most 10 µA with the port off or asleep"
-  - "§31.2: ntfy_url 10 – 96 bytes, ntfy_token 1 – 64 characters"
-  - "NFR-31.1: asleep within 60 s when alerts and a summary share a timer wake"
-  - "NFR-31.2: an alert delivered within 5 s when already ONLINE"
 related_test_baseline: none yet
 ```
