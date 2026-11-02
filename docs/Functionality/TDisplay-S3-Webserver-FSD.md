@@ -53,6 +53,7 @@ reused.
 | 28 | Sampling Setups | L1 |
 | 29 | 4-20 mA Loop Input | L1 |
 | 30 | RS232 Instrument Input | L1 |
+| 31 | Push Alerts | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -370,6 +371,19 @@ testbench.
 - **Dependencies.** §29.2 (add-on values), §23, §27, §28, §25, §26, the
   carrier PCB's RS232 block.
 
+### 3.13 Phase 13: Push alerts
+
+- **Scope.** The ntfy settings in the portal and over BLE, limit and failure
+  alerts with hysteresis, the test alert, sending on a timer wake.
+- **Deliverables.** §31, the FR-21.13 exception for a due alert, L39, L40,
+  R-28; the shared `ntfy_tx` component in esp-idf-components.
+- **Exit criteria.** With the user's test server at `http://192.168.2.37:8080`
+  a reading past a limit puts one message on the topic and the reading back
+  inside it one more; an unreachable server logs L40 and the device still
+  sleeps within 50 s; with `ntfy` `off` nothing changes and the settings stay.
+- **Dependencies.** §23 (readings), §25 (the shared timer-wake WiFi start),
+  §26 (BLE settings), §28 (test result), §29 and §30 (add-on failures).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -404,6 +418,7 @@ testbench.
 | R-25 | BLE and WiFi share one 2.4 GHz radio and internal RAM (no PSRAM); a window slows WiFi and takes tens of KB of heap; NimBLE adds about 360 KB to the image (1.38 MB of the 4 MB slot, C-10.7) | Certain | Medium | BLE only inside windows (FR-26.18); no OTA download in a key window (FR-26.17); the task, and so the summary send, never runs in one (FR-26.5); NFR-14.1 is measured with no window open; NFR-26.1 checks the heap comes back |
 | R-26 | OTA never rewrites the partition table, so a device updated only by OTA has no `history` partition | Certain | Low | FR-27.8: it runs without history and says so (L31); a USB flash of the full image adds the partition |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
+| R-28 | The testbench offers no ntfy server; the user's test server is at `192.168.2.37:8080` on the LAN, and the bench AP network may not route to it | Medium | Medium | The cores are host-tested; the unreachable-server row runs on the target tier; if the bench AP cannot reach the server, the bench rows are blocked (testbench change request, never a project workaround) and run by the operator with the device on the user's own WiFi |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
 ### 4.2 Assumptions
@@ -424,6 +439,9 @@ testbench.
 - mDNS service records (`_http._tcp`); only the hostname A record is answered.
 - Recovering the display after a driver error; the display stays failed until
   reset (FR-5.27).
+- Push notifications of routine readings or summaries; limits on add-on
+  values; ntfy user-and-password sign-in, attachments, and servers with a
+  self-signed certificate (§31). [user]
 - Touch, GPIO 14 button, battery voltage, backlight dimming, PSRAM.
 - Uptime and request counter wrap after 2³² − 1.
 - Every ESP32-pack test family case not listed in a chapter here (curated subset,
@@ -942,6 +960,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L36 | History erased for its new format (FR-29.12) | `web: history erased reason=format` | W |
 | L37 | RS232 value (FR-30.7) | `web: rs232 <rs_name>=<value, rs_dec decimals>[ <rs_unit>]` | I |
 | L38 | RS232 failed (FR-30.6) | `web: rs232 failed: <timeout\|long\|nonum\|ERR>[ line=<first 32 bytes>]` | W |
+| L39 | Alert delivered (FR-31.12) | `web: ntfy sent <event>` (§31.3 names) | I |
+| L40 | Alert not delivered (FR-31.11) | `web: ntfy failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|limit\|server\|timeout> <event>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1396,16 +1416,18 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25) |
+| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31) |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
-| Credentials | One WiFi password and one mail password, stored in NVS; never output by the device (FR-9.3, FR-25.10) |
+| Credentials | One WiFi password, one mail password and an optional ntfy token, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-31.13) |
 
 Accepted risks [user]: unauthenticated OTA (anyone on the LAN can make the device
 download and run any image from any HTTP URL); open portal SoftAP (anyone in radio
 range during PROVISIONING can submit credentials or read submitted ones);
 plaintext HTTP and logs; unencrypted NVS; anyone who can read the panel
-during a BLE window can pair and change settings. The profile justifies these protections
+during a BLE window can pair and change settings; alerts to an `http://`
+ntfy server are readable on the network path, and on a public server by
+anyone who knows the topic. The profile justifies these protections
 only: never disclosing the passwords, keeping the radio surface to what the
 product uses, and not reflecting portal input as markup (FR-13.7).
 
@@ -1599,7 +1621,8 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
   wake the device shall leave the panel dark and the WiFi radio off, run the
   task, and sleep again; no window, no web server. The one exception is a
   summary email due on that wake (FR-25.6), for which WiFi runs as a station
-  only while it is sent; the other is the wake whose reading ends the last
+  only while it is sent; the second is an alert due on that wake (FR-31.10),
+  likewise; the third is the wake whose reading ends the last
   test (FR-28.11), which continues as after a key wake.
 - **FR-21.11** [Must] [user] A key wake
   shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
@@ -2672,6 +2695,173 @@ Settings:
 
 ---
 
+## 31. Push Alerts
+
+### 31.1 Purpose & peer
+
+The device sends a short push notification to the user's phone when
+something needs attention. A reading crosses a limit the user set, or comes
+back inside it. The sensor, an add-on or the history fails, or recovers.
+A §28 test ends. It does not send routine readings: the summary stays email
+(§25). Peer: an ntfy server, self-hosted on the LAN or reachable over the
+internet. The device publishes each alert with one HTTP POST to
+`<ntfy_url>/<ntfy_topic>`, and the user's ntfy app, subscribed to that
+topic, shows it. Built on a shared `ntfy_tx` component (pure core for the
+request and the reply, a thin `esp_http_client` transport). The pure
+`notify_core` decides which alerts are due from the readings and the stored
+alert state; the composition root sends them.
+
+Alerts are a selectable item: they run only while `ntfy` is `on`. With
+`ntfy` `off` the device behaves as without §31 and keeps the stored server,
+topic, token and limits, so alerts can be turned back on without entering
+them again.
+
+### 31.2 Settings
+
+These fields go in the portal form (§13.2) and a BLE `settings` write
+(§26). All are optional as a group, so a submission without them stays
+valid and leaves alerts off.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `ntfy` | alerts `on` or `off` | one of the two; `on` needs `ntfy_url` and `ntfy_topic`, given or stored | the stored value; `off` when none is stored [user] |
+| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.37:8080` | 10 – 96 [proposed] bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | none |
+| `ntfy_topic` | topic name | 1 – 64 characters from `A-Z a-z 0-9 _ -` (ntfy's own limit); required with `ntfy_url` | none |
+| `ntfy_token` | access token, sent as `Authorization: Bearer <token>` | 1 – 64 [proposed] printable ASCII characters, no space | no `Authorization` header |
+| `alert_t_lo`, `alert_t_hi` | temperature limits, °F | decimal, at most 1 decimal, −40.0 – 185.0 | no alert on that side |
+| `alert_rh_lo`, `alert_rh_hi` | humidity limits, % | whole number, 0 – 100 | no alert on that side |
+| `alert_p_lo`, `alert_p_hi` | pressure limits, mbar | decimal, at most 2 decimals, 300.00 – 1100.00 | no alert on that side |
+
+With both limits of a value given, `hi − lo` shall be at least twice that
+value's hysteresis (FR-31.4), so the two alerts cannot overlap.
+
+### 31.3 Alerts
+
+| Event | Starts when | Ends when (sends the `ok` alert) | Title |
+|-------|-------------|----------------------------------|-------|
+| `t_high`, `t_low` | A reading's temperature is above `alert_t_hi` / below `alert_t_lo` | It is at or below `alert_t_hi` − 1.0 °F / at or above `alert_t_lo` + 1.0 °F | `<hostname> temperature high` / `low`; `<hostname> temperature normal` |
+| `rh_high`, `rh_low` | Humidity above `alert_rh_hi` / below `alert_rh_lo` | At or below `alert_rh_hi` − 2 / at or above `alert_rh_lo` + 2 | `<hostname> humidity high` / `low` / `normal` |
+| `p_high`, `p_low` | Pressure above `alert_p_hi` / below `alert_p_lo` | At or below `alert_p_hi` − 1.00 / at or above `alert_p_lo` + 1.00 | `<hostname> pressure high` / `low` / `normal` |
+| `sensor` | A BME280 reading fails (L22) | A BME280 reading succeeds | `<hostname> sensor failed` / `sensor ok` |
+| `rs232` | An RS232 reading gives no value (L38), with `rs` not `off` | An RS232 reading gives a value | `<hostname> <rs_name> failed` / `ok` |
+| `loop` | A loop reading fails (L35), with `loop` not `off` | A loop reading gives a value | `<hostname> <loop_name> failed` / `ok` |
+| `history` | The history is unavailable or an append fails (L31) | An append succeeds | `<hostname> history failed` / `history ok` |
+| `test` | A §28 test ends (L33) | (one message, no `ok`) | `<hostname> test pass` / `test FAIL` |
+
+The body of a limit alert is
+`<Temp|Hum|ATM> <value> <unit>, limit <limit> <unit>, <YYYY-MM-DD hh:mm>`,
+the value in the decimals of FR-23.12 and the reading's local time, or
+`no time` for a clock never set (FR-22.6). A failure alert's body is the
+log line it came from after `web: `. A test alert's body is the L33 line
+of each test that ran, after `web: `, one per line.
+
+| Kind | Priority | Tags |
+|------|----------|------|
+| A condition starts (`high`, `low`, `failed`), `test FAIL` | 4 (high) | `warning` |
+| A condition ends (`normal`, `ok`), `test pass` | 3 (default) | `white_check_mark` |
+
+In L39 and L40 an alert is named by its event, with `_ok` added for an end
+alert (`t_high_ok`, `sensor_ok`) and `test_pass` or `test_fail` for a
+test.
+
+Every message also carries `Click: http://<hostname>.local/`, so tapping it
+opens the device page when the phone is on the device's LAN.
+
+### 31.4 Requirements
+
+Settings:
+
+- **FR-31.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry the fields of §31.2. Every §31.2 field given shall
+  be valid, else the portal answers 400 naming the first invalid field and
+  BLE answers `invalid=<field>`; `ntfy=on` without a URL and topic, given or
+  stored, is invalid as `ntfy`.
+- **FR-31.14** [Must] [user] Alerts shall be selectable: with `ntfy` `off`
+  no alert is decided or sent, no WiFi is started for one, and L39 and L40
+  never appear; the other §31.2 settings stay stored. Turning `ntfy` `on`
+  starts every condition as normal (FR-31.5).
+- **FR-31.2** [Must] [user] Valid settings shall be stored in NVS with the
+  other settings (T3, T14), reported by the `settings` read (FR-26.9) without
+  the token (`ntfy_token_set=0|1` instead), and erased by a factory reset
+  (T10). In a key-window BLE write an absent `ntfy_token` keeps the stored
+  one, as for the other secrets.
+- **FR-31.3** [May] [user] When no topic is stored, the portal form shall
+  show `tds3-` and 12 random lowercase letters as the suggested
+  `ntfy_topic`, so the default topic is hard to guess.
+
+Deciding:
+
+- **FR-31.4** [Must] [user] After each reading the task takes (FR-23.1,
+  FR-23.3, the readings of a §28 test), `notify_core` shall compare it with
+  the limits of §31.2 and the conditions of §31.3, using hysteresis
+  **1.0 °F**, **2 %** and **1.00 mbar**, and make an alert due when a
+  condition starts or ends. A condition that holds on the next reading makes
+  nothing due; a value with no limit set makes no alert.
+- **FR-31.5** [Must] [user] The state of each condition (normal, active, or
+  active but not yet delivered) shall be kept in RTC memory across sleep.
+  After a power loss or reset every condition starts as normal.
+- **FR-31.6** [Must] [user] An `ok` alert shall be due only when the
+  condition's start alert was delivered; a condition that ends before its
+  start alert was delivered makes nothing due.
+- **FR-31.7** [Must] [user] When a §28 test ends (L33), the `test` alert
+  shall be due once, beside the result email (FR-28.13) and independent of
+  it.
+
+Sending:
+
+- **FR-31.8** [Must] [user] The device shall send each due alert as its own
+  HTTP POST to `<ntfy_url>/<ntfy_topic>`, with the body of §31.3, the
+  headers `Title`, `Priority`, `Tags` and `Click` of §31.3, and
+  `Authorization: Bearer <ntfy_token>` when a token is stored; oldest due
+  first. A `2xx` reply is delivered.
+- **FR-31.9** [Must] [user] With an `https://` URL the device shall verify
+  the server certificate against the ESP-IDF CA bundle and the host name, as
+  for mail (FR-25.5). An `http://` URL is sent in plain text.
+- **FR-31.10** [Must] [user] On a timer wake with an alert due, the task
+  shall start WiFi as a station with the stored credentials, send the due
+  alerts (and a due summary, FR-25.6, on the same connection to the AP),
+  stop WiFi (FR-21.7) and sleep; the panel stays dark. On any other run the
+  alerts go out over the WiFi already up once the device is ONLINE.
+- **FR-31.11** [Must] [user] An alert that cannot be delivered (not ONLINE
+  within **15 s** of being due, a DNS, TCP, TLS or certificate failure, a
+  reply other than `2xx`, or no reply within **10 s** of the first alert's
+  connection, a budget the alerts of one run share) shall be logged as L40
+  with the reason and the event, and not retried in the same run. Its
+  condition stays "not yet delivered", so the next run that still finds it
+  tries once more; after a second failure it is dropped until the
+  condition ends and starts again. A `test` alert is tried only once.
+- **FR-31.12** [Must] [derived] Each delivered alert shall be logged as L39,
+  each failed one as L40 (§7.2).
+- **FR-31.13** [Must] [derived from §9.1] The device shall not output
+  `ntfy_token` on serial, UDP, any HTTP response, any BLE read, any email or
+  any alert (FR-9.3).
+- **NFR-31.1** [Must] [user] A timer wake that sends alerts and no summary
+  shall be back asleep within **50 s** of the wake, success or failure; one
+  that sends both within **60 s** [proposed].
+- **NFR-31.2** [Should] [proposed] An alert shall be delivered within
+  **5 s** of the reading that made it due when the device is already ONLINE
+  and the server answers.
+
+### 31.5 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-31.1 (core) | Bodies: none; `ntfy=on` alone with nothing stored; `ntfy=on` with URL and topic; each §31.2 field invalid in turn; `ftp://h`; a URL with a path; topic `a b`; `alert_t_lo=70&alert_t_hi=71`; `alert_rh_hi=101`; `ntfy=maybe` | off; 400 `ntfy`; on; 400 naming that field each time; 400 `alert_t_hi` (gap below 2.0); 400 `ntfy` | A stored invalid value; alerts on without a URL and topic | host |
+| FR-31.14 (core) | Stored URL, topic and `alert_t_hi`; `ntfy=off`; a reading past the limit; then `ntfy=on` with no other field and the same reading | Off: nothing due, settings kept; on: `t_high` due | An alert or WiFi start while off; the URL or topic erased by `off` | host |
+| FR-31.14 | Sleep test build, alerts set up, `ntfy=off` written over BLE, a timer wake with a reading past the limit | `web: wake cause=timer`, L21, `web: sleep`; no L39, L40 or WiFi start | WiFi on that wake | target |
+| FR-31.4, FR-31.5, FR-31.6 (core) | `alert_t_hi` 90.0; readings 89.0, 90.5, 91.0, 89.5, 88.9, 90.1 °F; then the same with the 90.5 alert's send failed, then failed again; then 90.5 failed and 88.9 next | due `t_high` at 90.5; nothing at 91.0 and 89.5; `t_high_ok` at 88.9; `t_high` at 90.1. Failed: tried again at 91.0, then dropped. Failed then ended: nothing due | Two start alerts for one condition; an `ok` without a delivered start; a third try | host |
+| FR-31.4 (core) | Every limit pair at its edge and one hysteresis step inside; a sensor fail and recover; RS232 and loop off with L38/L35-like inputs | Start and end exactly as §31.3; nothing for an add-on that is off | An alert for an add-on that is off (FR-29.14) | host |
+| FR-31.8, FR-31.13 (core) | `ntfy_tx` core builds the request for `t_high` with and without a token; titles and bodies at their longest names | Method, path, the four headers and `Authorization` only with a token; body as §31.3; no request over 1024 bytes | The token in the body or title; a header missing | host |
+| FR-31.11 (core) | `ntfy_tx` core maps replies 200, 401, 403, 429, 500, a cut reply | `ok`, `auth`, `auth`, `limit`, `server`, `timeout` | Success on a non-`2xx` reply | host |
+| FR-31.8, FR-31.12, NFR-31.2 | Provisioned with `ntfy_url=http://192.168.2.37:8080` (the user's test server) and a test topic, `alert_t_hi` set 1 °F below the room; ONLINE; the test polls `GET <url>/<topic>/json?poll=1` | L39 `t_high`; the message on the server with the title, priority 4 and the `warning` tag within 5 s of L21 | No message; two messages | bench (R-28) |
+| FR-31.10, NFR-31.1 | Sleep test build, the same server and limit, a timer wake | `web: wake cause=timer`, L21, L39, `web: sleep` within 50 s; panel dark | WiFi on a timer wake with nothing due; L2 or L7 lines | target / bench (R-28) |
+| FR-31.11 | Same build, `ntfy_url` pointing at an address with no server | L40 `connect` with the event, then `web: sleep` within 50 s; on the next timer wake one more try and L40; on the one after, nothing | A retry in the same run; a third try | target |
+| FR-31.7 | Mail off, ntfy set; double press for `quick` | One `test pass` message with the L33 line as its body; L39 `test_pass` | A message per reading; the result email expected | bench (R-28) |
+| FR-31.13, FR-31.2 | Provisioned with token `tk_<random 12 hex>`; read BLE `settings`; capture serial and UDP through a window and an alert | `ntfy_token_set=1`; the marker nowhere | The marker in any read, log or message | bench (operator) |
+| FR-31.8 | The user's phone subscribed to the topic in the ntfy app | The alert shows with its title; tapping it on the LAN opens the device page | A missing title or body | bench (operator) |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2729,6 +2919,8 @@ Runtime configuration (the only persisted items):
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `loop`, `loop_name`, `loop_unit`, `loop_lo`, `loop_hi`, `loop_warm_ms` | text / number | `off` | §29.1 | NVS | operational | portal (§13), BLE (§26) | FR-29.11 | immediate (T3); restart (T14) | erased by factory reset |
 | `rs`, `rs_baud`, `rs_format`, `rs_cmd`, `rs_timeout_ms`, `rs_field`, `rs_scale`, `rs_offset`, `rs_name`, `rs_unit`, `rs_dec` | text / number | `off`, 9600, `8N1` | §30.1 | NVS | operational | portal (§13), BLE (§26) | FR-30.13 | immediate (T3); restart (T14) | erased by factory reset |
+| `ntfy`, `ntfy_url`, `ntfy_topic`, `alert_t_lo`, `alert_t_hi`, `alert_rh_lo`, `alert_rh_hi`, `alert_p_lo`, `alert_p_hi` | text / number | `off` | §31.2 | NVS | operational | portal (§13), BLE (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `ntfy_token` | text | none | 1 – 64 characters | NVS | secret | portal (§13), BLE write only (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
@@ -2801,6 +2993,9 @@ Build-time constants:
 | Loop accuracy | ±0.25 % of span | [user] |
 | RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 / TRS3221E or MAX3221E / DE-9 male (DTE) | [proposed] |
 | RS232 line / timeout / port-on limit | ≤ 128 bytes, CR, LF or CRLF / `rs_timeout_ms` 100 – 5000 ms, default 1000 / `rs_timeout_ms` + 50 ms | [proposed] |
+| Alert hysteresis (T / RH / P) | 1.0 °F / 2 % / 1.00 mbar | [user] |
+| Alert budgets | ONLINE within 15 s; all alerts of a run within 10 s; asleep within 50 s (60 s with a summary [proposed]) | [user] |
+| Alert priority / tags | 4 `warning` (start, test FAIL) / 3 `white_check_mark` (end, test pass) | [user] |
 | History append limit | ≤ 500 ms | [user] |
 | Full `GET /api/history` | ≤ 30 s | [user] |
 
@@ -2873,7 +3068,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.18.1
+fsd_version: 0.19.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2918,7 +3113,8 @@ change_history:
   - 0.16.0 2026-11-01 from the user's answers to the 4-20 mA plan (input only, 24 V on the board, isolation in the first build, old history erased once, ±0.25 % of span, 300 ms settle, 3.6 / 21.0 mA faults, a sixth line in a smaller font): §29 4-20 mA Loop Input (FR-29.1 – FR-29.14, NFR-29.1, NFR-29.2, C-29.1), §29.2 add-on values shared with the planned RS232 input, FR-6.2 superseded by FR-6.15, FR-6.12 by FR-6.14, FR-23.13 by FR-23.18, FR-27.2 by FR-27.11, C-10.9 by C-10.10, L34 – L36, Phase 11; Appendix A updated
   - 0.17.0 2026-11-01 from the user's answers to the RS232 plan (read one instrument, instrument not known yet so generic settings, an add-on that is off leaves no trace, a USB-RS232 adapter on the testbench host): §30 RS232 Instrument Input (FR-30.1 – FR-30.13, NFR-30.1, NFR-30.2, C-30.1), slot 1 of §29.2, L37, L38, R-27, Phase 12; pins, parts and limits proposed; Appendix A updated
   - 0.18.0 2026-11-01 from the user's request (mark required fields, check them before sending, never lose what was typed): FR-13.8, FR-13.9 (portal form), FR-26.19 (the device's field rules over BLE, `control` `form=<offset>`), FR-26.20 (the BLE page keeps typed values)
-  - 0.18.1 2026-11-02 §29 (0.16.0) and §30 (0.17.0) brought onto main beside 0.18.0; they had merged into a branch that had already merged
+  - 0.18.0-ntfy 2026-11-01 from the user's answers to the ntfy plan (alerts when something needs attention, not routine readings; a self-hosted server, tested at http://192.168.2.37:8080; the plan's recommendations: limits on temperature, humidity and pressure with hysteresis, alerts may start WiFi on a timer wake, a failed alert tried once more on the next run, an optional token): §31 Push Alerts (FR-31.1 – FR-31.14, NFR-31.1, NFR-31.2; alerts a selectable item, `ntfy` on or off, from the user's request), FR-21.13 gains the alert wake, L39, L40, R-28, Phase 13; §4.3, §9.1 and Appendix A updated
+  - 0.19.0 2026-11-02 §29 (0.16.0), §30 (0.17.0) and §31 (0.18.0-ntfy, numbered on a side branch beside main's 0.18.0) brought onto main; they had merged into a branch that had already merged
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
   - "§29.1: supply enable GPIO 3 (to confirm the header brings it out)"
@@ -2927,5 +3123,12 @@ open_decisions:
   - "FR-29.2: mean of 4 conversions"
   - "NFR-29.2: supply on at most loop_warm_ms + 50 ms"
   - "FR-6.14: line tops at 8, 48, 88, 128, 168 and 208 px"
+  - "§30.1, C-30.1: UART1 on TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 (to confirm by loopback commissioning)"
+  - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
+  - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
+  - "NFR-30.1, NFR-30.2: port on at most rs_timeout_ms + 50 ms; at most 10 µA with the port off or asleep"
+  - "§31.2: ntfy_url 10 – 96 bytes, ntfy_token 1 – 64 characters"
+  - "NFR-31.1: asleep within 60 s when alerts and a summary share a timer wake"
+  - "NFR-31.2: an alert delivered within 5 s when already ONLINE"
 related_test_baseline: none yet
 ```
