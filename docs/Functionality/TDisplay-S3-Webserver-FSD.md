@@ -2356,13 +2356,14 @@ each request holds, the composition root reads the history, sends and logs.
 
 ### 32.2 Settings
 
-Added to the §13.2 form and the BLE `settings` write (§26); all optional as a
-group, so a submission without them leaves ThingsBoard off.
+Added to the §13.2 form and the BLE `settings` write (§26); all optional, so a
+submission without them leaves ThingsBoard as it was (off on a new device).
 
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
-| `tb_url` | server base URL, e.g. `http://192.168.1.20:8080` or `https://tb.example.org` | `http://` or `https://`, then a host name or IPv4 address, an optional `:port`, no path, 1 – 128 bytes | ThingsBoard off |
-| `tb_token` | the access token of the device in ThingsBoard | 1 – 64 [proposed] letters, digits, `-` and `_` | ThingsBoard off |
+| `tb` | uploads `on` or `off` | one of the two; `on` needs `tb_url` and `tb_token`, given or stored | the stored value; `off` when none is stored [user] |
+| `tb_url` | server base URL, e.g. `http://192.168.1.20:8080` or `https://tb.example.org` | `http://` or `https://`, then a host name or IPv4 address, an optional `:port`, no path, 1 – 128 bytes | the stored value |
+| `tb_token` | the access token of the device in ThingsBoard | 1 – 64 [proposed] letters, digits, `-` and `_` | the stored value (in a key-window BLE write an absent token keeps the stored one, as for the other secrets) |
 | `tb_every` | minutes between uploads | whole minutes, 1 – 1440, dividing 1440 [proposed] | 60 [user] |
 
 ### 32.3 Requests
@@ -2380,14 +2381,20 @@ shows what L21 and `/api/history` show.
 Settings:
 
 - **FR-32.1** [Must] [user] The portal form (§13.2) and a BLE `settings` write
-  (§26) shall carry the fields of §32.2. A submission with all three empty or
-  absent shall be valid and leave ThingsBoard off; a submission with any of
-  them filled shall be valid only if `tb_url` and `tb_token` are given and every
-  field given is valid per §32.2, else answer 400 naming the first invalid field
-  (portal) or `invalid=<field>` (BLE).
+  (§26) shall carry the fields of §32.2. A submission shall be valid only if
+  every field given is valid per §32.2 and, with `tb` `on`, `tb_url` and
+  `tb_token` are given or stored, else answer 400 naming the first invalid
+  field (portal) or `invalid=<field>` (BLE).
+- **FR-32.14** [Must] [user] Uploads shall be switchable: with `tb` `off` no
+  upload or attributes request is due or sent, no WiFi is started for one, L41
+  and L42 never appear, and the upload mark stays where it is; the other §32.2
+  settings stay stored. Turning `tb` `on` resumes from the mark, so readings
+  taken while it was off go with the next upload when the history still holds
+  them.
 - **FR-32.2** [Must] [user] Valid settings shall be stored in NVS with the
-  other settings at T3, or by an accepted BLE write in a key window (T14), and
-  erased with the upload mark by a factory reset (T10).
+  other settings at T3, or by an accepted BLE write in a key window (T14),
+  reported by the `settings` read (FR-26.9) with `tb=<on|off>`, and erased
+  with the upload mark by a factory reset (T10).
 - **FR-32.3** [Must] [derived from §9.1, FR-9.3] The device shall not output
   `tb_token` on serial, UDP, any HTTP response, any email or any BLE read; the
   `settings` read (FR-26.9) reports only `tb_token_set=<0|1>`, and log lines name
@@ -2447,7 +2454,8 @@ Failures and limits:
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
-| FR-32.1 (core) | Form bodies: none of the fields; all valid; `tb_url` only; `tb_token` only; `tb_url=ftp://x`; `tb_url` with a path; a token with a space; `tb_every` 0, 7, 1441, empty | Off; on; `tb_token`; `tb_url`; `tb_url`; `tb_url`; `tb_token`; `tb_every` three times, then 60 | A partial group accepted | host |
+| FR-32.1 (core) | Form bodies, nothing stored: none of the fields; `tb=on` with all valid; `tb=on` with `tb_url` only; `tb=on` with `tb_token` only; `tb_url` and `tb_token` without `tb`; `tb=maybe`; `tb_url=ftp://x`; `tb_url` with a path; a token with a space; `tb_every` 0, 7, 1441, empty | Off; on; `tb_token`; `tb_url`; stored, off; `tb`; `tb_url`; `tb_url`; `tb_token`; `tb_every` three times, then 60 | `on` accepted without a URL and token | host |
+| FR-32.14 (core) | `telemetry_core` with `tb` `off` at a due time and in a window; then `on` with 30 readings after the mark | Nothing due, the mark unchanged; then one upload of the 30 | WiFi started, L41 or L42 with `tb` `off` | host |
 | FR-32.3 (core) | `settings` read and L41/L42 with a token stored; a request URL logged | `tb_token_set=1`; the token in no line | The token in any output | host |
 | FR-32.4 (core) | Due check, `tb_every` 60: 09:59 and 10:00 with the last upload at 09:00; 13:05 after three missed slots; the clock never set | Not due, due; one due; never due | Two uploads for one slot; an upload with the clock unset | host |
 | FR-32.7, FR-32.8 (core) | `telemetry_core` over a history of 250 readings, mark at 0; the second request refused; then all accepted; a clock-never-set reading in the middle; a history that wrapped past the mark | Requests of 100, 100, 50, oldest first; the mark at 100 after the refusal; at 250 afterwards; that reading skipped and passed; start at the oldest kept | A reading sent out of order; the mark moved on a refusal | host |
@@ -2515,7 +2523,7 @@ Runtime configuration (the only persisted items):
 | `wifi_password` | bytes | none | empty or 8 – 63 bytes | NVS | secret | portal (§13), BLE write only (§26) | FR-13.4 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2), BLE (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
-| `tb_url`, `tb_every` | text / minutes | none (ThingsBoard off); `tb_every` 60 | §32.2 | NVS | operational | portal (§13, §32.2), BLE (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `tb`, `tb_url`, `tb_every` | on/off / text / minutes | `off`; none; 60 | §32.2 | NVS | operational | portal (§13, §32.2), BLE (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb_token` | text | none | 1 – 64 letters, digits, `-`, `_` | NVS | secret | portal (§13, §32.2), BLE write only (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb_mark` | place in the history | before the oldest reading | §27 | NVS | operational | moved by an accepted upload (FR-32.8) | none | next upload | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
@@ -2696,7 +2704,7 @@ change_history:
   - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
   - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
   - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
-  - 0.16.0 2026-11-01 from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.13, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated
+  - 0.16.0 2026-11-01 from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.14, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14, from the user's request), L41, L42, R-30, Phase 14; §9.1 and Appendix A updated
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14]
 open_decisions: ["FR-32.1 tb_token 1 – 64 characters and tb_every dividing 1440", "FR-32.7 100 readings per request", "FR-32.11 10 s request answer", "FR-32.12 no new request after 40 s on a timer wake"]
 related_test_baseline: none yet
