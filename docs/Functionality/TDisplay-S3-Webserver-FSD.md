@@ -144,7 +144,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE 5 used only inside a setup window (§26, FR-26.18), sharing the radio by ESP-IDF software coexistence | [derived from the board] |
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
-| 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail behind a soft-start load switch, enabled by GPIO 3, a 30 mA loop current limit, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) on an isolated 3.3 V LDO, behind an I2C isolator on GPIO 43/44 (§29) | [user] |
+| 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail behind a soft-start load switch, enabled by GPIO 3, a 30 mA loop current limit, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) on an isolated 3.3 V LDO, behind an I2C isolator on its own bus (GPIO 15/16), the isolator's board side powered from GPIO 3 (§29) | [user] |
 | RS232 instrument (optional) | One instrument on a DE-9 (DTE): TRS3221E / MAX3221E transceiver, UART1 TX GPIO 11, RX GPIO 12, transceiver power GPIO 13 (§30) | [user]; pins and parts [proposed] |
 | Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW on a Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem (§33) | [user]; carrier, bus and power [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
@@ -355,8 +355,8 @@ testbench.
   first bench test of §29.
 - **Exit criteria.** With a calibrator at 4, 8, 12, 16 and 20 mA, every L34
   value is within ±0.25 % of span; a fault current logs L35 and stops
-  nothing; a shorted loop stays at or below 30 mA; the bus works with the
-  loop supply off; with `loop` `off` the loop leaves no trace; the value appears on line 6, the page, `ext`, the CSV and the
+  nothing; a shorted loop stays at or below 30 mA; the loop hardware draws
+  nothing with the supply off; with `loop` `off` the loop leaves no trace; the value appears on line 6, the page, `ext`, the CSV and the
   summary; with `loop` `off` nothing changes; the old history is erased once.
 - **Dependencies.** §23 (readings), §27 (history), §28 (tests), §25 (mail),
   §26 (BLE settings), the carrier PCB's loop island.
@@ -2512,7 +2512,7 @@ switches the supply off.
 | Supply enable | GPIO 3 (header pin 4), active high, pulled low through sleep and reset | [user] |
 | Shunt | 100 Ω, 0.1 %, 25 ppm/°C; 0.4 V at 4 mA, 2.0 V at 20 mA | [user] |
 | Loop ADC | ADS1115 at 0x49 on the isolated side, differential A0 – A1, ±4.096 V range, single shot at 128 SPS (DR 100, about 8 ms a conversion) | [user] |
-| Bus | Through an I2C isolator onto the BME280's bus (GPIO 43/44, 100 kHz, C-23.1); its outputs are high impedance while either side is unpowered | [user] |
+| Bus | Its own I2C bus, controller 1 on SDA GPIO 15 and SCL GPIO 16 at 100 kHz, through an I2C isolator whose board side (VCC1 and its pull-ups) is powered from GPIO 3, so it draws nothing while the loop is off; the bus is opened only for a loop read and its pins float otherwise | [user] |
 
 Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
 
@@ -2571,9 +2571,10 @@ Reading:
   reset and power-on.
 - **C-29.1** [Must] [user] The loop side shall be galvanically isolated from
   the board's ground, including the loop ADS1115 and its supply.
-- **C-29.2** [Must] [user] With the loop supply off, the I2C isolator shall
-  leave GPIO 43/44 free, so the BME280 and every other device on the bus
-  answer as without §29.
+- **C-29.2** [Must] [user] With the loop supply off, the loop hardware
+  shall draw no current from the board (the isolator unpowered, GPIO 15/16
+  floating without pulls), and the BME280's bus (GPIO 43/44) shall not be
+  touched by §29.
 - **C-29.3** [Must] [user] A short across the loop terminals shall damage
   nothing: the loop current stays at or below **30 mA**, the reading ends
   with L35 `fault`, and the next reading after the short is removed is
@@ -2637,7 +2638,7 @@ Settings and history format:
 | FR-29.4 | Calibrator at 3.0 mA, then the terminal open, then the ADS1115 unplugged | L35 `fault ma=3.000`; L35 `fault ma=0.000`; L35 with `ESP_ERR_TIMEOUT`; the window and sleep as usual | A restart; a value kept | bench (operator) |
 | FR-29.10, FR-29.14 | Double press for `quick`, first with `loop` `off` and nothing on the terminals, then `in` with nothing on them | `result=pass` and no L34/L35; then `result=fail … loop=0/12` with all 12 readings in the history | A loop line while off; a reading missing from the history | bench (operator) |
 | C-29.1 | Board on USB; ohmmeter between the loop terminals and USB ground | Above 100 MΩ | Continuity | bench (operator) |
-| C-29.2 | Loop hardware fitted, `loop` `off`, then `in` with the calibrator at 12 mA; 5 readings each | Every reading logs L21 with BME280 values; with the supply off, the loop commissioning program finds 0x76 and not 0x49 | A BME280 or bus error; SDA or SCL held low | bench (operator) |
+| C-29.2 | Loop hardware fitted, `loop` `off`, then `in` with the calibrator at 12 mA; 5 readings each; the sleep current measured with and without the loop hardware | Every reading logs L21 with BME280 values; the loop commissioning program finds 0x76 on GPIO 43/44 and 0x49 only on GPIO 15/16 with the supply on; the sleep current unchanged within 10 µA | A BME280 or bus error; SDA or SCL held low | bench (operator) |
 | C-29.3 | `loop` `in`; the terminals shorted for 3 readings, then the calibrator at 12 mA | L35 `fault` with `ma=` at most 30.000 for each shorted reading; then L34 within 12.000 ± 0.040 | A restart; a value kept while shorted; a part hot to the touch | bench (operator) |
 | FR-29.7, FR-29.8, §29.2 | ONLINE with the calibrator at 12 mA; relay `GET /`, `GET /api/readings`, `GET /api/history` | Page, `ext`, CSV column and line 6 all show the L34 value | A value differing from L34 | bench |
 | FR-29.12 | Flash over a board holding a 16-byte history (all four images), then ONLINE | L36 once; `GET /api/history` holds only new readings | A garbled line; L36 on the next boot | bench |
@@ -3126,7 +3127,7 @@ holds, the composition root performs it.
 |------|-------|--------|
 | Modem | Blues Notecard Cell+WiFi NOTE-MBGLW (M.2 key E) | [user] |
 | Carrier | Blues Notecarrier-A: M.2 socket, LiPo connector and charger, Qwiic connectors, u.FL antennas | [proposed] |
-| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable; no address clash with 0x76 or 0x49 | [proposed] |
+| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable; no address clash with 0x76 | [proposed] |
 | Power | The Notecarrier's own LiPo (or USB) supplies the Notecard's modem peaks (up to about 2 A); the board's 3.3 V supplies only the bus; the grounds join through the Qwiic cable | [proposed] |
 | ATTN | Not connected in the first build; the device polls the Notecard | [proposed] |
 
@@ -3381,6 +3382,7 @@ Build-time constants:
 | Loop supply / settle time | 24 V isolated from the battery/system rail behind a soft-start load switch, enable GPIO 3 / `loop_warm_ms`, default 300 ms | [user] |
 | Loop isolated 3.3 V / current limit | LDO from the isolated 24 V, at least 40 V in / about 30 mA | [user] |
 | Loop shunt / ADC | 100 Ω 0.1 % / ADS1115 at 0x49, A0 – A1, ±4.096 V, 128 SPS, mean of 4 | [user] |
+| Loop bus | I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz; isolator VCC1 from GPIO 3 | [user] |
 | Loop fault limits | below 3.6 mA or above 21.0 mA (NAMUR NE43) | [user] |
 | Loop accuracy | ±0.25 % of span | [user] |
 | RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 / TRS3221E or MAX3221E / DE-9 male (DTE) | [proposed] |
@@ -3465,7 +3467,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.23.0
+fsd_version: 0.24.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3516,6 +3518,7 @@ change_history:
   - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
   - "0.21.0 2026-11-02 the user accepted every proposed §29 value (GPIO 3 supply enable, the shunt, the loop ADS1115 and its bus, the loop field lengths and settle range, a mean of 4, the 50 ms supply margin, the FR-6.14 line tops); the loop ADS1115 runs at 128 SPS (§29.1, FR-29.2 contract); the loop supply is fed from the battery/system rail (§2, §29.1, Appendix A)"
   - "0.22.0 2026-11-02 (drafted as 0.16.0 beside main) from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.15, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14) and a `services` master switch over ntfy and ThingsBoard (FR-32.15), both from the user's request, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated"
+  - "0.24.0 2026-11-02 from the user's choice of an own bus for the loop isolator: the loop ADS1115 moves to I2C controller 1 on GPIO 15/16, the isolator's board side is powered from GPIO 3, so the loop draws nothing while off (§29.1, C-29.2 reworded, Appendix A, §2); §33.2 no longer names 0x49"
   - "0.23.0 2026-11-02 from the user's acceptance of the 4-20 mA plan review: §29.1 gains the soft-start load switch, the isolated 3.3 V LDO (at least 40 V in), the 30 mA loop current limit and terminal TVS, and an isolator that floats while unpowered; C-29.2 (the bus free with the loop off) and C-29.3 (a shorted loop damages nothing), R-34 (the accuracy budget at 20 mA), the Phase 11 commissioning program `loop-probe`; §2 and Appendix A updated"
   - "0.22.3 2026-11-02 from the user's clarifications: FR-24.13 (user) supersedes FR-24.12, line 5 of the hold reads `Press flashing LED to start <mm>:<ss>`; FR-26.23 (proposed) supersedes FR-26.14, line 5 says `BLE setup on` in the provisioning window, where BLE starts by itself and the user key opens no window"
   - "0.22.2 2026-11-02 BLE setup from the user's bench report (pairing failed after an erase, the BLE page unlike the WiFi form): FR-26.21 the page draws the portal form (user), FR-26.19 rules gain step, option labels, extras, placeholder, inputmode, unit, section and intro, FR-26.22 a static random address replaced while no bond is held (proposed), FR-26.18 names it"

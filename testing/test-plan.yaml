@@ -3121,7 +3121,7 @@ tests:
     result: {status: not done}
 
   - id: TC-LOOP-05
-    title: "Loop off leaves the I2C bus free"
+    title: "Loop off draws nothing and leaves the main bus alone"
     shape: atomic
     kind: standard
     wave: 1
@@ -3129,7 +3129,7 @@ tests:
     tier: bench
     verifies: [C-29.2]
     needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280, dut-loop-hardware, loop-calibrator]
-    observable: "5 readings with loop off and 5 with loop in at 12 mA each log L21 with BME280 values; loop-probe finds 0x76 and not 0x49 with the supply off"
+    observable: "5 readings with loop off and 5 with loop in at 12 mA each log L21 with BME280 values; loop-probe finds 0x76 on GPIO 43/44 and 0x49 only on GPIO 15/16 with the supply on; sleep current unchanged within 10 uA"
     impl: []
     result: {status: not done}
 

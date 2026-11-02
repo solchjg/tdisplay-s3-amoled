@@ -14,10 +14,10 @@
 #define KEY "settings"
 
 // §29.1: the loop side as wired on the carrier board.
-#define SUPPLY_GPIO 3          // active high, pulled low on the board
-#define ADC_I2C_PORT 0         // the BME280's bus (weather.c), through the isolator
-#define ADC_SDA_GPIO 43
-#define ADC_SCL_GPIO 44
+#define SUPPLY_GPIO 3          // active high, pulled low on the board; also the isolator's VCC1
+#define ADC_I2C_PORT 1         // the loop's own bus, opened and closed by the ads1115 driver
+#define ADC_SDA_GPIO 15
+#define ADC_SCL_GPIO 16
 #define ADC_ADDRESS 0x49
 #define ADC_CLK_HZ 100000
 
@@ -27,7 +27,7 @@ static const ads1115_config_t adc_cfg = {
     .scl_gpio = ADC_SCL_GPIO,
     .address = ADC_ADDRESS,
     .clk_hz = ADC_CLK_HZ,
-    .internal_pullup = true,
+    .internal_pullup = false,  // the isolator's side 1 pulls up to its VCC1
 };
 
 static const ads1115_settings_t adc_settings = {
@@ -119,8 +119,17 @@ esp_err_t loop_erase(void)
     return err;
 }
 
+// C-29.2: no pull and no drive on the loop bus while the isolator is unpowered.
+static esp_err_t float_bus(void)
+{
+    gpio_config_t io = {.pin_bit_mask = (1ULL << ADC_SDA_GPIO) | (1ULL << ADC_SCL_GPIO),
+                        .mode = GPIO_MODE_INPUT};
+    return gpio_config(&io);
+}
+
 esp_err_t loop_init(void)
 {
+    float_bus();
     gpio_config_t io = {.pin_bit_mask = 1ULL << SUPPLY_GPIO, .mode = GPIO_MODE_OUTPUT,
                         .pull_down_en = GPIO_PULLDOWN_ENABLE};
     esp_err_t err = gpio_set_level(SUPPLY_GPIO, 0);
@@ -162,6 +171,7 @@ esp_err_t loop_read(float *ma, float *value, bool *ok)
         err = ads1115_read_mean(&adc_settings, LP_MEAN_N, &uv);
         ads1115_stop();
     }
+    float_bus();
     gpio_set_level(SUPPLY_GPIO, 0);  // NFR-29.2: off again before anything else
     if (err != ESP_OK) {
         return err;

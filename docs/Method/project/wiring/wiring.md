@@ -27,12 +27,14 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 | Sheet | Status | Board pins |
 |---|---|---|
 | [1 Board, battery, BME280, Notecard](wiring-1-board-bme280-notecard.png) ([.fzz](wiring-1-board-bme280-notecard.fzz)) | BME280 on main (FSD §23); Notecarrier-A specified (§33) | GPIO 43 SDA, GPIO 44 SCL, 3V3, GND, BAT JST, Qwiic |
-| [2 4-20 mA loop input](wiring-2-loop-4-20ma.png) ([.fzz](wiring-2-loop-4-20ma.fzz)) | On main (FSD §29) | GPIO 3 supply enable, VSYS, GPIO 43/44, 3V3, GND |
+| [2 4-20 mA loop input](wiring-2-loop-4-20ma.png) ([.fzz](wiring-2-loop-4-20ma.fzz)) | On main (FSD §29) | GPIO 3 supply enable and isolator power, VSYS, GPIO 15/16 loop bus, GND |
 | [3 Water pressure probe](wiring-3-water-probe.png) ([.fzz](wiring-3-water-probe.fzz)) | Proposed ([water-probe-circuit.md](../water-probe-circuit.md)) | GPIO 2 boost enable, BAT+ tap, GPIO 43/44, 3V3, GND |
 | [4 RS232 instrument](wiring-4-rs232.png) ([.fzz](wiring-4-rs232.fzz)) | Specified (FSD §30), pins and parts proposed | GPIO 11 TX, GPIO 12 RX, GPIO 13 FORCEOFF, 3V3, GND |
 
-All the I2C devices share GPIO 43/44: the BME280 at 0x76, the water ADS1115 at
-0x48, the loop ADS1115 at 0x49 (behind the isolator) and the Notecard at 0x17.
+The I2C devices on the board's bus share GPIO 43/44: the BME280 at 0x76, the
+water ADS1115 at 0x48 and the Notecard at 0x17. The loop ADS1115 (0x49) has its
+own bus on GPIO 15/16, behind the isolator, whose board side GPIO 3 powers only
+while the loop is read.
 The BOOT key (GPIO 0), the user key (GPIO 21) and the green LED (GPIO 38) are on
 the board, so nothing is wired to them.
 
@@ -81,7 +83,7 @@ a breadboard or perfboard.
 | U9 | Loop current limit, about 30 mA | Microchip DN2540N3 depletion MOSFET (TO-92) with a source resistor near 47 Ω | Trim the resistor on the bench so 21 mA passes untouched |
 | D1 | TVS across the terminals | P6KE33A (DO-15, 28.2 V stand-off) | K to the + terminal |
 | U7 | Loop ADC | Adafruit 1085 ADS1115 breakout | ADDR to VDD for 0x49 |
-| U8 | I2C isolator, floating while unpowered | Adafruit 4903 ISO1540 breakout | Side 1 on the board's 3V3, side 2 on U5; 10 kΩ pull-ups on each side to that side's VCC |
+| U8 | I2C isolator | Adafruit 4903 ISO1540 breakout | Side 1 VCC from GPIO 3 (about 4 mA while on), SDA/SCL on GPIO 15/16; side 2 on U5; 10 kΩ pull-ups on each side to that side's VCC |
 | R2 | Shunt | TE YR1B100RCC, 100 Ω, 0.1 %, 15 ppm/°C, 0.25 W axial | 40 mW at 20 mA |
 | R1 | Enable pull-down | 100 kΩ axial | |
 | C | Decoupling | 100 nF ceramic at U7 and at each side of U8; 10 µF electrolytic at U3 out | Radial, 0.1" pitch |
@@ -91,5 +93,5 @@ With the limiter (about 3 V) and the shunt (2.1 V at 21 mA), about 19 V is
 left for the transmitter. On the 24 V side, a shorted loop (30 mA) plus U5
 (about 11 mA) stays within U4's 42 mA.
 
-U8's side 1 draws about 3 mA (ISO1540 I<sub>CC1</sub>) whenever the board's 3V3 is
-on, sleep included, plus its power LED.
+U8's side 1 (about 3 mA, ISO1540 I<sub>CC1</sub>, plus its power LED) runs from
+GPIO 3, so it is off with the loop supply, and its bus pins float then.

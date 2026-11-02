@@ -743,14 +743,15 @@ def sheet_loop(S):
     S.wire(("U7", "GND "), ("U8", "GND2"), "grey")
     S.wire(("U7", "SCL"), ("U8", "SCL2"), "yellow")
     S.wire(("U7", "SDA"), ("U8", "SDA2"), "blue")
-    # isolator side 1 over the board to the right header
-    S.wire(("U8", "GND1"), (B, "GND R2"), "black", ("x", 14500))
-    S.wire(("U8", "SCL1"), (B, "IO44"), "yellow", ("x", 14600))
-    S.wire(("U8", "SDA1"), (B, "IO43"), "blue", ("x", 14700))
-    S.wire(("U8", "VCC1"), (B, "3V3 R1"), "red", ("x", 14800))
+    # isolator side 1 to the left header: its own bus on GPIO 15/16, VCC1 from GPIO 3
+    S.wire(("U8", "VCC1"), (B, "IO3"), "green", ("x", 12550))
+    S.wire(("U8", "SDA1"), (B, "IO15"), "blue", ("x", 12600))
+    S.wire(("U8", "SCL1"), (B, "IO16"), "yellow", ("x", 12650))
+    S.wire(("U8", "GND1"), (B, "GND"), "black", ("x", 12700))
     S.note(300, 4000, 12100, [
         "# 4-20 mA loop input (FSD 29) - firmware on main",
-        "GPIO 3 high switches the loop supply on (soft-start load switch); the 100k holds it off through sleep and reset.",
+        "GPIO 3 high switches the loop supply on (soft-start load switch) and powers isolator side 1; the 100k holds it",
+        "off through sleep and reset. The loop ADS1115 has its own I2C bus on GPIO 15/16, floating while the loop is off.",
         "VSYS is the battery/system rail. Grey (0V iso) and purple (24 V) are the isolated side: they never touch",
         "the board's ground. The 30 mA limit keeps a shorted loop under 3 V on the shunt (100 R 0.1 %: 0.4 V at 4 mA,",
         "2.0 V at 20 mA, read as A0 - A1 at +/-4.096 V). The LDO feeds the ADS1115 and isolator side 2 from 24 V.",
@@ -861,7 +862,7 @@ SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
     ("wiring-2-loop-4-20ma", "2  4-20 mA loop input (FSD 29)",
-     (15400, 4800), {"IO3", "VSYS", "GND", "IO44", "IO43", "3V3"}, sheet_loop),
+     (15400, 4800), {"IO3", "VSYS", "GND", "IO15", "IO16"}, sheet_loop),
     ("wiring-3-water-probe", "3  Water pressure probe (proposed)",
      (10800, 8100), {"IO2", "GND", "IO44", "IO43", "3V3"}, sheet_water),
     ("wiring-4-rs232", "4  RS232 instrument (FSD 30)",
