@@ -361,6 +361,7 @@ static void ble_event_cb(ble_setup_event_t ev)
     case BLE_SETUP_EV_PAIRED: post_ble(DL_BEV_PAIRED); break;
     case BLE_SETUP_EV_PAIR_FAILED: post_ble(DL_BEV_PAIR_FAILED); break;
     case BLE_SETUP_EV_DONE: post_ble(DL_BEV_DONE); break;
+    case BLE_SETUP_EV_FORGOTTEN: break;  // FR-26.13: logged by ble_setup
     }
 }
 

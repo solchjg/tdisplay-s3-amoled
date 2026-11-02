@@ -255,7 +255,9 @@ characteristic, then `apply` to `control`.
   so a phone that paired once connects again without a code. After a factory
   reset the device has forgotten them: remove `TDS3-…` from the phone's
   Bluetooth devices once, then pair again. The page says so when a connection
-  fails twice.
+  fails twice. **Forget all phones** on the page (after pairing) makes the
+  device forget every phone without a factory reset; remove `TDS3-…` from each
+  phone's Bluetooth devices too.
 
 - **Downloading the history.** In the same Bluetooth session (after holding
   the user key and typing the code), the page shows *History* with *From* and
