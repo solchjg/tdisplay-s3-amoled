@@ -1,0 +1,170 @@
+# Blues cellular uplink
+
+The hardware for the cellular uplink of FSD §33: a Blues Notecard Cell+WiFi
+**NOTE-MBGLW**, hardware v2.5, on a **Notecarrier-X v1.3**, both parts the user owns.
+The device runs the Notecard on cellular only (FR-33.14). The FSD specifies it, but
+neither the firmware nor the wiring is built yet. Nothing is soldered: the Notecarrier
+joins the I2C bus by a Qwiic cable, and the antenna and the LiPo plug into it. Fritzing
+[sheet 5](wiring/wiring-5-blues-cellular.png) shows the wiring, and sheet 1 shows the
+Notecarrier beside the BME280.
+
+The Notecarrier is not an add-on board on a JST-XH socket. It plugs into the carrier's
+Qwiic socket, listed in [wiring.md](wiring/wiring.md#carrier-and-add-on-boards), and
+brings its own power. The [User Manual, 5g](../../UserDocumentation/User-Manual.md#5g-placing-the-cellular-antenna)
+covers placing the antenna. Figures come from Blues' published pages listed under
+Sources; check them against the current ones.
+
+![Blocks of the cellular uplink: board, I2C fan-out, Qwiic cable, Notecarrier-X, antenna, LiPo](blues-cellular.svg)
+
+## Parts
+
+| Ref | Function (FSD §33.2) | Part | Notes |
+|-----|----------------------|------|-------|
+| U2 | Modem | Blues Notecard Cell+WiFi NOTE-MBGLW v2.5, M.2 key E: LTE Cat-1 bis, global bands, 500 MB and 10 years of service included | I2C 0x17, 10 kΩ pull-ups to its VIO. Its WiFi stays unused (FR-33.14) |
+| U2 | Carrier | Blues Notecarrier-X v1.3: M.2 socket, USB-C, JST-PH LiPo connector and charger, Qwiic and ESLOV I2C connectors | No onboard antenna. ESLOV also carries ATTN, which this device does not use |
+| AE1 | LTE antenna | Flexible LTE antenna with a u.FL lead, such as Blues' flexible LTE antenna | On the Notecard's `MAIN` port. Required: the carrier has none |
+| BT2 | Notecard supply | LiPo cell, 3.7 V, at least 2000 mAh, JST-PH 2.0 mm, protected | Check the JST-PH polarity: makers wire it both ways |
+| W1 | Bus link | Qwiic (JST-SH 4-pin) cable, 100 – 200 mm | Its red 3.3 V wire is cut or pulled from the plug at the carrier end |
+
+### Why this Notecard
+
+| | NOTE-MBGLN (cell only) | **NOTE-MBGLW (Cell+WiFi, used)** | Notecard WiFi v2 (NOTE-ESP) |
+|---|---|---|---|
+| Radio | LTE Cat-1 bis, global | LTE Cat-1 bis, global, plus 2.4 GHz WiFi | 2.4 GHz WiFi only |
+| Idle current | about 9 µA | about 18 µA | Not low by default. It has an ESP32 inside, and its ~10 µA deep sleep turns off I2C. |
+| One isolated sync | 0.261 mAh | 0.284 mAh | n/a |
+| 12 h with 30-min syncs | 8.86 mAh | 10.12 mAh | n/a |
+| Data | 500 MB / 10 years included | 500 MB / 10 years included (WiFi traffic doesn't use it) | No cellular |
+| Antennas | `MAIN` u.FL (LTE) | `MAIN` u.FL, plus an onboard WiFi antenna and a `WIFI` u.FL | Embedded only |
+
+The WiFi-only Notecard doesn't fit this device: it has no cellular, it doesn't idle at
+low current, and it can't take over anything the ESP32-S3's WiFi does. The MBGLW costs
+nothing extra because the user already owns it, and its idle current is still small
+next to the board's. Its WiFi, with Blues' default order of WiFi first and cellular as
+fallback, is out of scope for now (FSD §4.3); it is a later option for sites with an
+unreliable access point.
+
+## Connections
+
+| From | To | Signal |
+|------|----|--------|
+| Carrier Qwiic socket pin 1 (GND) | Notecarrier-X Qwiic GND | GND |
+| Carrier Qwiic socket pin 2 (3V3) | nothing | The cable's red wire stays unconnected |
+| Carrier Qwiic socket pin 3 | Notecarrier-X Qwiic SDA | GPIO 43, SDA |
+| Carrier Qwiic socket pin 4 | Notecarrier-X Qwiic SCL | GPIO 44, SCL |
+| Notecard `MAIN` u.FL | AE1 | LTE RF |
+| Notecarrier-X JST-PH | BT2 | LiPo, charged from USB-C |
+| Notecard `GPS`, `WIFI` u.FL; ESLOV; Notecarrier headers | nothing | Unused |
+
+On the bench, sheet 5 takes the bus from the board's own Qwiic connector, which carries
+the same GPIO 43/44. In the build, the carrier's I2C fan-out feeds the BME280, the water
+socket and the Qwiic socket, so the board's Qwiic connector stays free.
+
+## Circuit details
+
+![Data path: ESP32-S3, Notecard, Notehub and the route targets](blues-cellular-path.svg)
+
+### Shared bus
+
+The Notecard sits at 0x17 on the bus that also carries the BME280 (0x76) and the water
+ADS1115 (0x48), at 100 kHz (C-23.1). Its 10 kΩ pull-ups to VIO add to the breakouts'
+own, so keep the parallel total at or above about 2.2 kΩ, removing a breakout's
+pull-ups if needed. The device polls the Notecard: no ATTN line is wired.
+
+### Separate supplies
+
+The Notecard never draws from the board. The Notecarrier's own LiPo, or its USB-C,
+feeds the modem, whose peaks of up to about 2 A would brown out the board's 3.3 V
+regulator. Only GND, SDA and SCL cross the cable, so the board's 3.3 V and the
+Notecarrier's regulator are never tied together, and the shared ground keeps the I2C
+levels referenced. The Notecard's VIO is 3.3 V from the carrier, the same level as the
+board's bus.
+
+### Always powered
+
+The Notecard stays powered through deep sleep (FR-33.5) and idles at about 18 µA.
+Blues advises against power-cycling it, because each cold start re-registers on the
+network, so nothing on the board switches it.
+
+## Budgets
+
+| Budget | Figure | Note |
+|--------|--------|------|
+| Notecard idle | about 18 µA | From the Notecarrier's LiPo, not the board's |
+| One sync, idle included | about 0.42 mAh | Blues' 30-minute test |
+| Hourly syncs (`cell_every` 60) | about 10 mAh a day | Each `sync:true` alert or email adds a session; weak signal costs more |
+| BT2 runtime | about 6 months on 2000 mAh | Between charges; `cell_every` 240 cuts the sync cost about 4×, with readings up to 4 h late |
+| Modem peaks | up to about 2 A | Carried by BT2 and the Notecarrier's regulator |
+| Board current | none | Only the I2C pull-ups' share while the bus is driven |
+| Data | about 1 – 2.5 MB a month at hourly syncs | Blues measured 1.3 – 3.5 KB per sync of up to 100 notes; NFR-33.2 allows 4 MB |
+| Notehub events | about 720 `tb.qo` events a month, plus alerts, email and attributes | The free Essentials plan gives 5,000 event credits a month and keeps events 7 days; routing costs no extra credit |
+| Wake time | asleep within 10 s of a timer wake | NFR-33.1: the device adds its notes and sleeps; the Notecard syncs afterwards |
+
+## Sending
+
+What the firmware does with `uplink` `cell` (FSD §33.5):
+
+1. On each boot, install the Notecard's I2C device and ask `card.version`. No answer
+   within 2 s is L44, and that boot's sends fail (FR-33.4, FR-33.10).
+2. Send `hub.set` (`product`, `mode` `periodic`, `outbound` `cell_every`, `inbound`
+   1440) only when the Notecard's stored values differ (FR-33.4).
+3. Set `card.transport` to `cell` when the Notecard reports another transport
+   (FR-33.14).
+4. On a boot whose clock was never set, ask `card.time`. In a window, request one
+   `hub.sync` and ask again every 5 s for up to 60 s; on a timer wake ask once
+   (FR-33.12).
+5. Add the due notes with `note.add`: `tb.qo` batches of at most 100 readings, then
+   `tbattr.qo`; `alert.qo` and `mail.qo` with `sync:true` (FR-33.6 – FR-33.8). Each
+   accepted note is L43, each refused one L44.
+6. Move the upload mark past each accepted batch (FR-33.7), and sleep within 10 s of the
+   wake (NFR-33.1).
+
+Notehub reaches the route targets from the internet, so the LAN test servers can't
+receive over cellular (R-33). The tokens and the mail API key live in the routes, never
+in a note (FR-33.9).
+
+## To check before wiring
+
+1. **Carrier version.** Blues' datasheet covers the Notecarrier-X v1.2. Check the v1.3
+   board's Qwiic pin order, JST-PH polarity and charger against it.
+2. **The red wire.** With the cable plugged into the carrier only, check with a meter
+   that its 3.3 V pin reaches nothing at the Notecarrier end.
+3. **Pull-ups.** With every board fitted and nothing powered, measure SDA to 3V3 on the
+   carrier: at least 2.2 kΩ.
+4. **An unpowered Notecarrier.** With BT2 unplugged and USB-C off, the Notecard's
+   pull-ups go to a dead VIO. Check that the BME280 still reads; if not, fit the
+   Notecarrier only with its supply on.
+5. **The antenna first.** Fit AE1 on `MAIN` before powering the Notecarrier: the modem
+   must not transmit without a load.
+6. **BT2's plug.** Check the LiPo's JST-PH polarity against the Notecarrier's marking.
+
+## Bring-up
+
+The Phase 15 commissioning program (FSD §3.15), not written yet, talks to the Notecard
+on GPIO 43/44 beside the BME280. It:
+
+- scans the bus (0x17, 0x76 and, with the water board fitted, 0x48 must answer);
+- reads `card.version`, `card.transport` and `card.wireless` (the signal bars);
+- adds one `tb.qo` note of 100 readings and prints how long `note.add` took, which must
+  fit in NFR-33.1's 10 s at 100 kHz, else the batch limit is 50 (FR-33.7);
+- forces one sync and reads the session's data use from Notehub, to compute the monthly
+  figure for NFR-33.2 from a measurement.
+
+## Installation
+
+Mount AE1 per the [User Manual, 5g](../../UserDocumentation/User-Manual.md#5g-placing-the-cellular-antenna):
+long axis vertical, on the inside of a plastic enclosure wall, at least 10 mm from
+metal, the LiPo and both PCBs, its coax clear of the AMOLED's QSPI lines and the
+ESP32-S3's antenna. Check the fit by the signal bars in `tbattr.qo` with the enclosure
+closed. Keep USB-C on the Notecarrier reachable, or route it out, to charge BT2.
+
+## Sources
+
+- [Blues: NOTE-MBGLW datasheet](https://dev.blues.io/datasheets/notecard-datasheet/note-mbglw/)
+- [Blues: Notecarrier X v1.2 datasheet](https://dev.blues.io/datasheets/notecarrier-datasheet/notecarrier-x-v1-2/)
+- [Blues: Low-Power Firmware Design, power usage estimates](https://dev.blues.io/notecard/notecard-walkthrough/low-power-firmware-design/#power-usage-estimates)
+- [Blues: Notecard WiFi v2 deep sleep](https://dev.blues.io/notecard/notecard-walkthrough/low-power-firmware-design/#deep-sleep-mode-on-notecard-wifi-v2)
+- [Blues: Cell+WiFi, WiFi first with cellular fallback](https://dev.blues.io/blog/next-generation-of-notecards/#wifi-connectivity-with-a-fallback-to-cellular)
+- [Blues: Antenna guide](https://dev.blues.io/datasheets/application-notes/antenna-guide/)
+- [Blues: Low Bandwidth Design, data usage](https://dev.blues.io/notecard/notecard-walkthrough/low-bandwidth-design/#periodic-minimum-mode-usage)
+- [Blues: Understanding event credits](https://dev.blues.io/notehub/notehub-walkthrough/#understanding-event-credits)
