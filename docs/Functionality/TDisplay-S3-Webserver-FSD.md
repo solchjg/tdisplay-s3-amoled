@@ -417,7 +417,7 @@ testbench.
 - **Scope.** The optional Notecard uplink: settings, Notecard setup, the
   ThingsBoard batches, alerts and summary email as notes, the clock from the
   Notecard.
-- **Deliverables.** §33, L43, L44, the L20 `src=cell` form, R-31 – R-33; the
+- **Deliverables.** §33, L43 – L45, the L20 `src=cell` form, R-31 – R-33, R-35; the
   shared `notecard` component in esp-idf-components; a commissioning program
   that talks to the Notecard on GPIO 43/44 beside the BME280 and measures the time and size of a 100-reading `tb.qo` note and of one hourly sync (FR-33.7, NFR-33.2); a User Manual
   section for the Notehub project and its routes.
@@ -484,6 +484,7 @@ testbench.
 | R-31 | The testbench has no Notecard and no cellular coverage is declared at the bench, so the cellular rows need a Notecard on SLOT1's bus and a Notehub project | Certain | Medium | The user fits the Notecarrier-X by Qwiic at the bench; until then the cellular rows are `not done` and the cores are host-tested |
 | R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
 | R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`, `192.168.2.231`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
+| R-35 | The Notecard's GPS turns on only after its first Notehub sync and never while its modem is on, a cold first fix takes 1 – 2 min or fails indoors, and the Notecard ends a seek after about 17 min (after 90 s with no signal at all), so a setup check may end without a fix | Likely | Low | The search runs for the whole hold (up to 30 min, FR-24.6) after the time step's session; the GPS antenna faces the sky; an earlier place stays stored; the next key wake or setup check tries again |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
@@ -652,7 +653,8 @@ Six text lines, landscape: lines 1 – 5 at most 33 characters each, line 6
 in a smaller font at most 44 (FR-6.14, FR-6.15). Line 4 is the
 reading in every state (FR-23.12); line 5 is empty except during the setup
 check (FR-24.13) and a BLE window (FR-26.23); line 6 holds the add-on values
-(FR-29.8, FR-30.10), empty with every add-on off; the table gives lines 1 – 3.
+(FR-29.8, FR-30.10), empty with every add-on off, except that it shows the
+GPS search during a setup check with `gps` `on` (FR-33.19); the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
 |--------------------|--------|--------|--------|
@@ -1046,6 +1048,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L42 | ThingsBoard request failed (FR-32.11) | `web: tb failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|server\|timeout> what=<telemetry\|attributes> n=<readings>` | W |
 | L43 | Note accepted by the Notecard (FR-33.11) | `web: cell note <tb\|tbattr\|alert\|mail> n=<readings, or 1>` | I |
 | L44 | Notecard request failed (FR-33.4, FR-33.10) | `web: cell failed: <timeout\|err\|full> <req>` | W |
+| L45 | GPS search ended in the setup check (FR-33.17, FR-33.18) | `web: gps fix lat=<±d.ddddd> lon=<±d.ddddd>` or `web: gps none` | I |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1911,8 +1914,9 @@ with 60 they run 00:00, 01:00, 02:00 and so on. These two fields are the
 
 When WiFi has just been configured, the device does not drop straight into its
 sleep cycle. It holds with the panel lit, shows live readings and asks the
-installer to press a key to continue, so the sensors (and later e.g. a
-GPS fix) can be checked in place first. A pending mark in NVS says the check is
+installer to press a key to continue, so the sensors can be checked in place
+first, and, when `gps` is `on`, the Notecard takes a GPS fix of the place
+(§33.5, FR-33.15). A pending mark in NVS says the check is
 still owed; it survives sleep, reset and power loss. The logic layer (§5)
 decides when to hold and when the hold ends; the composition root reads the key
 and the clock. Either key ends the hold: the BOOT key, GPIO 0, next to the LED
@@ -3180,7 +3184,7 @@ holds, the composition root performs it.
 | Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable from the carrier's I2C fan-out (§2.2), which also feeds the BME280 and the water probe board; no address clash with 0x76 or the water ADS1115's 0x48. The Notecard's own 10 kΩ pull-ups to its VIO join the bus, so the bus's pull-ups in parallel stay at or above about 2.2 kΩ | [proposed] |
 | Power | The Notecarrier-X's own LiPo (or its USB-C) supplies the Notecard and its modem peaks (up to about 2 A), a LiPo of at least **2000 mAh** [proposed]: at hourly syncs (`cell_every` 60) the Notecard uses about **10 mAh a day** (Blues' published sync and idle figures; real use depends on signal, and each `sync:true` alert or email adds a session), so 2000 mAh lasts about 6 months between charges; the cable joins GND, SDA and SCL only, its 3.3 V wire left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
 | ATTN | Not connected in the first build (the Qwiic cable carries no ATTN; the ESLOV connector would); the device polls the Notecard | [proposed] |
-| Antenna | LTE: one flexible LTE antenna on the Notecard's `MAIN` u.FL, required because the Notecarrier-X has no onboard antenna, mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: not used by §33, so the `GPS` port's antenna needs no placement. WiFi: the Notecard's own WiFi is not used (FR-33.14), so its onboard WiFi antenna and `WIFI` u.FL need no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
+| Antenna | LTE: one flexible LTE antenna on the Notecard's `MAIN` u.FL, required because the Notecarrier-X has no onboard antenna, mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: only with `gps` `on` (FR-33.15), a GPS antenna on the Notecard's `GPS` u.FL (the GPS part of Blues' combined LTE + GPS flexible antenna, or a single GPS antenna), placed with the best view of the sky the site allows, for the fix during the setup check; with `gps` `off` the port stays empty. WiFi: the Notecard's own WiFi is not used (FR-33.14), so its onboard WiFi antenna and `WIFI` u.FL need no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
 
 ### 33.3 Settings
 
@@ -3192,6 +3196,7 @@ submission without them leaves the uplink as it was (`wifi` on a new device).
 | `uplink` | `wifi` or `cell` | one of the two; `cell` needs `nh_product`, given or stored | the stored value; `wifi` when none is stored [proposed] |
 | `nh_product` | the Notehub ProductUID, e.g. `com.example.joe:weather` | 1 – 64 bytes, letters, digits, `.`, `:`, `-` and `_` | the stored value |
 | `cell_every` | minutes between the Notecard's outbound syncs | whole minutes, 10 – 1440 | 60 [proposed] |
+| `gps` | take a GPS fix of the place during the setup check (§24): `on` or `off` | one of the two; `on` needs `uplink` `cell`, given or stored | the stored value; `off` when none is stored [proposed] |
 | `cell_mail` | email over cellular: `route` (a note to `mail.qo`, which a Notehub route passes to an HTTP mail service) or `off` (no email while `uplink` is `cell`) | one of the two | the stored value; `off` when none is stored [proposed] |
 
 ### 33.4 Notes
@@ -3199,7 +3204,7 @@ submission without them leaves the uplink as it was (`wifi` on a new device).
 | Notefile | Holds | Sync | Notehub route (set up by the user, User Manual) |
 |----------|-------|------|------------------------------------------------|
 | `tb.qo` | One ThingsBoard batch: the telemetry array of §32.3 as `body.t`, at most 100 readings | at the next periodic sync | General HTTP, JSONata `body.t`, to `<tb_url>/api/v1/<tb_token>/telemetry` |
-| `tbattr.qo` | The attributes of §32.3, with `"uplink":"cell"`, the signal bars and the Notecard's firmware version | at the next periodic sync | General HTTP to `<tb_url>/api/v1/<tb_token>/attributes` |
+| `tbattr.qo` | The attributes of §32.3, with `"uplink":"cell"`, the signal bars, the Notecard's firmware version and, when a place is stored, `latitude` and `longitude` (FR-33.18) | at the next periodic sync | General HTTP to `<tb_url>/api/v1/<tb_token>/attributes` |
 | `alert.qo` | One alert: `topic`, `title`, `priority`, `tags`, `message` of §31.3 | at once (`sync:true`) | General HTTP to the ntfy server's JSON publish endpoint `<ntfy_url>/` |
 | `mail.qo` | One email: `to`, `subject`, `text` (the §25 message, the §28 result); only with `cell_mail` `route` | at once (`sync:true`) | General HTTP to the user's mail service (e.g. SMTP2GO or SendGrid), its API key in the route |
 
@@ -3217,7 +3222,7 @@ Settings:
   field (portal) or `invalid=<field>` (BLE).
 - **FR-33.2** [Must] [derived] Valid settings shall be stored in NVS with the
   other settings at T3, or by an accepted BLE write in a key window (T14),
-  reported by the `settings` read (FR-26.9) with `uplink=<wifi|cell>` and `cell_mail=<route|off>`, and
+  reported by the `settings` read (FR-26.9) with `uplink=<wifi|cell>`, `cell_mail=<route|off>` and `gps=<on|off>`, and
   erased by a factory reset (T10), which also sets `uplink` back to `wifi`.
 - **FR-33.13** [Must] [user] Email over cellular shall be selectable by
   `cell_mail`: with `route`, a due summary or test result is added to
@@ -3283,6 +3288,35 @@ Time:
   again every **5 s** for up to **60 s** [proposed]; on a timer wake it asks
   once and does not wait.
 
+Location (optional, during the setup check):
+
+- **FR-33.15** [Must] [user] With `uplink` `cell` and `gps` `on`, the device
+  shall seek a GPS fix with the Notecard's own GPS during each setup check
+  hold (§24), and only then. With `gps` `off`, on a timer wake, and outside
+  the hold, it never turns the Notecard's GPS on.
+- **FR-33.16** [Must] [proposed] When the hold starts, after the Notecard
+  setup (FR-33.4, FR-33.14) and the time step of FR-33.12, the device shall
+  send `card.location.mode` `continuous` and ask `card.location` every
+  **5 s** until it answers with a fix (`lat` and `lon`) or the hold ends.
+  The Notecard turns its GPS on only after its first completed Notehub
+  sync, and never while its modem is on, so the search may wait for a
+  session to end (R-35).
+- **FR-33.17** [Must] [proposed] On a fix, the device shall store the
+  latitude and longitude (5 decimals) and the fix time in NVS, replacing
+  any earlier place, send `card.location.mode` `fixed` with them (the GPS
+  turns off, and Notehub tags each later event with the place), and log
+  L45 with the fix. The fix does not end the hold.
+- **FR-33.18** [Must] [proposed] When the hold ends without a fix (key or
+  timeout), the device shall send `card.location.mode` `fixed` with the
+  stored place, or `off` when none is stored, and log L45 `none`. A stored
+  place shall be sent as the attributes `latitude` and `longitude` with the
+  ThingsBoard attributes (`tbattr.qo`, and §32.3 over WiFi), and erased by
+  a factory reset (T10).
+- **FR-33.19** [Must] [proposed] During the hold with `gps` `on`, line 6
+  shall show `GPS searching <mm>:<ss>` (time since the search began) until
+  a fix, then `GPS <lat> <lon>` (5 decimals, at most 44 characters), in
+  place of the add-on values, which return when the hold ends.
+
 Power and data:
 
 - **NFR-33.1** [Must] [derived from NFR-32.1] A timer wake that sends notes
@@ -3311,6 +3345,11 @@ Power and data:
 | FR-33.6, FR-33.11, NFR-33.1 | Sleep test build, `uplink` `cell`, a Notecard on the bench (R-31), an upload due on the next timer wake | `web: wake cause=timer`, L21, L43 `tb.qo`, `web: sleep` within 10 s; the event on Notehub; no WiFi start | WiFi on a timer wake; the panel lit | target (R-31) |
 | FR-33.12 (core) | Window, clock never set: `card.time` answers no time, then a time on the 4th ask; never a time; timer wake with no time | One `hub.sync`, asks at 5 s steps, clock set on the 4th; asks stop at 60 s; one ask, no wait | A second `hub.sync`; waiting on a timer wake | host |
 | FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 within 60 s | A reading with `at=none` after L20 | target (R-31) |
+| FR-33.1, FR-33.15 (core) | Bodies: `gps=on` with `uplink` `wifi` stored; with `uplink=cell`; `gps=yes` | 400 `gps`; stored; 400 `gps` | `gps` `on` stored with `uplink` `wifi` |
+| FR-33.15, FR-33.16, FR-33.17 (core) | Hold with `gps` `on`: `card.location` answers no fix twice, then a fix; `gps` `off`; a timer wake | `continuous` once, asks at 5 s steps, then `fixed` with the place, the place stored, L45; no location request with `off` or on a timer wake | A location request outside the hold; the hold ended by the fix |
+| FR-33.18 (core) | Hold ends by key with no fix: a place stored; none stored | `fixed` with the stored place, L45 `none`; `off`, L45 `none` | The stored place erased by a failed search |
+| FR-33.19 (core) | Line 6 at 0 s, 75 s, after a fix at 40.712776, -74.005974 | `GPS searching 00:00`; `GPS searching 01:15`; `GPS 40.71278 -74.00597` | More than 44 characters; the add-on values during the search |
+| FR-33.15, FR-33.17 | A Notecard with its GPS antenna at a window (R-31, R-35), `gps` `on`, provisioned | L45 with the bench's place within the hold; `latitude` and `longitude` in the next `tbattr.qo` | L45 on a timer wake | bench (operator) |
 | FR-33.8 | The user's routes set up, an alert and a summary due | The ntfy message and the email arrive | Nothing on the target with L43 logged | bench (operator) |
 | NFR-33.2 | A month of the `std` setup on cellular | Notehub's data use for the device under 4 MB | — | bench (operator) |
 
@@ -3484,7 +3523,8 @@ Runtime configuration (the only persisted items):
 | `tb`, `tb_url`, `tb_every` | on/off / text / minutes | `off`; none; 60 | §32.2 | NVS | operational | portal (§13, §32.2), BLE (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb_token` | text | none | 1 – 64 letters, digits, `-`, `_` | NVS | secret | portal (§13, §32.2), BLE write only (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb_mark` | place in the history | before the oldest reading | §27 | NVS | operational | moved by an accepted upload (FR-32.8) | none | next upload | erased by factory reset |
-| `uplink`, `nh_product`, `cell_every`, `cell_mail` | text / number | `wifi`, none, 60, `off` | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
+| `uplink`, `nh_product`, `cell_every`, `cell_mail`, `gps` | text / number | `wifi`, none, 60, `off`, `off` | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
+| `gps_lat`, `gps_lon`, `gps_at` | number / time | none | 5 decimals; the fix time | NVS | operational | set by a fix in the setup check (FR-33.17) | none | next attributes | erased by factory reset |
 | `wifi` | on/off | `on` | `on`, `off` | NVS | operational | portal (§13, §34.2), BLE (§26) | FR-34.1 | immediate (T3, T16); restart (T14) | erased by factory reset (back to `on`) |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
@@ -3642,7 +3682,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.29.0
+fsd_version: 0.30.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3703,8 +3743,10 @@ change_history:
   - "0.27.0 2026-11-02 from the user's antenna question (orientation of the Blues combined LTE + GPS antenna, can it be cut): §33.2 gains an Antenna row (proposed)"
   - "0.28.0 2026-11-02 from the user's request for an option to turn WiFi off with Bluetooth left as it is: §34 WiFi Off (FR-34.1 – FR-34.12), the WIFI_OFF state with T15 and T16 (§5.3) and its screen (§5.4), T10 and T14 from WIFI_OFF, exceptions for `wifi` `off` added to FR-5.11, FR-5.12, FR-13.4, FR-21.11, FR-21.12 and FR-33.6, §9.1, Phase 16; Appendix A `wifi`"
   - "0.29.0 2026-11-02 from the user's acceptance of the Notecard review (the NOTE-MBGLW v2.5 the user owns, on a Notecarrier-X v1.3, run on cellular only): §2.2 and §33.2 name the card and carrier (user), the antenna row needs one flexible LTE antenna (no onboard antenna on the Notecarrier-X) and leaves the WiFi antenna unplaced, the power row gains the 10 mAh-a-day estimate and a 2000 mAh LiPo; FR-33.14 cellular-only transport (user); FR-33.12 one hub.sync and 60 s of time polls in a window; FR-33.7 100 readings confirmed by commissioning, else 50; NFR-33.2 a Notefile template and a measured batch; FR-34.8 covers the Notecard's WiFi; §4.3 the Notecard's WiFi out of scope; Phase 15 commissioning measures batch time and size"
+  - "0.30.0 2026-11-02 from the user's request that the GPS be optionally used during setup: the `gps` setting (§33.3), FR-33.15 – FR-33.19 (a fix with the Notecard's GPS during the setup check, stored, sent to the Notecard as its fixed place and to ThingsBoard as `latitude` and `longitude`, shown on line 6 during the hold), L45, R-35; §24.1, §5.4, §33.2 antenna row, §33.4, Phase 15 and Appendix A updated"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
+  - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"
   - "§34 WiFi Off as a whole, drafted for the user's approval"
   - "FR-34.2: with `wifi` `off`, WiFi credentials optional, and stored ones kept so WiFi can be turned back on without retyping"
   - "FR-34.11: with `wifi` `off` and `uplink` `wifi`, the setting is accepted and nothing is sent (summary period advances, ThingsBoard mark stays)"
