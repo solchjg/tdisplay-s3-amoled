@@ -920,7 +920,7 @@ static void send_test_alert(bool online)
     char title[NF_TITLE_MAX];
     static char body[SP_LOG_MAX * SP_TESTS + 8];
     nf_test_title(hostname, pass, title);
-    sp_mail_body(run, body, sizeof body);
+    sp_mail_body(run, weather_ext(), body, sizeof body);
     const char *event = pass ? "test_pass" : "test_fail";
     notify_begin();
     nt_reason_t why = online ? notify_send(hostname, title, body, pass) : NT_ERR_CONNECT;
@@ -1205,6 +1205,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = notify_store();  // FR-31.2
         if (err != ESP_OK) {
             web_log_warn("alert settings store", err);
+        }
         err = loop_store();  // FR-29.11
         if (err != ESP_OK) {
             web_log_warn("loop store", err);
@@ -1228,6 +1229,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = notify_store();  // FR-31.2, FR-31.14
         if (err != ESP_OK) {
             web_log_warn("alert settings store", err);
+        }
         err = loop_store();  // FR-29.11
         if (err != ESP_OK) {
             web_log_warn("loop store", err);
@@ -1344,6 +1346,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = notify_erase();  // FR-31.2
         if (err != ESP_OK) {
             web_log_warn("alert settings erase", err);
+        }
         err = loop_erase();  // FR-29.11
         if (err != ESP_OK) {
             web_log_warn("loop erase", err);
