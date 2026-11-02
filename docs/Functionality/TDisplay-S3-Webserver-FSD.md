@@ -150,9 +150,9 @@ path: a failing display never stops the network side (FR-5.28).
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
 | 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail behind a soft-start load switch, enabled by GPIO 3, a 30 mA loop current limit, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) on an isolated 3.3 V LDO, behind an I2C isolator on its own bus (GPIO 15/16), the isolator's board side powered from GPIO 3 (§29) | [user] |
 | RS232 instrument (optional) | One instrument on a DE-9 (DTE) or screw terminal: MAX3232 transceiver (PDIP-16) powered from GPIO 13, UART1 TX GPIO 11, RX GPIO 12 (§30); circuit in `docs/Method/project/rs232-circuit.md` | [user] |
-| Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW on a Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem (§33) | [user]; carrier, bus and power [proposed] |
-| Add-on boards | The loop (§29) and the RS232 circuit (§30), and later the water probe, are each built on a separate board that plugs into a carrier holding the T-Display-S3 and the BME280; the Notecarrier-A (§33) is a board of its own. Each analog add-on carries its own ADS1115, so the board pins carry only power, switch lines and digital buses, and any add-on can be fitted or left off without changing the others | [user] |
-| Add-on connectors | One keyed through-hole JST-XH (2.5 mm) socket on the carrier for each add-on, each with a different pin count so a board fits only its own socket, pin 1 GND: loop 5 pins (GND, VSYS, GPIO 3, GPIO 15, GPIO 16), water probe 6 pins (GND, VSYS, 3V3, GPIO 43, GPIO 44, GPIO 2), RS232 4 pins (GND, GPIO 13, GPIO 11, GPIO 12); each add-on's pull-down on its switch line sits on the add-on; the Notecarrier-A on a Qwiic (JST-SH) socket of the carrier's I2C fan-out; boards are fitted or removed only with USB and battery disconnected | [proposed] |
+| Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW v2.5 on a Notecarrier-X v1.3, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem, run on cellular only (§33) | [user]; bus and power [proposed] |
+| Add-on boards | The loop (§29) and the RS232 circuit (§30), and later the water probe, are each built on a separate board that plugs into a carrier holding the T-Display-S3 and the BME280; the Notecarrier-X (§33) is a board of its own. Each analog add-on carries its own ADS1115, so the board pins carry only power, switch lines and digital buses, and any add-on can be fitted or left off without changing the others | [user] |
+| Add-on connectors | One keyed through-hole JST-XH (2.5 mm) socket on the carrier for each add-on, each with a different pin count so a board fits only its own socket, pin 1 GND: loop 5 pins (GND, VSYS, GPIO 3, GPIO 15, GPIO 16), water probe 6 pins (GND, VSYS, 3V3, GPIO 43, GPIO 44, GPIO 2), RS232 4 pins (GND, GPIO 13, GPIO 11, GPIO 12); each add-on's pull-down on its switch line sits on the add-on; the Notecarrier-X on a Qwiic (JST-SH) socket of the carrier's I2C fan-out; boards are fitted or removed only with USB and battery disconnected | [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
@@ -419,7 +419,7 @@ testbench.
   Notecard.
 - **Deliverables.** §33, L43, L44, the L20 `src=cell` form, R-31 – R-33; the
   shared `notecard` component in esp-idf-components; a commissioning program
-  that talks to the Notecard on GPIO 43/44 beside the BME280; a User Manual
+  that talks to the Notecard on GPIO 43/44 beside the BME280 and measures the time and size of a 100-reading `tb.qo` note and of one hourly sync (FR-33.7, NFR-33.2); a User Manual
   section for the Notehub project and its routes.
 - **Exit criteria.** With `uplink` `cell` a timer wake adds its notes and is
   asleep within 10 s; the readings reach ThingsBoard, an alert reaches ntfy
@@ -427,7 +427,7 @@ testbench.
   nothing changes.
 - **Dependencies.** §32 (ThingsBoard batches and the upload mark), §31
   (alerts), §25 (summary), §22 (time), §26 (BLE settings), a NOTE-MBGLW and a
-  Notecarrier-A at the bench (R-31).
+  Notecarrier-X with its LTE antenna at the bench (R-31).
 
 ### 3.16 Phase 16: WiFi off
 
@@ -481,7 +481,7 @@ testbench.
 | R-30 | The bench offers no ThingsBoard server, so an upload has no automatic observer | Certain | Medium | The `tb_tx` and `telemetry_core` logic is host-tested; target tests need a ThingsBoard CE container on the bench network (testbench change request, never a project workaround); the production server is an operator check |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
 | R-28 | The testbench offers no ntfy server; the user's test server is at `http://192.168.2.231` (port 80) on the LAN, reached from the bench AP network; `192.168.2.37:8080` is ThingsBoard, not ntfy | Low | Medium | The cores are host-tested; the unreachable-server row runs on the target tier; if the bench AP stops reaching the server, the bench rows are blocked (testbench change request, never a project workaround) and run by the operator with the device on the user's own WiFi |
-| R-31 | The testbench has no Notecard and no cellular coverage is declared at the bench, so the cellular rows need a Notecard on SLOT1's bus and a Notehub project | Certain | Medium | The user fits the Notecarrier-A by Qwiic at the bench; until then the cellular rows are `not done` and the cores are host-tested |
+| R-31 | The testbench has no Notecard and no cellular coverage is declared at the bench, so the cellular rows need a Notecard on SLOT1's bus and a Notehub project | Certain | Medium | The user fits the Notecarrier-X by Qwiic at the bench; until then the cellular rows are `not done` and the cores are host-tested |
 | R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
 | R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`, `192.168.2.231`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
@@ -508,6 +508,7 @@ testbench.
 - Push notifications of routine readings or summaries; limits on add-on
   values; ntfy user-and-password sign-in, attachments, and servers with a
   self-signed certificate (§31). [user]
+- The Notecard's own WiFi (its WiFi-first order with cellular fallback, `card.wifi`); a later option for sites with an unreliable access point. [user]
 - Touch, GPIO 14 button, battery voltage, backlight dimming, PSRAM.
 - Uptime and request counter wrap after 2³² − 1.
 - Every ESP32-pack test family case not listed in a chapter here (curated subset,
@@ -3174,12 +3175,12 @@ holds, the composition root performs it.
 
 | Item | Value | Source |
 |------|-------|--------|
-| Modem | Blues Notecard Cell+WiFi NOTE-MBGLW (M.2 key E) | [user] |
-| Carrier | Blues Notecarrier-A: M.2 socket, LiPo connector and charger, Qwiic connectors, u.FL antennas | [proposed] |
+| Modem | Blues Notecard Cell+WiFi NOTE-MBGLW, hardware v2.5 (M.2 key E), the card the user owns; run on cellular only (FR-33.14) | [user] |
+| Carrier | Blues Notecarrier-X v1.3, the carrier the user owns: M.2 socket, USB-C, JST-PH LiPo connector and charger, a Qwiic and an ESLOV I2C connector (ESLOV also carries ATTN); no onboard antennas | [user] |
 | Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable from the carrier's I2C fan-out (§2.2), which also feeds the BME280 and the water probe board; no address clash with 0x76 or the water ADS1115's 0x48. The Notecard's own 10 kΩ pull-ups to its VIO join the bus, so the bus's pull-ups in parallel stay at or above about 2.2 kΩ | [proposed] |
-| Power | The Notecarrier's own LiPo (or USB) supplies the Notecard and its modem peaks (up to about 2 A); the cable joins GND, SDA and SCL only, its 3.3 V wire left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
-| ATTN | Not connected in the first build; the device polls the Notecard | [proposed] |
-| Antenna | LTE: the Notecarrier-A's onboard antenna, or one flexible LTE antenna on the Notecard's `MAIN` u.FL (its jumper to the onboard antenna unplugged), mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: not used by §33, so the `GPS` port's antenna needs no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
+| Power | The Notecarrier-X's own LiPo (or its USB-C) supplies the Notecard and its modem peaks (up to about 2 A), a LiPo of at least **2000 mAh** [proposed]: at hourly syncs (`cell_every` 60) the Notecard uses about **10 mAh a day** (Blues' published sync and idle figures; real use depends on signal, and each `sync:true` alert or email adds a session), so 2000 mAh lasts about 6 months between charges; the cable joins GND, SDA and SCL only, its 3.3 V wire left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
+| ATTN | Not connected in the first build (the Qwiic cable carries no ATTN; the ESLOV connector would); the device polls the Notecard | [proposed] |
+| Antenna | LTE: one flexible LTE antenna on the Notecard's `MAIN` u.FL, required because the Notecarrier-X has no onboard antenna, mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: not used by §33, so the `GPS` port's antenna needs no placement. WiFi: the Notecard's own WiFi is not used (FR-33.14), so its onboard WiFi antenna and `WIFI` u.FL need no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
 
 ### 33.3 Settings
 
@@ -3235,6 +3236,10 @@ Notecard setup:
   `nh_product`, `mode` `periodic`, `outbound` `cell_every` and `inbound`
   1440. A Notecard that does not answer within **2 s** [proposed] is logged
   as L44 and that boot's sends are dropped as failed (FR-33.10).
+- **FR-33.14** [Must] [user] On each boot with `uplink` `cell`, the device
+  shall set `card.transport` to `cell` when the Notecard reports another
+  transport, so the Notecard never scans for or joins a WiFi network and its
+  default WiFi-first order is not used; it never sends `card.wifi`.
 - **FR-33.5** [Must] [proposed] The device shall never cut the Notecard's
   power or reset it; the Notecard stays powered through deep sleep.
 
@@ -3249,8 +3254,11 @@ Sending:
 - **FR-33.7** [Must] [user] For ThingsBoard, the upload mark (FR-32.8) shall
   move when the Notecard answers a `note.add` to `tb.qo` without an error,
   because the Notecard then holds the batch until Notehub has it. An upload
-  carries every reading after the mark in notes of at most 100 readings, as
-  FR-32.7.
+  carries every reading after the mark in notes of at most **100**
+  readings [proposed], as FR-32.7. The commissioning program (Phase 15)
+  confirms that a note of 100 readings is accepted by the Notecard and added
+  within NFR-33.1's 10 s over the 100 kHz bus; if it is not, the limit is
+  **50** [proposed].
 - **FR-33.8** [Must] [user] Alerts and email shall be added with `sync:true`,
   so the Notecard connects at once; the device does not wait for that
   connection. An alert or email counts as sent (L39, L25) when the Notecard
@@ -3270,6 +3278,10 @@ Time:
   whose clock was never set (FR-22.6), the device shall ask the Notecard for
   the time (`card.time`) and, when it answers with a time, set the clock and
   mark readings synced as after an SNTP sync, logging L20 with `src=cell`.
+  In a window, when the Notecard has no time yet (it learns it only in a
+  session), the device shall request one `hub.sync` and ask `card.time`
+  again every **5 s** for up to **60 s** [proposed]; on a timer wake it asks
+  once and does not wait.
 
 Power and data:
 
@@ -3278,7 +3290,10 @@ Power and data:
   Notecard accepts them or not.
 - **NFR-33.2** [Should] [proposed] With the `std` setup (§28) and hourly
   ThingsBoard batches, the cellular data used shall stay under **4 MB a
-  month**, so the 500 MB included lasts the 10 years.
+  month**, so the 500 MB included lasts the 10 years. `tb.qo` uses a
+  Notefile template (`note.template`) [proposed], and the commissioning
+  program measures one hourly batch so the monthly figure is computed from
+  a measurement, not an estimate.
 
 ### 33.6 Verification contracts
 
@@ -3288,12 +3303,14 @@ Power and data:
 | FR-33.3 (core) | `uplink_core` with `uplink` `wifi` at a due upload, alert and summary | Every send on WiFi; no Notecard call | A note added with `uplink` `wifi` | host |
 | FR-33.3 | Shipped build, `uplink` `wifi`, a Notecard on the bus; reset and a timer wake | L43 and L44 never appear; the sends of §25, §31 as before | A Notecard line | target (R-31) |
 | FR-33.4 (core) | `notecard` core builds `hub.set` from stored values; answers that match and that differ | No `hub.set` when they match; one with the four fields when they differ | `hub.set` on every boot | host |
+| FR-33.14 (core) | `notecard` core with `card.transport` answers `wifi-cell`, `cell`, none | One `card.transport` `cell` for `wifi-cell` and for none; nothing for `cell` | `card.wifi` ever sent; a transport other than `cell` |
 | FR-33.7 (core) | `uplink_core` over 250 readings after the mark; the second `note.add` refused; then all accepted | Notes of 100, 100, 50 in order; the mark at 100 after the refusal, at 250 afterwards | The mark moved on a refused note | host |
 | FR-33.13 (core) | `uplink` `cell`, a summary due: `cell_mail` `route`; `off`; `off` then `route` at the next due time; `uplink` `wifi` with `off` | A `mail.qo` note; nothing due, the period advanced, mail settings kept; one note for the new period only; sent over WiFi as §25 | An email or note with `off` on cellular; a backlog of summaries | host |
 | FR-33.8, FR-33.9 (core) | Alert `t_high` and a summary with every token and password stored | `alert.qo` and `mail.qo` bodies as §33.4 with `sync:true`; no secret in any body | A token or password in a note | host |
 | FR-33.10 (core) | Answers: none, `{"err":"…"}`, `{"total":1}` | L44 `timeout`, L44 `err`, L43 | Success on an error reply | host |
 | FR-33.6, FR-33.11, NFR-33.1 | Sleep test build, `uplink` `cell`, a Notecard on the bench (R-31), an upload due on the next timer wake | `web: wake cause=timer`, L21, L43 `tb.qo`, `web: sleep` within 10 s; the event on Notehub; no WiFi start | WiFi on a timer wake; the panel lit | target (R-31) |
-| FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 | A reading with `at=none` after L20 | target (R-31) |
+| FR-33.12 (core) | Window, clock never set: `card.time` answers no time, then a time on the 4th ask; never a time; timer wake with no time | One `hub.sync`, asks at 5 s steps, clock set on the 4th; asks stop at 60 s; one ask, no wait | A second `hub.sync`; waiting on a timer wake | host |
+| FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 within 60 s | A reading with `at=none` after L20 | target (R-31) |
 | FR-33.8 | The user's routes set up, an alert and a summary due | The ntfy message and the email arrive | Nothing on the target with L43 logged | bench (operator) |
 | NFR-33.2 | A month of the `std` setup on cellular | Notehub's data use for the device under 4 MB | — | bench (operator) |
 
@@ -3370,7 +3387,7 @@ Behaviour with WiFi off:
 - **FR-34.8** [Must] [user] In WIFI_OFF the WiFi radio shall stay off in
   every boot, window and wake: no station, no SoftAP, no status server, OTA,
   mDNS, UDP log or SNTP, and nothing at the station or SoftAP MAC addresses
-  in a bench scan.
+  in a bench scan. The Notecard's own WiFi stays unused too (FR-33.14).
 - **FR-34.9** [Must] [user] The window after a boot that is not a timer
   wake (FR-21.2, FR-21.3, FR-21.11) shall run in WIFI_OFF as with WiFi on but
   without WiFi: the panel with its lines, the setup check (§24), the BLE key
@@ -3625,7 +3642,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.28.0
+fsd_version: 0.29.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3685,6 +3702,7 @@ change_history:
   - "0.26.0 2026-11-02 from the user's choice of separate attachable add-on boards: §2.2 gains the add-on boards (each analog add-on with its own ADS1115) and their connectors (proposed); §29.1 and §30.1 gain a Board row; §33.2 the Notecarrier joins by GND, SDA and SCL only, from the carrier's I2C fan-out (proposed); §29.1 peer wording"
   - "0.27.0 2026-11-02 from the user's antenna question (orientation of the Blues combined LTE + GPS antenna, can it be cut): §33.2 gains an Antenna row (proposed)"
   - "0.28.0 2026-11-02 from the user's request for an option to turn WiFi off with Bluetooth left as it is: §34 WiFi Off (FR-34.1 – FR-34.12), the WIFI_OFF state with T15 and T16 (§5.3) and its screen (§5.4), T10 and T14 from WIFI_OFF, exceptions for `wifi` `off` added to FR-5.11, FR-5.12, FR-13.4, FR-21.11, FR-21.12 and FR-33.6, §9.1, Phase 16; Appendix A `wifi`"
+  - "0.29.0 2026-11-02 from the user's acceptance of the Notecard review (the NOTE-MBGLW v2.5 the user owns, on a Notecarrier-X v1.3, run on cellular only): §2.2 and §33.2 name the card and carrier (user), the antenna row needs one flexible LTE antenna (no onboard antenna on the Notecarrier-X) and leaves the WiFi antenna unplaced, the power row gains the 10 mAh-a-day estimate and a 2000 mAh LiPo; FR-33.14 cellular-only transport (user); FR-33.12 one hub.sync and 60 s of time polls in a window; FR-33.7 100 readings confirmed by commissioning, else 50; NFR-33.2 a Notefile template and a measured batch; FR-34.8 covers the Notecard's WiFi; §4.3 the Notecard's WiFi out of scope; Phase 15 commissioning measures batch time and size"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§34 WiFi Off as a whole, drafted for the user's approval"
@@ -3698,8 +3716,9 @@ open_decisions:
   - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
   - "NFR-30.1: port on at most rs_timeout_ms + 50 ms"
   - "§33.3: cell_mail default off (email over cellular needs the user's mail service and route first)"
-  - "§33.2: Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier's own LiPo for modem peaks, ATTN not connected"
-  - "§33.2: antenna on the onboard or one vertical flexible LTE antenna, 10 mm clearance, the combined antenna never cut, GPS unplaced"
+  - "§33.2: I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier-X's own LiPo of at least 2000 mAh for modem peaks, ATTN not connected"
+  - "§33.2: one vertical flexible LTE antenna on MAIN, 10 mm clearance, the combined antenna never cut, GPS and WiFi antennas unplaced"
+  - "FR-33.12: one hub.sync and card.time every 5 s for up to 60 s in a window; FR-33.7: 100 readings a note, else 50; NFR-33.2: tb.qo Notefile template"
   - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"
   - "FR-33.4, FR-33.10: 2 s Notecard answer limit; FR-33.5: Notecard never power-cycled"
   - "NFR-33.1: asleep within 10 s on a timer wake that sends notes; NFR-33.2: under 4 MB a month"

@@ -271,10 +271,10 @@ def build_parts(used):
     add(module_part("tds3a_bme280", ["BME280", "0x76"], "built",
                     left=["VIN", "GND", "SCL", "SDA"], w=900, color="#5b2a86",
                     desc="BME280 breakout (I2C 0x76)"))
-    add(module_part("tds3a_notecarrier_a", ["Notecarrier-A", "+ Notecard MBGLW"],
+    add(module_part("tds3a_notecarrier_a", ["Notecarrier-X", "+ Notecard MBGLW"],
                     "specified", left=["GND", "3V3", "SDA", "SCL"], right=["BAT-", "BAT+"],
                     w=1300, color="#0d47a1", notes=["Qwiic, I2C 0x17"],
-                    desc="Blues Notecarrier-A with Notecard Cell+WiFi NOTE-MBGLW"))
+                    desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5"))
     # 4-20 mA loop input, FSD section 29
     # Pin names are the parts' own (docs/Method/project/loop-circuit.md, "Parts").
     add(module_part("tds3a_load_switch", ["Load switch"], "built",
@@ -696,7 +696,7 @@ def sheet_core(S):
         "# Board, battery, BME280 (FSD 23, on main), cellular (FSD 33, not built)",
         "BME280 at 0x76 on SDA GPIO 43 / SCL GPIO 44, 3.3 V. The keys (GPIO 0, 21)",
         "and the green LED (GPIO 38) are on the board: nothing to wire.",
-        "Notecarrier-A by a Qwiic cable (I2C 0x17), GND, SDA and SCL only: its 3.3 V",
+        "Notecarrier-X by a Qwiic cable (I2C 0x17), GND, SDA and SCL only: its 3.3 V",
         "wire stays unconnected, and its own LiPo feeds the Notecard and the modem.",
         "Title bars: green = firmware on main; blue = in the FSD, not built yet;",
         "orange = proposed, not in the FSD.",
