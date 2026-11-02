@@ -326,8 +326,13 @@ static size_t ble_read_info(char *out, size_t cap)
 
 static size_t ble_read_settings(char *out, size_t cap)
 {
-    return bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(),
-                     notify_settings(), out, cap);  // FR-26.9, FR-28.3, FR-29.11, FR-31.2
+    static nf_settings_t alerts;  // the NimBLE host task only
+    alerts = *notify_settings();
+    strlcpy(alerts.topic, notify_topic(), sizeof alerts.topic);  // FR-31.3, as the portal shows it
+    size_t n = bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(), &alerts,
+                         out, cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2
+    memset(alerts.token, 0, sizeof alerts.token);
+    return n;
 }
 
 // FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.

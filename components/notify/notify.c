@@ -59,22 +59,30 @@ const char *notify_take(const char *body, size_t len)
 
 static char form[2048];
 
+const char *notify_topic(void)
+{
+    load();
+    if (settings.topic[0]) {
+        return settings.topic;
+    }
+    static char suggested[NT_TOPIC_MAX + 1];  // FR-31.3: hard to guess, drawn once
+    if (!suggested[0]) {
+        strlcpy(suggested, "tds3-", sizeof suggested);
+        for (int i = 0; i < 12; i++) {
+            suggested[5 + i] = (char)('a' + esp_random() % 26);
+        }
+        suggested[17] = '\0';
+    }
+    return suggested;
+}
+
 const char *notify_form_html(void)
 {
     if (form[0]) {
         return form;
     }
     load();
-    char topic[NT_TOPIC_MAX + 1];
-    if (settings.topic[0]) {
-        strlcpy(topic, settings.topic, sizeof topic);
-    } else {  // FR-31.3: hard to guess
-        strlcpy(topic, "tds3-", sizeof topic);
-        for (int i = 0; i < 12; i++) {
-            topic[5 + i] = (char)('a' + esp_random() % 26);
-        }
-        topic[17] = '\0';
-    }
+    const char *topic = notify_topic();
     char lim[NF_QTY][2][12];
     for (int q = 0; q < NF_QTY; q++) {
         for (int hi = 0; hi < 2; hi++) {

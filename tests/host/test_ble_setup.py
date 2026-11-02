@@ -1,6 +1,7 @@
 """Host tier: BLE Setup (FSD §26) — the window logic, line 5, the settings
 body, the long hold of the user key and the log lines."""
 
+import pathlib
 import re
 
 import pytest
@@ -287,14 +288,14 @@ def test_key_window_write_checks_the_loop(bset, body, expected):
 def test_form_rules_cover_every_field(bset):
     import urllib.parse as up
     n, body = bset("form").split("|", 1)
-    assert int(n) == len(body) < 4096
+    assert int(n) == len(body.encode()) < 4096                         # BLE_SETUP_FORM_MAX
     rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
              for k, v in up.parse_qsl(body, keep_blank_values=True)}
     shown = [k[:-4] if k.endswith("_set") else k
              for k, _ in up.parse_qsl(bset("dump", "1"), keep_blank_values=True)]
     assert list(rules) == shown
     assert all(r.get("label") for r in rules.values())
-    assert rules["ssid"] == {"label": "Network name (WiFi)", "required": "1",
+    assert rules["ssid"] == {"section": "WiFi", "label": "Network name", "required": "1",
                             "maxlength": "32"}                      # FR-13.4
     assert (rules["password"]["minlength"], rules["password"]["maxlength"]) == ("8", "63")
     mail = [k for k in rules if k.startswith("mail_")]
@@ -302,7 +303,9 @@ def test_form_rules_cover_every_field(bset):
     assert {k for k in mail if rules[k].get("need")} == {
         "mail_host", "mail_port", "mail_user", "mail_password", "mail_to", "mail_time",
         "mail_every"}
-    assert rules["mail_port"]["options"] == "465,587"
+    assert rules["mail_port"]["options"] == ",465,587"                  # none allowed
+    assert rules["setup"]["options"].split(",") == ["std", "fine", "slow", "custom"]  # FR-28.1
+    assert rules["setup"]["extras"].split(",") == ["quick", "cycle"]
     assert (rules["mail_every"]["min"], rules["mail_every"]["max"]) == ("1", "24")
     assert (rules["sample_min"]["min"], rules["sample_min"]["max"]) == ("1", "60")
 
@@ -311,8 +314,6 @@ def test_form_rules_cover_every_field(bset):
 @pytest.mark.parametrize("name,value,ok", [
     ("mail_host", "smtp.gmail.com", True), ("mail_host", "mail-1.example.org", True),
     ("mail_host", "smtp gmail.com", False), ("mail_host", "smtp_gmail", False),
-    ("setup", "std", True), ("setup", "custom,quick,cycle", True), ("setup", " fine , cycle", True),
-    ("setup", "standard", False), ("setup", "std;quick", False), ("setup", "", False),
     ("loop_name", "Tank_1-a", True), ("loop_name", "a b", False), ("loop_name", "", False),
     ("loop_name", "abcdefghijklm", False), ("loop_unit", "m3/h", True), ("loop_unit", "a,b", False),
     ("loop_lo", "-99999.999", True), ("loop_lo", "4", True), ("loop_lo", "1e3", False),
@@ -389,3 +390,132 @@ def test_log_lines(compile_harness):
     assert run().splitlines() == ["ble on reason=key", "ble pairing ok", "ble pairing failed",
                                   "ble settings ok", "ble settings invalid=mail_port",
                                   "ble off reason=idle"]
+
+
+# The portal form (§13.2, §25.2, §28.2, §29.4, §31.2) as the C sources state it.
+PORTAL_PARTS = [  # file, first and last text of its form HTML
+    ("shared/components/portal/portal.c", "<body><h1>", "</label></p>\";"),
+    ("components/summary/summary.c", "<h2>Email summary", "hours</label></p>\";"),
+    ("components/sampling/sampling.c", "<h2>Readings", "10 min)</label></p>\";"),
+    ("components/loop/loop.c", "<h2>4-20 mA", "ms</label></p>\";"),
+    ("components/notify/notify.c", "<h2>Push alerts", "mbar</p>\","),
+]
+
+
+def _portal_html():
+    import codecs
+    root = pathlib.Path(__file__).resolve().parents[2]
+    html = ""
+    for rel, first, last in PORTAL_PARTS:
+        src = (root / rel).read_text()
+        a = src.index(first)
+        a = src.rindex('"', 0, a)  # the literal it starts in
+        part = src[a:src.index(last, a) + len(last)]
+        for lit in re.findall(r'"((?:[^"\\]|\\.)*)"', part):  # macros between them drop out
+            html += codecs.decode(lit, "unicode_escape").encode("latin-1").decode("utf-8")
+    return html.replace("%%", "%").replace('value="%s"', "").replace("%s", "")
+
+
+def _portal_fields():
+    """Each named control of the portal form, in order, with its label text, its
+    section heading and intro text before it, its attributes, options and unit."""
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.fields, self.extras = [], []
+            self.section = self.intro = None
+            self.tag = None
+            self.text = ""
+            self.label = None
+            self.cur = None
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag in ("h2", "p") and self.label is None:
+                self.tag, self.text = tag, ""
+            if tag == "label":
+                self.label, self.text, self.tag = "", "", None  # a <p> of a label is no intro
+            if tag in ("input", "select") and a.get("name"):
+                if a.get("type") == "checkbox":
+                    self.extras.append((a["name"], a["value"]))
+                    self.cur = ("extra", a["value"])
+                    return
+                f = {"name": a["name"], "attrs": a, "label": self.text.strip(),
+                     "section": self.section, "intro": self.intro, "options": [], "unit": ""}
+                self.section = self.intro = None
+                self.fields.append(f)
+                self.cur = f
+                self.text = ""
+            if tag == "option":
+                self.opt = a.get("value")
+                self.text = ""
+
+        def handle_endtag(self, tag):
+            if tag == "option":
+                v = self.opt if self.opt is not None else self.text.strip()
+                self.cur["options"].append((v, self.text.strip()))
+                self.text = ""
+            if tag == "label" and isinstance(self.cur, dict):
+                self.cur["unit"] = self.text.strip()
+                self.label = None
+                self.cur = None
+            elif tag == "label":
+                self.label = None
+            if tag == "h2" and self.tag == "h2":
+                self.section, self.tag = self.text.strip(), None
+            if tag == "p" and self.tag == "p" and self.label is None:
+                t = self.text.strip()
+                if t and not t.startswith("Fields marked") and not t.startswith("Run first"):
+                    self.intro = t
+                self.tag = None
+
+        def handle_data(self, d):
+            self.text += d
+
+    p = P()
+    p.feed(_portal_html())
+    return p.fields, p.extras
+
+
+# Where the portal's layout puts two boxes on one line, the BLE page (one box
+# per line) names the second in full.
+INLINE_LABELS = {"loop_hi": "at 20 mA", "alert_t_hi": "or above", "alert_rh_hi": "or above",
+                 "alert_p_hi": "or above"}
+ATTR_CHECKS = ["type", "minlength", "maxlength", "min", "max", "step", "pattern",
+               "placeholder", "inputmode"]
+
+
+# TC-BLE-33 · FR-26.21 (core): the page's form is the portal form: the same
+# fields in the same order, sections, intro text, labels, choices, units and checks
+def test_form_rules_match_the_portal_form(bset):
+    import urllib.parse as up
+    body = bset("form").split("|", 1)[1]
+    rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
+             for k, v in up.parse_qsl(body, keep_blank_values=True)}
+    fields, extras = _portal_fields()
+    assert [f["name"] for f in fields] == list(rules)
+    for f in fields:
+        r, name = rules[f["name"]], f["name"]
+        if name in INLINE_LABELS:
+            assert f["label"] == INLINE_LABELS[name]
+        else:
+            assert r["label"] == f["label"], name
+        if f["section"] or name != "ssid":  # the portal's WiFi fields sit under its h1
+            assert r.get("section") == f["section"], name
+        assert r.get("intro") == f["intro"], name
+        for a in ATTR_CHECKS:
+            if a == "type" and f["attrs"].get("type") == "password":
+                continue  # a secret: the page draws it as one
+            assert r.get(a) == f["attrs"].get(a), (name, a)
+        if f["options"]:
+            assert r["options"].split(",") == [v for v, _ in f["options"]], name
+            labels = r.get("labels", "").split("|") if r.get("labels") else []
+            shown = [labels[i] if i < len(labels) and labels[i] else (v or "-")
+                     for i, (v, _) in enumerate(f["options"])]
+            assert shown == [t for _, t in f["options"]], name
+        if f["unit"]:
+            assert f["unit"] == " ".join(filter(None, [r.get("unit"), r.get("hint") and
+                                                       f"({r['hint'][0].lower()}{r['hint'][1:-1]})"])), name
+    assert [(n, v) for n, v in extras] == [("setup", v) for v in rules["setup"]["extras"].split(",")]

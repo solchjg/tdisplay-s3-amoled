@@ -2652,6 +2652,58 @@ tests:
     impl: manual (FSD §26.4 contract)
     result: {status: not done}
 
+  - id: TC-BLE-33
+    title: "The BLE form description is the portal form"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.21, FR-26.19]
+    needs: []
+    observable: "the rules against the portal form HTML in the sources: fields in order, sections, intros, labels, option values and texts, extras, units, checks"
+    impl: tests/host/test_ble_setup.py::test_form_rules_match_the_portal_form
+    result: {status: not done}
+
+  - id: TC-BLE-34
+    title: "The BLE page draws the described form and writes what passes"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.19, FR-26.21]
+    needs: []
+    observable: "the page in headless Chromium against a simulated device (skips without node and Playwright)"
+    impl: [shared/tests/host/test_ble_page.py]
+    result: {status: not done}
+
+  - id: TC-BLE-35
+    title: "The BLE address is new whenever no bond is held"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.22]
+    needs: []
+    observable: "pure core driven by a C harness: static random address from random bytes; kept only with a stored address and a bond"
+    impl: [shared/tests/host/test_ble_setup.py::test_static_address, shared/tests/host/test_ble_setup.py::test_address_kept_only_while_bonded]
+    result: {status: not done}
+
+  - id: TC-BLE-36
+    title: "A phone that kept an erased pairing pairs afresh"
+    shape: atomic
+    kind: standard
+    wave: 3
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.22, FR-26.1, FR-26.6]
+    needs: [bench-ble-pair-passkey, operator-at-bench, dut-amoled-slot1]
+    observable: "operator: pair in a key window, factory reset, provision over BLE from the same phone without removing the device: a new passkey on the first try"
+    impl: manual (FSD §26.4 contract)
+    result: {status: not done}
+
   - id: TC-PORT-20
     title: "The portal form checks fields and keeps what was typed"
     shape: atomic

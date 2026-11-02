@@ -167,81 +167,110 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
     return b.len;
 }
 
-// FR-26.19: each field's rules, as the portal form (§13.2, §25.2, §28.2) states
-// them. Pairs of name and value, NULL-terminated per field.
+// FR-26.19: each field's rules, the portal form's (§13.2, §25.2, §28.2,
+// §29.4, §31.2) labels, choices, units, sections and checks, in its order.
+// Pairs of name and value, NULL-terminated per field.
 #define MAIL "group", "mail"
 #define NEED "need", "1"
-static const char *const RULES[][15] = {
-    {"ssid", "label", "Network name (WiFi)", "required", "1", "maxlength", "32", NULL},
-    {"password", "label", "WiFi password", "minlength", "8", "maxlength", "63", "hint",
-     "Empty for an open network, else 8 - 63 characters.", NULL},
-    {"mail_host", "label", "SMTP server", MAIL, NEED, "maxlength", "64", "pattern",
-     "[A-Za-z0-9.\\-]+", "hint",
-     "Email is optional: fill every starred mail field, or none. Gmail: smtp.gmail.com", NULL},
-    {"mail_port", "label", "SMTP port", MAIL, NEED, "options", "465,587", NULL},
+#define LIMIT(name, label, step, lo, hi, unit) \
+    {name, "label", label, "type", "number", "step", step, "min", lo, "max", hi, "unit", unit, NULL}
+static const char *const RULES[][24] = {
+    {"ssid", "section", "WiFi", "label", "Network name", "required", "1", "maxlength", "32", NULL},
+    {"password", "label", "Password (empty for an open network, else 8 – 63 characters)",
+     "minlength", "8", "maxlength", "63", NULL},
+    {"mail_host", "section", "Email summary (optional)", "intro",
+     "Fill every starred field, or leave them all empty for no email.", "label",
+     "SMTP server (Gmail: smtp.gmail.com)", MAIL, NEED, "maxlength", "64", "pattern",
+     "[A-Za-z0-9.\\-]+", NULL},
+    {"mail_port", "label", "Port", MAIL, NEED, "options", ",465,587", NULL},
     {"mail_user", "label", "Login", MAIL, NEED, "maxlength", "64", NULL},
-    {"mail_password", "label", "Mail password", MAIL, NEED, "maxlength", "64", "hint",
-     "Gmail: an app password.", NULL},
+    {"mail_password", "label", "Password (Gmail: app password)", MAIL, NEED, "maxlength", "64",
+     NULL},
     {"mail_from", "label", "From (if not the login)", MAIL, "type", "email", "maxlength", "64",
      NULL},
     {"mail_to", "label", "Send to", MAIL, NEED, "type", "email", "maxlength", "64", NULL},
     {"mail_to2", "label", "Also send to (optional)", MAIL, "type", "email", "maxlength", "64",
      NULL},
     {"mail_time", "label", "First summary at", MAIL, NEED, "type", "time", NULL},
-    {"mail_every", "label", "Then every (hours)", MAIL, NEED, "type", "number", "min", "1",
-     "max", "24", NULL},
-    {"setup", "label", "Setup", "required", "1", "pattern",
-     " *(std|fine|slow|custom|quick|cycle) *(, *(std|fine|slow|custom|quick|cycle) *)*",
-     "hint", "One of std, fine, slow or custom, then quick and/or cycle to run first, "
-     "comma separated.", NULL},
-    {"sample_min", "label", "Custom: a reading every (minutes)", "type", "number", "min", "1",
-     "max", "60", NULL},
-    {"average_min", "label", "Custom: average them over (minutes)", "type", "number", "min",
-     "2", "max", "1440", "hint", "A whole number of readings, dividing a day.", NULL},
-    {"loop", "label", "4-20 mA input", "options", "off,in", "hint",
-     "in: read a 4-20 mA transmitter at each reading.", NULL},
-    {"loop_name", "label", "Loop name", "maxlength", "12", "pattern", "[A-Za-z0-9_\\-]{1,12}",
+    {"mail_every", "label", "Then every", MAIL, NEED, "type", "number", "min", "1", "max", "24",
+     "unit", "hours", NULL},
+    {"setup", "section", "Readings", "label", "Setup", "required", "1", "options",
+     "std,fine,slow,custom", "labels",
+     "Standard: every 10 min, 60 min averages|Frequent: every 1 min, 15 min averages|"
+     "Battery saver: every 30 min, 180 min averages|Custom: the minutes below",
+     "extras", "quick,cycle", "extras_intro", "Run first, once:", "extra_labels",
+     "Quick check (12 readings, 10 s apart, 2 min)|"
+     "Sleep cycle check (20 readings, 30 s asleep between, 10 min)", NULL},
+    {"sample_min", "label", "Custom: a reading every", "type", "number", "min", "1", "max", "60",
+     "placeholder", "10", "unit", "minutes", NULL},
+    {"average_min", "label", "Custom: average them over", "type", "number", "min", "2", "max",
+     "1440", "placeholder", "60", "unit", "minutes", "hint",
+     "A whole number of readings, dividing a day.", NULL},
+    {"loop", "section", "4-20 mA input", "label", "Loop", "options", "off,in", "labels",
+     "Off|On: read a transmitter", NULL},
+    {"loop_name", "label", "Name", "maxlength", "12", "pattern", "[A-Za-z0-9_\\-]{1,12}",
+     "placeholder", "loop", NULL},
+    {"loop_unit", "label", "Unit", "maxlength", "6", "pattern", "[^,]{0,6}", "placeholder", "mA",
      NULL},
-    {"loop_unit", "label", "Loop unit", "maxlength", "6", "pattern", "[^,]{0,6}", NULL},
-    {"loop_lo", "label", "Value at 4 mA", "pattern", "-?[0-9]{1,5}(\\.[0-9]{1,3})?", NULL},
-    {"loop_hi", "label", "Value at 20 mA", "pattern", "-?[0-9]{1,5}(\\.[0-9]{1,3})?", "hint",
-     "Not equal to the value at 4 mA.", NULL},
-    {"loop_warm_ms", "label", "Loop settle time (ms)", "type", "number", "min", "50", "max",
-     "5000", NULL},
-    {"ntfy", "label", "Push alerts", "options", "off,on", "hint",
-     "Alerts through an ntfy server; on needs the server and topic.", NULL},
-    {"ntfy_url", "label", "ntfy server", "maxlength", "96", "pattern",
-     "https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?", "hint", "e.g. http://192.168.2.231", NULL},
-    {"ntfy_topic", "label", "ntfy topic", "maxlength", "64", "pattern", "[A-Za-z0-9_\\-]+", NULL},
-    {"ntfy_token", "label", "ntfy access token (optional)", "maxlength", "64", NULL},
-    {"alert_t_lo", "label", "Alert: temperature below (F)", "type", "number", "step", "0.1",
-     "min", "-40", "max", "185", NULL},
-    {"alert_t_hi", "label", "Alert: temperature above (F)", "type", "number", "step", "0.1",
-     "min", "-40", "max", "185", NULL},
-    {"alert_rh_lo", "label", "Alert: humidity below (%)", "type", "number", "min", "0", "max",
-     "100", NULL},
-    {"alert_rh_hi", "label", "Alert: humidity above (%)", "type", "number", "min", "0", "max",
-     "100", NULL},
-    {"alert_p_lo", "label", "Alert: pressure below (mbar)", "type", "number", "step", "0.01",
-     "min", "300", "max", "1100", NULL},
-    {"alert_p_hi", "label", "Alert: pressure above (mbar)", "type", "number", "step", "0.01",
-     "min", "300", "max", "1100", NULL},
+    {"loop_lo", "label", "Value at 4 mA", "inputmode", "decimal", "pattern",
+     "-?[0-9]{1,5}(\\.[0-9]{1,3})?", "placeholder", "4", NULL},
+    {"loop_hi", "label", "Value at 20 mA", "inputmode", "decimal", "pattern",
+     "-?[0-9]{1,5}(\\.[0-9]{1,3})?", "placeholder", "20", NULL},
+    {"loop_warm_ms", "label", "Settle time", "type", "number", "min", "50", "max", "5000",
+     "placeholder", "300", "unit", "ms", NULL},
+    {"ntfy", "section", "Push alerts (optional)", "intro",
+     "Alerts go to an ntfy server when a reading passes a limit, the sensor or history fails, "
+     "or a test ends.", "label", "Alerts", "options", "off,on", NULL},
+    {"ntfy_url", "label", "ntfy server (e.g. http://192.168.2.231)", "maxlength", "96",
+     "pattern", "https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?", NULL},
+    {"ntfy_topic", "label", "Topic", "maxlength", "64", "pattern", "[A-Za-z0-9_\\-]+", NULL},
+    {"ntfy_token", "label", "Access token (optional)", "maxlength", "64", NULL},
+    {"alert_t_lo", "intro", "Limits, empty for none:", "label", "Temperature below", "type",
+     "number", "step", "0.1", "min", "-40", "max", "185", "unit", "F", NULL},
+    LIMIT("alert_t_hi", "Temperature above", "0.1", "-40", "185", "F"),
+    {"alert_rh_lo", "label", "Humidity below", "type", "number", "min", "0", "max", "100", "unit",
+     "%", NULL},
+    {"alert_rh_hi", "label", "Humidity above", "type", "number", "min", "0", "max", "100", "unit",
+     "%", NULL},
+    LIMIT("alert_p_lo", "Pressure below", "0.01", "300", "1100", "mbar"),
+    LIMIT("alert_p_hi", "Pressure above", "0.01", "300", "1100", "mbar"),
 };
+#undef LIMIT
 #undef MAIL
 #undef NEED
+
+// "&name=value" for the rules: only the bytes a form body gives a meaning
+// (% & = +) are escaped, which keeps the twice-encoded rules short.
+static void rule(buf_t *b, const char *name, const char *value)
+{
+    if (b->len > 0) {
+        put(b, "&", 1);
+    }
+    puts_(b, name);
+    put(b, "=", 1);
+    for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
+        if (*p == '%' || *p == '&' || *p == '=' || *p == '+' || *p < 0x20) {
+            char esc[4];
+            snprintf(esc, sizeof esc, "%%%02X", *p);
+            put(b, esc, 3);
+        } else {
+            put(b, (const char *)p, 1);
+        }
+    }
+}
 
 size_t bset_form(char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
     for (size_t i = 0; i < sizeof RULES / sizeof RULES[0]; i++) {
-        char inner[320];
+        char inner[512];
         buf_t r = {inner, sizeof inner, 0, false};
         inner[0] = '\0';
         for (size_t k = 1; RULES[i][k]; k += 2) {
-            field(&r, RULES[i][k], RULES[i][k + 1]);
+            rule(&r, RULES[i][k], RULES[i][k + 1]);
         }
-        field(&b, RULES[i][0], inner);
+        rule(&b, RULES[i][0], inner);
     }
     return b.len;
 }

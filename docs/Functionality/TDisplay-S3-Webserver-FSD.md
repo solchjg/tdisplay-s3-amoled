@@ -2156,11 +2156,18 @@ Security:
   window by encryption alone, without a new passkey; a factory reset (T10)
   and a `forget` written to `control` (the page's *Forget all phones*) erase
   them. A central that starts encryption with a key the device does not
-  hold is disconnected at once. After
+  hold is disconnected at once (FR-26.22). After
   **3** failed pairings in one window it shall close a key window, or pause
   advertising for **60 s** in PROVISIONING.
 - **FR-26.15** [Must] [derived from FR-26.11] At most one central shall be
   connected at a time; while one is connected the device does not advertise.
+- **FR-26.22** [Must] [proposed, from the user's report that pairing failed
+  after an erase] The device shall advertise at a static random address kept
+  in NVS, used again while it holds at least one bond and replaced by a new
+  random one at a window's start whenever it holds none (an erased flash, a
+  factory reset, a `forget`). A phone that kept its half of a pairing the
+  device no longer holds then meets a new device and pairs afresh, without the
+  device being removed from the phone first.
 
 Display and log:
 
@@ -2181,7 +2188,7 @@ Coexistence:
 - **FR-26.18** [Must] [derived from §9.1 and FR-26.3] The firmware shall
   initialise the BLE controller only when a window opens, and release it when
   the window closes; with no window open, nothing advertises at the ESP32-S3's
-  derived MAC addresses (base MAC + 0 … + 3).
+  derived MAC addresses (base MAC + 0 … + 3) or at the address of FR-26.22.
 - **NFR-26.1** [Must] [user] 10 s after a window closes, `free_heap` shall
   be within **8 KB** of its value before the window opened.
 
@@ -2193,7 +2200,10 @@ The setup page:
   form body with one `<name>=<rules>` per field (a secret by its name), where
   `<rules>` is itself a form body of `label`, `required`, `group` and `need`
   (required once any field of the group is filled), `type`, `minlength`,
-  `maxlength`, `min`, `max`, `pattern`, `options` and `hint`. The page shall
+  `maxlength`, `min`, `max`, `step`, `pattern`, `options` (a leading empty item
+  allows none) with their `labels`, `extras` (checkboxes added to a choice) with
+  `extra_labels` and `extras_intro`, `placeholder`, `inputmode`, `unit`,
+  `section`, `intro` and `hint`. The page shall
   check every field against them before it writes, mark required fields with
   `*`, and write nothing while a field fails. A stored secret left empty is
   never required (it keeps the stored one, FR-26.7).
@@ -2201,6 +2211,13 @@ The setup page:
   keep every value typed and name the field by its label, marked until it is
   changed; values typed and not saved shall also be kept when the page
   reconnects to the same device and draws the form again.
+- **FR-26.21** [Must] [user] The page shall draw the portal form of §13.2
+  (with §25.2, §28.2, §29.4 and §31.2): the same fields in the same order, under
+  the same section headings with the same intro text, with the same labels
+  (a second box the portal puts on the same line named in full, e.g.
+  *Temperature above*), choices and their texts (the setup and its tests as a
+  choice and checkboxes), units, placeholders and checks, and the same
+  suggested ntfy topic (FR-31.3) while none is stored.
 
 ### 26.4 Verification contracts
 
@@ -2225,8 +2242,12 @@ The setup page:
 | FR-26.17 | Key window open; relay `POST /ota` | 409, no download, the window stays open | A download | bench (operator) |
 | NFR-26.1 | ONLINE; `free_heap` from `/api/status`; open and close a key window | Within 8 KB 10 s after L30 | A larger loss | bench (operator) |
 | FR-26.4 | Sleep test build, timer wake; bench scans through it | No advertiser | An advertiser on a timer wake | target |
-| FR-26.18 | ONLINE, no window; bench BLE scan 30 s | No advertiser at base MAC + 0 … + 3 | Such an advertiser | bench |
-| FR-26.19 (core) | Read the form description; parse it and the `settings` dump | One rule set per field shown, each with a label; `ssid` required ≤ 32; `password` 8 – 63; every mail field in group `mail`, the seven of FR-25.1 `need`; port options 465,587; `mail_host` and `setup` patterns accept and refuse what the device does | A field without rules; a rule looser or stricter than §13, §25.2, §28 | host |
+| FR-26.18 | ONLINE, no window; bench BLE scan 30 s | No advertiser at base MAC + 0 … + 3 or at the FR-26.22 address seen in the last window | Such an advertiser | bench |
+| FR-26.22 (core) | Random bytes through the address rule; the keep rule with and without a stored address and bonds | A static random address (top two bits set), all-0 and all-1 refused; kept only with a stored address and a bond | The public address; an address kept with no bond | host |
+| FR-26.22 | Phone paired in a key window; factory reset (T10); provision again over BLE from the same phone without removing the device from it | The page pairs with a new passkey on its first try; L28 `ok` | A stale-key disconnect; the page asking to remove the device | bench (operator) |
+| FR-26.19 (core) | Read the form description; parse it and the `settings` dump | One rule set per field shown, each with a label; `ssid` required ≤ 32; `password` 8 – 63; every mail field in group `mail`, the seven of FR-25.1 `need`; port options none,465,587; `setup` options std,fine,slow,custom with extras quick,cycle; the `mail_host` and loop patterns accept and refuse what the device does | A field without rules; a rule looser or stricter than §13, §25.2, §28 | host |
+| FR-26.21 (core) | The form description against the portal form HTML in the sources | Same fields in order, sections, intro text, labels, option values and texts, extras, units and checks | Any difference but the named full labels of second boxes | host |
+| FR-26.19, FR-26.21 (page) | The page in a headless browser against a simulated device | Headings, intros, units, labelled choices and checkboxes drawn; the choice and ticked extras written as one value; a 2-decimal pressure limit written; nothing written while a field fails | A decimal limit refused by the browser; an empty choice not in the rules | host |
 | FR-26.19, FR-26.20 | Key window, paired from the setup page: fill only `mail_host`; save; empty it; type a 7-character WiFi password; save; then `setup` custom, `average_min` 7; save; disconnect and reconnect; `average_min` 60; save | Nothing written the first two times; `result` `invalid=average_min`, the page names *Custom: average them over* with every value kept, and still after the reconnect; then `ok` | A write with a partial mail group; a value lost | bench (operator) |
 | FR-26.18 (core) | Transition function over every §5.3 row and window event | BLE start only on a window opening; BLE stop on every closing and before every restart | A start without a window; a window left open across T10, T11, T13 or T14 | host |
 
@@ -3425,7 +3446,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.22.1
+fsd_version: 0.22.2
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3476,9 +3497,11 @@ change_history:
   - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
   - "0.21.0 2026-11-02 the user accepted every proposed §29 value (GPIO 3 supply enable, the shunt, the loop ADS1115 and its bus, the loop field lengths and settle range, a mean of 4, the 50 ms supply margin, the FR-6.14 line tops); the loop ADS1115 runs at 128 SPS (§29.1, FR-29.2 contract); the loop supply is fed from the battery/system rail (§2, §29.1, Appendix A)"
   - "0.22.0 2026-11-02 (drafted as 0.16.0 beside main) from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.15, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14) and a `services` master switch over ntfy and ThingsBoard (FR-32.15), both from the user's request, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated"
-  - 0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row
+  - "0.22.2 2026-11-02 BLE setup from the user's bench report (pairing failed after an erase, the BLE page unlike the WiFi form): FR-26.21 the page draws the portal form (user), FR-26.19 rules gain step, option labels, extras, placeholder, inputmode, unit, section and intro, FR-26.22 a static random address replaced while no bond is held (proposed), FR-26.18 names it"
+  - "0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
+  - "FR-26.22: a static random BLE address, replaced whenever no bond is held (phones keep a stale entry for the old one)"
   - "§30.1, C-30.1: UART1 on TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 (to confirm by loopback commissioning)"
   - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
   - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
