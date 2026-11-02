@@ -142,7 +142,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE 5 used only inside a setup window (§26, FR-26.18), sharing the radio by ESP-IDF software coexistence | [derived from the board] |
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
-| 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply enabled by GPIO 3, 100 Ω shunt, ADS1115 at 0x49 behind an I2C isolator on GPIO 43/44 (§29) | [user]; pin, address and parts [proposed] |
+| 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail, enabled by GPIO 3, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) behind an I2C isolator on GPIO 43/44 (§29) | [user] |
 | RS232 instrument (optional) | One instrument on a DE-9 (DTE): TRS3221E / MAX3221E transceiver, UART1 TX GPIO 11, RX GPIO 12, transceiver power GPIO 13 (§30) | [user]; pins and parts [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
@@ -872,8 +872,8 @@ detected (R-2).
   536 × 240 visible area shall be cleared to black, leaving no lit pixels outside
   the text lines.
 - **FR-6.14** [Must] [user] Lines 1 – 6 shall not overlap and shall lie
-  entirely inside the visible area: tops at 8, 48, 88, 128, 168 and 208 px
-  [proposed], 8 px apart. A line of 44 characters on line 6 shall be
+  entirely inside the visible area: tops at 8, 48, 88, 128, 168 and 208 px,
+  8 px apart. A line of 44 characters on line 6 shall be
   displayed in full (44 × 12 px = 528 px of the 536).
 - **FR-6.13** [Must] [user] A line of 33 characters shall be displayed in full,
   without clipping or wrapping (33 × 16 px = 528 px of the 536).
@@ -2434,21 +2434,21 @@ switches the supply off.
 
 | Item | Value | Source |
 |------|-------|--------|
-| Loop supply | 24 V, isolated 1 W DC-DC from 5 V, behind a load switch | [user] |
-| Supply enable | GPIO 3, active high, pulled low through sleep and reset | [proposed] |
-| Shunt | 100 Ω, 0.1 %, 25 ppm/°C; 0.4 V at 4 mA, 2.0 V at 20 mA | [proposed] |
-| Loop ADC | ADS1115 at 0x49 on the isolated side, differential A0 – A1, ±4.096 V range, single shot | [proposed] |
-| Bus | Through an I2C isolator onto the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) | [proposed] |
+| Loop supply | 24 V, isolated 1 W DC-DC fed from the battery/system rail through a wide-input converter (not from 5 V, which is not live on battery), behind a load switch | [user] |
+| Supply enable | GPIO 3 (header pin 4), active high, pulled low through sleep and reset | [user] |
+| Shunt | 100 Ω, 0.1 %, 25 ppm/°C; 0.4 V at 4 mA, 2.0 V at 20 mA | [user] |
+| Loop ADC | ADS1115 at 0x49 on the isolated side, differential A0 – A1, ±4.096 V range, single shot at 128 SPS (DR 100, about 8 ms a conversion) | [user] |
+| Bus | Through an I2C isolator onto the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) | [user] |
 
 Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
 
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
 | `loop` | `off` or `in` | either | `off` |
-| `loop_name` | label for the screen, page, CSV column and email | 1 – 12 [proposed] characters from `A-Z a-z 0-9 _ -` | `loop` |
-| `loop_unit` | unit text | 0 – 6 [proposed] printable ASCII characters, no comma | `mA` |
+| `loop_name` | label for the screen, page, CSV column and email | 1 – 12 characters from `A-Z a-z 0-9 _ -` | `loop` |
+| `loop_unit` | unit text | 0 – 6 printable ASCII characters, no comma | `mA` |
 | `loop_lo`, `loop_hi` | the value at 4 mA and at 20 mA | decimal, at most 3 decimals, −99999 – 99999, not equal | 4 and 20 (the value is the current) |
-| `loop_warm_ms` | settle time after the supply turns on | whole ms, 50 – 5000 [proposed] | 300 [user] |
+| `loop_warm_ms` | settle time after the supply turns on | whole ms, 50 – 5000 | 300 [user] |
 
 ### 29.2 Add-on values
 
@@ -2478,8 +2478,8 @@ Reading:
   loop supply off, never address 0x49, and behave as without §29.
 - **FR-29.2** [Must] [user] With `loop` `in`, at each reading (FR-23.1,
   FR-23.3, §28 tests) the device shall, after the BME280 reading, turn the
-  loop supply on, wait `loop_warm_ms`, take the mean of **4** [proposed]
-  single-shot conversions of A0 – A1, and turn the supply off.
+  loop supply on, wait `loop_warm_ms`, take the mean of **4**
+  single-shot conversions of A0 – A1 at 128 SPS, and turn the supply off.
 - **FR-29.3** [Must] [user] The current shall be the shunt voltage over
   100 Ω; the value shall be `loop_lo + (mA − 4) / 16 × (loop_hi − loop_lo)`,
   unclamped, for a current from 3.6 to 21.0 mA.
@@ -2493,7 +2493,7 @@ Reading:
 - **NFR-29.1** [Must] [user] The value shall be within **±0.25 % of span**
   of a reference current from 4 to 20 mA, at room temperature.
 - **NFR-29.2** [Must] [user] The loop supply shall be on at most
-  `loop_warm_ms` + **50 ms** [proposed] per reading, and off through sleep,
+  `loop_warm_ms` + **50 ms** per reading, and off through sleep,
   reset and power-on.
 - **C-29.1** [Must] [user] The loop side shall be galvanically isolated from
   the board's ground, including the loop ADS1115 and its supply.
@@ -2544,7 +2544,7 @@ Settings and history format:
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-29.3, FR-29.4 (core) | Shunt voltages for 3.5, 3.6, 4, 12, 20, 21.0, 21.1 mA with `loop_lo` 0, `loop_hi` 100; then `loop_lo` 100, `loop_hi` 0 | Fault; −2.5; 0; 50; 100; 106.25; fault; the reversed scale mirrored | A value for a fault current; clamping inside 3.6 – 21.0 mA | host |
-| FR-29.2 (core) | `ads1115` core: register writes for one conversion of A0 – A1 at ±4.096 V | Config `MUX` 000, `PGA` 001, `MODE` single shot, then a read of the conversion register | Continuous mode; another channel or range | host |
+| FR-29.2 (core) | `ads1115` core: register writes for one conversion of A0 – A1 at ±4.096 V | Config `MUX` 000, `PGA` 001, `MODE` single shot, `DR` 100 (128 SPS), then a read of the conversion register | Continuous mode; another channel, range or data rate | host |
 | FR-29.11 (core) | Bodies: none; `loop=in`; `loop=on`; `loop_name=a%20b`; 13-character name; `loop_unit=a,b`; `loop_lo=5&loop_hi=5`; `loop_warm_ms=49`; 5001; `loop=off&loop_lo=x` | off; in with defaults; 400 `loop`; 400 `loop_name`; 400 `loop_name`; 400 `loop_unit`; 400 `loop_hi`; 400 `loop_warm_ms` twice; off (not checked) | A stored invalid value | host |
 | FR-29.6, §29.2 (core) | History records and JSON with the loop off, on with a value, on with none | CSV without the column; with `<loop_name>` and 3 decimals; an empty field. JSON `ext` `{}`, a number, null | A column while off; `NaN` in JSON or CSV | host |
 | FR-29.8 (core) | Line 6 for `Tank`, 12.3456, `psi`; none; a 12-character name with −99999.999 and a 6-character unit | `Tank 12.346 psi`; `Tank --`; at most 44 characters | Wrapping; more than 44 characters | host |
@@ -2987,8 +2987,8 @@ Build-time constants:
 | Heap returned 10 s after a window | within 8 KB | [user] |
 | BLE service UUID | `6e0a0001-7d3b-4c2a-9f1e-54445333424c` | [derived] |
 | History record / per sector | 24-byte payload + 8-byte trailer / 128 | [derived from `flash_ring`] |
-| Loop supply / settle time | 24 V isolated, enable GPIO 3 [proposed] / `loop_warm_ms`, default 300 ms | [user] |
-| Loop shunt / ADC | 100 Ω 0.1 % / ADS1115 at 0x49, A0 – A1, ±4.096 V, mean of 4 | [proposed] |
+| Loop supply / settle time | 24 V isolated from the battery/system rail, enable GPIO 3 / `loop_warm_ms`, default 300 ms | [user] |
+| Loop shunt / ADC | 100 Ω 0.1 % / ADS1115 at 0x49, A0 – A1, ±4.096 V, 128 SPS, mean of 4 | [user] |
 | Loop fault limits | below 3.6 mA or above 21.0 mA (NAMUR NE43) | [user] |
 | Loop accuracy | ±0.25 % of span | [user] |
 | RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 / TRS3221E or MAX3221E / DE-9 male (DTE) | [proposed] |
@@ -3068,7 +3068,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.19.0
+fsd_version: 0.20.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3115,14 +3115,9 @@ change_history:
   - 0.18.0 2026-11-01 from the user's request (mark required fields, check them before sending, never lose what was typed): FR-13.8, FR-13.9 (portal form), FR-26.19 (the device's field rules over BLE, `control` `form=<offset>`), FR-26.20 (the BLE page keeps typed values)
   - 0.18.0-ntfy 2026-11-01 from the user's answers to the ntfy plan (alerts when something needs attention, not routine readings; a self-hosted server, tested at http://192.168.2.37:8080; the plan's recommendations: limits on temperature, humidity and pressure with hysteresis, alerts may start WiFi on a timer wake, a failed alert tried once more on the next run, an optional token): §31 Push Alerts (FR-31.1 – FR-31.14, NFR-31.1, NFR-31.2; alerts a selectable item, `ntfy` on or off, from the user's request), FR-21.13 gains the alert wake, L39, L40, R-28, Phase 13; §4.3, §9.1 and Appendix A updated
   - 0.19.0 2026-11-02 §29 (0.16.0), §30 (0.17.0) and §31 (0.18.0-ntfy, numbered on a side branch beside main's 0.18.0) brought onto main; they had merged into a branch that had already merged
+  - 0.20.0 2026-11-02 the user accepted every proposed §29 value (GPIO 3 supply enable, the shunt, the loop ADS1115 and its bus, the loop field lengths and settle range, a mean of 4, the 50 ms supply margin, the FR-6.14 line tops); the loop ADS1115 runs at 128 SPS (§29.1, FR-29.2 contract); the loop supply is fed from the battery/system rail (§2, §29.1, Appendix A)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
-  - "§29.1: supply enable GPIO 3 (to confirm the header brings it out)"
-  - "§29.1: shunt 100 Ω 0.1 %, loop ADS1115 at 0x49, A0 – A1 at ±4.096 V"
-  - "§29.1: loop_name 1 – 12 characters, loop_unit 0 – 6, loop_warm_ms 50 – 5000"
-  - "FR-29.2: mean of 4 conversions"
-  - "NFR-29.2: supply on at most loop_warm_ms + 50 ms"
-  - "FR-6.14: line tops at 8, 48, 88, 128, 168 and 208 px"
   - "§30.1, C-30.1: UART1 on TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 (to confirm by loopback commissioning)"
   - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
   - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
