@@ -167,6 +167,12 @@ shipped build's so the bench can tell the two apart in the boot line.
 `app` blocks the application task 20 s after startup, `http` adds a `GET /hang`
 handler that never returns.
 
+## Wiring
+
+Fritzing sketches of every wired subsystem (board and BME280, the 4-20 mA loop, the
+water probe, RS232, the Notecard), with their pictures and the checks to make
+before wiring, are in [`wiring/wiring.md`](wiring/wiring.md).
+
 ## Toolchain
 
 - ESP-IDF v6.0.2 via the container image `espressif/idf:v6.0.2` (FSD C-10.2).
