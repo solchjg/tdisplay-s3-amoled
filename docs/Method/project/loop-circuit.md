@@ -13,7 +13,7 @@ datasheets listed under Sources; check them against current ones.
 
 | Ref | Function (FSD §29.1) | Part | Notes |
 |-----|----------------------|------|-------|
-| Q1, Q2 | Load switch with a controlled rise time | onsemi NDP6020P P-MOSFET (TO-220, −20 V, V<sub>GS(th)</sub> −0.4 to −1 V, 75 mΩ at −2.5 V) and a 2N3904 (TO-92) | See [Load switch](#load-switch) |
+| Q1, Q2 | Load switch with a controlled rise time | Diodes DMG2305UX P-MOSFET (SOT-23 on a SOT-23 board from the Adafruit 1230 set, −20 V, V<sub>GS(th)</sub> −0.5 to −0.9 V, 100 mΩ max at −2.5 V; AO3401A is a second source) and a 2N3904 (TO-92) | See [Load switch](#load-switch) |
 | U3 | Wide-input converter to 5 V | Pololu S7V8F5 (2.7 – 11.8 V in, 5 V out) | Leave SHDN open: its 100 kΩ pull-up to VIN would fight R1, so Q1 does the switching |
 | U4 | Isolated 1 W DC-DC, 24 V | Mornsun B0524S-1WR3, SIP-4 (4.5 – 5.5 V in, 24 V at 4.2 – 42 mA, 1500 VDC) | Specified over 10 – 100 % load; U5 alone keeps it above 10 % |
 | U5 | Isolated 3.3 V regulator, at least 40 V across it | LM317LZ (TO-92, 40 V in – out) | See [Isolated 3.3 V](#isolated-33-v) |
@@ -54,7 +54,9 @@ datasheets listed under Sources; check them against current ones.
 | R1 | 100 kΩ, GPIO 3 to GND | Off through sleep and reset |
 
 With Q2 on, V<sub>GS</sub> is about −0.91 × VSYS: −2.7 V on a 3.0 V battery, where the
-NDP6020P is under 75 mΩ. The gate settles with a time constant of 9.1 kΩ × 47 nF, about
+DMG2305UX is under 100 mΩ: about 35 mV dropped at 0.35 A. No through-hole P-MOSFET in
+production specifies R<sub>DS(on)</sub> at this gate drive, so Q1 is the one part on a
+breakout. Check the breakout's pin order (G, S, D for the SOT-23) when wiring it. The gate settles with a time constant of 9.1 kΩ × 47 nF, about
 0.4 ms, so the converter and DC-DC capacitors charge without a step on the battery. It
 turns off with 100 kΩ × 47 nF, about 4.7 ms, well inside the 50 ms margin of NFR-29.2.
 
@@ -149,7 +151,8 @@ ohmmeter between J1 and USB ground: above 100 MΩ.
 
 ## Sources
 
-- [NDP6020P datasheet](https://onsemi.com/pub/Collateral/NDP6020P-D.PDF)
+- [DMG2305UX datasheet](https://static.chipdip.ru/lib/159/DOC013159942.pdf)
+- [Adafruit 1230 SMT breakout set](https://www.adafruit.com/product/1230)
 - [Pololu S7V8F5](https://www.pololu.com/product/2123)
 - [Mornsun B05_S-1WR3 datasheet](https://www.rcscomponents.kiev.ua/datasheets/B05_S-1WR3.pdf)
 - [LM317L datasheet](https://www.rcscomponents.kiev.ua/datasheets/lm317l-1301242.pdf)
