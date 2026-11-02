@@ -288,7 +288,7 @@ boards off the LAN server. This section is the general case, for any server.
 
 **What you need**
 
-- A DNS name for the server, e.g. `tb.example.org`, that resolves from the
+- A DNS name for the server, e.g. `tb.<your-fqdn>`[^fqdn], that resolves from the
   board's network to the server. If the board and server share a LAN, either
   your router reflects the public address back (hairpin NAT) or your local
   DNS answers the name with the LAN address (split DNS).
@@ -303,12 +303,12 @@ boards off the LAN server. This section is the general case, for any server.
 which gets and renews the certificate by itself, the whole `Caddyfile` is:
 
 ```
-tb.example.org {
+tb.<your-fqdn> {
     reverse_proxy 127.0.0.1:8080
 }
 ```
 
-With nginx, use `certbot --nginx -d tb.example.org` and a `location /` block
+With nginx, use `certbot --nginx -d tb.<your-fqdn>` and a `location /` block
 with `proxy_pass http://127.0.0.1:8080;` plus the usual `Host`,
 `X-Forwarded-For` and `X-Forwarded-Proto` headers, and for the web UI the
 `Upgrade`/`Connection` headers for WebSockets. certbot installs a renewal
@@ -326,7 +326,7 @@ ThingsBoard yourself, which is why option A is simpler.
 2. Check from your computer, with the certificate checked as the board does:
 
    ```bash
-   curl -s -w '%{http_code}\n' -X POST "https://tb.example.org/api/v1/$TOKEN/telemetry" \
+   curl -s -w '%{http_code}\n' -X POST "https://tb.<your-fqdn>/api/v1/$TOKEN/telemetry" \
      -H 'Content-Type: application/json' \
      -d '[{"ts":1767225600000,"values":{"temp_f":70.25,"rh_pct":45.3,"p_mbar":1013.25,"synced":true}}]'
    # 200
@@ -337,7 +337,7 @@ ThingsBoard yourself, which is why option A is simpler.
    Device → *Manage credentials* → enter or generate a new access token → Save,
    and copy it.
 4. On the board (section 5, over Bluetooth): `tb_url` =
-   `https://tb.example.org` (no port when it is 443), `tb_token` = the new
+   `https://tb.<your-fqdn>` (no port when it is 443), `tb_token` = the new
    token. Save.
 5. Check as in section 6. The first `tb sent` line after the restart confirms
    the certificate was accepted; `tb failed: cert` or `tls` means it was not:
@@ -360,3 +360,7 @@ history still holds them.
   ThingsBoard settings and the upload mark with everything else. To stop a
   board you no longer have from writing, delete its device in ThingsBoard or
   change its token.
+
+[^fqdn]: `<your-fqdn>` stands for your **fully qualified domain name**, the
+    complete domain under which the server's name is registered, e.g.
+    `example.org`, giving `tb.example.org`.
