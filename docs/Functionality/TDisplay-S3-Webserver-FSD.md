@@ -381,7 +381,8 @@ testbench.
 
 - Authentication on any endpoint; TLS on anything the device serves (the summary email is sent over TLS, §25); signed firmware, secure boot, flash
   encryption (§9.1). [user]
-- BLE outside a setup window (§26), BLE bonding, BLE settings without a passkey; MQTT, IPv6, NTP, static IP, more than one stored network, a network scan
+- BLE outside a setup window (§26), BLE settings without a passkey (a bonded central
+  passed one when it paired, FR-26.13); MQTT, IPv6, NTP, static IP, more than one stored network, a network scan
   list in the portal, a portal timeout. [user]
 - OTA by pushed image body, HTTPS or authenticated downloads, OTA progress on
   the LCD, OTA of the bootloader or partition table. [user]
@@ -1927,7 +1928,8 @@ stays. The same settings travel in the same form body the portal accepts
 (§13.2, §25.2) and are checked by the same rules. Peer: one BLE central at a
 time (the project's Web Bluetooth page, nRF Connect, or the testbench), paired
 with a passkey the device shows on its panel. Built on the shared `ble_setup`
-component (NimBLE, peripheral role only); the logic layer (§5) decides when
+component (NimBLE acting only as a peripheral, with its GATT client built in
+to confirm the indications a central sends); the logic layer (§5) decides when
 BLE runs, the composition root starts and stops it.
 
 BLE runs only inside a **window**:
@@ -1957,7 +1959,7 @@ connecting).
 | `info` | `6e0a0002-…` | read | none | `fw=<V>&host=<hostname>&state=<S>` |
 | `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>`. Write: appended to the staged body |
 | `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` after connecting; after each `apply`, `ok` or `invalid=<field>` naming the first invalid field |
-| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; any other value is answered with the ATT error *Value Not Allowed* |
+| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `forget` erases every bond (FR-26.13); any other value is answered with the ATT error *Value Not Allowed* |
 
 (`…` is the rest of the service UUID.)
 
@@ -2019,7 +2021,12 @@ Security:
   `control` shall answer a central whose link is not encrypted with an
   authenticated (MITM) key with the ATT error *Insufficient Authentication*;
   only `info` is readable before pairing.
-- **FR-26.13** [Must] [user] The device shall store no bonds; after
+- **FR-26.13** [Must] [user] The device shall bond with a central that pairs
+  and keep at most **3** bonds in NVS, so a bonded central reconnects in a
+  window by encryption alone, without a new passkey; a factory reset (T10)
+  and a `forget` written to `control` (the page's *Forget all phones*) erase
+  them. A central that starts encryption with a key the device does not
+  hold is disconnected at once. After
   **3** failed pairings in one window it shall close a key window, or pause
   advertising for **60 s** in PROVISIONING.
 - **FR-26.15** [Must] [derived from FR-26.11] At most one central shall be
@@ -2416,7 +2423,7 @@ Build-time constants:
 | Reading line decimals (T / RH / P) | 1 / 0 / 2 | [user] |
 | BLE key-window hold (user key) | 3 s | [user] |
 | BLE key-window idle close | 5 min | [user] |
-| BLE pairing | LE Secure Connections, passkey on line 5, DisplayOnly, no bonds | [user] |
+| BLE pairing | LE Secure Connections, passkey on line 5, DisplayOnly, at most 3 bonds kept in NVS | [user] |
 | BLE failed pairings per window / provisioning pause | 3 / 60 s | [user] |
 | BLE `settings` write limit | 2048 bytes | [derived from `PORTAL_BODY_MAX`] |
 | Restart after an accepted key-window write (T14) | ≤ 2 s | [user] |
