@@ -1927,7 +1927,8 @@ stays. The same settings travel in the same form body the portal accepts
 (§13.2, §25.2) and are checked by the same rules. Peer: one BLE central at a
 time (the project's Web Bluetooth page, nRF Connect, or the testbench), paired
 with a passkey the device shows on its panel. Built on the shared `ble_setup`
-component (NimBLE, peripheral role only); the logic layer (§5) decides when
+component (NimBLE acting only as a peripheral, with its GATT client built in
+to confirm the indications a central sends); the logic layer (§5) decides when
 BLE runs, the composition root starts and stops it.
 
 BLE runs only inside a **window**:
