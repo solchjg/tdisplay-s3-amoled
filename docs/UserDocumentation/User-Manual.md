@@ -35,6 +35,13 @@ With no stored credentials the display shows `Setup WiFi`, the network name
    network, otherwise 8 – 63 characters). For the summary email (section 5b),
    fill in the email fields too; leave them all empty for no email. Press
    *Save and connect*.
+
+   Required fields carry a red `*`. Once you fill one email field, all the
+   email fields you need get a `*` too. The page checks every field before it
+   sends anything and points at the one to fix. If the device itself refuses a
+   value (for example averages that do not fit the reading interval), the page
+   names that field and keeps everything you typed, passwords included: fix
+   that one field and press *Save and connect* again.
 3. The page confirms the network name; the device leaves its setup network, shows
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
 4. The device now waits for you to check it before it starts its sleep cycle.
@@ -233,6 +240,10 @@ characteristic, then `apply` to `control`.
   display shows on line 5 (`BLE code 123456`). Fill in the network and, if you
   like, the email settings, and press **Save settings**. The device connects
   exactly as if you had used the portal.
+
+  As on the portal, required fields carry a `*`, the page checks every field
+  before it writes, and a field the device refuses is named while everything
+  you typed stays, also if you have to connect again.
 - **Changing settings later.** While the device is awake (after a reset or a
   press of the user key that wakes it), hold the **user key** for 3 seconds.
   Line 5 shows `BLE setup 05:00`, counting down. Connect with the page and

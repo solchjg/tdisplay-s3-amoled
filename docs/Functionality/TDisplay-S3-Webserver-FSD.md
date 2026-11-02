@@ -1015,7 +1015,7 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
 
 | Method | Path | Request | Response |
 |--------|------|---------|----------|
-| GET | `/` | — | 200 `text/html`: form with fields `ssid` and `password`, `method="post"`, `action="/connect"` |
+| GET | `/` | — | 200 `text/html`: form with fields `ssid` and `password`, `method="post"`, `action="/connect"`, and the script that checks it (FR-13.8, FR-13.9) |
 | POST | `/connect` | `application/x-www-form-urlencoded`, fields `ssid`, `password` | 200 `text/html` naming the SSID, or 400 `text/plain` naming the invalid field |
 | GET | any other path | — | 302, `Location: http://192.168.4.1/` |
 
@@ -1036,6 +1036,19 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
   302 to `http://192.168.4.1/`.
 - **FR-13.7** [Must] [derived from §9.1] The SSID echoed by FR-13.3 shall be
   HTML-escaped (`&`, `<`, `>`, `"`, `'`).
+- **FR-13.8** [Must] [user] The form shall mark every field a submission
+  requires with `*`, and the browser shall check each field against its rule
+  (FR-13.4, §25.2, FR-28.1) before anything is sent: a required field left
+  empty, or a value outside its length, pattern, type or range, is marked on
+  the page and nothing is sent. A field of an all-or-nothing group (the mail
+  fields of §25.2) becomes required once any field of the group is filled, and
+  optional again when the group is emptied.
+- **FR-13.9** [Must] [user] When the device answers a submission 400, the form
+  shall stay on the page with every value typed kept, passwords included, and
+  name the refused field by its label; the field stays marked until it is
+  changed. A rule only the device checks (for example `average_min` against
+  `sample_min`) is reported this way. A browser without `fetch` posts the form
+  as a plain submission and sees the 400 text of §13.2.
 
 ### 13.4 Verification contracts
 
@@ -1048,6 +1061,8 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
 | FR-13.5 | Joined to SoftAP; relay `GET http://example.com/` | Portal response (200 form or 302 to the portal) | A DNS failure | bench |
 | FR-13.6 | Joined; `GET /generate_204` | 302 to `http://192.168.4.1/` | 404; 204 | bench |
 | FR-13.7 (core) | Escape `<b>&"'` | `&lt;b&gt;&amp;&quot;&#39;` | Raw characters | host |
+| FR-13.8 | Bench joined to the SoftAP; a phone browser on the portal: submit empty; then a 7-character password; then only `mail_host` filled; then empty `mail_host` again | Only *Network name* starred at first; nothing sent the first three times (the field marked); the seven mail fields starred with `mail_host` filled and unstarred when emptied | A request sent; a partial mail group sent | bench (operator) |
+| FR-13.9 | As FR-13.8; a valid-looking form with `setup` custom, `sample_min` 10, `average_min` 7; submit; then `average_min` 60 | The page names *Custom: average them over*, every value including both passwords still filled; the second submission answers the FR-13.3 page | A field emptied; a plain-text 400 page | bench (operator) |
 
 ### 13.5 Failure modes
 
@@ -1956,9 +1971,9 @@ connecting).
 | Characteristic | UUID | Access | Link required | Value |
 |----------------|------|--------|---------------|-------|
 | `info` | `6e0a0002-…` | read | none | `fw=<V>&host=<hostname>&state=<S>` |
-| `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>`. Write: appended to the staged body |
+| `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>`; after `control` `form=<offset>`, a page of the form description of FR-26.19 instead. Write: appended to the staged body |
 | `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` after connecting; after each `apply`, `ok` or `invalid=<field>` naming the first invalid field |
-| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; any other value is answered with the ATT error *Value Not Allowed* |
+| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `form=<offset>` sets the read page of the form description (FR-26.19); any other value is answered with the ATT error *Value Not Allowed* |
 
 (`…` is the rest of the service UUID.)
 
@@ -2049,6 +2064,23 @@ Coexistence:
 - **NFR-26.1** [Must] [user] 10 s after a window closes, `free_heap` shall
   be within **8 KB** of its value before the window opened.
 
+The setup page:
+
+- **FR-26.19** [Must] [user] The device shall describe the rules of every
+  field a `settings` read shows, the same rules as FR-13.8, in a form
+  description read through `settings` after `control` `form=<offset>`: a
+  form body with one `<name>=<rules>` per field (a secret by its name), where
+  `<rules>` is itself a form body of `label`, `required`, `group` and `need`
+  (required once any field of the group is filled), `type`, `minlength`,
+  `maxlength`, `min`, `max`, `pattern`, `options` and `hint`. The page shall
+  check every field against them before it writes, mark required fields with
+  `*`, and write nothing while a field fails. A stored secret left empty is
+  never required (it keeps the stored one, FR-26.7).
+- **FR-26.20** [Must] [user] When `result` is `invalid=<field>`, the page shall
+  keep every value typed and name the field by its label, marked until it is
+  changed; values typed and not saved shall also be kept when the page
+  reconnects to the same device and draws the form again.
+
 ### 26.4 Verification contracts
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
@@ -2073,6 +2105,8 @@ Coexistence:
 | NFR-26.1 | ONLINE; `free_heap` from `/api/status`; open and close a key window | Within 8 KB 10 s after L30 | A larger loss | bench (operator) |
 | FR-26.4 | Sleep test build, timer wake; bench scans through it | No advertiser | An advertiser on a timer wake | target |
 | FR-26.18 | ONLINE, no window; bench BLE scan 30 s | No advertiser at base MAC + 0 … + 3 | Such an advertiser | bench |
+| FR-26.19 (core) | Read the form description; parse it and the `settings` dump | One rule set per field shown, each with a label; `ssid` required ≤ 32; `password` 8 – 63; every mail field in group `mail`, the seven of FR-25.1 `need`; port options 465,587; `mail_host` and `setup` patterns accept and refuse what the device does | A field without rules; a rule looser or stricter than §13, §25.2, §28 | host |
+| FR-26.19, FR-26.20 | Key window, paired from the setup page: fill only `mail_host`; save; empty it; type a 7-character WiFi password; save; then `setup` custom, `average_min` 7; save; disconnect and reconnect; `average_min` 60; save | Nothing written the first two times; `result` `invalid=average_min`, the page names *Custom: average them over* with every value kept, and still after the reconnect; then `ok` | A write with a partial mail group; a value lost | bench (operator) |
 | FR-26.18 (core) | Transition function over every §5.3 row and window event | BLE start only on a window opening; BLE stop on every closing and before every restart | A start without a window; a window left open across T10, T11, T13 or T14 | host |
 
 ---
@@ -2491,7 +2525,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.15.0
+fsd_version: 0.18.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2533,6 +2567,7 @@ change_history:
   - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
   - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
   - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
+  - 0.18.0 2026-11-01 from the user's request (mark required fields, check them before sending, never lose what was typed): FR-13.8, FR-13.9 (portal form), FR-26.19 (the device's field rules over BLE, `control` `form=<offset>`), FR-26.20 (the BLE page keeps typed values)
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14]
 open_decisions: []
 related_test_baseline: none yet

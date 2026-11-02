@@ -133,7 +133,7 @@ SET_HARNESS = r"""
 #include <string.h>
 #include "ble_settings_core.h"
 
-// prepare <prov|change> <body>  |  dump <with mail 0|1>  |  info
+// prepare <prov|change> <body>  |  dump <with mail 0|1>  |  form  |  info
 int main(int argc, char **argv)
 {
     pc_creds_t cur = {"home net", "pw-secret1"};
@@ -162,6 +162,9 @@ int main(int argc, char **argv)
             sel = (sp_sel_t){SP_CUSTOM, 0, {5, 30}};
         }
         bset_dump(&cur, &s, &sel, out, sizeof out);
+        printf("%s", out);
+    } else if (!strcmp(argv[1], "form")) {
+        printf("%zu|", bset_form(out, 2048));  // CONFIG_BLE_SETUP_BODY_MAX
         printf("%s", out);
     } else {
         bset_info("0.2.0", "tds3-48c3a2", "ONLINE", out, sizeof out);
@@ -243,6 +246,45 @@ def test_dump_has_no_secret(bset):
 def test_dump_round_trips_through_a_key_window_write(bset):
     assert bset("prepare", "change", bset("dump", "1")) == \
         "ok home net|pw-secret1|smtp.example.com|mail-secret|5"
+
+
+# TC-BLE-30 · FR-26.19 (core): the page's rules cover every field and state §13 and §25.2
+def test_form_rules_cover_every_field(bset):
+    import urllib.parse as up
+    n, body = bset("form").split("|", 1)
+    assert int(n) == len(body) < 2048
+    rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
+             for k, v in up.parse_qsl(body, keep_blank_values=True)}
+    shown = [k[:-4] if k.endswith("_set") else k
+             for k, _ in up.parse_qsl(bset("dump", "1"), keep_blank_values=True)]
+    assert list(rules) == shown
+    assert all(r.get("label") for r in rules.values())
+    assert rules["ssid"] == {"label": "Network name (WiFi)", "required": "1",
+                            "maxlength": "32"}                      # FR-13.4
+    assert (rules["password"]["minlength"], rules["password"]["maxlength"]) == ("8", "63")
+    mail = [k for k in rules if k.startswith("mail_")]
+    assert all(rules[k]["group"] == "mail" for k in mail)                  # FR-25.1
+    assert {k for k in mail if rules[k].get("need")} == {
+        "mail_host", "mail_port", "mail_user", "mail_password", "mail_to", "mail_time",
+        "mail_every"}
+    assert rules["mail_port"]["options"] == "465,587"
+    assert (rules["mail_every"]["min"], rules["mail_every"]["max"]) == ("1", "24")
+    assert (rules["sample_min"]["min"], rules["sample_min"]["max"]) == ("1", "60")
+
+
+# TC-BLE-31 · FR-26.19 (core): each pattern accepts what the device accepts
+@pytest.mark.parametrize("name,value,ok", [
+    ("mail_host", "smtp.gmail.com", True), ("mail_host", "mail-1.example.org", True),
+    ("mail_host", "smtp gmail.com", False), ("mail_host", "smtp_gmail", False),
+    ("setup", "std", True), ("setup", "custom,quick,cycle", True), ("setup", " fine , cycle", True),
+    ("setup", "standard", False), ("setup", "std;quick", False), ("setup", "", False),
+])
+def test_form_patterns_match_the_device(bset, name, value, ok):
+    import urllib.parse as up
+    body = bset("form").split("|", 1)[1]
+    rules = {k: dict(up.parse_qsl(v)) for k, v in up.parse_qsl(body)}
+    # An HTML pattern must match the whole value.
+    assert (re.fullmatch(rules[name]["pattern"], value) is not None) == ok
 
 
 def test_info(bset):

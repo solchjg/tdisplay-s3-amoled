@@ -94,7 +94,8 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   through the shared `mail_tx`; a timer wake starts WiFi only for a due summary.
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key
-  window), the `settings` read without secrets, and `info`. The transport is the
+  window), the `settings` read without secrets, the field rules the page checks
+  (`bset_form`), and `info`. The transport is the
   shared `ble_setup`; when a window opens and closes is `device_logic`'s
   `dl_ble_step`.
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
