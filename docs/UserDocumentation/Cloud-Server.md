@@ -1,9 +1,10 @@
 # T-Display-S3 Webserver — Cloud Server
 
-How to build the production server the devices reach over the internet: one
-cloud VM running ThingsBoard (FSD §32) and ntfy (FSD §31) behind `https://`
-with Let's Encrypt certificates, how to back it up, and how to move the
-devices from the LAN test server `http://192.168.2.37:8080` to it.
+How to set up the production servers on the existing cloud VM: ThingsBoard
+(FSD §32) at `https://tb.solchjg.net` and ntfy (FSD §31) at
+`https://ntfy.solchjg.net`, both behind `https://` with Let's Encrypt
+certificates, how to back them up, and how to move the devices from the LAN
+test server `http://192.168.2.37:8080` to them.
 
 **Status: specified, not yet built.** The device side of ThingsBoard and ntfy
 follows the FSD; this guide covers only the server. Device settings, the
@@ -12,28 +13,25 @@ dashboard and the alarm rules are in the
 repeat. Over cellular (FSD §33) Notehub posts to these servers from the
 internet, so the LAN servers cannot serve a cellular device (R-33).
 
-The examples use `tb.example.org` and `ntfy.example.org`. Replace them with
-your own names. Times are US Eastern (America/New_York).
+Times are US Eastern (America/New_York).
 
-## What you build
+## What runs on the VM
 
 | Part | Choice |
 |------|--------|
-| VM | Hetzner Cloud **CX23**: 2 vCPU (shared x86), 4 GB RAM, 40 GB NVMe, 20 TB traffic, one IPv4 and one IPv6 address |
-| Location | Nuremberg or Falkenstein (Germany) or Helsinki. Hourly batches and alerts do not depend on latency; the web UI works from the US at about 100 ms |
-| OS | Ubuntu 24.04 LTS, time zone `America/New_York` |
-| ThingsBoard | Community Edition **4.3 LTS** (`thingsboard/tb-node:4.3.1.8`, Apache 2.0, fixes until July 2027) in Docker Compose, in-memory queue |
+| VM | The existing cloud VM. It needs at least 2 vCPU, **4 GB RAM** and 20 GB free disk in total for ntfy, ThingsBoard and PostgreSQL; resize it at the provider if it is smaller |
+| OS | Ubuntu or Debian with Docker Engine and the Compose plugin, time zone `America/New_York` |
+| ThingsBoard | Community Edition **4.3 LTS** (`thingsboard/tb-node:4.3.1.8`, Apache 2.0, fixes until July 2027) in Docker Compose, in-memory queue, JVM capped at 1.5 GB |
 | Database | PostgreSQL 18 in the same Compose project (telemetry and entities in PostgreSQL; no Cassandra, no Kafka) |
-| Alerts | ntfy (`binwiederhier/ntfy`) in its own container, logins required |
-| HTTPS | Caddy on the host: gets and renews the Let's Encrypt certificates by itself |
-| Firewall | Hetzner Cloud Firewall: only 22, 80 and 443 TCP in; the containers listen on `127.0.0.1` only |
-| Backups | Hetzner daily backups (7 kept) plus a nightly `pg_dump` copied off the VM with restic |
+| Alerts | ntfy (`binwiederhier/ntfy`) in the same Compose project, logins required, a publish-only token for the boards |
+| HTTPS | Caddy on the host: gets and renews both Let's Encrypt certificates by itself (or, if the VM already runs nginx or Caddy for other sites, two more sites on it) |
+| Firewall | Only 22, 80 and 443 TCP in; ThingsBoard, ntfy and PostgreSQL listen on `127.0.0.1` or the Compose network only |
+| Backups | The provider's daily VM backups, plus a nightly `pg_dump` copied off the VM with restic |
 
 **Why these sizes.** ThingsBoard's own minimum is 1 core and 4 GB with
 PostgreSQL. One board sends at most one reading every few minutes, four keys
 each: about 1 MB of telemetry a year, so disk and CPU are far from their
-limits. The JVM is capped at 1.5 GB (section 3) so PostgreSQL, ntfy and Caddy
-fit in the rest.
+limits. ntfy needs well under 100 MB.
 
 **ThingsBoard 4.4 and later** are under the Business Source License with a
 free licence key for small installations. Stay on 4.3 until you decide to
@@ -41,101 +39,71 @@ move; the upgrade is the one in section 9.
 
 ## What it costs
 
-Monthly, at the prices of autumn 2026 (EUR prices converted at about
-1.15 USD/EUR).
+The VM is already paid for. What can be added:
 
 | Item | Cost |
 |------|------|
-| CX23 with IPv4 | €5.99 ≈ $6.90 |
-| Hetzner backups (20 % of the server) | €1.20 ≈ $1.40 |
-| Off-site copy (restic to Backblaze B2, well under 1 GB) | < $0.10 |
-| Domain name, if you have none yet | ≈ $1 ($10 – 15 a year) |
+| Resize to 4 GB RAM, only if the VM is smaller | the provider's price difference |
+| The provider's VM backups, if not on yet | usually 20 % of the VM price |
+| Off-site copy (restic to Backblaze B2, well under 1 GB) | < $0.10 a month |
 | Let's Encrypt, Caddy, ThingsBoard CE 4.3, ntfy | free |
-| **Total** | **about $8 – 10 a month** |
 
-Notehub's routes and the Notecard's included data are covered by FSD §33.
+## 1. Check the VM
 
-## 1. Domain names
+Log in and look at what is there:
 
-Create two DNS records at your DNS provider, each pointing at the VM's
-addresses (section 2 gives them):
+```bash
+nproc; free -h; df -h /                 # 2+ CPUs, 4 GB+ RAM, 20 GB+ free
+lsb_release -ds; timedatectl | grep zone
+docker compose version
+sudo ss -ltnp '( sport = :80 or sport = :443 or sport = :8080 or sport = :2586 )'
+```
+
+Ports 8080 and 2586 must be free. Nothing on 80/443 means section 4 installs
+Caddy; an existing nginx or Caddy there gets the two sites added instead.
+
+If anything is missing:
+
+```bash
+sudo timedatectl set-timezone America/New_York
+curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER   # log out and in
+# 2 GB swap as a cushion for the JVM, if `free -h` shows none
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+**Firewall.** At the provider's firewall (and `ufw`, if used) only TCP 22,
+80 and 443 come in. Ports published by Docker bypass `ufw`, so the Compose
+file below publishes ThingsBoard on `127.0.0.1` only; never publish 8080,
+1883 or 5432 on a public address.
+
+## 2. Domain names
+
+At the DNS provider of `solchjg.net`, add records for both names, pointing
+at the VM:
 
 | Name | Type | Value |
 |------|------|-------|
-| `tb.example.org` | `A` | the VM's IPv4 address |
-| `tb.example.org` | `AAAA` | the VM's IPv6 address |
-| `ntfy.example.org` | `A` and `AAAA` | the same addresses |
+| `tb.solchjg.net` | `A` | the VM's IPv4 address |
+| `ntfy.solchjg.net` | `A` | the same address |
+| both | `AAAA` | the VM's IPv6 address, if it has one |
 
-Use a short TTL (300 s) until the move is done. Check from your computer:
-
-```bash
-dig +short tb.example.org A
-dig +short ntfy.example.org A
-```
-
-The device's `tb_url` and `ntfy_url` take these names; an `https://` URL with
-an IP address fails with `cert`.
-
-## 2. Create the VM
-
-1. Create a Hetzner account at console.hetzner.cloud and a project, e.g.
-   `tds3`.
-2. **SSH key:** *Security* → *SSH keys* → add your public key
-   (`~/.ssh/id_ed25519.pub`). Password logins stay off.
-3. **Firewall:** *Firewalls* → *Create firewall* `tds3-web`, inbound rules:
-
-   | Protocol | Port | Source |
-   |----------|------|--------|
-   | TCP | 22 | your home address (`curl -4 ifconfig.me`), or any if it changes often |
-   | TCP | 80 | any IPv4, any IPv6 (Let's Encrypt HTTP-01 and the redirect to 443) |
-   | TCP | 443 | any IPv4, any IPv6 |
-   | ICMP | — | any |
-
-   Outbound stays open. Nothing else comes in: not 8080, not 1883 (MQTT),
-   not 5432 (PostgreSQL).
-4. **Server:** *Add server* → location (see *What you build*) → image
-   *Ubuntu 24.04* → type *Shared vCPU, x86, CX23* → networking IPv4 and IPv6
-   → your SSH key → firewall `tds3-web` → **Backups on** → name
-   `tds3-cloud` → *Create & buy now*.
-5. Note the IPv4 and IPv6 addresses and create the DNS records (section 1).
-
-First login and base setup:
+Check from your computer:
 
 ```bash
-ssh root@<ipv4>
-
-timedatectl set-timezone America/New_York
-apt update && apt -y full-upgrade
-apt -y install unattended-upgrades ca-certificates curl jq restic
-dpkg-reconfigure -f noninteractive unattended-upgrades
-
-# 2 GB swap as a cushion for the JVM
-fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab
-
-# a login user; root logins off
-adduser --gecos '' joe && usermod -aG sudo joe
-rsync --archive --chown=joe:joe ~/.ssh /home/joe
-sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/; s/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-systemctl restart ssh
+dig +short tb.solchjg.net
+dig +short ntfy.solchjg.net    # the same address
 ```
 
-From here on, log in as `ssh joe@tb.example.org` and use `sudo`.
-
-**Docker** (Docker's own repository, not Ubuntu's `docker.io`):
-
-```bash
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker joe     # log out and in again
-docker compose version
-```
+The device's `tb_url` and `ntfy_url` take these names; an `https://` URL with an IP address
+fails with `cert`.
 
 ## 3. ThingsBoard and PostgreSQL
 
 Everything lives in `/opt/tds3`:
 
 ```bash
-sudo mkdir -p /opt/tds3 && sudo chown joe:joe /opt/tds3 && cd /opt/tds3
+sudo mkdir -p /opt/tds3 && sudo chown $USER: /opt/tds3 && cd /opt/tds3
 echo "PG_PASSWORD=$(openssl rand -hex 24)" > .env && chmod 600 .env
 ```
 
@@ -162,7 +130,7 @@ services:
     image: thingsboard/tb-node:4.3.1.8
     restart: always
     ports:
-      - "127.0.0.1:8080:8080"        # Caddy only; nothing else published
+      - "127.0.0.1:8080:8080"        # the reverse proxy only
     environment:
       TB_SERVICE_ID: tb-ce-node
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/thingsboard
@@ -180,7 +148,7 @@ services:
     restart: always
     command: serve
     ports:
-      - "127.0.0.1:2586:80"          # Caddy only
+      - "127.0.0.1:2586:80"          # the reverse proxy only
     environment:
       TZ: America/New_York
     volumes:
@@ -192,9 +160,10 @@ volumes:
   ntfy-data:
 ```
 
-The MQTT, CoAP, LwM2M and edge ports of the ThingsBoard image are not
-published: the device uses only the HTTP device API. PostgreSQL is reachable
-only from the Compose network.
+If 8080 is taken on the VM, use another local port (e.g.
+`127.0.0.1:8090:8080`) and the same port in section 4. The MQTT, CoAP, LwM2M
+and edge ports of the image are not published: the device uses only the HTTP
+device API.
 
 Create the database schema once, **without** demo data, then start:
 
@@ -211,16 +180,18 @@ ThingsBoard is now up on the VM only. Change the default passwords
 on the internet:
 
 ```bash
-ssh -L 8080:127.0.0.1:8080 joe@<ipv4>
+ssh -L 8080:127.0.0.1:8080 <you>@<VM address>
 # then open http://localhost:8080/ on your computer
 ```
 
-## 4. Caddy and the certificates
+## 4. The reverse proxy and the certificates
 
-Caddy holds both certificates, renews them about a month before they expire
-(Let's Encrypt certificates last 90 days, falling to 64 days in February 2027
-and 45 days in 2028; Caddy follows by itself), redirects `http://` to
-`https://`, and passes WebSockets for the ThingsBoard UI.
+The proxy gets a Let's Encrypt certificate for each name and renews it
+before it expires (certificates last 90 days, falling to 64 days in February
+2027 and 45 days in 2028), redirects `http://` to `https://`, and passes
+WebSockets for the ThingsBoard UI and ntfy.
+
+**Caddy** (nothing on 80/443 yet, or Caddy already there):
 
 ```bash
 sudo apt -y install debian-keyring debian-archive-keyring apt-transport-https
@@ -229,34 +200,66 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo 
 sudo apt update && sudo apt -y install caddy
 ```
 
-`/etc/caddy/Caddyfile`:
+`/etc/caddy/Caddyfile` (add the two sites to an existing one):
 
 ```
 {
     email you@example.org      # Let's Encrypt expiry notices
 }
 
-tb.example.org {
+tb.solchjg.net {
     encode gzip
     reverse_proxy 127.0.0.1:8080
 }
 
-ntfy.example.org {
+ntfy.solchjg.net {
     reverse_proxy 127.0.0.1:2586
 }
 ```
 
 ```bash
 sudo systemctl reload caddy
-journalctl -u caddy -f     # "certificate obtained successfully" for both names
+journalctl -u caddy -f      # "certificate obtained successfully" for both names
+```
+
+**nginx with certbot** (nginx already on 80/443) —
+`/etc/nginx/sites-available/tb.solchjg.net`, and the same file for
+`ntfy.solchjg.net` with `proxy_pass http://127.0.0.1:2586;`:
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name tb.solchjg.net;
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/{tb,ntfy}.solchjg.net /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d tb.solchjg.net -d ntfy.solchjg.net --redirect   # adds the 443 server blocks
+sudo certbot renew --dry-run                          # renewal works
+systemctl list-timers | grep certbot                  # the renewal timer
 ```
 
 Check from your computer, with the certificate checked as the board does:
 
 ```bash
-curl -sI https://tb.example.org/ | head -1           # HTTP/2 200
-curl -sI http://tb.example.org/  | grep -i location  # https://tb.example.org/
-openssl s_client -connect tb.example.org:443 -servername tb.example.org </dev/null 2>/dev/null \
+curl -sI https://tb.solchjg.net/ | head -1            # HTTP/2 200 (or HTTP/1.1 200)
+curl -sI http://tb.solchjg.net/  | grep -i location   # https://tb.solchjg.net/
+openssl s_client -connect tb.solchjg.net:443 -servername tb.solchjg.net </dev/null 2>/dev/null \
   | grep -E 'depth|verify return'
 ```
 
@@ -267,10 +270,11 @@ real proof; `tb failed: cert` means the board does not accept the chain.
 
 ## 5. ntfy
 
-`/opt/tds3/ntfy/server.yml`:
+The boards and the Notehub alert route publish with a token, and nobody can
+read or write without a login. `/opt/tds3/ntfy/server.yml`:
 
 ```yaml
-base-url: "https://ntfy.example.org"
+base-url: "https://ntfy.solchjg.net"
 listen-http: ":80"
 behind-proxy: true
 cache-file: "/var/lib/ntfy/cache.db"
@@ -292,16 +296,17 @@ docker compose exec ntfy ntfy user add --role=admin joe
 docker compose exec ntfy ntfy user add tds3
 docker compose exec ntfy ntfy access tds3 'tds3*' write-only
 docker compose exec ntfy ntfy token add tds3     # prints tk_… (32 characters)
+curl -s https://ntfy.solchjg.net/v1/health        # {"healthy":true}
 ```
 
-On the board, `ntfy_url` is `https://ntfy.example.org`, `ntfy_topic` e.g.
+On the board, `ntfy_url` is `https://ntfy.solchjg.net`, `ntfy_topic` e.g.
 `tds3-alerts`, `ntfy_token` the `tk_…` token (FSD §31.2: it fits the 1 – 64
 printable characters). In the ntfy phone app: *Settings* → *Users* → add
-`https://ntfy.example.org` with user `joe`, then subscribe to `tds3-alerts`
+`https://ntfy.solchjg.net` with user `joe`, then subscribe to `tds3-alerts`
 on that server. Test from your computer:
 
 ```bash
-curl -H "Authorization: Bearer tk_…" -d "test from curl" https://ntfy.example.org/tds3-alerts
+curl -H "Authorization: Bearer tk_…" -d "test from curl" https://ntfy.solchjg.net/tds3-alerts
 ```
 
 ## 6. Notehub routes (cellular devices)
@@ -311,9 +316,9 @@ your project → *Routes* → *Create route* → *General HTTP/HTTPS Request/Res
 
 | Route | Notefiles | URL | Headers | Data |
 |-------|-----------|-----|---------|------|
-| ThingsBoard telemetry | `tb.qo` | `https://tb.example.org/api/v1/<tb_token>/telemetry` | `Content-Type: application/json` | JSONata `body.t` |
-| ThingsBoard attributes | `tbattr.qo` | `https://tb.example.org/api/v1/<tb_token>/attributes` | `Content-Type: application/json` | JSONata `body` |
-| ntfy alerts | `alert.qo` | `https://ntfy.example.org/` | `Authorization: Bearer tk_…` | JSONata `body` |
+| ThingsBoard telemetry | `tb.qo` | `https://tb.solchjg.net/api/v1/<tb_token>/telemetry` | `Content-Type: application/json` | JSONata `body.t` |
+| ThingsBoard attributes | `tbattr.qo` | `https://tb.solchjg.net/api/v1/<tb_token>/attributes` | `Content-Type: application/json` | JSONata `body` |
+| ntfy alerts | `alert.qo` | `https://ntfy.solchjg.net/` | `Authorization: Bearer tk_…` | JSONata `body` |
 
 Each route holds the token, never the board (FR-33.9). With several cellular
 boards, one route per board (or a JSONata expression that picks the token by
@@ -322,25 +327,25 @@ token. The route log in Notehub shows the server's answer for each event.
 
 ## 7. Moving the devices from the LAN server
 
-Order: build the cloud server (sections 1 – 5), copy the setup, switch the
+Order: set up the cloud server (sections 1 – 5), copy the setup, switch the
 boards one at a time, keep the LAN server running a week, then stop it.
 
 1. **Copy the setup.** On the LAN server, export each dashboard (*Dashboards*
    → ⋮ → *Export dashboard*, a JSON file) and the device profile *TDS3
    weather* (*Profiles* → *Device profiles* → ⋮ → *Export*). Import both on
-   `https://tb.example.org` (**+** → *Import*). Re-select the alias's device
+   `https://tb.solchjg.net` (**+** → *Import*). Re-select the alias's device
    in each imported dashboard after step 2.
 2. **Create the devices** on the cloud server (ThingsBoard Setup, section 2),
    one per board, with **new** access tokens: the LAN tokens have travelled
    in plain text. Check each token with `curl` against
-   `https://tb.example.org` (ThingsBoard Setup, section 8, step 2).
+   `https://tb.solchjg.net` (ThingsBoard Setup, section 8, step 2).
 3. **Copy old readings (optional).** The board uploads only readings after
    its upload mark, so readings already on the LAN server do not go to the
    cloud server by themselves. To keep them, copy them with the REST API:
 
    ```bash
    OLD=http://192.168.2.37:8080
-   NEW=https://tb.example.org
+   NEW=https://tb.solchjg.net
    JWT=$(curl -s -X POST "$OLD/api/auth/login" -H 'Content-Type: application/json' \
      -d '{"username":"tenant@thingsboard.org","password":"<LAN password>"}' | jq -r .token)
    ID=<LAN device id>
@@ -363,8 +368,8 @@ boards one at a time, keep the LAN server running a week, then stop it.
    Every line prints `200`. ThingsBoard keeps one value per key and time, so
    running it twice does no harm.
 4. **Switch each board** over Bluetooth (ThingsBoard Setup, section 5):
-   `tb_url` `https://tb.example.org`, `tb_token` the new token, and for
-   alerts `ntfy_url` `https://ntfy.example.org` with the `tk_…` token. The
+   `tb_url` `https://tb.solchjg.net`, `tb_token` the new token, and for
+   alerts `ntfy_url` `https://ntfy.solchjg.net` with the `tk_…` token. The
    board restarts; check the `tb sent` lines and the dashboard (ThingsBoard
    Setup, section 6). Readings taken while it was switching go up with its
    first successful batch.
@@ -377,9 +382,9 @@ boards one at a time, keep the LAN server running a week, then stop it.
 
 Two layers:
 
-- **Hetzner backups** (turned on in section 2): a daily image of the whole
-  disk, 7 kept. Restoring one rolls the VM back to that day: *Server* →
-  *Backups* → *Restore*. Take a manual *Snapshot* before every upgrade.
+- **The provider's VM backups or snapshots:** a daily image of the whole
+  disk. Restoring one rolls the VM back to that day. Take a manual snapshot
+  before every upgrade.
 - **Nightly database dump, kept off the VM.** A dump restores into any new
   VM, at any provider.
 
@@ -387,6 +392,7 @@ Create a Backblaze B2 bucket (or any S3-compatible bucket) and an application
 key for it, then on the VM:
 
 ```bash
+sudo apt -y install restic
 sudo tee /root/restic.env >/dev/null <<'EOF'
 export RESTIC_REPOSITORY=s3:s3.us-east-005.backblazeb2.com/<bucket>
 export AWS_ACCESS_KEY_ID=<keyID>
@@ -407,7 +413,7 @@ cd /opt/tds3
 mkdir -p /var/backups/tds3
 docker compose exec -T postgres pg_dump -U postgres -Fc thingsboard > /var/backups/tds3/thingsboard.dump
 docker compose cp ntfy:/var/lib/ntfy/user.db /var/backups/tds3/ntfy-user.db
-restic backup /var/backups/tds3 /opt/tds3 /etc/caddy/Caddyfile
+restic backup /var/backups/tds3 /opt/tds3 /etc/caddy   # with nginx: /etc/nginx /etc/letsencrypt
 restic forget --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
 ```
 
@@ -421,7 +427,8 @@ It runs at 3:15 AM Eastern. To be told when it stops running, add a free
 healthchecks.io check and append `&& curl -fsS https://hc-ping.com/<uuid>` to
 the cron line.
 
-**Restore** (new VM, or after a bad upgrade): do sections 2 – 4 again, then
+**Restore** (new VM, or after a bad upgrade): set up Docker, the proxy and
+DNS again (sections 1, 2, 4), then
 
 ```bash
 . /root/restic.env && restic restore latest --target /
@@ -439,18 +446,18 @@ holds them.
 
 ## 9. Keeping it running
 
-- **Security updates:** `unattended-upgrades` installs Ubuntu's. Reboot when
+- **Security updates:** `unattended-upgrades` installs the OS's. Reboot when
   `/var/run/reboot-required` exists (the containers start again by
   themselves).
 - **ThingsBoard upgrades:** snapshot first, then follow thingsboard.io →
   *Upgrade instructions* for Docker, one release at a time: change the image
   tag, run `docker compose run --rm -e UPGRADE_TB=true thingsboard-ce`, then
   `docker compose up -d`.
-- **ntfy, PostgreSQL minor versions, Caddy:** `docker compose pull && docker
-  compose up -d`; Caddy updates with `apt`.
+- **ntfy, PostgreSQL minor versions:** change the ntfy tag as needed, then
+  `docker compose pull && docker compose up -d`. Caddy updates with `apt`.
 - **Disk:** `df -h /` and `docker system df` now and then; the logging limits
-  in the Compose file keep container logs under 250 MB each.
-- **Certificates:** nothing to do. `journalctl -u caddy | grep -i renew` shows
-  the renewals; Let's Encrypt emails before an expiry only if renewals stop.
+  in the Compose file keep the ThingsBoard log under 250 MB.
+- **Certificates:** nothing to do; the proxy renews them. Check with
+  `journalctl -u caddy | grep -i renew` or `sudo certbot certificates`.
 - **Is it up:** a free external monitor (e.g. UptimeRobot) on
-  `https://tb.example.org/` and `https://ntfy.example.org/v1/health`.
+  `https://tb.solchjg.net/` and `https://ntfy.solchjg.net/v1/health`.
