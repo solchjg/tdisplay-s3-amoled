@@ -613,7 +613,7 @@ region; they change the screen content that D3 – D5 compare against.
 Six text lines, landscape: lines 1 – 5 at most 33 characters each, line 6
 in a smaller font at most 44 (FR-6.14, FR-6.15). Line 4 is the
 reading in every state (FR-23.12); line 5 is empty except during the setup
-check (FR-24.12) and a BLE window (FR-26.14); line 6 holds the add-on values
+check (FR-24.13) and a BLE window (FR-26.23); line 6 holds the add-on values
 (FR-29.8, FR-30.10), empty with every add-on off; the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
@@ -1023,7 +1023,7 @@ Each line requirement is one row of §7.2:
   log L2 once.
 - **FR-7.9** [Must] [derived from FR-13.1] Entry into PROVISIONING shall log L3.
 - **FR-7.10** [Must] [derived from FR-5.15] Entry into ONLINE and T9 shall log L5.
-- **FR-7.34** [Must] [derived from R-1, FR-24.12 and FR-26.14] Each line
+- **FR-7.34** [Must] [derived from R-1, FR-24.13 and FR-26.23] Each line
   redrawn by D4 shall log L7 with the exact text drawn, except a countdown on
   line 5 (the setup check's or the BLE key window's), which logs L7 only when
   its minutes change (and once at 00:00).
@@ -1892,9 +1892,10 @@ factory reset (§18).
 - **FR-24.3** [Must] [user] During the hold, line 4 shall show a live reading,
   taken every **5 s**; these readings are neither kept
   (FR-23.9) nor logged as L21.
-- **FR-24.12** [Must] [user] During the hold, line 5 shall show
-  `Press BOOT to start <mm>:<ss>`, counting down once a second from
-  `30:00` to `00:00` (25 characters).
+- **FR-24.13** [Must] [user] During the hold, line 5 shall show
+  `Press flashing LED to start <mm>:<ss>`, counting down once a second from
+  `30:00` to `00:00` (33 characters); the flashing LED of FR-24.9 marks the
+  BOOT key beside it.
 - **FR-24.9** [Must] [user] During the hold, the LED next to the BOOT key
   (GPIO 38 on the non-touch board) shall flash at **1 Hz**, 500 ms on and
   500 ms off; when the hold ends it is lit again with the panel, as outside
@@ -1918,14 +1919,14 @@ factory reset (§18).
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-24.1, FR-24.2, FR-24.7 (core) | Logic: T3; boot (power-on, reset, key wake, timer wake) with the mark pending and not | Hold after T3 and after every pending non-timer boot; no hold on a timer wake or with no mark | The task due during a hold; a hold on a timer wake | host |
-| FR-24.12 (core) | Countdown line for 1800, 61, 0 s left | `Press BOOT to start 30:00`; `… 01:01`; `… 00:00` | More than 25 characters | host |
+| FR-24.13 (core) | Countdown line for 1800, 61, 0 s left | `Press flashing LED to start 30:00`; `… 01:01`; `… 00:00` | More than 33 characters | host |
 | FR-24.11, FR-24.6 (core) | Hold, then a key event; hold, then 1800 s with no key | Mark cleared, window 60 s, then the task; mark kept, the task at once | Sleep inside the hold; the mark cleared by the timeout | host |
 | FR-24.1, FR-24.2, FR-24.8 | Erased NVS; provision through the portal (bench AP) | L4, then L23; no `web: sleep` for 120 s | Sleep or the task during the hold | target |
 | FR-24.11 | Holding; operator presses BOOT briefly; again after power-on with the mark pending, the user key | L24 `by=key` each time, then `web: sleep` 60 – 63 s later; no L15 | Sleep earlier; no L24; a factory reset | bench (operator) |
 | FR-24.6 | Sleep test build (hold timeout cut to 60 s), provisioned | L24 `by=timeout` 60 – 63 s after L23, then L21 and `web: sleep`; after a key wake, L23 again | Sleep before the timeout; no hold after the key wake | target / bench (operator) |
 | FR-24.9 (core) | LED state 0, 499, 500, 999, 1000 ms into the hold; outside the hold | Lit, lit, dark, dark, lit; lit | Dark outside the hold; a period other than 1 s | host |
 | FR-24.9 | Holding; operator watches the LED next to the BOOT key for 10 s, then presses BOOT | About ten flashes, then steadily lit after the press | No flashing; the LED dark after the press | bench (operator) |
-| FR-24.3, FR-24.12 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
+| FR-24.3, FR-24.13 | Holding; operator watches the panel for 15 s, finger on the sensor | Line 5 counts down once a second; line 4 changes at least once | A frozen countdown; line 4 unchanged | bench (operator) |
 
 ---
 
@@ -2145,7 +2146,7 @@ Security:
 
 - **FR-26.11** [Must] [user] The device shall pair only by LE Secure
   Connections with passkey entry, declaring the IO capability *DisplayOnly*:
-  a fresh random 6-digit passkey is shown on line 5 (FR-26.14) and the central
+  a fresh random 6-digit passkey is shown on line 5 (FR-26.23) and the central
   enters it.
 - **FR-26.12** [Must] [derived from FR-26.11] `settings`, `result` and
   `control` shall answer a central whose link is not encrypted with an
@@ -2171,11 +2172,12 @@ Security:
 
 Display and log:
 
-- **FR-26.14** [Must] [user] While a passkey is awaited, line 5 shall show
-  `BLE code <nnnnnn>`; otherwise, in a key window, `BLE setup <mm>:<ss>`
-  counting down the time left of FR-26.3, or `BLE connected` while a central
-  is connected. In the provisioning window line 5 is empty
-  except for the passkey.
+- **FR-26.23** [Must] [proposed, from the user's report that the Setup WiFi
+  screen gave no sign of BLE] While a passkey is awaited, line 5 shall show
+  `BLE code <nnnnnn>`; otherwise `BLE connected` while a central is
+  connected, and with none, in a key window `BLE setup <mm>:<ss>` counting
+  down the time left of FR-26.3, and in the provisioning window
+  `BLE setup on`.
 - **FR-26.16** [Must] [derived] Window openings and closings, pairing outcomes
   and settings writes shall log L27 – L30 (§7.2); the passkey shall not be
   logged on serial or UDP.
@@ -2237,7 +2239,7 @@ The setup page:
 | FR-26.10 (core) | Staged writes of 4 × 512 bytes, then 1 more byte | Kept; refused and the staged body emptied | A body over 2048 bytes kept | host |
 | FR-26.12 | Window open; bench connects without pairing and reads `settings` | ATT error Insufficient Authentication; `info` readable | A settings value | bench |
 | FR-26.13 | Key window; bench fails the passkey 3 times | L28 `failed` three times, then L30 `reason=pairing` | A fourth attempt accepted | bench (operator) |
-| FR-26.14 (core) | Line 5 for a passkey 4207, 300 s and 61 s left, connected | `BLE code 004207`, `BLE setup 05:00`, `BLE setup 01:01`, `BLE connected` | More than 33 characters | host |
+| FR-26.23 (core) | Line 5 for a passkey 4207, 300 s and 61 s left, connected; provisioning window, unconnected and connected | `BLE code 004207`, `BLE setup 05:00`, `BLE setup 01:01`, `BLE connected`; `BLE setup on`, `BLE connected` | More than 33 characters | host |
 | FR-26.16 (core) | Format L27 – L30 with sample values | The §7.2 strings exactly | A passkey in any line | host |
 | FR-26.17 | Key window open; relay `POST /ota` | 409, no download, the window stays open | A download | bench (operator) |
 | NFR-26.1 | ONLINE; `free_heap` from `/api/status`; open and close a key window | Within 8 KB 10 s after L30 | A larger loss | bench (operator) |
@@ -2451,7 +2453,7 @@ Result:
   server up, and the 60 s window from that moment, then the task with the
   normal setup. During that window line 5 shall show `Test pass <n>/<m>` or
   `Test FAIL <n>/<m>`, n the readings that counted and m those planned for the
-  tests that ran, unless the BLE key window shows its own line 5 (FR-26.14).
+  tests that ran, unless the BLE key window shows its own line 5 (FR-26.23).
 - **FR-28.12** [Must] [derived] Each test's start shall log L32 and its end
   L33 (§7.2).
 - **FR-28.13** [Should] [user] When mail is set up (§25), the device shall
@@ -3427,6 +3429,8 @@ the bench gains the capability.
 | FR-21.10 | A timer wake never starts WiFi | FR-21.13 (except to send a due summary, FR-25.6) |
 | FR-24.4 | Line 5 as `Press key to continue <mm>:<ss>` | FR-24.10 (`Press blinking key to start <mm>:<ss>`) |
 | FR-24.10 | Line 5 as `Press blinking key to start <mm>:<ss>` | FR-24.12 (`Press BOOT to start <mm>:<ss>`) |
+| FR-24.12 | Line 5 as `Press BOOT to start <mm>:<ss>` | FR-24.13 (`Press flashing LED to start <mm>:<ss>`) |
+| FR-26.14 | Line 5 empty in the provisioning window but for the passkey | FR-26.23 (`BLE setup on`, `BLE connected`) |
 | FR-24.5 | Only the user key ends the setup check | FR-24.11 (the BOOT key or the user key) |
 | FR-18.2 | A short BOOT press changes nothing | FR-18.5 (except that it ends the setup check) |
 | FR-23.2 | Sleep 600 s after each reading | FR-23.14 (`sample_min` minutes, set in the portal) |
@@ -3446,7 +3450,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.22.2
+fsd_version: 0.22.3
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3497,10 +3501,12 @@ change_history:
   - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
   - "0.21.0 2026-11-02 the user accepted every proposed §29 value (GPIO 3 supply enable, the shunt, the loop ADS1115 and its bus, the loop field lengths and settle range, a mean of 4, the 50 ms supply margin, the FR-6.14 line tops); the loop ADS1115 runs at 128 SPS (§29.1, FR-29.2 contract); the loop supply is fed from the battery/system rail (§2, §29.1, Appendix A)"
   - "0.22.0 2026-11-02 (drafted as 0.16.0 beside main) from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.15, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14) and a `services` master switch over ntfy and ThingsBoard (FR-32.15), both from the user's request, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated"
+  - "0.22.3 2026-11-02 from the user's clarifications: FR-24.13 (user) supersedes FR-24.12, line 5 of the hold reads `Press flashing LED to start <mm>:<ss>`; FR-26.23 (proposed) supersedes FR-26.14, line 5 says `BLE setup on` in the provisioning window, where BLE starts by itself and the user key opens no window"
   - "0.22.2 2026-11-02 BLE setup from the user's bench report (pairing failed after an erase, the BLE page unlike the WiFi form): FR-26.21 the page draws the portal form (user), FR-26.19 rules gain step, option labels, extras, placeholder, inputmode, unit, section and intro, FR-26.22 a static random address replaced while no bond is held (proposed), FR-26.18 names it"
   - "0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row"
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14]
 open_decisions:
+  - "FR-26.23: line 5 `BLE setup on` in the provisioning window"
   - "FR-26.22: a static random BLE address, replaced whenever no bond is held (phones keep a stale entry for the old one)"
   - "§30.1, C-30.1: UART1 on TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 (to confirm by loopback commissioning)"
   - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"

@@ -113,14 +113,15 @@ def test_failed_pairings(dl):
     assert dl("PV@0", "PA@4", prov=1)[1][1] == {"LOG_PAIRED"}
 
 
-# TC-BLE-05 · FR-26.14 (core): line 5
+# TC-BLE-05 · FR-26.23 (core): line 5
 @pytest.mark.parametrize("args,line", [
     (("KEY", 0, 0, 0, 4207), "BLE code 004207"),
     (("KEY", 0, 0, 0, -1), "BLE setup 05:00"),
     (("KEY", 0, 0, 239, -1), "BLE setup 01:01"),
     (("KEY", 0, 0, 400, -1), "BLE setup 00:00"),
     (("KEY", 1, 0, 50, -1), "BLE connected"),
-    (("PROV", 0, 0, 50, -1), ""),
+    (("PROV", 0, 0, 50, -1), "BLE setup on"),
+    (("PROV", 1, 0, 50, -1), "BLE connected"),
     (("PROV", 1, 0, 50, 999999), "BLE code 999999"),
     (("OFF", 0, 0, 0, 4207), ""),
 ])

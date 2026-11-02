@@ -46,9 +46,9 @@ With no stored credentials the display shows `Setup WiFi`, the network name
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
 4. The device now waits for you to check it before it starts its sleep cycle.
    The fourth line shows a live reading, updated every 5 seconds, and the fifth
-   shows `Press BOOT to start` with a countdown from 30:00, while the LED
-   next to the BOOT key flashes once a second. Check the readings, then press
-   BOOT briefly (the user key, the one that wakes the board, works too). The
+   shows `Press flashing LED to start` with a countdown from 30:00, while the
+   LED next to the BOOT key flashes once a second. Check the readings, then press
+   the BOOT key beside the flashing LED briefly (the user key, the one that wakes the board, works too). The
    device stays up for one more minute, takes its first reading and goes to
    sleep. Holding BOOT for 5 seconds still erases the settings (chapter 5).
 
@@ -238,8 +238,10 @@ device setup page that ships with the shared components
 GitHub Pages). nRF Connect works too: write the form text to the `settings`
 characteristic, then `apply` to `control`.
 
-- **First setup.** While the display says `Setup WiFi`, the device is also
-  visible over Bluetooth as `TDS3-…` (the same name as its WiFi portal). Open
+- **First setup.** While the display says `Setup WiFi`, Bluetooth is already
+  on by itself: line 5 shows `BLE setup on`, and the device is visible as
+  `TDS3-…` (the same name as its WiFi portal). There is no key to hold; the
+  user key opens a Bluetooth window only after the device is set up. Open
   the page, press **Connect to device**, pick it, and type the 6-digit code the
   display shows on line 5 (`BLE code 123456`). The page shows the same form as
   the portal, section by section (WiFi, Email summary, Readings, 4-20 mA
