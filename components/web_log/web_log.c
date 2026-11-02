@@ -307,6 +307,22 @@ void web_log_history_failed(esp_err_t err)
     ESP_LOGW(TAG, "%s", line);
 }
 
+void web_log_history_erased_format(void)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_history_erased_format(line, sizeof line);
+    ESP_LOGW(TAG, "%s", line);
+}
+
+void web_log_loop(const char *text, bool ok)
+{
+    if (ok) {
+        ESP_LOGI(TAG, "%s", text);
+    } else {
+        ESP_LOGW(TAG, "%s", text);
+    }
+}
+
 void web_log_test(const char *text, bool ok)
 {
     if (ok) {

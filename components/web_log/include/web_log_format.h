@@ -85,3 +85,6 @@ void wl_fmt_ble_off(char *buf, size_t len, const char *reason);
 // L31 "history unavailable" (FR-27.8); "history failed: <ERR>" (FR-27.9).
 void wl_fmt_history_unavailable(char *buf, size_t len);
 void wl_fmt_history_failed(char *buf, size_t len, const char *err);
+
+// L36 "history erased reason=format" (FR-29.12).
+void wl_fmt_history_erased_format(char *buf, size_t len);

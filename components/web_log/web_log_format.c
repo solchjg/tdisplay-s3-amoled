@@ -153,3 +153,8 @@ void wl_fmt_history_failed(char *buf, size_t len, const char *err)
 {
     snprintf(buf, len, "history failed: %s", err);
 }
+
+void wl_fmt_history_erased_format(char *buf, size_t len)
+{
+    snprintf(buf, len, "history erased reason=format");
+}

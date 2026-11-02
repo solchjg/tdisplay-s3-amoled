@@ -15,10 +15,43 @@ static wx_history_t hist;
 
 static wx_reading_t reading(char **a)
 {
-    return (wx_reading_t){.time = strtoll(a[0], NULL, 10), .temp_centi_c = atoi(a[1]),
-                          .press_q8_pa = (uint32_t)strtoul(a[2], NULL, 10),
-                          .hum_q10_pct = (uint32_t)strtoul(a[3], NULL, 10),
-                          .synced = atoi(a[4]) != 0};
+    wx_reading_t r = {.time = strtoll(a[0], NULL, 10), .temp_centi_c = atoi(a[1]),
+                      .press_q8_pa = (uint32_t)strtoul(a[2], NULL, 10),
+                      .hum_q10_pct = (uint32_t)strtoul(a[3], NULL, 10),
+                      .synced = atoi(a[4]) != 0};
+    wx_ext_clear(&r);
+    return r;
+}
+
+// The add-ons, from the environment: EXT_LOOP=<name>,<unit>[,<value>] turns the
+// loop on (no value: none); EXT_RS=<name>,<unit>,<dec>[,<value>] turns RS232 on.
+static wx_ext_cfg_t cfg;
+
+static void ext_from_env(wx_reading_t *r)
+{
+    const char *names[WX_EXT] = {"EXT_RS", "EXT_LOOP"};
+    for (int i = 0; i < WX_EXT; i++) {
+        const char *e = getenv(names[i]);
+        if (!e) continue;
+        char buf[128];
+        snprintf(buf, sizeof buf, "%s", e);
+        char *f[4] = {0};
+        int n = 0;
+        for (char *p = buf; n < 4; n++) {
+            f[n] = p;
+            char *c = strchr(p, ',');
+            if (!c) { n++; break; }
+            *c = 0;
+            p = c + 1;
+        }
+        cfg.s[i].on = true;
+        snprintf(cfg.s[i].name, sizeof cfg.s[i].name, "%s", f[0]);
+        snprintf(cfg.s[i].unit, sizeof cfg.s[i].unit, "%s", n > 1 ? f[1] : "");
+        int vi = 2;
+        cfg.s[i].dec = 3;
+        if (i == WX_EXT_RS232) { cfg.s[i].dec = n > 2 ? atoi(f[2]) : 3; vi = 3; }
+        if (r && n > vi && f[vi][0]) r->ext[i] = strtof(f[vi], NULL);
+    }
 }
 
 // argv: hist <n> | garbage | period <utc> <offset> <every> | avg <every> [<t> <centi_c>]... | line [<t> <c> <p> <h> <s>] | log|json|html [<t> <c> <p> <h> <s> <iso>]
@@ -50,6 +83,30 @@ int main(int argc, char **argv)
             printf(" %" PRId64 ":%" PRId32 ":%" PRIu32, wx_avg_get(&a, i)->start,
                    wx_avg_get(&a, i)->temp_centi_c, wx_avg_get(&a, i)->n);
         }
+    } else if (!strcmp(argv[1], "extavg")) {
+        // argv: extavg <every> [<t> <loop value or ->]...
+        static wx_avgs_t a;
+        static wx_stats_t st;
+        uint32_t every = (uint32_t)atoi(argv[2]);
+        for (int i = 3; i + 1 < argc; i += 2) {
+            wx_reading_t r = {.time = strtoll(argv[i], NULL, 10)};
+            wx_ext_clear(&r);
+            if (strcmp(argv[i + 1], "-")) r.ext[WX_EXT_LOOP] = strtof(argv[i + 1], NULL);
+            wx_avg_add(&a, &r, wx_period_start(r.time, 0, every));
+            wx_stats_add(&st, &r);
+        }
+        printf("%" PRIu32 " %.3f %.3f %.3f", st.ext_n[1], st.ext_lo[1], st.ext_hi[1],
+               st.ext_n[1] ? st.ext_sum[1] / st.ext_n[1] : 0);
+        for (uint32_t i = 0; wx_avg_get(&a, i); i++) {
+            char v[WX_EXT_TEXT_MAX];
+            wx_fmt_ext(v, sizeof v, wx_avg_get(&a, i)->ext[1], 3);
+            printf(" [%s]", v);
+        }
+    } else if (!strcmp(argv[1], "fmt")) {
+        char v[WX_EXT_TEXT_MAX];
+        wx_fmt_ext(v, sizeof v, !strcmp(argv[2], "nan") ? __builtin_nanf("") : strtof(argv[2], NULL),
+                   atoi(argv[3]));
+        printf("[%s]", v);
     } else if (!strcmp(argv[1], "garbage")) {
         memset(&hist, 0xA5, sizeof hist);
         printf("%" PRIu32 " %d", wx_count(&hist), wx_get(&hist, 0) == NULL);
@@ -60,14 +117,17 @@ int main(int argc, char **argv)
         wx_reading_t r = argc > 6 ? reading(&argv[2]) : (wx_reading_t){0};
         const wx_reading_t *p = argc > 6 ? &r : NULL;
         const char *iso = argc > 7 ? argv[7] : "";
+        ext_from_env(argc > 6 ? &r : NULL);
         if (!strcmp(argv[1], "line")) {
             wx_screen_line(p, out);
+        } else if (!strcmp(argv[1], "line6")) {
+            wx_ext_line(p, &cfg, out);
         } else if (!strcmp(argv[1], "log")) {
             wx_log_line(p, iso, out, sizeof out);
         } else if (!strcmp(argv[1], "json")) {
-            wx_json(p, iso, out, WX_JSON_MAX);
+            wx_json(p, iso, &cfg, out, WX_JSON_MAX);
         } else {
-            wx_html(p, iso, out, WX_HTML_MAX);
+            wx_html(p, iso, &cfg, out, WX_HTML_MAX);
         }
         fputs(out, stdout);
     }
@@ -179,12 +239,12 @@ def test_log_line(core):
         f"reading t=-13.13 rh=100.0 p=870.00 at={ISO} synced=0")
 
 
-# TC-WX-05 · FR-23.13 (core)
+# TC-WX-05 · FR-23.18 (core)
 @pytest.mark.parametrize("synced", [0, 1])
-def test_json_element_has_exactly_the_five_keys(core, synced):
+def test_json_element_has_exactly_the_six_keys(core, synced):
     obj = json.loads(core("json", *args(-40.0, 100.0, 1100.0, synced=synced), ISO))
     assert obj == {"time": ISO, "synced": bool(synced), "temp_f": -40.0, "rh_pct": 100.0,
-                   "p_mbar": 1100.0}
+                   "p_mbar": 1100.0, "ext": {}}
 
 
 def test_json_keeps_the_stated_decimals(core):
@@ -217,3 +277,98 @@ def test_a_set_but_unsynced_clock_keeps_its_time(core):
     assert f"at={ISO} synced=0" in core("log", *r, ISO)
     assert json.loads(core("json", *r, ISO))["time"] == ISO
     assert f"{ISO} (unsynced)" in core("html", *r, ISO)
+
+
+# ── §29.2 add-on values ─────────────────────────────────────────────────
+
+R = args(21.43, 45.2, 1013.25)
+
+
+# TC-WX-19 · FR-23.18, FR-29.14 (core): ext {} with every add-on off, a number, null
+def test_json_ext_loop_on_with_a_value(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "tank,psi,12.3456")
+    out = core("json", *R, ISO)
+    assert json.loads(out)["ext"] == {"tank": 12.346}
+    assert '"ext":{"tank":12.346}' in out
+
+
+def test_json_ext_loop_on_without_a_value_is_null(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "tank,psi")
+    out = core("json", *R, ISO)
+    assert json.loads(out)["ext"] == {"tank": None}
+    assert "NaN" not in out and "nan" not in out
+
+
+def test_json_ext_both_slot_1_first(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "loop,mA,4.5")
+    monkeypatch.setenv("EXT_RS", "bal,g,1,99.94")
+    out = core("json", *R, ISO)
+    assert '"ext":{"bal":99.9,"loop":4.500}' in out
+    assert len(out) < 288
+
+
+def test_json_ext_with_the_longest_values_fits(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "abcdefghijkl,unit12,-99999.999")
+    monkeypatch.setenv("EXT_RS", "mnopqrstuvwx,unit12,4,-3e38")
+    out = core("json", *args(-40.0, 100.0, 1100.0, synced=0, t=1577836800), ISO)
+    obj = json.loads(out)
+    assert set(obj["ext"]) == {"mnopqrstuvwx", "abcdefghijkl"}
+
+
+# TC-WX-20 · FR-29.8 (core): line 6
+@pytest.mark.parametrize("env,line", [
+    ("Tank,psi,12.3456", "Tank 12.346 psi"),
+    ("Tank,psi", "Tank --"),
+    ("Tank,,-0.0001", "Tank 0.000"),
+    # A 32-bit float holds -99999.999 as -100000 (§29.2): the widest value shown.
+    ("abcdefghijkl,unit12,-99999.999", "abcdefghijkl -100000.000 unit12"),
+])
+def test_line_6(core, monkeypatch, env, line):
+    monkeypatch.setenv("EXT_LOOP", env)
+    out = core("line6", *R)
+    assert out == line and len(out) <= 44
+
+
+def test_line_6_empty_with_every_add_on_off(core):
+    assert core("line6", *R) == ""
+
+
+def test_line_6_both_add_ons_cut_at_44(core, monkeypatch):
+    monkeypatch.setenv("EXT_RS", "mnopqrstuvwx,unit12,4,-12345.5")
+    monkeypatch.setenv("EXT_LOOP", "abcdefghijkl,unit12,-99999.999")
+    out = core("line6", *R)
+    assert out == "mnopqrstuvwx -12345.5000 unit12  abcdefghijk"
+    assert len(out) == 44
+
+
+def test_line_6_without_a_reading(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "Tank,psi")
+    assert core("line6") == "Tank --"
+
+
+@pytest.mark.parametrize("v,dec,text", [("nan", 3, ""), ("inf", 3, ""), ("1.5", 0, "2"),
+                                        ("-0.0004", 3, "0.000"), ("106.25", 3, "106.250")])
+def test_fmt_ext(core, v, dec, text):
+    assert core("fmt", v, dec) == f"[{text}]"
+
+
+# TC-WX-21 · FR-29.6, FR-29.9 (core): each add-on's own mean and count
+def test_ext_averages_and_stats_count_only_values(core):
+    out = core("extavg", 3600, H, 10, H + 60, "-", H + 120, 20, H + 3600, "-",
+               H + 7200, 5).split()
+    n, lo, hi, mean = int(out[0]), *map(float, out[1:4])
+    assert (n, lo, hi, mean) == (3, 5.0, 20.0, pytest.approx(35 / 3, abs=1e-3))
+    assert out[4:] == ["[]", "[15.000]"], "newest first; a period with no value is empty"
+
+
+# TC-WX-22 · FR-29.7 (core): the page shows the loop value or that none is kept
+def test_html_loop_row(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "tank,<m>,1.5")
+    page = core("html", *R, ISO)
+    assert "<tr><th>tank</th><td>1.500 &lt;m&gt;</td></tr>" in page
+    monkeypatch.setenv("EXT_LOOP", "tank,psi")
+    assert "<tr><th>tank</th><td>none kept</td></tr>" in core("html", *R, ISO)
+
+
+def test_html_without_add_ons_has_no_row(core):
+    assert "none kept" not in core("html", *R, ISO)

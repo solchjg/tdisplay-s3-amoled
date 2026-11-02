@@ -28,7 +28,8 @@ static const rm67162_config_t panel_cfg = {
     .gap_x = 0,
     .gap_y = 0,
     .madctl = TDISPLAY_S3_AMOLED_LCD_MADCTL,
-    // One DMA transfer at a time: a full-width band of FONT_H rows (33.5 KiB).
+    // One DMA transfer at a time: a full-width band of FONT_H rows (33.5 KiB), the
+    // tallest line.
     .canvas_pixels = TDISPLAY_S3_AMOLED_LCD_W * FONT_H,
 };
 
@@ -39,7 +40,8 @@ esp_err_t lcd_draw_line(int line, const char *text)
         return ESP_ERR_INVALID_STATE;
     }
     lcd_rect_t r = lcd_text_line_rect(line);
-    text_render(text, rm67162_bus_colour(WHITE), rm67162_bus_colour(BLACK), buf, r.w);
+    text_font_render(lcd_text_line_font(line), text, rm67162_bus_colour(WHITE),
+                     rm67162_bus_colour(BLACK), buf, r.w);
     return rm67162_write(r.x, r.y, r.w, r.h);
 }
 

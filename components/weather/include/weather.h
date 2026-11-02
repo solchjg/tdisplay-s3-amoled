@@ -15,7 +15,14 @@
 // failure nothing is kept, and the next call starts the sensor afresh.
 esp_err_t weather_read(wx_reading_t *out);
 
-// FR-24.3: a reading like weather_read, but not kept.
+// §29.2: which add-ons are on, and the call that fills a reading's add-on
+// values after the BME280 sample and before it is kept (NULL: none). Set
+// before the task's reading.
+typedef void (*weather_ext_cb_t)(wx_reading_t *r);
+void weather_set_ext(const wx_ext_cfg_t *cfg, weather_ext_cb_t read);
+const wx_ext_cfg_t *weather_ext(void);
+
+// FR-24.3: a reading like weather_read, but not kept and without add-on values.
 esp_err_t weather_sample(wx_reading_t *out);
 
 // FR-23.15: the length of an average period, set before the task's reading.
@@ -37,7 +44,7 @@ void weather_iso(const wx_reading_t *r, char out[WX_ISO_MAX]);
 // FR-23.7: the page's reading section, for status_http's extra_html.
 void weather_html(char *out, size_t len);
 
-// FR-23.13: GET /api/readings on a running server; note counts and logs each
+// FR-23.18: GET /api/readings on a running server; note counts and logs each
 // answer like the server's own routes (status_http_note).
 typedef void (*weather_note_cb_t)(const char *method, const char *uri, int status);
 esp_err_t weather_register(httpd_handle_t server, weather_note_cb_t note);
