@@ -240,6 +240,11 @@ characteristic, then `apply` to `control`.
   empty to keep the stored password. **Save settings** stores them and the
   device restarts with them. Press **Done**, or wait 5 minutes without a
   connection, to turn Bluetooth off again.
+- **Reconnecting.** The device remembers up to 3 phones it has paired with,
+  so a phone that paired once connects again without a code. After a factory
+  reset the device has forgotten them: remove `TDS3-…` from the phone's
+  Bluetooth devices once, then pair again. The page says so when a connection
+  fails twice.
 
 - **Downloading the history.** In the same Bluetooth session (after holding
   the user key and typing the code), the page shows *History* with *From* and

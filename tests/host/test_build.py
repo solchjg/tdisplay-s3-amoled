@@ -145,7 +145,7 @@ def test_bootloader_rollback_enabled(sdkconfig):
     assert "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y" in sdkconfig
 
 
-# TC-BLE-13 · FR-26.15, FR-26.13: NimBLE as one peripheral, nothing more, no bonds kept.
+# TC-BLE-13 · FR-26.15, FR-26.13: NimBLE as one peripheral, at most 3 bonds kept in NVS.
 # The central role is compiled in only for the GATT client, which confirms the
 # indication a phone sends on connecting; nothing scans.
 def test_ble_is_a_lone_peripheral(sdkconfig):
@@ -153,7 +153,9 @@ def test_ble_is_a_lone_peripheral(sdkconfig):
     assert "CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1" in sdkconfig
     assert "CONFIG_BT_NIMBLE_GATT_CLIENT=y" in sdkconfig
     assert "CONFIG_BT_NIMBLE_ROLE_OBSERVER=y" not in sdkconfig
-    assert "CONFIG_BT_NIMBLE_NVS_PERSIST=y" not in sdkconfig
+    assert "CONFIG_BLE_SETUP_BOND=y" in sdkconfig
+    assert "CONFIG_BT_NIMBLE_NVS_PERSIST=y" in sdkconfig
+    assert "CONFIG_BT_NIMBLE_MAX_BONDS=3" in sdkconfig
 
 
 # TC-LOG-14 · FR-7.30, FR-5.31 (image)
