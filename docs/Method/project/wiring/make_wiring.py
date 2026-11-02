@@ -242,8 +242,8 @@ def lipo_part(mid, title, side, top="-"):
 
 
 def de9_part():
-    w, h = 900, 900
-    names = ["3 TXD", "2 RXD", "5 GND"]
+    w, h = 900, 1050
+    names = ["3 TXD", "2 RXD", "5 GND", "7 RTS"]
     pins = [(n, w, 375 + 150 * k, "R") for k, n in enumerate(names)]
 
     def draw():
@@ -256,7 +256,7 @@ def de9_part():
         return "".join(s)
 
     return Part("tds3a_de9_male", "DE-9 male (DTE)", w, h, pins, draw, "J",
-                "DE-9 male connector, DTE")
+                "DE-9 male connector, DTE, panel mount")
 
 
 def build_parts(used):
@@ -333,11 +333,16 @@ def build_parts(used):
                 pins=("K", "A")))
     add(two_pin("tds3a_fuse_h", "fuse", "1 A", False, "F", "Fuse"))
     # RS232 instrument, FSD section 30
-    add(module_part("tds3a_rs232_xcvr", ["RS232 transceiver", "MAX3232 (PDIP-16)"],
-                    "specified", left=["T1OUT", "R1IN", "GND "],
-                    right=["VCC", "T1IN", "R1OUT", "GND"], w=1300,
-                    color="#00695c", notes=["C1-C5 0.1 uF, see rs232-circuit.md"],
-                    desc="RS232 transceiver MAX3232 in a DIP socket"))
+    add(module_part("tds3a_rs232_xcvr", ["MAX3232ECPE+", "PDIP-16, pin 1 top left"],
+                    "specified",
+                    left=["1 C1+", "2 V+", "3 C1-", "4 C2+", "5 C2-", "6 V-", "7 T2OUT", "8 R2IN"],
+                    right=["16 VCC", "15 GND", "14 T1OUT", "13 R1IN", "12 R1OUT", "11 T1IN",
+                           "10 T2IN", "9 R2OUT"], w=1400, color="#263238",
+                    desc="RS232 transceiver MAX3232 (PDIP-16) in a DIP socket"))
+    add(two_pin("tds3a_c100n_h", "cap", "100 nF", False, "C", "Capacitor"))
+    add(module_part("tds3a_term3", ["Screw terminal", "3-pin 5.08 mm"], "specified",
+                    right=["TX", "RX", "GND"], w=900, color="#2e7d32", label="J",
+                    desc="3-pin screw terminal, 5.08 mm"))
     add(de9_part())
     return P
 
@@ -835,25 +840,52 @@ def sheet_water(S):
 
 def sheet_rs232(S):
     B = "Board"
-    S.place(B, BOARD, 4600, 500)
-    S.place("U12", "tds3a_rs232_xcvr", 2000, 1125)
-    S.place("J1", "tds3a_de9_male", 700, 1125)
-    S.place("R10", "tds3a_r100k_v", 4000, 1800)
-    S.wire((B, "IO11"), ("U12", "T1IN"), "green")
-    S.wire((B, "IO12"), ("U12", "R1OUT"), "blue", ("x", 3600))
+    S.place(B, BOARD, 7400, 500)
+    S.place("U12", "tds3a_rs232_xcvr", 3800, 700)
+    S.place("C1", "tds3a_c100n_h", 3050, 400)
+    S.place("C2", "tds3a_c100n_v", 2800, 1475)
+    S.place("C3", "tds3a_c100n_v", 2400, 1175)
+    S.place("C4", "tds3a_c100n_h", 3900, 2400)
+    S.place("C5", "tds3a_c100n_h", 4700, 400)
+    S.place("R10", "tds3a_r100k_v", 6700, 1800)
+    S.place("J1", "tds3a_de9_male", 3800, 3000)
+    S.place("J2", "tds3a_term3", 3700, 4300)
+    # charge pump
+    S.wire(("U12", "1 C1+"), ("C1", "2"), "orange", ("x", 3700))
+    S.wire(("U12", "3 C1-"), ("C1", "1"), "orange", ("x", 3600), ("y", 650), ("x", 3100))
+    S.wire(("U12", "4 C2+"), ("C2", "1"), "orange")
+    S.wire(("U12", "5 C2-"), ("C2", "2"), "orange", ("x", 3500), ("y", 2300), ("x", 2900))
+    S.wire(("U12", "2 V+"), ("C3", "1"), "pink")
+    S.wire(("U12", "6 V-"), ("C4", "1"), "cyan", ("x", 3650), ("y", 2500))
+    S.wire(("C3", "2"), ("C4", "2"), "black", ("y", 2700), ("x", 4550))
+    S.wire(("C4", "2"), ("U12", "15 GND"), "black", ("x", 5450), ("y", 1225))
+    # supply from GPIO 13, held low by R10, decoupled by C5
+    S.wire(("U12", "16 VCC"), ("C5", "2"), "purple", ("x", 5350))
+    S.wire(("C5", "1"), ("U12", "15 GND"), "black", ("y", 300), ("x", 5500), ("y", 1225))
     S.wire((B, "IO13"), ("R10", "1"), "purple")
-    S.wire(("R10", "1"), ("U12", "VCC"), "purple", ("x", 3500))
-    S.wire(("R10", "2"), ("U12", "GND"), "black", ("x", 3400))
-    S.wire(("R10", "2"), (B, "GND"), "black", ("x", 4500))
-    S.wire(("U12", "T1OUT"), ("J1", "3 TXD"), "green")
-    S.wire(("U12", "R1IN"), ("J1", "2 RXD"), "blue")
-    S.wire(("U12", "GND "), ("J1", "5 GND"), "black")
-    S.note(300, 3700, 5900, [
+    S.wire(("R10", "1"), ("C5", "2"), "purple", ("x", 6600), ("y", 500))
+    S.wire(("R10", "2"), (B, "GND"), "black", ("x", 7300))
+    S.wire(("U12", "15 GND"), (B, "GND"), "black", ("x", 5650), ("y", 2600), ("x", 7400))
+    # UART1
+    S.wire(("U12", "11 T1IN"), (B, "IO11"), "green", ("x", 6000))
+    S.wire(("U12", "12 R1OUT"), (B, "IO12"), "blue", ("x", 6100))
+    # T2IN low holds RTS asserted (optional)
+    S.wire(("U12", "10 T2IN"), ("U12", "15 GND"), "black", ("x", 5350), ("y", 1225))
+    # to the instrument
+    S.wire(("U12", "14 T1OUT"), ("J1", "3 TXD"), "green", ("x", 5800), ("y", 3375))
+    S.wire(("U12", "13 R1IN"), ("J1", "2 RXD"), "blue", ("x", 5900), ("y", 3525))
+    S.wire(("J1", "5 GND"), ("C4", "2"), "black", ("x", 4900), ("y", 2500))
+    S.wire(("U12", "7 T2OUT"), ("J1", "7 RTS"), "brown", ("x", 3720), ("y", 4150), ("x", 4800))
+    S.wire(("J1", "3 TXD"), ("J2", "TX"), "green", ("x", 5000))
+    S.wire(("J1", "2 RXD"), ("J2", "RX"), "blue", ("x", 5100))
+    S.wire(("J1", "5 GND"), ("J2", "GND"), "black", ("x", 5200))
+    S.note(300, 5300, 8600, [
         "# RS232 instrument (FSD 30) - specified, not built",
-        "UART1: GPIO 11 TX to T1IN, GPIO 12 RX from R1OUT. GPIO 13 is the",
-        "MAX3232's VCC, so it draws nothing while off; the 100k holds it low",
-        "through sleep and reset. DE-9 male, DTE: pin 3 TXD, pin 2 RXD, pin 5 GND",
-        "(or a 3-pin 5.08 mm terminal). Parts and pinout in rs232-circuit.md.",
+        "GPIO 13 is the MAX3232's VCC: it draws nothing while the port is off; R10 (100k) holds it low through sleep and",
+        "reset. UART1: GPIO 11 TX to T1IN (11), GPIO 12 RX from R1OUT (12); both float while off. C1 - C5 are 0.1 uF ceramic.",
+        "J1 DE-9 male (DTE): pin 3 TXD, pin 2 RXD, pin 5 GND, pin 7 RTS (optional: T2IN at GND holds it asserted). J2 is the",
+        "bare-wire alternative. R2IN (8) and R2OUT (9) stay open. Parts and checks in rs232-circuit.md.",
+        LEGEND,
     ])
 
 SHEETS = [
@@ -864,7 +896,7 @@ SHEETS = [
     ("wiring-3-water-probe", "3  Water pressure probe (proposed)",
      (10800, 8100), {"IO2", "GND", "IO44", "IO43", "3V3"}, sheet_water),
     ("wiring-4-rs232", "4  RS232 instrument (FSD 30)",
-     (6500, 4400), {"IO11", "IO12", "IO13", "GND"}, sheet_rs232),
+     (9200, 6000), {"IO11", "IO12", "IO13", "GND"}, sheet_rs232),
 ]
 
 
