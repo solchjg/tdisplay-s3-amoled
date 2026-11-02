@@ -1959,7 +1959,7 @@ connecting).
 | `info` | `6e0a0002-…` | read | none | `fw=<V>&host=<hostname>&state=<S>` |
 | `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>`. Write: appended to the staged body |
 | `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` after connecting; after each `apply`, `ok` or `invalid=<field>` naming the first invalid field |
-| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; any other value is answered with the ATT error *Value Not Allowed* |
+| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `forget` erases every bond (FR-26.13); any other value is answered with the ATT error *Value Not Allowed* |
 
 (`…` is the rest of the service UUID.)
 
@@ -2024,7 +2024,8 @@ Security:
 - **FR-26.13** [Must] [user] The device shall bond with a central that pairs
   and keep at most **3** bonds in NVS, so a bonded central reconnects in a
   window by encryption alone, without a new passkey; a factory reset (T10)
-  erases them. A central that starts encryption with a key the device does not
+  and a `forget` written to `control` (the page's *Forget all phones*) erase
+  them. A central that starts encryption with a key the device does not
   hold is disconnected at once. After
   **3** failed pairings in one window it shall close a key window, or pause
   advertising for **60 s** in PROVISIONING.
