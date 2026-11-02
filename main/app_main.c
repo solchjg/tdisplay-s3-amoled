@@ -368,6 +368,7 @@ static void ble_event_cb(ble_setup_event_t ev)
 static const ble_setup_config_t ble_cfg = {.name = softap_ssid,
                                            .read_info = ble_read_info,
                                            .read_settings = ble_read_settings,
+                                           .read_form = bset_form,  // FR-26.19
                                            .on_apply = ble_apply,
                                            .on_passkey = ble_passkey_cb,
                                            .on_event = ble_event_cb,

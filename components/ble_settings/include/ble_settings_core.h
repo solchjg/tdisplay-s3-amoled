@@ -34,5 +34,10 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *mail, const sp_sel_t *sel,
                  char *out, size_t cap);
 
+// FR-26.19: the rules of every field bset_dump shows, for the page to check
+// before it writes (ble_setup.h read_form). Returns the length (cut to fit cap,
+// terminated).
+size_t bset_form(char *out, size_t cap);
+
 // §26.2: "fw=<V>&host=<hostname>&state=<S>".
 size_t bset_info(const char *fw, const char *host, const char *state, char *out, size_t cap);

@@ -137,6 +137,57 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
     return b.len;
 }
 
+// FR-26.19: each field's rules, as the portal form (§13.2, §25.2, §28.2) states
+// them. Pairs of name and value, NULL-terminated per field.
+#define MAIL "group", "mail"
+#define NEED "need", "1"
+static const char *const RULES[][15] = {
+    {"ssid", "label", "Network name (WiFi)", "required", "1", "maxlength", "32", NULL},
+    {"password", "label", "WiFi password", "minlength", "8", "maxlength", "63", "hint",
+     "Empty for an open network, else 8 - 63 characters.", NULL},
+    {"mail_host", "label", "SMTP server", MAIL, NEED, "maxlength", "64", "pattern",
+     "[A-Za-z0-9.\\-]+", "hint",
+     "Email is optional: fill every starred mail field, or none. Gmail: smtp.gmail.com", NULL},
+    {"mail_port", "label", "SMTP port", MAIL, NEED, "options", "465,587", NULL},
+    {"mail_user", "label", "Login", MAIL, NEED, "maxlength", "64", NULL},
+    {"mail_password", "label", "Mail password", MAIL, NEED, "maxlength", "64", "hint",
+     "Gmail: an app password.", NULL},
+    {"mail_from", "label", "From (if not the login)", MAIL, "type", "email", "maxlength", "64",
+     NULL},
+    {"mail_to", "label", "Send to", MAIL, NEED, "type", "email", "maxlength", "64", NULL},
+    {"mail_to2", "label", "Also send to (optional)", MAIL, "type", "email", "maxlength", "64",
+     NULL},
+    {"mail_time", "label", "First summary at", MAIL, NEED, "type", "time", NULL},
+    {"mail_every", "label", "Then every (hours)", MAIL, NEED, "type", "number", "min", "1",
+     "max", "24", NULL},
+    {"setup", "label", "Setup", "required", "1", "pattern",
+     " *(std|fine|slow|custom|quick|cycle) *(, *(std|fine|slow|custom|quick|cycle) *)*",
+     "hint", "One of std, fine, slow or custom, then quick and/or cycle to run first, "
+     "comma separated.", NULL},
+    {"sample_min", "label", "Custom: a reading every (minutes)", "type", "number", "min", "1",
+     "max", "60", NULL},
+    {"average_min", "label", "Custom: average them over (minutes)", "type", "number", "min",
+     "2", "max", "1440", "hint", "A whole number of readings, dividing a day.", NULL},
+};
+#undef MAIL
+#undef NEED
+
+size_t bset_form(char *out, size_t cap)
+{
+    buf_t b = {out, cap, 0, false};
+    out[0] = '\0';
+    for (size_t i = 0; i < sizeof RULES / sizeof RULES[0]; i++) {
+        char inner[320];
+        buf_t r = {inner, sizeof inner, 0, false};
+        inner[0] = '\0';
+        for (size_t k = 1; RULES[i][k]; k += 2) {
+            field(&r, RULES[i][k], RULES[i][k + 1]);
+        }
+        field(&b, RULES[i][0], inner);
+    }
+    return b.len;
+}
+
 size_t bset_info(const char *fw, const char *host, const char *state, char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};

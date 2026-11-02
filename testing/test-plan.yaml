@@ -2606,6 +2606,58 @@ tests:
     impl: tests/host/test_build.py::test_ble_is_a_lone_peripheral
     result: {status: not done}
 
+  - id: TC-BLE-30
+    title: "The BLE form description covers every field with the portal's rules"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.19]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_form_rules_cover_every_field
+    result: {status: not done}
+
+  - id: TC-BLE-31
+    title: "The BLE form patterns accept what the device accepts"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.19]
+    needs: []
+    observable: "pure core driven by a C harness"
+    impl: tests/host/test_ble_setup.py::test_form_patterns_match_the_device
+    result: {status: not done}
+
+  - id: TC-BLE-32
+    title: "The BLE page checks fields and keeps what was typed"
+    shape: atomic
+    kind: standard
+    wave: 3
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.19, FR-26.20]
+    needs: [bench-ble-pair-passkey, operator-at-bench, dut-amoled-slot1]
+    observable: "operator on the setup page: partial mail group and short password not written; invalid=average_min named with values kept across a reconnect"
+    impl: manual (FSD §26.4 contract)
+    result: {status: not done}
+
+  - id: TC-PORT-20
+    title: "The portal form checks fields and keeps what was typed"
+    shape: atomic
+    kind: standard
+    wave: 3
+    fsd_phase: 2
+    tier: bench
+    verifies: [FR-13.8, FR-13.9]
+    needs: [operator-at-bench, dut-amoled-slot1]
+    observable: "operator's phone on the portal: nothing sent while a field fails; a 400 names the field by its label with every value kept"
+    impl: manual (FSD §13.4 contract)
+    result: {status: not done}
+
   - id: TC-BLE-20
     title: "Advertising in PROVISIONING carries the name and service"
     shape: atomic
