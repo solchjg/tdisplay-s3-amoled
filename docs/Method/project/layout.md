@@ -174,7 +174,7 @@ water probe, RS232, the Notecard), with their pictures and the checks to make
 before wiring, are in [`wiring/wiring.md`](wiring/wiring.md), with LilyGO's pinout picture of
 the board ([`wiring/lilygo-t-display-s3-amoled-pinout.jpg`](wiring/lilygo-t-display-s3-amoled-pinout.jpg)).
 The Notecard and Notecarrier chosen for the cellular uplink (FSD §33), with their
-power and data figures, are in [`notecard.md`](notecard.md).
+power and data figures, are in [`blues-cellular.md`](blues-cellular.md).
 
 ## Toolchain
 

@@ -275,6 +275,16 @@ def build_parts(used):
                     "specified", left=["GND", "3V3", "SDA", "SCL"], right=["BAT-", "BAT+"],
                     w=1300, color="#0d47a1", notes=["Qwiic, I2C 0x17"],
                     desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5"))
+    # Blues cellular uplink, FSD section 33 (docs/Method/project/blues-cellular.md)
+    add(module_part("tds3a_notecarrier_x", ["Notecarrier-X v1.3", "+ Notecard NOTE-MBGLW v2.5"],
+                    "specified", left=["GND", "3V3", "SDA", "SCL"],
+                    right=["MAIN", "GPS", "WIFI", "USB-C", "BAT-", "BAT+"], w=1500,
+                    color="#0d47a1", notes=["I2C 0x17, 10k pull-ups to VIO", "ESLOV (ATTN) not used"],
+                    desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5: "
+                         "Qwiic, u.FL antenna ports, USB-C, JST-PH LiPo"))
+    add(module_part("tds3a_lte_antenna", ["LTE antenna", "flexible, u.FL"], "specified",
+                    left=["u.FL"], w=1000, color="#424242",
+                    desc="Flexible LTE antenna with a u.FL lead, on the Notecard's MAIN port"))
     # 4-20 mA loop input, FSD section 29
     # Pin names are the parts' own (docs/Method/project/loop-circuit.md, "Parts").
     add(module_part("tds3a_load_switch", ["Load switch"], "built",
@@ -882,6 +892,32 @@ def sheet_rs232(S):
         LEGEND,
     ])
 
+def sheet_blues(S):
+    B = "Board"
+    S.place(B, BOARD, 500, 500)
+    S.place("U2", "tds3a_notecarrier_x", 3000, 2200)
+    S.place("AE1", "tds3a_lte_antenna", 5000, 2200)
+    S.place("BT2", "tds3a_lipo_notecarrier", 5000, 3000)
+    # Qwiic cable: GND, SDA and SCL only, its red 3.3 V wire stays unconnected (FR-33.2)
+    for bp, np_, c, y, x in (("Q GND", "GND", "black", 3800, 2900),
+                             ("Q SDA", "SDA", "blue", 3700, 2800),
+                             ("Q SCL", "SCL", "yellow", 3600, 2700)):
+        S.wire((B, bp), ("U2", np_), c, ("y", y), ("x", x))
+    S.wire(("U2", "MAIN"), ("AE1", "u.FL"), "white")
+    S.wire(("U2", "BAT-"), ("BT2", "-"), "black")
+    S.wire(("U2", "BAT+"), ("BT2", "+"), "red")
+    S.note(300, 4100, 5800, [
+        "# Blues cellular uplink (FSD 33) - specified, not built",
+        "Qwiic cable from the board (or the carrier's Qwiic socket) to the Notecarrier-X:",
+        "GND, SDA GPIO 43 and SCL GPIO 44 only. The cable's 3V3 wire and the Notecarrier's",
+        "3V3 pin stay unconnected. The Notecarrier's own LiPo (2000 mAh or more, JST-PH)",
+        "or its USB-C feeds the Notecard and the modem peaks of up to about 2 A.",
+        "Fit the LTE antenna on MAIN before power-up. GPS and WIFI stay empty (cellular",
+        "only, FR-33.14). Parts, budgets and checks in blues-cellular.md.",
+        LEGEND,
+    ])
+
+
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
@@ -891,6 +927,8 @@ SHEETS = [
      (10800, 8100), {"IO2", "GND", "IO44", "IO43", "3V3", "VSYS"}, sheet_water),
     ("wiring-4-rs232", "4  RS232 instrument (FSD 30)",
      (9200, 6000), {"IO11", "IO12", "IO13", "GND"}, sheet_rs232),
+    ("wiring-5-blues-cellular", "5  Blues cellular uplink (FSD 33)",
+     (6400, 5100), set(), sheet_blues),
 ]
 
 
