@@ -173,6 +173,8 @@ Fritzing sketches of every wired subsystem (board and BME280, the 4-20 mA loop, 
 water probe, RS232, the Notecard), with their pictures and the checks to make
 before wiring, are in [`wiring/wiring.md`](wiring/wiring.md), with LilyGO's pinout picture of
 the board ([`wiring/lilygo-t-display-s3-amoled-pinout.jpg`](wiring/lilygo-t-display-s3-amoled-pinout.jpg)).
+The Notecard and Notecarrier chosen for the cellular uplink (FSD §33), with their
+power and data figures, are in [`notecard.md`](notecard.md).
 
 ## Toolchain
 
