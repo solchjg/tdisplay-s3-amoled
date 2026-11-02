@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "loop_core.h"
 #include "portal_core.h"
 #include "sampling_core.h"
 #include "summary_core.h"
@@ -23,16 +24,22 @@ typedef enum {
 // terminated, *out_len its length). In BSET_CHANGE: no `ssid` field appends the
 // stored SSID and password; `ssid` without `password` appends the stored
 // password; mail fields without `mail_password` append the stored mail password.
-// Then the portal's rules run (FR-13.4, FR-25.1, FR-28.1). NULL when valid,
+// Then the portal's rules run (FR-13.4, FR-25.1, FR-28.1, FR-29.11). NULL when valid,
 // else the name of the first invalid field ("length" when out is too small).
 const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
                          const pc_creds_t *cur, const char *cur_mail_password, char *out,
                          size_t cap, size_t *out_len);
 
 // FR-26.9: the stored settings that are not secret, then password_set and
-// mail_password_set, and the setup with its minutes (FR-28.3). Returns the length written (cut to fit cap, terminated).
+// mail_password_set, the setup with its minutes (FR-28.3), and the loop
+// settings (FR-29.11). Returns the length written (cut to fit cap, terminated).
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *mail, const sp_sel_t *sel,
-                 char *out, size_t cap);
+                 const lp_settings_t *loop, char *out, size_t cap);
+
+// FR-26.19: the rules of every field bset_dump shows, for the page to check
+// before it writes (ble_setup.h read_form). Returns the length (cut to fit cap,
+// terminated).
+size_t bset_form(char *out, size_t cap);
 
 // §26.2: "fw=<V>&host=<hostname>&state=<S>".
 size_t bset_info(const char *fw, const char *host, const char *state, char *out, size_t cap);

@@ -51,7 +51,11 @@ reused.
 | 26 | BLE Setup | L1 |
 | 27 | Reading History | L1 |
 | 28 | Sampling Setups | L1 |
+| 29 | 4-20 mA Loop Input | L1 |
+| 30 | RS232 Instrument Input | L1 |
+| 31 | Push Alerts | L1 |
 | 32 | ThingsBoard Telemetry | L1 |
+| 33 | Cellular Uplink | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -140,6 +144,9 @@ path: a failing display never stops the network side (FR-5.28).
 | Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE 5 used only inside a setup window (§26, FR-26.18), sharing the radio by ESP-IDF software coexistence | [derived from the board] |
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
+| 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail, enabled by GPIO 3, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) behind an I2C isolator on GPIO 43/44 (§29) | [user] |
+| RS232 instrument (optional) | One instrument on a DE-9 (DTE): TRS3221E / MAX3221E transceiver, UART1 TX GPIO 11, RX GPIO 12, transceiver power GPIO 13 (§30) | [user]; pins and parts [proposed] |
+| Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW on a Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem (§33) | [user]; carrier, bus and power [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
@@ -337,6 +344,49 @@ testbench.
 - **Dependencies.** §23 (readings, averages), §21 (sleep, the key wake),
   §25 (mail), §26 (BLE settings), §27 (history).
 
+### 3.11 Phase 11: 4-20 mA loop input
+
+- **Scope.** The optional loop input, the add-on value in readings,
+  averages, history, page, JSON and email, the sixth screen line, and the
+  24-byte history record.
+- **Deliverables.** §29, §29.2, FR-6.14, FR-6.15, FR-23.18, FR-27.11,
+  C-10.10, L34 – L36; the shared `ads1115` and `loop420` components; a
+  commissioning program for the loop hardware.
+- **Exit criteria.** With a calibrator at 4, 8, 12, 16 and 20 mA, every L34
+  value is within ±0.25 % of span; a fault current logs L35 and stops
+  nothing; with `loop` `off` the loop leaves no trace; the value appears on line 6, the page, `ext`, the CSV and the
+  summary; with `loop` `off` nothing changes; the old history is erased once.
+- **Dependencies.** §23 (readings), §27 (history), §28 (tests), §25 (mail),
+  §26 (BLE settings), the carrier PCB's loop island.
+
+### 3.12 Phase 12: RS232 instrument input
+
+- **Scope.** The optional RS232 input as add-on slot 1 of §29.2: poll or
+  listen, one number from a text line, scaled, in readings, averages,
+  history, page, JSON, line 6, tests and email.
+- **Deliverables.** §30, L37, L38; the shared `serial_port` component; a
+  loopback commissioning program for GPIO 11 – 13; a USB-RS232 adapter on
+  the testbench host for the bench tier (R-27).
+- **Exit criteria.** A scripted instrument on the bench adapter is read at
+  every reading in `poll` and `listen`; silence, garbage and a long line log
+  L38 and stop nothing; with `rs` `off` RS232 leaves no trace; the value
+  appears on line 6, the page, `ext`, the CSV and the summary.
+- **Dependencies.** §29.2 (add-on values), §23, §27, §28, §25, §26, the
+  carrier PCB's RS232 block.
+
+### 3.13 Phase 13: Push alerts
+
+- **Scope.** The ntfy settings in the portal and over BLE, limit and failure
+  alerts with hysteresis, the test alert, sending on a timer wake.
+- **Deliverables.** §31, the FR-21.13 exception for a due alert, L39, L40,
+  R-28; the shared `ntfy_tx` component in esp-idf-components.
+- **Exit criteria.** With the user's test server at `http://192.168.2.37:8080`
+  a reading past a limit puts one message on the topic and the reading back
+  inside it one more; an unreachable server logs L40 and the device still
+  sleeps within 50 s; with `ntfy` `off` nothing changes and the settings stay.
+- **Dependencies.** §23 (readings), §25 (the shared timer-wake WiFi start),
+  §26 (BLE settings), §28 (test result), §29 and §30 (add-on failures).
+
 ### 3.14 Phase 14: ThingsBoard telemetry
 
 - **Scope.** The shared `tb_tx` component (on the same HTTP POST helper as
@@ -351,6 +401,23 @@ testbench.
 - **Dependencies.** §27 (history), §21 (sleep and timer wakes), §25 (the shared
   WiFi start), §26 (BLE settings), §22 (time); a ThingsBoard server on the
   bench network (R-30).
+
+### 3.15 Phase 15: Cellular uplink
+
+- **Scope.** The optional Notecard uplink: settings, Notecard setup, the
+  ThingsBoard batches, alerts and summary email as notes, the clock from the
+  Notecard.
+- **Deliverables.** §33, L43, L44, the L20 `src=cell` form, R-31 – R-33; the
+  shared `notecard` component in esp-idf-components; a commissioning program
+  that talks to the Notecard on GPIO 43/44 beside the BME280; a User Manual
+  section for the Notehub project and its routes.
+- **Exit criteria.** With `uplink` `cell` a timer wake adds its notes and is
+  asleep within 10 s; the readings reach ThingsBoard, an alert reaches ntfy
+  and a summary reaches the inbox through Notehub; with `uplink` `wifi`
+  nothing changes.
+- **Dependencies.** §32 (ThingsBoard batches and the upload mark), §31
+  (alerts), §25 (summary), §22 (time), §26 (BLE settings), a NOTE-MBGLW and a
+  Notecarrier-A at the bench (R-31).
 
 ---
 
@@ -387,6 +454,11 @@ testbench.
 | R-26 | OTA never rewrites the partition table, so a device updated only by OTA has no `history` partition | Certain | Low | FR-27.8: it runs without history and says so (L31); a USB flash of the full image adds the partition |
 | R-30 | The bench offers no ThingsBoard server, so an upload has no automatic observer | Certain | Medium | The `tb_tx` and `telemetry_core` logic is host-tested; target tests need a ThingsBoard CE container on the bench network (testbench change request, never a project workaround); the production server is an operator check |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
+| R-28 | The testbench offers no ntfy server; the user's test server is at `192.168.2.37:8080` on the LAN, and the bench AP network may not route to it | Medium | Medium | The cores are host-tested; the unreachable-server row runs on the target tier; if the bench AP cannot reach the server, the bench rows are blocked (testbench change request, never a project workaround) and run by the operator with the device on the user's own WiFi |
+| R-31 | The testbench has no Notecard and no cellular coverage is declared at the bench, so the cellular rows need a Notecard on SLOT1's bus and a Notehub project | Certain | Medium | The user fits the Notecarrier-A by Qwiic at the bench; until then the cellular rows are `not done` and the cores are host-tested |
+| R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
+| R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
+| R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
 ### 4.2 Assumptions
 
@@ -406,6 +478,9 @@ testbench.
 - mDNS service records (`_http._tcp`); only the hostname A record is answered.
 - Recovering the display after a driver error; the display stays failed until
   reset (FR-5.27).
+- Push notifications of routine readings or summaries; limits on add-on
+  values; ntfy user-and-password sign-in, attachments, and servers with a
+  self-signed certificate (§31). [user]
 - Touch, GPIO 14 button, battery voltage, backlight dimming, PSRAM.
 - Uptime and request counter wrap after 2³² − 1.
 - Every ESP32-pack test family case not listed in a chapter here (curated subset,
@@ -415,6 +490,7 @@ testbench.
 
 - ESP-IDF **v6.0.2**, the image the Harness uses (`espressif/idf:v6.0.2`). [user]
 - Managed component `espressif/mdns` (not bundled with IDF 6). [derived from §17]
+- Blues Notehub (cloud) for the cellular uplink (§33), with the routes the user sets up; the Notecard's included data. [user]
 - Embedded AI Harness testbench at `192.168.2.230`, SLOT1: USB flash, serial
   monitor, operator prompt, WiFi AP and station, HTTP relay, UDP log capture on
   port 5555, WiFi scan, port scan.
@@ -534,9 +610,11 @@ region; they change the screen content that D3 – D5 compare against.
 
 ### 5.4 Screen content
 
-Five text lines, landscape, at most 33 characters each. Line 4 is the
+Six text lines, landscape: lines 1 – 5 at most 33 characters each, line 6
+in a smaller font at most 44 (FR-6.14, FR-6.15). Line 4 is the
 reading in every state (FR-23.12); line 5 is empty except during the setup
-check (FR-24.12) and a BLE window (FR-26.14); the table gives lines 1 – 3.
+check (FR-24.12) and a BLE window (FR-26.14); line 6 holds the add-on values
+(FR-29.8, FR-30.10), empty with every add-on off; the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
 |--------------------|--------|--------|--------|
@@ -607,7 +685,7 @@ Display:
   neither a restart nor any change in the connectivity region.
 - **FR-5.31** [Must] [user] In no state shall the screen show `Hello, world!` or a
   line beginning `Up:`.
-- **FR-5.29** [Must] [derived from FR-6.2's glyph range] A displayed SSID shall
+- **FR-5.29** [Must] [derived from FR-6.15's glyph range] A displayed SSID shall
   render each byte outside 0x20 – 0x7E as `?` and be cut to its first 20
   characters.
 
@@ -799,8 +877,8 @@ verification:
 
 ### 6.1 Purpose & peer
 
-Powers the built-in RM67162 AMOLED panel, sets its brightness, renders up to three text
-lines in landscape, and reports whether each driver call succeeded. Direction:
+Powers the built-in RM67162 AMOLED panel, sets its brightness, renders six text
+lines in landscape (two fonts, FR-6.15), and reports whether each driver call succeeded. Direction:
 device → display.
 
 ### 6.2 Protocol
@@ -826,14 +904,17 @@ detected (R-2).
 - **FR-6.1** [Must] [user] In LCD_OK, text shall be upright and read left to right
   when the board is held in landscape with its USB-C connector to the viewer's
   right.
-- **FR-6.2** [Must] [user] Text shall be rendered in a fixed-width font with a
-  16 × 32 pixel character cell covering ASCII 0x20 – 0x7E.
+- **FR-6.15** [Must] [user] Text shall be rendered in fixed-width fonts
+  covering ASCII 0x20 – 0x7E: a 16 × 32 pixel cell on lines 1 – 5 and a
+  12 × 24 pixel cell (Terminus Bold, generated by `bdf_to_c.py`) on line 6.
 - **FR-6.3** [Must] [user] In LCD_OK, text shall be white on a black background.
 - **FR-6.4** [Must] [derived from FR-5.25] On entry to LCD_OK (D1), the full
   536 × 240 visible area shall be cleared to black, leaving no lit pixels outside
   the text lines.
-- **FR-6.12** [Must] [derived from §5.4, FR-23.12 and FR-24.12] Lines 1 – 5
-  shall not overlap and shall lie entirely inside the visible area.
+- **FR-6.14** [Must] [user] Lines 1 – 6 shall not overlap and shall lie
+  entirely inside the visible area: tops at 8, 48, 88, 128, 168 and 208 px,
+  8 px apart. A line of 44 characters on line 6 shall be
+  displayed in full (44 × 12 px = 528 px of the 536).
 - **FR-6.13** [Must] [user] A line of 33 characters shall be displayed in full,
   without clipping or wrapping (33 × 16 px = 528 px of the 536).
 - **FR-6.7** [Must] [derived from FR-5.25] In LCD_OK, the panel brightness
@@ -848,10 +929,10 @@ detected (R-2).
 | C-6.1 – C-6.5 | Inspect the built configuration | The pin numbers, 75 MHz clock and MADCTL 0x60 appear in the firmware's own configuration | Any other value; a value taken from a driver default | host |
 | C-6.1 – C-6.5 (wire) | Shipped build; reset; operator prompted after the BOOT screen | Operator confirms `Starting` is legible | Blank, noisy, shifted or garbled panel | bench (operator) |
 | FR-6.1 | LCD_OK; operator prompted with the board held USB-C to the right | Operator confirms text upright and left to right | Mirrored, upside-down or rotated text | bench (operator) |
-| FR-6.2 | Inspect the font used by the renderer | Cell 16 × 32 px; glyphs 0x20 – 0x7E | Other cell size; proportional font | host |
+| FR-6.15 | Inspect the fonts used by the renderer | Cells 16 × 32 px (lines 1 – 5) and 12 × 24 px (line 6); glyphs 0x20 – 0x7E | Other cell size; proportional font | host |
 | FR-6.3 | LCD_OK; operator prompted | Operator confirms white on black | Inverted or tinted colours | bench (operator) |
 | FR-6.4 | Power-cycle (random panel RAM); operator prompted after the first screen | No stray pixels along any edge or between lines | Noise band along an edge; remnants | bench (operator) |
-| FR-6.12 | Render five lines with the shipped layout | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 535], y ∈ [0, 239] | Overlap; a pixel outside | host |
+| FR-6.14 | Render six lines with the shipped layout, line 6 with 44 characters | Each line's top row > the previous line's bottom row; all glyphs inside x ∈ [0, 535], y ∈ [0, 239]; line 6 one row, rightmost pixel x ≤ 527 | Overlap; a pixel outside; wrap | host |
 | FR-6.13 | Render a 33-character line | Rightmost pixel x ≤ 527; one row | Width > 528 px; wrap | host |
 | FR-6.7 | LCD_OK; operator prompted | Panel lit | Dark or flickering | bench (operator) |
 | FR-6.8 | Render `Req: 1000`, then `Req: 5` into the same row | Row after the second render equals a fresh render of `Req: 5` | Remnant pixels of `000` | host |
@@ -900,7 +981,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L16 | T13 | `web: ota not confirmed, restarting` | E |
 | L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
 | L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
-| L20 | Clock synced (FR-22.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>` (local time) | I |
+| L20 | Clock synced (FR-22.5, FR-33.12) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>[ src=cell]` (local time; `src=cell` when set from the Notecard) | I |
 | L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<mbar, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm>, or none (FR-22.6)> synced=<0\|1>` | I |
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
@@ -914,8 +995,17 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L31 | History unavailable or failed (FR-27.8, FR-27.9) | `web: history unavailable` or `web: history failed: <ERR>` | W |
 | L32 | Test started (FR-28.12) | `web: test start id=<quick\|cycle>` | I |
 | L33 | Test ended (FR-28.12) | `web: test end id=<quick\|cycle> readings=<n>/<m> averages=<a>/<b> result=<pass\|fail>[ by=<key\|reset>]` | I (W when failed) |
+| L34 | Loop value (FR-29.5) | `web: loop ma=<mA, 3 decimals> v=<value, 3 decimals> <loop_unit>` | I |
+| L35 | Loop failed (FR-29.4) | `web: loop failed: <fault\|ERR> ma=<mA, 3 decimals, or none>` | W |
+| L36 | History erased for its new format (FR-29.12) | `web: history erased reason=format` | W |
+| L37 | RS232 value (FR-30.7) | `web: rs232 <rs_name>=<value, rs_dec decimals>[ <rs_unit>]` | I |
+| L38 | RS232 failed (FR-30.6) | `web: rs232 failed: <timeout\|long\|nonum\|ERR>[ line=<first 32 bytes>]` | W |
+| L39 | Alert delivered (FR-31.12) | `web: ntfy sent <event>` (§31.3 names) | I |
+| L40 | Alert not delivered (FR-31.11) | `web: ntfy failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|limit\|server\|timeout> <event>` | W |
 | L41 | ThingsBoard request accepted (FR-32.13) | `web: tb sent what=<telemetry\|attributes> n=<readings> left=<readings still after the mark>` | I |
 | L42 | ThingsBoard request failed (FR-32.11) | `web: tb failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|server\|timeout> what=<telemetry\|attributes> n=<readings>` | W |
+| L43 | Note accepted by the Notecard (FR-33.11) | `web: cell note <tb\|tbattr\|alert\|mail> n=<readings, or 1>` | I |
+| L44 | Notecard request failed (FR-33.4, FR-33.10) | `web: cell failed: <timeout\|err\|full> <req>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1035,7 +1125,7 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
 
 | Method | Path | Request | Response |
 |--------|------|---------|----------|
-| GET | `/` | — | 200 `text/html`: form with fields `ssid` and `password`, `method="post"`, `action="/connect"` |
+| GET | `/` | — | 200 `text/html`: form with fields `ssid` and `password`, `method="post"`, `action="/connect"`, and the script that checks it (FR-13.8, FR-13.9) |
 | POST | `/connect` | `application/x-www-form-urlencoded`, fields `ssid`, `password` | 200 `text/html` naming the SSID, or 400 `text/plain` naming the invalid field |
 | GET | any other path | — | 302, `Location: http://192.168.4.1/` |
 
@@ -1056,6 +1146,19 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
   302 to `http://192.168.4.1/`.
 - **FR-13.7** [Must] [derived from §9.1] The SSID echoed by FR-13.3 shall be
   HTML-escaped (`&`, `<`, `>`, `"`, `'`).
+- **FR-13.8** [Must] [user] The form shall mark every field a submission
+  requires with `*`, and the browser shall check each field against its rule
+  (FR-13.4, §25.2, FR-28.1) before anything is sent: a required field left
+  empty, or a value outside its length, pattern, type or range, is marked on
+  the page and nothing is sent. A field of an all-or-nothing group (the mail
+  fields of §25.2) becomes required once any field of the group is filled, and
+  optional again when the group is emptied.
+- **FR-13.9** [Must] [user] When the device answers a submission 400, the form
+  shall stay on the page with every value typed kept, passwords included, and
+  name the refused field by its label; the field stays marked until it is
+  changed. A rule only the device checks (for example `average_min` against
+  `sample_min`) is reported this way. A browser without `fetch` posts the form
+  as a plain submission and sees the 400 text of §13.2.
 
 ### 13.4 Verification contracts
 
@@ -1068,6 +1171,8 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
 | FR-13.5 | Joined to SoftAP; relay `GET http://example.com/` | Portal response (200 form or 302 to the portal) | A DNS failure | bench |
 | FR-13.6 | Joined; `GET /generate_204` | 302 to `http://192.168.4.1/` | 404; 204 | bench |
 | FR-13.7 (core) | Escape `<b>&"'` | `&lt;b&gt;&amp;&quot;&#39;` | Raw characters | host |
+| FR-13.8 | Bench joined to the SoftAP; a phone browser on the portal: submit empty; then a 7-character password; then only `mail_host` filled; then empty `mail_host` again | Only *Network name* starred at first; nothing sent the first three times (the field marked); the seven mail fields starred with `mail_host` filled and unstarred when emptied | A request sent; a partial mail group sent | bench (operator) |
+| FR-13.9 | As FR-13.8; a valid-looking form with `setup` custom, `sample_min` 10, `average_min` 7; submit; then `average_min` 60 | The page names *Custom: average them over*, every value including both passwords still filled; the second submission answers the FR-13.3 page | A field emptied; a plain-text 400 page | bench (operator) |
 
 ### 13.5 Failure modes
 
@@ -1355,16 +1460,18 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ThingsBoard server (§32) |
+| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31); outbound HTTP or HTTPS to the configured ThingsBoard server (§32); with `uplink` `cell`, notes over I2C to the Notecard, which sends them to Blues Notehub (§33) |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
-| Credentials | One WiFi password, one mail password and one ThingsBoard access token, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-32.3) |
+| Credentials | One WiFi password, one mail password, one ThingsBoard access token and an optional ntfy token, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-31.13, FR-32.3) |
 
 Accepted risks [user]: readings and the ThingsBoard token sent in plain text when `tb_url` is `http://` (§32); unauthenticated OTA (anyone on the LAN can make the device
 download and run any image from any HTTP URL); open portal SoftAP (anyone in radio
 range during PROVISIONING can submit credentials or read submitted ones);
 plaintext HTTP and logs; unencrypted NVS; anyone who can read the panel
-during a BLE window can pair and change settings. The profile justifies these protections
+during a BLE window can pair and change settings; alerts to an `http://`
+ntfy server are readable on the network path, and on a public server by
+anyone who knows the topic. The profile justifies these protections
 only: never disclosing the passwords, keeping the radio surface to what the
 product uses, and not reflecting portal input as markup (FR-13.7).
 
@@ -1410,7 +1517,7 @@ The numbers a build will otherwise take from a default.
   | ota_1 | app / ota_1 | 0x420000 | 0x400000 |
 
   No factory partition; flash above 0x820000 is unused.
-- **C-10.9** [Must] [user: two 4 MB slots; history size proposed; offsets derived]
+- **C-10.10** [Must] [user: two 4 MB slots, a 2 MB history; offsets derived]
   The partition table shall be exactly the rows of C-10.6 and a history
   partition:
 
@@ -1421,9 +1528,9 @@ The numbers a build will otherwise take from a default.
   | phy_init | data / phy | 0x11000 | 0x1000 |
   | ota_0 | app / ota_0 | 0x20000 | 0x400000 |
   | ota_1 | app / ota_1 | 0x420000 | 0x400000 |
-  | history | data / 0x40 | 0x820000 | 0x180000 [user] |
+  | history | data / 0x40 | 0x820000 | 0x200000 [user] |
 
-  No factory partition; flash above 0x9A0000 is unused.
+  No factory partition; flash above 0xA20000 is unused.
 - **C-10.7** [Must] [derived from C-10.6] The application image shall be at most
   0x400000 bytes.
 - **C-10.8** [Must] [derived from FR-5.24] The bootloader shall be built with app
@@ -1436,7 +1543,7 @@ The numbers a build will otherwise take from a default.
 | C-10.3 | Inspect `sdkconfig` | `CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y` | Other size; default | host |
 | C-10.3 (board) | Read the flash ID in SLOT1 | 16 MB | Smaller | bench |
 | C-10.5 | Flash and reset SLOT1 using only USB | Flash succeeds; L1 and L17 appear | Need for EN/BOOT or a button | bench |
-| C-10.9 | Parse the built partition table binary | Exactly the six rows tabled | Any other row, offset or size | host |
+| C-10.10 | Parse the built partition table binary | Exactly the six rows tabled | Any other row, offset or size | host |
 | C-10.7 | `idf.py size` / image file size | ≤ 0x400000 bytes | Larger | host |
 | C-10.8 | Inspect `sdkconfig` | `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y` | Absent | host |
 
@@ -1558,10 +1665,10 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
   wake the device shall leave the panel dark and the WiFi radio off, run the
   task, and sleep again; no window, no web server. The one exception is a
   summary email due on that wake (FR-25.6), for which WiFi runs as a station
-  only while it is sent; the second is a ThingsBoard upload due on that wake
-  (FR-32.5), for which WiFi likewise runs only while it is sent; the third is
-  the wake whose reading ends the last test (FR-28.11), which continues as
-  after a key wake.
+  only while it is sent; the second is an alert due on that wake (FR-31.10),
+  likewise; the third is a ThingsBoard upload due on that wake (FR-32.5),
+  likewise; the fourth is the wake whose reading ends the last
+  test (FR-28.11), which continues as after a key wake.
 - **FR-21.11** [Must] [user] A key wake
   shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
   server, then the task (local maintenance and OTA).
@@ -1682,6 +1789,7 @@ with 60 they run 00:00, 01:00, 02:00 and so on. These two fields are the
 | `temp_f` | number | °F, 2 decimals | Temperature |
 | `rh_pct` | number | %, 1 decimal | Relative humidity |
 | `p_mbar` | number | mbar, 2 decimals | Pressure |
+| `ext` | object | one key per enabled add-on (§29.2), a number or null | Add-on values; `{}` when every add-on is off |
 
 ### 23.3 Requirements
 
@@ -1711,9 +1819,9 @@ with 60 they run 00:00, 01:00, 02:00 and so on. These two fields are the
   `Sensor --` when none is kept.
 - **FR-23.7** [Must] [user] In ONLINE, `GET /` shall also show the newest kept
   reading with its time and synced mark, or say that none is kept.
-- **FR-23.13** [Must] [user] In ONLINE, `GET /api/readings` shall answer 200 with
-  the §23.2 object holding every kept reading, newest first; `[]` when none is
-  kept.
+- **FR-23.18** [Must] [user] In ONLINE, `GET /api/readings` shall answer 200 with
+  the §23.2 object holding every kept reading, newest first, each with its
+  `ext` object (§29.2); `[]` when none is kept.
 - **FR-23.9** [Must] [user] The device shall keep the newest **144** readings
   (24 h at the default 10-minute `sample_min`) across deep sleep in RTC memory, dropping the oldest when
   full. A power loss or reset empties them.
@@ -1745,14 +1853,14 @@ with 60 they run 00:00, 01:00, 02:00 and so on. These two fields are the
 | FR-23.4 (core) | Driver on a fake bus: no ACK; chip ID 0x58 (BMP280); ID 0x60 | `ESP_ERR_TIMEOUT` or a bus error; `ESP_ERR_NOT_FOUND`; `ESP_OK` | A reading kept on any failure | host |
 | FR-23.9 (core) | History core: add 0, 1, 144, 145 readings | 0, 1, 144, 144 kept, newest first; the 145th drops the oldest | More than 144; a dropped newest | host |
 | FR-23.12 (core) | Line 4 for 21.43 °C 45.2 % 1013.25 mbar; −40.0 °C 100 % 1100 mbar; 85 °C; none kept | `70.6F Hum 45% 1013.25 mbar`; `-40.0F Hum 100% 1100.00 mbar`; `185.0F …`; `Sensor --` | More than 33 characters | host |
-| FR-23.13 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced | Valid JSON, exactly the five keys per element, newest first | Extra or missing key; invalid JSON | host |
+| FR-23.18 (core) | Render the JSON with 0, 1 and 144 readings, synced and unsynced, the loop off and on | Valid JSON, exactly the six keys per element, newest first; `ext` `{}` or one key | Extra or missing key; invalid JSON; `NaN` | host |
 | FR-23.3, FR-23.5, NFR-23.1 | Reset over USB with the sensor fitted | L21 before the window opens, values within 14 – 113 °F, 5 – 95 %, 870 – 1085 mbar | L22; no L21 | target |
 | FR-23.17, FR-28.2 (core) | Form bodies: no fields; 15 / 60; 5 / 30; 60 / 1440; 0; 61; 15 / 50; 20 / 30; 60 / 60 | 10 / 60; valid as given; 400 naming `sample_min` (0, 61) or `average_min` (50, 30, 60) | A sample period not dividing the average; an average not dividing a day | host |
 | FR-23.15, FR-23.16 (core) | Averages core: readings in one hour, then one in the next; a gap of hours; 98 hours; period starts at UTC −4 | One average, the mean of the hour's readings, when the next hour's first reading comes; no average for the empty hours; 96 kept, newest first; periods on the local hour and local midnight | An average of a period still running; an average for a period with no readings; more than 96 | host |
 | FR-23.17, FR-23.9, FR-23.5 | Sleep test build with the period cut to 10 s, three timer wakes, then a key wake | An L21 on every timer wake; `/api/readings` lists them, newest first | A timer wake without L21; WiFi or panel on a timer wake | target / bench (operator) |
 | FR-23.4 | Fault build reading address 0x77 | L22 with `ESP_ERR_TIMEOUT`, then the window, ONLINE and `web: sleep` as usual | A restart; a reading kept; no sleep | target |
 | FR-23.12 | ONLINE with the sensor fitted | Operator confirms line 4 matches the latest L21 | Line 4 missing, clipped or stale | bench (operator) |
-| FR-23.7, FR-23.13 | ONLINE; relay `GET /` and `GET /api/readings` | Page shows the newest reading's values; JSON parses as §23.2 and its first element equals the latest L21 | 404; a value differing from L21 | bench |
+| FR-23.7, FR-23.18 | ONLINE; relay `GET /` and `GET /api/readings` | Page shows the newest reading's values; JSON parses as §23.2 and its first element equals the latest L21 | 404; a value differing from L21 | bench |
 | FR-23.1 | ONLINE; operator holds a finger on the sensor for 30 s, then presses the user key | The next L21 shows a higher temperature than the one before | No change | bench (operator) |
 
 ## 24. Setup Check
@@ -1978,9 +2086,9 @@ connecting).
 | Characteristic | UUID | Access | Link required | Value |
 |----------------|------|--------|---------------|-------|
 | `info` | `6e0a0002-…` | read | none | `fw=<V>&host=<hostname>&state=<S>` |
-| `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>&tb_token_set=<0\|1>`. Write: appended to the staged body |
+| `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>&tb_token_set=<0\|1>`; after `control` `form=<offset>`, a page of the form description of FR-26.19 instead. Write: appended to the staged body |
 | `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` after connecting; after each `apply`, `ok` or `invalid=<field>` naming the first invalid field |
-| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `forget` erases every bond (FR-26.13); any other value is answered with the ATT error *Value Not Allowed* |
+| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `form=<offset>` sets the read page of the form description (FR-26.19); `forget` erases every bond (FR-26.13); any other value is answered with the ATT error *Value Not Allowed* |
 
 (`…` is the rest of the service UUID.)
 
@@ -2077,6 +2185,23 @@ Coexistence:
 - **NFR-26.1** [Must] [user] 10 s after a window closes, `free_heap` shall
   be within **8 KB** of its value before the window opened.
 
+The setup page:
+
+- **FR-26.19** [Must] [user] The device shall describe the rules of every
+  field a `settings` read shows, the same rules as FR-13.8, in a form
+  description read through `settings` after `control` `form=<offset>`: a
+  form body with one `<name>=<rules>` per field (a secret by its name), where
+  `<rules>` is itself a form body of `label`, `required`, `group` and `need`
+  (required once any field of the group is filled), `type`, `minlength`,
+  `maxlength`, `min`, `max`, `pattern`, `options` and `hint`. The page shall
+  check every field against them before it writes, mark required fields with
+  `*`, and write nothing while a field fails. A stored secret left empty is
+  never required (it keeps the stored one, FR-26.7).
+- **FR-26.20** [Must] [user] When `result` is `invalid=<field>`, the page shall
+  keep every value typed and name the field by its label, marked until it is
+  changed; values typed and not saved shall also be kept when the page
+  reconnects to the same device and draws the form again.
+
 ### 26.4 Verification contracts
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
@@ -2101,6 +2226,8 @@ Coexistence:
 | NFR-26.1 | ONLINE; `free_heap` from `/api/status`; open and close a key window | Within 8 KB 10 s after L30 | A larger loss | bench (operator) |
 | FR-26.4 | Sleep test build, timer wake; bench scans through it | No advertiser | An advertiser on a timer wake | target |
 | FR-26.18 | ONLINE, no window; bench BLE scan 30 s | No advertiser at base MAC + 0 … + 3 | Such an advertiser | bench |
+| FR-26.19 (core) | Read the form description; parse it and the `settings` dump | One rule set per field shown, each with a label; `ssid` required ≤ 32; `password` 8 – 63; every mail field in group `mail`, the seven of FR-25.1 `need`; port options 465,587; `mail_host` and `setup` patterns accept and refuse what the device does | A field without rules; a rule looser or stricter than §13, §25.2, §28 | host |
+| FR-26.19, FR-26.20 | Key window, paired from the setup page: fill only `mail_host`; save; empty it; type a 7-character WiFi password; save; then `setup` custom, `average_min` 7; save; disconnect and reconnect; `average_min` 60; save | Nothing written the first two times; `result` `invalid=average_min`, the page names *Custom: average them over* with every value kept, and still after the reconnect; then `ok` | A write with a partial mail group; a value lost | bench (operator) |
 | FR-26.18 (core) | Transition function over every §5.3 row and window event | BLE start only on a window opening; BLE stop on every closing and before every restart | A start without a window; a window left open across T10, T11, T13 or T14 | host |
 
 ---
@@ -2121,11 +2248,13 @@ skipped); the composition root appends and reads, a pure core formats.
 A record holds one reading: the time (seconds since the epoch, 0 for a clock
 never set, FR-22.6), the synced mark (FR-22.3), temperature in 0.01 °C,
 humidity in 1/1024 % and pressure in 1/256 Pa, the sensor's own units, so a
-history line shows the values of its L21. It takes 16 bytes, so a record with
-the ring's trailer takes 24 bytes and a 4 KB sector holds 170.
+history line shows the values of its L21, and the two add-on values of
+§29.2 as 32-bit floats (NaN for none). It takes 24 bytes, so a record with
+the ring's trailer takes 32 bytes and a 4 KB sector holds 128.
 
 A history line is CSV, oldest first, after the header
-`time,synced,temp_f,rh_pct,p_mbar`:
+`time,synced,temp_f,rh_pct,p_mbar`, followed by one column per enabled
+add-on named by its setting (§29.2), e.g. `,tank` with the loop on:
 
 | Column | Format | Example |
 |--------|--------|---------|
@@ -2139,8 +2268,8 @@ A history line is CSV, oldest first, after the header
 
 - **FR-27.1** [Must] [user] Each kept reading (FR-23.1, FR-23.3) shall also be
   appended to the history, on every wake including timer wakes.
-- **FR-27.2** [Must] [user] The history shall live in the `history` partition
-  of C-10.9: **1.5 MB** [user], about **65,000 readings**, 15 months at the
+- **FR-27.11** [Must] [user] The history shall live in the `history` partition
+  of C-10.10: **2 MB**, about **65,000 readings**, 15 months at the
   default 10-minute `sample_min`. When it is full the oldest sector's
   readings are dropped.
 - **FR-27.3** [Must] [derived from `flash_ring`] A reading cut short by a
@@ -2204,8 +2333,8 @@ header>`; the page offers **Download history** only then (FR-27.8).
 | FR-27.1, FR-27.4 (core) | Format records: synced, unsynced, clock never set, −40 °C, 85 °C | The §27.1 lines, e.g. `2026-11-01T12:31:07-0500,1,70.62,45.2,1013.25`; empty `time` for a never-set clock | Another column order; missing decimals | host |
 | FR-27.5 (core) | Page 0, 1, 10 and 65,110 lines from n = 0, n mid-way, n past the end | Whole lines only, ≤ 512 bytes each page, pages joined equal the full CSV body; empty past the end | A split line; a repeated or skipped line | host |
 | FR-27.10 (core) | Records spanning three days, one with a clock never set, one after the clock was set back; from = to = the middle day; only from; only to; from after the newest; from after to; `2026-02-30`; `x` | Only that day's lines; open ends honoured; header first each time; the header only; 400 for the last three | A never-set line; a set-back line missed; a line from the day after `to`; 200 for a bad range | host |
-| FR-27.2, FR-27.3 (core) | `flash_ring` core with 64 sectors: fill 10,880 records; tear the last record | The oldest sector dropped, newest kept in order; the torn record skipped | A lost newer record; a failed boot | host |
-| C-10.9 | Parse the built partition table binary | Exactly the six rows tabled | Any other row, offset or size | host |
+| FR-27.11, FR-27.3 (core) | `flash_ring` core with 64 sectors: fill 8,192 records; tear the last record | The oldest sector dropped, newest kept in order; the torn record skipped | A lost newer record; a failed boot | host |
+| C-10.10 | Parse the built partition table binary | Exactly the six rows tabled | Any other row, offset or size | host |
 | FR-27.1, FR-27.4 | Sleep test build, three timer wakes, then a key wake to ONLINE; relay `GET /api/history` | CSV with the header and at least the three wakes' readings, oldest first, each equal to its L21 | A missing timer-wake reading; JSON | bench |
 | FR-27.3 | Reset over USB during the task 5 times; then ONLINE | `GET /api/history` parses; every line equals an L21 | A boot loop; a garbled line | bench |
 | FR-27.5, FR-27.6 | Key window; operator pairs the page and presses **Download history** | The saved file equals `GET /api/history` byte for byte | A different line count | bench (operator) |
@@ -2328,6 +2457,454 @@ Result:
 | FR-28.4, FR-28.6 | Bench: ONLINE; operator double-presses the user key | L32 `id=quick` within 1 s, 12 L21 lines 10 s apart, L33 `result=pass`, no L27 | A BLE window; the task running during the test | bench (operator) |
 | FR-28.8 | Bench: during `cycle`, operator presses the user key | L33 `result=fail by=key`, line 5 `Test FAIL <n>/20` | The test continuing | bench (operator) |
 | FR-28.13 | Bench: mail set up, `quick` | L25 within the window; one email with subject `<hostname> test pass` | A changed summary slot | bench (needs internet on the bench AP, R-19) |
+
+---
+
+## 29. 4-20 mA Loop Input
+
+### 29.1 Purpose & peer
+
+An optional input that powers and reads one 2-wire 4-20 mA transmitter (an
+industrial pressure, level, flow or temperature sensor) at each reading, and
+records its value with the BME280 reading. Peer: the transmitter, wired to a
+2-pin terminal on an isolated loop side of the carrier board. It is off by
+default; a device without the loop hardware runs exactly as before. Built on
+the shared `ads1115` component (pure register core, thin I2C layer) and the
+shared `loop420` component (pure scaling and fault core); the logic layer
+decides when to read, the composition root switches the supply and reads.
+
+The loop side is galvanically isolated from the board. At each reading the
+board switches on an isolated 24 V supply, waits `loop_warm_ms`, reads the
+voltage over a 100 Ω shunt with its own ADS1115 behind an I2C isolator, and
+switches the supply off.
+
+| Item | Value | Source |
+|------|-------|--------|
+| Loop supply | 24 V, isolated 1 W DC-DC fed from the battery/system rail through a wide-input converter (not from 5 V, which is not live on battery), behind a load switch | [user] |
+| Supply enable | GPIO 3 (header pin 4), active high, pulled low through sleep and reset | [user] |
+| Shunt | 100 Ω, 0.1 %, 25 ppm/°C; 0.4 V at 4 mA, 2.0 V at 20 mA | [user] |
+| Loop ADC | ADS1115 at 0x49 on the isolated side, differential A0 – A1, ±4.096 V range, single shot at 128 SPS (DR 100, about 8 ms a conversion) | [user] |
+| Bus | Through an I2C isolator onto the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) | [user] |
+
+Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `loop` | `off` or `in` | either | `off` |
+| `loop_name` | label for the screen, page, CSV column and email | 1 – 12 characters from `A-Z a-z 0-9 _ -` | `loop` |
+| `loop_unit` | unit text | 0 – 6 printable ASCII characters, no comma | `mA` |
+| `loop_lo`, `loop_hi` | the value at 4 mA and at 20 mA | decimal, at most 3 decimals, −99999 – 99999, not equal | 4 and 20 (the value is the current) |
+| `loop_warm_ms` | settle time after the supply turns on | whole ms, 50 – 5000 | 300 [user] |
+
+### 29.2 Add-on values
+
+A reading carries up to two optional **add-on values** beside the BME280
+triple: slot 1 for the RS232 input (§30) and slot 2
+for the loop. Each is a 32-bit float, NaN when the add-on is off or gave no
+value, so every reading has the same size in RTC memory and in the history.
+
+Usually only one add-on is connected at a time, so each is turned on or off
+on its own, and only those that are on are read, counted in a §28 verdict,
+given a CSV column, an `ext` key, an average, a summary line and a place on
+line 6. An add-on that is off leaves no trace anywhere (FR-29.14).
+
+| Where | An enabled add-on shows as |
+|-------|----------------------------|
+| `GET /api/readings` (FR-23.18) | `"ext": {"<rs_name>": <value or null>, "<loop_name>": <value or null>}` in each element, only the enabled ones; `{}` when every add-on is off |
+| History CSV (§27.1) | One column after `p_mbar` per enabled add-on, slot 1 first, named `<rs_name>` (`rs_dec` decimals) or `<loop_name>` (3 decimals), empty for none; the header and every line gain it only while the add-on is on |
+| Averages (FR-23.15) | A mean of the period's values with its own count, readings without a value left out |
+| Summary email (§25) | The add-on's min, max and mean beside the BME280's, with its name and unit |
+| L21 | Unchanged; each add-on has its own line, L37 (RS232) and L34 (loop) |
+
+### 29.3 Requirements
+
+Reading:
+
+- **FR-29.1** [Must] [user] With `loop` `off` the device shall leave the
+  loop supply off, never address 0x49, and behave as without §29.
+- **FR-29.2** [Must] [user] With `loop` `in`, at each reading (FR-23.1,
+  FR-23.3, §28 tests) the device shall, after the BME280 reading, turn the
+  loop supply on, wait `loop_warm_ms`, take the mean of **4**
+  single-shot conversions of A0 – A1 at 128 SPS, and turn the supply off.
+- **FR-29.3** [Must] [user] The current shall be the shunt voltage over
+  100 Ω; the value shall be `loop_lo + (mA − 4) / 16 × (loop_hi − loop_lo)`,
+  unclamped, for a current from 3.6 to 21.0 mA.
+- **FR-29.4** [Must] [user] A current below **3.6 mA** or above **21.0 mA**
+  (NAMUR NE43) shall be a loop fault: no value is kept and L35 is logged with
+  the current. An ADS1115 that does not answer, or a failed transfer, shall
+  log L35 with its error. Neither stops the BME280 reading, the window or
+  sleep, and neither is retried within the same task run.
+- **FR-29.5** [Must] [derived] Each loop value shall be logged as L34; in
+  ONLINE it reaches the UDP log by FR-16.1.
+- **NFR-29.1** [Must] [user] The value shall be within **±0.25 % of span**
+  of a reference current from 4 to 20 mA, at room temperature.
+- **NFR-29.2** [Must] [user] The loop supply shall be on at most
+  `loop_warm_ms` + **50 ms** per reading, and off through sleep,
+  reset and power-on.
+- **C-29.1** [Must] [user] The loop side shall be galvanically isolated from
+  the board's ground, including the loop ADS1115 and its supply.
+
+Recording and showing:
+
+- **FR-29.6** [Must] [user] The loop value shall be slot 2 of §29.2: kept with
+  its reading (FR-23.9), averaged with its own count (FR-23.15), and appended
+  to the history with it (FR-27.1).
+- **FR-29.7** [Must] [user] In ONLINE, `GET /` shall show the newest loop
+  value with `loop_name` and `loop_unit`, or say that none is kept.
+- **FR-29.8** [Must] [user] With `loop` `in`, line 6 of the screen (FR-6.14)
+  shall show `<loop_name> <value> <loop_unit>`, the value with at most 3
+  decimals, or `<loop_name> --` when the newest reading has none; with `loop`
+  `off` line 6 is empty.
+- **FR-29.9** [Must] [user] When mail is set up (§25), the summary shall add
+  one line `<loop_name> min <v> max <v> mean <v> <loop_unit> (<n> values)`
+  after the BME280's min and max, and a loop column to the averages table
+  (FR-25.15), empty for a period with no value.
+- **FR-29.10** [Must] [user] With `loop` `off` the loop shall play no part
+  in a §28 test. With `loop` `in`, a test reading shall count (FR-28.10) only
+  if it also has a loop value, and the test's L33 line shall end with
+  ` <loop_name>=<v>/<n>`, v the test readings with a loop value and n its
+  readings, so the result email (FR-28.13) reports it too. A missing loop
+  value never stops data collection: the BME280 reading is kept and
+  appended as usual.
+- **FR-29.14** [Must] [user] Each add-on of §29.2 shall be turned on and off
+  on its own; one that is off shall add nothing to the readings' `ext`, the
+  CSV, the averages, the summary, line 6, the log or a §28 verdict.
+
+Settings and history format:
+
+- **FR-29.11** [Must] [user] The portal and BLE shall refuse a `loop` field
+  not valid per §29.1 with 400 naming the field (portal) or `invalid=<field>`
+  (BLE); valid values are stored in NVS with the other settings (T3, T14),
+  reported by the `settings` read (FR-26.9) and erased by a factory reset
+  (T10). Other fields are checked only with `loop` `in`.
+- **FR-29.12** [Must] [user] The history shall hold 24-byte records
+  (§27.1). On the first boot of a firmware with this format, a history
+  written in the old 16-byte format shall be erased once and L36 logged; a
+  reset during that erase finishes it on the next boot (as FR-27.7).
+- **FR-29.13** [Must] [derived from FR-27.8] A device whose `history`
+  partition is smaller than C-10.10 (one updated only by OTA) shall use the
+  partition it has, at its own size.
+
+### 29.4 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-29.3, FR-29.4 (core) | Shunt voltages for 3.5, 3.6, 4, 12, 20, 21.0, 21.1 mA with `loop_lo` 0, `loop_hi` 100; then `loop_lo` 100, `loop_hi` 0 | Fault; −2.5; 0; 50; 100; 106.25; fault; the reversed scale mirrored | A value for a fault current; clamping inside 3.6 – 21.0 mA | host |
+| FR-29.2 (core) | `ads1115` core: register writes for one conversion of A0 – A1 at ±4.096 V | Config `MUX` 000, `PGA` 001, `MODE` single shot, `DR` 100 (128 SPS), then a read of the conversion register | Continuous mode; another channel, range or data rate | host |
+| FR-29.11 (core) | Bodies: none; `loop=in`; `loop=on`; `loop_name=a%20b`; 13-character name; `loop_unit=a,b`; `loop_lo=5&loop_hi=5`; `loop_warm_ms=49`; 5001; `loop=off&loop_lo=x` | off; in with defaults; 400 `loop`; 400 `loop_name`; 400 `loop_name`; 400 `loop_unit`; 400 `loop_hi`; 400 `loop_warm_ms` twice; off (not checked) | A stored invalid value | host |
+| FR-29.6, §29.2 (core) | History records and JSON with the loop off, on with a value, on with none | CSV without the column; with `<loop_name>` and 3 decimals; an empty field. JSON `ext` `{}`, a number, null | A column while off; `NaN` in JSON or CSV | host |
+| FR-29.8 (core) | Line 6 for `Tank`, 12.3456, `psi`; none; a 12-character name with −99999.999 and a 6-character unit | `Tank 12.346 psi`; `Tank --`; at most 44 characters | Wrapping; more than 44 characters | host |
+| FR-29.10, FR-29.14 (core) | Verdicts: `quick` 12 / 12 readings with the loop off; on with 12 values; on with 11 values | `result=pass` without a loop field; `result=pass … loop=12/12`; `result=fail … loop=11/12` | A loop field or loop effect while off | host |
+| FR-29.9 (core) | Summary with 3 loop values and one reading without | The loop line with n = 3; the averages column empty where none | A NaN printed | host |
+| FR-29.12 (core) | `flash_ring` holding 16-byte records, then opened with the 24-byte format | Erased once, L36; a second open keeps the new records | A mixed history; erasing on every boot | host |
+| FR-29.2, FR-29.5, NFR-29.2 | Commissioning rig: a 4-20 mA calibrator in place of the transmitter, set to 12 mA; reset over USB | L34 with `ma=` within 12.000 ± 0.040; the enable GPIO high for at most 350 ms, measured on the bench's logic input or a scope | No L34; the supply on during sleep | bench (operator) |
+| NFR-29.1 | Calibrator at 4, 8, 12, 16, 20 mA, `loop_lo` 0, `loop_hi` 100 | Each L34 value within ±0.25 of the set point's value | An error over 0.25 | bench (operator) |
+| FR-29.4 | Calibrator at 3.0 mA, then the terminal open, then the ADS1115 unplugged | L35 `fault ma=3.000`; L35 `fault ma=0.000`; L35 with `ESP_ERR_TIMEOUT`; the window and sleep as usual | A restart; a value kept | bench (operator) |
+| FR-29.10, FR-29.14 | Double press for `quick`, first with `loop` `off` and nothing on the terminals, then `in` with nothing on them | `result=pass` and no L34/L35; then `result=fail … loop=0/12` with all 12 readings in the history | A loop line while off; a reading missing from the history | bench (operator) |
+| C-29.1 | Board on USB; ohmmeter between the loop terminals and USB ground | Above 100 MΩ | Continuity | bench (operator) |
+| FR-29.7, FR-29.8, §29.2 | ONLINE with the calibrator at 12 mA; relay `GET /`, `GET /api/readings`, `GET /api/history` | Page, `ext`, CSV column and line 6 all show the L34 value | A value differing from L34 | bench |
+| FR-29.12 | Flash over a board holding a 16-byte history (all four images), then ONLINE | L36 once; `GET /api/history` holds only new readings | A garbled line; L36 on the next boot | bench |
+
+---
+
+## 30. RS232 Instrument Input
+
+### 30.1 Purpose & peer
+
+An optional serial port that reads one RS232 instrument at each reading and
+records its value with the BME280 reading, as add-on slot 1 of §29.2. Peer:
+an instrument with a text protocol (a meter, balance, analyser or
+controller) that answers a poll command, or sends lines by itself, at a
+fixed baud rate. Which instrument is not known yet, so the settings are
+generic. The port is off by default; a device without the RS232 hardware
+runs exactly as before. Built on the shared `serial_port` component (UART
+and transceiver power, with a pure line and number core); the composition
+root powers the port, reads it and routes the value.
+
+At each reading the board takes the transceiver out of shutdown, opens
+UART1, exchanges one poll or listens, closes the UART and shuts the
+transceiver down again.
+
+| Item | Value | Source |
+|------|-------|--------|
+| UART | UART1, no hardware flow control | [proposed] |
+| TX / RX | GPIO 11 (to the transceiver's T1IN) / GPIO 12 (from R1OUT); ADC2 pins, so no ESP32 ADC input is lost | [proposed] |
+| Transceiver power | GPIO 13 to FORCEOFF, active high, pulled low (100 kΩ) through sleep and reset | [proposed] |
+| Transceiver | TI TRS3221E or ADI MAX3221E: one driver, one receiver, 3.3 V, ±15 kV ESD, about 1 µA in shutdown | [proposed] |
+| Connector | DE-9 male, DTE: pin 2 RXD, pin 3 TXD, pin 5 GND; a 3-pin 3.5 mm terminal footprint beside it | [proposed] |
+
+Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `rs` | `off`, `poll` (send `rs_cmd`, read the reply) or `listen` (read what the instrument sends by itself) | one of the three | `off` [user] |
+| `rs_baud` | bits per second | 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 | 9600 [user] |
+| `rs_format` | data bits, parity, stop bits | `8N1`, `8E1`, `8O1`, `7E1`, `7O1`, `8N2` | `8N1` [user] |
+| `rs_cmd` | poll command, with `\r`, `\n` and `\xHH` escapes | 1 – 32 [proposed] bytes after the escapes; required with `poll` | none |
+| `rs_timeout_ms` | wait for a whole reply line | whole ms, 100 – 5000 [proposed] | 1000 [proposed] |
+| `rs_field` | which number in the line is the value | 1 – 8 [proposed] | 1 |
+| `rs_scale`, `rs_offset` | value = number × `rs_scale` + `rs_offset` | decimal, at most 6 decimals, −99999 – 99999, `rs_scale` not 0 | 1 and 0 |
+| `rs_name` | label for the screen, page, CSV column and email | 1 – 12 characters from `A-Z a-z 0-9 _ -`, not equal to `loop_name` while both add-ons are on | `rs232` |
+| `rs_unit` | unit text | 0 – 6 printable ASCII characters, no comma | empty |
+| `rs_dec` | decimals of the value on the screen, page, JSON, CSV and email | 0 – 4 [proposed] | 3 |
+
+A line ends at CR, LF or CRLF and holds at most **128** [proposed] bytes. A
+number is an optional sign, digits with an optional decimal point, and an
+optional exponent (`1.5e-3`); the fields are counted from the start of the
+line, so `ST,GS,+0012.34 g` gives 12.34 as field 1.
+
+### 30.2 Requirements
+
+Reading:
+
+- **FR-30.1** [Must] [user] With `rs` `off` the device shall keep GPIO 13
+  low, never install UART1, and behave as without §30.
+- **FR-30.2** [Must] [user] With `rs` not `off`, at each reading (FR-23.1,
+  FR-23.3, §28 tests) the device shall, after the BME280 reading, set GPIO 13
+  high, open UART1 at `rs_baud` and `rs_format`, take one value by FR-30.3
+  or FR-30.4, then close UART1 and set GPIO 13 low.
+- **FR-30.3** [Must] [user] With `rs` `poll` the device shall discard any
+  input already received, send `rs_cmd`, and take the first whole line that
+  arrives within `rs_timeout_ms` of the command.
+- **FR-30.4** [Must] [user] With `rs` `listen` the device shall take the
+  last whole line that arrives within `rs_timeout_ms` of the port opening.
+- **FR-30.5** [Must] [user] The value shall be the `rs_field`-th number in
+  the line (§30.1) times `rs_scale` plus `rs_offset`.
+- **FR-30.6** [Must] [user] No whole line in time, a line over 128 bytes, or
+  no number at `rs_field` shall give no value and log L38 with the reason and
+  the first 32 bytes of the line, non-printable bytes as `\xHH`. None of them
+  stops the BME280 reading, the window or sleep, and none is retried within
+  the same task run.
+- **FR-30.7** [Must] [derived] Each RS232 value shall be logged as L37; in
+  ONLINE it reaches the UDP log by FR-16.1.
+- **NFR-30.1** [Must] [user] With `rs` not `off`, GPIO 13 shall be high at
+  most `rs_timeout_ms` + **50 ms** [proposed] per reading.
+- **NFR-30.2** [Must] [user] With `rs` `off`, and while the device sleeps,
+  the RS232 hardware shall add at most **10 µA** [proposed] to the supply
+  current.
+
+Recording and showing:
+
+- **FR-30.8** [Must] [user] The RS232 value shall be slot 1 of §29.2: kept
+  with its reading (FR-23.9), averaged with its own count (FR-23.15), and
+  appended to the history with it (FR-27.1); in `ext`, the CSV and the email
+  it is named `rs_name` and shown with `rs_dec` decimals, its CSV column
+  before the loop's.
+- **FR-30.9** [Must] [user] In ONLINE, `GET /` shall show the RS232 mode,
+  the newest value with `rs_name` and `rs_unit`, or the reason of the last
+  L38 when the newest reading has none.
+- **FR-30.10** [Must] [user] With `rs` not `off`, line 6 of the screen
+  (FR-6.14) shall show `<rs_name> <value> <rs_unit>`, or `<rs_name> --` when
+  the newest reading has none. With the loop on too, line 6 shall show the
+  RS232 part, two spaces and the loop part of FR-29.8, cut at 44 characters.
+- **FR-30.11** [Must] [user] When mail is set up (§25), the summary shall
+  add one line `<rs_name> min <v> max <v> mean <v> <rs_unit> (<n> values)`
+  before the loop's (FR-29.9), and an RS232 column to the averages table
+  (FR-25.15), empty for a period with no value.
+- **FR-30.12** [Must] [user] RS232 shall follow FR-29.14: with `rs` `off`
+  it plays no part in a §28 test. With `rs` not `off`, a test reading shall
+  count (FR-28.10) only if it also has an RS232 value, and the test's L33
+  line shall end with ` <rs_name>=<v>/<n>` (v the test readings with an
+  RS232 value, n its readings), before the loop's suffix of FR-29.10, so the
+  result email (FR-28.13) reports it too. A missing value never stops data
+  collection: the BME280 reading is kept and appended as usual.
+
+Settings:
+
+- **FR-30.13** [Must] [user] The portal and BLE shall refuse an `rs` field
+  not valid per §30.1 with 400 naming the field (portal) or `invalid=<field>`
+  (BLE); valid values are stored in NVS with the other settings (T3, T14),
+  reported by the `settings` read (FR-26.9) and erased by a factory reset
+  (T10). Other fields are checked only with `rs` not `off`.
+- **C-30.1** [Must] [proposed] UART1 on TX GPIO 11, RX GPIO 12, and the
+  transceiver's FORCEOFF on GPIO 13, as in §30.1; the pins are confirmed by
+  a loopback commissioning program before the first build that uses them.
+
+### 30.3 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-30.5, FR-30.6 (core) | Lines `12.5\r\n`, `ST,GS,+0012.34 g\r`, `-1.5e-3\n`, `A=1 B=2 C=3` with field 3, `no number\r`, 129 bytes without an end, `\x02 7.00 pH\r`; scale 2, offset −1 | 24; 23.68; −1.003; 5; L38 `nonum`; L38 `long`; 13 | A value from a cut or numberless line; a number taken from inside a word | host |
+| FR-30.3, FR-30.4 (core) | `serial_port` core fed bytes in pieces: a line split over three reads; CR, LF and CRLF ends; two lines within the timeout in `listen` | One whole line each time; `listen` takes the second | A half line; an empty line as a value | host |
+| FR-30.13 (core) | Bodies: none; `rs=poll` without `rs_cmd`; `rs=poll&rs_cmd=%5Cr`; `rs_baud=9601`; `rs_format=9N1`; `rs_timeout_ms=99`; 5001; `rs_field=9`; `rs_scale=0`; `rs_name=loop` with the loop on and `loop_name=loop`; `rs_unit=a,b`; `rs_dec=5`; `rs=off&rs_baud=x` | off; 400 `rs_cmd`; poll with a 1-byte command; 400 for each named field; off (not checked) | A stored invalid value | host |
+| FR-30.8, §29.2 (core) | JSON and CSV with RS232 off; on with a value and `rs_dec` 0 and 4; on with none; RS232 and loop both on | No key or column; `rs_name` with 0 and 4 decimals; null and an empty field; RS232 column before the loop's | A key or column while off; `NaN` in JSON or CSV | host |
+| FR-30.10 (core) | Line 6 for `pH` 7.0234 `pH` with `rs_dec` 2; none; RS232 and loop both on with 12-character names and units | `pH 7.02 pH`; `pH --`; both parts, at most 44 characters | Wrapping; more than 44 characters | host |
+| FR-30.12, FR-29.14 (core) | Verdicts: `quick` with RS232 off; on with 12 values; on with 11 values; RS232 and loop both on | `result=pass` without an RS232 field; `… rs232=12/12`; `result=fail … rs232=11/12`; the RS232 suffix before the loop's | An RS232 field or effect while off | host |
+| FR-30.11 (core) | Summary with 3 RS232 values and one reading without | The RS232 line with n = 3, before the loop line; the averages column empty where none | A NaN printed | host |
+| C-30.1, FR-30.2 | Commissioning program: GPIO 11 jumpered to GPIO 12 at 3.3 V (no transceiver); send and read 64 bytes at every baud and format of §30.1 | Every byte back; GPIO 13 toggles as commanded | A lost byte; a pin that does not move | target |
+| FR-30.1, NFR-30.2 | Shipped build with `rs` `off`; sleep | No UART1 install in the log; GPIO 13 low; the sleep current unchanged within 10 µA | GPIO 13 high; UART1 installed | target |
+| FR-30.2, FR-30.3, FR-30.7, NFR-30.1 | Transceiver wired; the testbench host's USB-RS232 adapter on the DE-9 runs a scripted instrument answering `R\r` with `+0023.45 C\r`; `rs=poll&rs_cmd=R%5Cr`; reset over USB | L37 `rs232 rs232=23.450`; the script saw one `R\r` per reading; GPIO 13 high at most 1050 ms | No L37; a second command in one reading | bench |
+| FR-30.4 | As above, the script sending `+0023.45 C\r` every 200 ms; `rs=listen` | L37 with the last line's value | A half line | bench |
+| FR-30.6 | As above, the script silent, then answering `ERR\r`, then 200 bytes without CR, then unplugged | L38 `timeout`, `nonum line=ERR`, `long`, `timeout`; the window and sleep as usual; each BME280 reading still in the history | A restart; a value kept | bench |
+| FR-30.12 | Double press for `quick`, first with `rs` `off` and nothing on the DE-9, then `poll` with the script silent | `result=pass` and no L37/L38; then `result=fail … rs232=0/12` with all 12 readings in the history | An RS232 line while off; a reading missing from the history | bench |
+| FR-30.8, FR-30.9, FR-30.10, §29.2 | ONLINE with the script answering; relay `GET /`, `GET /api/readings`, `GET /api/history` | Page, `ext`, CSV column and line 6 all show the L37 value | A value differing from L37 | bench |
+
+---
+
+## 31. Push Alerts
+
+### 31.1 Purpose & peer
+
+The device sends a short push notification to the user's phone when
+something needs attention. A reading crosses a limit the user set, or comes
+back inside it. The sensor, an add-on or the history fails, or recovers.
+A §28 test ends. It does not send routine readings: the summary stays email
+(§25). Peer: an ntfy server, self-hosted on the LAN or reachable over the
+internet. The device publishes each alert with one HTTP POST to
+`<ntfy_url>/<ntfy_topic>`, and the user's ntfy app, subscribed to that
+topic, shows it. Built on a shared `ntfy_tx` component (pure core for the
+request and the reply, a thin `esp_http_client` transport). The pure
+`notify_core` decides which alerts are due from the readings and the stored
+alert state; the composition root sends them.
+
+Alerts are a selectable item: they run only while `ntfy` is `on`. With
+`ntfy` `off` the device behaves as without §31 and keeps the stored server,
+topic, token and limits, so alerts can be turned back on without entering
+them again.
+
+### 31.2 Settings
+
+These fields go in the portal form (§13.2) and a BLE `settings` write
+(§26). All are optional as a group, so a submission without them stays
+valid and leaves alerts off.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `ntfy` | alerts `on` or `off` | one of the two; `on` needs `ntfy_url` and `ntfy_topic`, given or stored | the stored value; `off` when none is stored [user] |
+| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.37:8080` | 10 – 96 bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | none |
+| `ntfy_topic` | topic name | 1 – 64 characters from `A-Z a-z 0-9 _ -` (ntfy's own limit); required with `ntfy_url` | none |
+| `ntfy_token` | access token, sent as `Authorization: Bearer <token>` | 1 – 64 printable ASCII characters, no space | no `Authorization` header |
+| `alert_t_lo`, `alert_t_hi` | temperature limits, °F | decimal, at most 1 decimal, −40.0 – 185.0 | no alert on that side |
+| `alert_rh_lo`, `alert_rh_hi` | humidity limits, % | whole number, 0 – 100 | no alert on that side |
+| `alert_p_lo`, `alert_p_hi` | pressure limits, mbar | decimal, at most 2 decimals, 300.00 – 1100.00 | no alert on that side |
+
+With both limits of a value given, `hi − lo` shall be at least twice that
+value's hysteresis (FR-31.4), so the two alerts cannot overlap.
+
+### 31.3 Alerts
+
+| Event | Starts when | Ends when (sends the `ok` alert) | Title |
+|-------|-------------|----------------------------------|-------|
+| `t_high`, `t_low` | A reading's temperature is above `alert_t_hi` / below `alert_t_lo` | It is at or below `alert_t_hi` − 1.0 °F / at or above `alert_t_lo` + 1.0 °F | `<hostname> temperature high` / `low`; `<hostname> temperature normal` |
+| `rh_high`, `rh_low` | Humidity above `alert_rh_hi` / below `alert_rh_lo` | At or below `alert_rh_hi` − 2 / at or above `alert_rh_lo` + 2 | `<hostname> humidity high` / `low` / `normal` |
+| `p_high`, `p_low` | Pressure above `alert_p_hi` / below `alert_p_lo` | At or below `alert_p_hi` − 1.00 / at or above `alert_p_lo` + 1.00 | `<hostname> pressure high` / `low` / `normal` |
+| `sensor` | A BME280 reading fails (L22) | A BME280 reading succeeds | `<hostname> sensor failed` / `sensor ok` |
+| `rs232` | An RS232 reading gives no value (L38), with `rs` not `off` | An RS232 reading gives a value | `<hostname> <rs_name> failed` / `ok` |
+| `loop` | A loop reading fails (L35), with `loop` not `off` | A loop reading gives a value | `<hostname> <loop_name> failed` / `ok` |
+| `history` | The history is unavailable or an append fails (L31) | An append succeeds | `<hostname> history failed` / `history ok` |
+| `test` | A §28 test ends (L33) | (one message, no `ok`) | `<hostname> test pass` / `test FAIL` |
+
+The body of a limit alert is
+`<Temp|Hum|ATM> <value> <unit>, limit <limit> <unit>, <YYYY-MM-DD hh:mm>`,
+the value in the decimals of FR-23.12 and the reading's local time, or
+`no time` for a clock never set (FR-22.6). A failure alert's body is the
+log line it came from after `web: `. A test alert's body is the L33 line
+of each test that ran, after `web: `, one per line.
+
+| Kind | Priority | Tags |
+|------|----------|------|
+| A condition starts (`high`, `low`, `failed`), `test FAIL` | 4 (high) | `warning` |
+| A condition ends (`normal`, `ok`), `test pass` | 3 (default) | `white_check_mark` |
+
+In L39 and L40 an alert is named by its event, with `_ok` added for an end
+alert (`t_high_ok`, `sensor_ok`) and `test_pass` or `test_fail` for a
+test.
+
+Every message also carries `Click: http://<hostname>.local/`, so tapping it
+opens the device page when the phone is on the device's LAN.
+
+### 31.4 Requirements
+
+Settings:
+
+- **FR-31.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry the fields of §31.2. Every §31.2 field given shall
+  be valid, else the portal answers 400 naming the first invalid field and
+  BLE answers `invalid=<field>`; `ntfy=on` without a URL and topic, given or
+  stored, is invalid as `ntfy`.
+- **FR-31.14** [Must] [user] Alerts shall be selectable: with `ntfy` `off`
+  no alert is decided or sent, no WiFi is started for one, and L39 and L40
+  never appear; the other §31.2 settings stay stored. Turning `ntfy` `on`
+  starts every condition as normal (FR-31.5).
+- **FR-31.2** [Must] [user] Valid settings shall be stored in NVS with the
+  other settings (T3, T14), reported by the `settings` read (FR-26.9) without
+  the token (`ntfy_token_set=0|1` instead), and erased by a factory reset
+  (T10). In a key-window BLE write an absent `ntfy_token` keeps the stored
+  one, as for the other secrets.
+- **FR-31.3** [May] [user] When no topic is stored, the portal form shall
+  show `tds3-` and 12 random lowercase letters as the suggested
+  `ntfy_topic`, so the default topic is hard to guess.
+
+Deciding:
+
+- **FR-31.4** [Must] [user] After each reading the task takes (FR-23.1,
+  FR-23.3, the readings of a §28 test), `notify_core` shall compare it with
+  the limits of §31.2 and the conditions of §31.3, using hysteresis
+  **1.0 °F**, **2 %** and **1.00 mbar**, and make an alert due when a
+  condition starts or ends. A condition that holds on the next reading makes
+  nothing due; a value with no limit set makes no alert.
+- **FR-31.5** [Must] [user] The state of each condition (normal, active, or
+  active but not yet delivered) shall be kept in RTC memory across sleep.
+  After a power loss or reset every condition starts as normal.
+- **FR-31.6** [Must] [user] An `ok` alert shall be due only when the
+  condition's start alert was delivered; a condition that ends before its
+  start alert was delivered makes nothing due.
+- **FR-31.7** [Must] [user] When a §28 test ends (L33), the `test` alert
+  shall be due once, beside the result email (FR-28.13) and independent of
+  it.
+
+Sending:
+
+- **FR-31.8** [Must] [user] The device shall send each due alert as its own
+  HTTP POST to `<ntfy_url>/<ntfy_topic>`, with the body of §31.3, the
+  headers `Title`, `Priority`, `Tags` and `Click` of §31.3, and
+  `Authorization: Bearer <ntfy_token>` when a token is stored; oldest due
+  first. A `2xx` reply is delivered.
+- **FR-31.9** [Must] [user] With an `https://` URL the device shall verify
+  the server certificate against the ESP-IDF CA bundle and the host name, as
+  for mail (FR-25.5). An `http://` URL is sent in plain text.
+- **FR-31.10** [Must] [user] On a timer wake with an alert due, the task
+  shall start WiFi as a station with the stored credentials, send the due
+  alerts (and a due summary, FR-25.6, on the same connection to the AP),
+  stop WiFi (FR-21.7) and sleep; the panel stays dark. On any other run the
+  alerts go out over the WiFi already up once the device is ONLINE.
+- **FR-31.11** [Must] [user] An alert that cannot be delivered (not ONLINE
+  within **15 s** of being due, a DNS, TCP, TLS or certificate failure, a
+  reply other than `2xx`, or no reply within **10 s** of the first alert's
+  connection, a budget the alerts of one run share) shall be logged as L40
+  with the reason and the event, and not retried in the same run. Its
+  condition stays "not yet delivered", so the next run that still finds it
+  tries once more; after a second failure it is dropped until the
+  condition ends and starts again. A `test` alert is tried only once.
+- **FR-31.12** [Must] [derived] Each delivered alert shall be logged as L39,
+  each failed one as L40 (§7.2).
+- **FR-31.13** [Must] [derived from §9.1] The device shall not output
+  `ntfy_token` on serial, UDP, any HTTP response, any BLE read, any email or
+  any alert (FR-9.3).
+- **NFR-31.1** [Must] [user] A timer wake that sends alerts and no summary
+  shall be back asleep within **50 s** of the wake, success or failure; one
+  that sends both within **60 s**.
+- **NFR-31.2** [Should] [user] An alert shall be delivered within
+  **5 s** of the reading that made it due when the device is already ONLINE
+  and the server answers.
+
+### 31.5 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-31.1 (core) | Bodies: none; `ntfy=on` alone with nothing stored; `ntfy=on` with URL and topic; each §31.2 field invalid in turn; `ftp://h`; a URL with a path; topic `a b`; `alert_t_lo=70&alert_t_hi=71`; `alert_rh_hi=101`; `ntfy=maybe` | off; 400 `ntfy`; on; 400 naming that field each time; 400 `alert_t_hi` (gap below 2.0); 400 `ntfy` | A stored invalid value; alerts on without a URL and topic | host |
+| FR-31.14 (core) | Stored URL, topic and `alert_t_hi`; `ntfy=off`; a reading past the limit; then `ntfy=on` with no other field and the same reading | Off: nothing due, settings kept; on: `t_high` due | An alert or WiFi start while off; the URL or topic erased by `off` | host |
+| FR-31.14 | Sleep test build, alerts set up, `ntfy=off` written over BLE, a timer wake with a reading past the limit | `web: wake cause=timer`, L21, `web: sleep`; no L39, L40 or WiFi start | WiFi on that wake | target |
+| FR-31.4, FR-31.5, FR-31.6 (core) | `alert_t_hi` 90.0; readings 89.0, 90.5, 91.0, 89.5, 88.9, 90.1 °F; then the same with the 90.5 alert's send failed, then failed again; then 90.5 failed and 88.9 next | due `t_high` at 90.5; nothing at 91.0 and 89.5; `t_high_ok` at 88.9; `t_high` at 90.1. Failed: tried again at 91.0, then dropped. Failed then ended: nothing due | Two start alerts for one condition; an `ok` without a delivered start; a third try | host |
+| FR-31.4 (core) | Every limit pair at its edge and one hysteresis step inside; a sensor fail and recover; RS232 and loop off with L38/L35-like inputs | Start and end exactly as §31.3; nothing for an add-on that is off | An alert for an add-on that is off (FR-29.14) | host |
+| FR-31.8, FR-31.13 (core) | `ntfy_tx` core builds the request for `t_high` with and without a token; titles and bodies at their longest names | Method, path, the four headers and `Authorization` only with a token; body as §31.3; no request over 1024 bytes | The token in the body or title; a header missing | host |
+| FR-31.11 (core) | `ntfy_tx` core maps replies 200, 401, 403, 429, 500, a cut reply | `ok`, `auth`, `auth`, `limit`, `server`, `timeout` | Success on a non-`2xx` reply | host |
+| FR-31.8, FR-31.12, NFR-31.2 | Provisioned with `ntfy_url=http://192.168.2.37:8080` (the user's test server) and a test topic, `alert_t_hi` set 1 °F below the room; ONLINE; the test polls `GET <url>/<topic>/json?poll=1` | L39 `t_high`; the message on the server with the title, priority 4 and the `warning` tag within 5 s of L21 | No message; two messages | bench (R-28) |
+| FR-31.10, NFR-31.1 | Sleep test build, the same server and limit, a timer wake | `web: wake cause=timer`, L21, L39, `web: sleep` within 50 s; panel dark | WiFi on a timer wake with nothing due; L2 or L7 lines | target / bench (R-28) |
+| FR-31.11 | Same build, `ntfy_url` pointing at an address with no server | L40 `connect` with the event, then `web: sleep` within 50 s; on the next timer wake one more try and L40; on the one after, nothing | A retry in the same run; a third try | target |
+| FR-31.7 | Mail off, ntfy set; double press for `quick` | One `test pass` message with the L33 line as its body; L39 `test_pass` | A message per reading; the result email expected | bench (R-28) |
+| FR-31.13, FR-31.2 | Provisioned with token `tk_<random 12 hex>`; read BLE `settings`; capture serial and UDP through a window and an alert | `ntfy_token_set=1`; the marker nowhere | The marker in any read, log or message | bench (operator) |
+| FR-31.8 | The user's phone subscribed to the topic in the ntfy app | The alert shows with its title; tapping it on the LAN opens the device page | A missing title or body | bench (operator) |
 
 ---
 
@@ -2477,6 +3054,163 @@ Failures and limits:
 
 ---
 
+## 33. Cellular Uplink
+
+### 33.1 Purpose & peer
+
+Where no WiFi reaches the device, it sends its scheduled traffic over
+cellular instead: the ThingsBoard uploads (§32), the push alerts (§31) and
+the summary email (§25). The modem is a Blues Notecard Cell+WiFi
+**NOTE-MBGLW** (LTE Cat-1 bis, global bands, 500 MB of data and 10 years of
+service included) [user]. The device never opens a TCP connection over
+cellular. Each send becomes a JSON *note* that the device hands to the
+Notecard over I2C. The Notecard keeps it in its own flash and delivers it to
+Blues Notehub at its next sync, and a Notehub *route* the user sets up passes
+it on to the real peer: an HTTP POST to ThingsBoard, to ntfy, or to the mail
+service of §33.4. So a timer wake only reads, adds the notes and sleeps
+again; the radio work happens on the Notecard, which stays powered and idles
+at about 18 µA while the ESP32-S3 sleeps.
+
+The window (§21) is unchanged: panel, WiFi when credentials are stored, web
+page, OTA and BLE work as before. Cellular replaces WiFi only for the senders
+of §25, §31 and §32, and only while `uplink` is `cell`.
+
+Peers: the Notecard on the I2C bus; Notehub, reached by the Notecard; the
+routes' targets, reached by Notehub from the internet, so each target must
+be reachable from the internet (R-33). Built on a shared `notecard`
+component in esp-idf-components (Blues' `note-c` library over the ESP-IDF I2C
+master driver, plus a pure core for the request bodies and the answers); the
+pure `uplink_core` decides which transport each send uses and what each note
+holds, the composition root performs it.
+
+### 33.2 Hardware
+
+| Item | Value | Source |
+|------|-------|--------|
+| Modem | Blues Notecard Cell+WiFi NOTE-MBGLW (M.2 key E) | [user] |
+| Carrier | Blues Notecarrier-A: M.2 socket, LiPo connector and charger, Qwiic connectors, u.FL antennas | [proposed] |
+| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable; no address clash with 0x76 or 0x49 | [proposed] |
+| Power | The Notecarrier's own LiPo (or USB) supplies the Notecard's modem peaks (up to about 2 A); the board's 3.3 V supplies only the bus; the grounds join through the Qwiic cable | [proposed] |
+| ATTN | Not connected in the first build; the device polls the Notecard | [proposed] |
+
+### 33.3 Settings
+
+Added to the §13.2 form and the BLE `settings` write (§26); all optional, so a
+submission without them leaves the uplink as it was (`wifi` on a new device).
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `uplink` | `wifi` or `cell` | one of the two; `cell` needs `nh_product`, given or stored | the stored value; `wifi` when none is stored [proposed] |
+| `nh_product` | the Notehub ProductUID, e.g. `com.example.joe:weather` | 1 – 64 bytes, letters, digits, `.`, `:`, `-` and `_` | the stored value |
+| `cell_every` | minutes between the Notecard's outbound syncs | whole minutes, 10 – 1440 | 60 [proposed] |
+| `cell_mail` | email over cellular: `route` (a note to `mail.qo`, which a Notehub route passes to an HTTP mail service) or `off` (no email while `uplink` is `cell`) | one of the two | the stored value; `off` when none is stored [proposed] |
+
+### 33.4 Notes
+
+| Notefile | Holds | Sync | Notehub route (set up by the user, User Manual) |
+|----------|-------|------|------------------------------------------------|
+| `tb.qo` | One ThingsBoard batch: the telemetry array of §32.3 as `body.t`, at most 100 readings | at the next periodic sync | General HTTP, JSONata `body.t`, to `<tb_url>/api/v1/<tb_token>/telemetry` |
+| `tbattr.qo` | The attributes of §32.3, with `"uplink":"cell"`, the signal bars and the Notecard's firmware version | at the next periodic sync | General HTTP to `<tb_url>/api/v1/<tb_token>/attributes` |
+| `alert.qo` | One alert: `topic`, `title`, `priority`, `tags`, `message` of §31.3 | at once (`sync:true`) | General HTTP to the ntfy server's JSON publish endpoint `<ntfy_url>/` |
+| `mail.qo` | One email: `to`, `subject`, `text` (the §25 message, the §28 result); only with `cell_mail` `route` | at once (`sync:true`) | General HTTP to the user's mail service (e.g. SMTP2GO or SendGrid), its API key in the route |
+
+Secrets stay off the cellular path: the ThingsBoard token, the ntfy token and
+any mail credentials live in the Notehub routes, never in a note.
+
+### 33.5 Requirements
+
+Settings:
+
+- **FR-33.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry the fields of §33.3. A submission shall be valid
+  only if every field given is valid per §33.3 and, with `uplink` `cell`,
+  `nh_product` is given or stored, else answer 400 naming the first invalid
+  field (portal) or `invalid=<field>` (BLE).
+- **FR-33.2** [Must] [derived] Valid settings shall be stored in NVS with the
+  other settings at T3, or by an accepted BLE write in a key window (T14),
+  reported by the `settings` read (FR-26.9) with `uplink=<wifi|cell>` and `cell_mail=<route|off>`, and
+  erased by a factory reset (T10), which also sets `uplink` back to `wifi`.
+- **FR-33.13** [Must] [user] Email over cellular shall be selectable by
+  `cell_mail`: with `route`, a due summary or test result is added to
+  `mail.qo` (FR-33.6); with `off`, while `uplink` is `cell`, no email is due
+  or sent, L25, L26 and L43 `mail` never appear, the mail settings (§25.2)
+  stay stored, and the summary period still advances as after a dropped send
+  so no backlog builds up. With `uplink` `wifi`, `cell_mail` has no effect.
+- **FR-33.3** [Must] [user] With `uplink` `wifi` the device shall never
+  install the Notecard's I2C device, and behave as without §33.
+
+Notecard setup:
+
+- **FR-33.4** [Must] [derived from §33.1] On each boot with `uplink` `cell`,
+  the device shall check the Notecard with `card.version`, then, only when the
+  Notecard's stored values differ, send `hub.set` with `product`
+  `nh_product`, `mode` `periodic`, `outbound` `cell_every` and `inbound`
+  1440. A Notecard that does not answer within **2 s** [proposed] is logged
+  as L44 and that boot's sends are dropped as failed (FR-33.10).
+- **FR-33.5** [Must] [proposed] The device shall never cut the Notecard's
+  power or reset it; the Notecard stays powered through deep sleep.
+
+Sending:
+
+- **FR-33.6** [Must] [user] With `uplink` `cell`, a due ThingsBoard upload
+  (FR-32.4, FR-32.6), a due alert (§31) and a due summary or test result
+  (§25, §28, when `cell_mail` is `route`, FR-33.13) shall be sent as notes of §33.4 instead of over WiFi; a timer
+  wake shall never start WiFi (FR-21.13 keeps the panel dark and WiFi off),
+  and a window still starts WiFi for the page, OTA and BLE when credentials
+  are stored.
+- **FR-33.7** [Must] [user] For ThingsBoard, the upload mark (FR-32.8) shall
+  move when the Notecard answers a `note.add` to `tb.qo` without an error,
+  because the Notecard then holds the batch until Notehub has it. An upload
+  carries every reading after the mark in notes of at most 100 readings, as
+  FR-32.7.
+- **FR-33.8** [Must] [user] Alerts and email shall be added with `sync:true`,
+  so the Notecard connects at once; the device does not wait for that
+  connection. An alert or email counts as sent (L39, L25) when the Notecard
+  accepts the note; delivery is seen on Notehub and the target.
+- **FR-33.9** [Must] [derived from §9.1] No note shall carry the WiFi
+  password, the mail password, `tb_token` or `ntfy_token`.
+- **FR-33.10** [Must] [derived] A `note.add` that fails (no answer within
+  2 s, an `{err}` reply, a full Notefile) shall be logged as L44 and treated
+  as that send's failure: a ThingsBoard batch stays after the mark (FR-32.11),
+  an alert follows FR-31.6, an email follows §25's dropped send.
+- **FR-33.11** [Must] [derived] Each accepted note shall be logged as L43
+  (§7.2).
+
+Time:
+
+- **FR-33.12** [Must] [derived from FR-22.1] With `uplink` `cell`, on a boot
+  whose clock was never set (FR-22.6), the device shall ask the Notecard for
+  the time (`card.time`) and, when it answers with a time, set the clock and
+  mark readings synced as after an SNTP sync, logging L20 with `src=cell`.
+
+Power and data:
+
+- **NFR-33.1** [Must] [derived from NFR-32.1] A timer wake that sends notes
+  shall be back asleep within **10 s** [proposed] of the wake, whether the
+  Notecard accepts them or not.
+- **NFR-33.2** [Should] [proposed] With the `std` setup (§28) and hourly
+  ThingsBoard batches, the cellular data used shall stay under **4 MB a
+  month**, so the 500 MB included lasts the 10 years.
+
+### 33.6 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-33.1 (core) | Bodies, nothing stored: none of the fields; `uplink=cell` alone; with `nh_product`; `uplink=lte`; `nh_product` with a space; `cell_every` 9, 1441, 60 | `wifi`; 400 `nh_product`; `cell`; 400 `uplink`; 400 `nh_product`; 400 `cell_every` twice, then valid | `cell` stored without a ProductUID | host |
+| FR-33.3 (core) | `uplink_core` with `uplink` `wifi` at a due upload, alert and summary | Every send on WiFi; no Notecard call | A note added with `uplink` `wifi` | host |
+| FR-33.3 | Shipped build, `uplink` `wifi`, a Notecard on the bus; reset and a timer wake | L43 and L44 never appear; the sends of §25, §31 as before | A Notecard line | target (R-31) |
+| FR-33.4 (core) | `notecard` core builds `hub.set` from stored values; answers that match and that differ | No `hub.set` when they match; one with the four fields when they differ | `hub.set` on every boot | host |
+| FR-33.7 (core) | `uplink_core` over 250 readings after the mark; the second `note.add` refused; then all accepted | Notes of 100, 100, 50 in order; the mark at 100 after the refusal, at 250 afterwards | The mark moved on a refused note | host |
+| FR-33.13 (core) | `uplink` `cell`, a summary due: `cell_mail` `route`; `off`; `off` then `route` at the next due time; `uplink` `wifi` with `off` | A `mail.qo` note; nothing due, the period advanced, mail settings kept; one note for the new period only; sent over WiFi as §25 | An email or note with `off` on cellular; a backlog of summaries | host |
+| FR-33.8, FR-33.9 (core) | Alert `t_high` and a summary with every token and password stored | `alert.qo` and `mail.qo` bodies as §33.4 with `sync:true`; no secret in any body | A token or password in a note | host |
+| FR-33.10 (core) | Answers: none, `{"err":"…"}`, `{"total":1}` | L44 `timeout`, L44 `err`, L43 | Success on an error reply | host |
+| FR-33.6, FR-33.11, NFR-33.1 | Sleep test build, `uplink` `cell`, a Notecard on the bench (R-31), an upload due on the next timer wake | `web: wake cause=timer`, L21, L43 `tb.qo`, `web: sleep` within 10 s; the event on Notehub; no WiFi start | WiFi on a timer wake; the panel lit | target (R-31) |
+| FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 | A reading with `at=none` after L20 | target (R-31) |
+| FR-33.8 | The user's routes set up, an alert and a summary due | The ntfy message and the email arrive | Nothing on the target with L43 logged | bench (operator) |
+| NFR-33.2 | A month of the `std` setup on cellular | Notehub's data use for the device under 4 MB | — | bench (operator) |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2532,20 +3266,25 @@ Runtime configuration (the only persisted items):
 | `wifi_password` | bytes | none | empty or 8 – 63 bytes | NVS | secret | portal (§13), BLE write only (§26) | FR-13.4 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2), BLE (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `loop`, `loop_name`, `loop_unit`, `loop_lo`, `loop_hi`, `loop_warm_ms` | text / number | `off` | §29.1 | NVS | operational | portal (§13), BLE (§26) | FR-29.11 | immediate (T3); restart (T14) | erased by factory reset |
+| `rs`, `rs_baud`, `rs_format`, `rs_cmd`, `rs_timeout_ms`, `rs_field`, `rs_scale`, `rs_offset`, `rs_name`, `rs_unit`, `rs_dec` | text / number | `off`, 9600, `8N1` | §30.1 | NVS | operational | portal (§13), BLE (§26) | FR-30.13 | immediate (T3); restart (T14) | erased by factory reset |
+| `ntfy`, `ntfy_url`, `ntfy_topic`, `alert_t_lo`, `alert_t_hi`, `alert_rh_lo`, `alert_rh_hi`, `alert_p_lo`, `alert_p_hi` | text / number | `off` | §31.2 | NVS | operational | portal (§13), BLE (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `ntfy_token` | text | none | 1 – 64 characters | NVS | secret | portal (§13), BLE write only (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `services` | on/off | `on` | `on`, `off` | NVS | operational | portal (§13, §32.2), BLE (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb`, `tb_url`, `tb_every` | on/off / text / minutes | `off`; none; 60 | §32.2 | NVS | operational | portal (§13, §32.2), BLE (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb_token` | text | none | 1 – 64 letters, digits, `-`, `_` | NVS | secret | portal (§13, §32.2), BLE write only (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb_mark` | place in the history | before the oldest reading | §27 | NVS | operational | moved by an accepted upload (FR-32.8) | none | next upload | erased by factory reset |
+| `uplink`, `nh_product`, `cell_every`, `cell_mail` | text / number | `wifi`, none, 60, `off` | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
-| `history` | readings (§27.1) | empty | 1.5 MB, about 65,000 readings | flash partition (C-10.9) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
+| `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
 Build-time constants:
 
 | Name | Value | Source |
 |------|-------|--------|
 | LCD pins, clock, offset | §2.2, C-6.1 – C-6.5 | [user]/[derived] |
-| Landscape area / font cell / colours | 536 × 240 / 16 × 32 / `0xFFFF` on `0x0000` | [user] |
-| Screen lines / max characters | 5 / 33 | [user] |
+| Landscape area / font cells / colours | 536 × 240 / 16 × 32 (lines 1 – 5), 12 × 24 (line 6) / `0xFFFF` on `0x0000` | [user] |
+| Screen lines / max characters | 6 / 33 (lines 1 – 5), 44 (line 6) | [user] |
 | LCD refresh period | 1000 ± 100 ms | [user] |
 | Boot to first state line | ≤ 3000 ms | [user] |
 | Boot to ONLINE | ≤ 10 s | [user] |
@@ -2601,7 +3340,16 @@ Build-time constants:
 | Restart after an accepted key-window write (T14) | ≤ 2 s | [user] |
 | Heap returned 10 s after a window | within 8 KB | [user] |
 | BLE service UUID | `6e0a0001-7d3b-4c2a-9f1e-54445333424c` | [derived] |
-| History record / per sector | 16-byte payload + 8-byte trailer / 170 | [derived from `flash_ring`] |
+| History record / per sector | 24-byte payload + 8-byte trailer / 128 | [derived from `flash_ring`] |
+| Loop supply / settle time | 24 V isolated from the battery/system rail, enable GPIO 3 / `loop_warm_ms`, default 300 ms | [user] |
+| Loop shunt / ADC | 100 Ω 0.1 % / ADS1115 at 0x49, A0 – A1, ±4.096 V, 128 SPS, mean of 4 | [user] |
+| Loop fault limits | below 3.6 mA or above 21.0 mA (NAMUR NE43) | [user] |
+| Loop accuracy | ±0.25 % of span | [user] |
+| RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 / TRS3221E or MAX3221E / DE-9 male (DTE) | [proposed] |
+| RS232 line / timeout / port-on limit | ≤ 128 bytes, CR, LF or CRLF / `rs_timeout_ms` 100 – 5000 ms, default 1000 / `rs_timeout_ms` + 50 ms | [proposed] |
+| Alert hysteresis (T / RH / P) | 1.0 °F / 2 % / 1.00 mbar | [user] |
+| Alert budgets | ONLINE within 15 s; all alerts of a run within 10 s; asleep within 50 s (60 s with a summary) | [user] |
+| Alert priority / tags | 4 `warning` (start, test FAIL) / 3 `white_check_mark` (end, test pass) | [user] |
 | History append limit | ≤ 500 ms | [user] |
 | Full `GET /api/history` | ≤ 30 s | [user] |
 | ThingsBoard API | HTTP device API, `/api/v1/<token>/telemetry` and `/attributes` (§32.3) | [user] |
@@ -2645,6 +3393,11 @@ the bench gains the capability.
 | FR-6.6 | The 16-character uptime line fits one row | FR-6.10 (any 20-character line) |
 | FR-6.10 | Any 20-character line fits one row | FR-6.13 (any 33-character line) |
 | FR-6.11 | Four text lines stacked inside the visible area | FR-6.12 (five lines) |
+| FR-6.12 | Five text lines stacked inside the visible area | FR-6.14 (six lines) |
+| FR-6.2 | One 16 × 32 font | FR-6.15 (a 12 × 24 font on line 6) |
+| FR-23.13 | `/api/readings` with exactly five keys | FR-23.18 (`ext` added) |
+| FR-27.2 | A 1.5 MB history of 16-byte records | FR-27.11 (2 MB of 24-byte records) |
+| C-10.9 | Partition table with a 1.5 MB history | C-10.10 (a 2 MB history) |
 | FR-7.11 | Every line redrawn by D4 logs L7 | FR-7.33 (the countdown logs once a minute) |
 | FR-7.33 | Only the setup-check countdown logs L7 once a minute | FR-7.34 (the BLE key-window countdown too) |
 | FR-23.6 | Line 4 as `<t>F <rh>% <p>hPa`, whole humidity and pressure | FR-23.11 (`<t>F Hum <rh>% <p> hPa`) |
@@ -2672,7 +3425,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.16.0
+fsd_version: 0.22.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2680,42 +3433,63 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-01
+last_updated: 2026-11-02
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
-  - 0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS
+  - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
   - 0.1.1 2026-10-23 all proposed values accepted by the user (Appendix A)
   - 0.2.0 2026-10-23 OTA by URL pull (testbench OTA flow), FR-15.2-15.4/15.6/15.7 superseded by FR-15.8-15.11, FR-5.22 and T11/T12 restated; testbench compatibility log lines K1-K12 (FR-7.18-7.29); R-6 restated
   - 0.2.1 2026-10-23 OTA URL limit (256 characters) and download stall timeout (30 s) accepted by the user
-  - 0.3.0 2026-10-23 hello world and uptime removed: FR-14.1/14.2 superseded by FR-14.7/14.8 (no uptime_s); FR-5.31 (no 'Hello, world!' or 'Up:' on screen) and FR-7.30 (no hello log tag) added
-  - 0.3.1 2026-10-23 Load-defined findings: FR-5.22, FR-6.5, FR-6.6, FR-15.5 superseded by FR-5.32, FR-6.9, FR-6.10, FR-15.12 (meaning had changed); completeness lists made explicit; NFR-5.3, NFR-15.1, NFR-15.2, NFR-19.1 and the + 3 s tolerance state numbers contracts used; FR-5.24 requires L16; FR-17.2 observed via bench WiFi events; R-6 restated
+  - "0.3.0 2026-10-23 hello world and uptime removed: FR-14.1/14.2 superseded by FR-14.7/14.8 (no uptime_s); FR-5.31 (no 'Hello, world!' or 'Up:' on screen) and FR-7.30 (no hello log tag) added"
+  - "0.3.1 2026-10-23 Load-defined findings: FR-5.22, FR-6.5, FR-6.6, FR-15.5 superseded by FR-5.32, FR-6.9, FR-6.10, FR-15.12 (meaning had changed); completeness lists made explicit; NFR-5.3, NFR-15.1, NFR-15.2, NFR-19.1 and the + 3 s tolerance state numbers contracts used; FR-5.24 requires L16; FR-17.2 observed via bench WiFi events; R-6 restated"
   - 0.3.2 2026-10-23 CONNECTING × disconnected listed (counts as AF, T6); Appendix A restart row names T13
   - 0.3.3 2026-10-23 FR-5.24 test build is a no-network build (reaching ONLINE confirms, by T5; user decision); FR-7.25 moved to Phase 4; FR-5.15 contract needs no line order; FR-15.11 stall prohibits late K11; FR-9.2 air MAC range stated; R-7/R-8 defer to the bench declaration
   - 0.3.4 2026-10-23 FR-15.13 (T7 aborts an OTA download; derived from §15.1) closes OS/OF outside ONLINE; L14 logged on every boot while a slot is recorded invalid, contracts check slot= instead of L14's absence; FR-15.11 stall follow-up re-installs A; FR-19.1 evidence fits target tier
-  - 0.3.5 2026-10-23 factory reset on release (user decision): FR-18.1 superseded by FR-18.3/18.4, L17b and FR-7.32 added; FR-7.15 superseded by FR-7.31; R-13 and a host stall row for FR-15.11; FR-9.4 contract reachable under §5.3; FR-15.12/15.13/NFR-19.1 contract fixes
-  - 0.3.6 2026-10-23 carried Load-defined observations: §5.3 Prohibited line scoped to stored credentials; no-network build carries a distinct version; FR-15.12/FR-15.13 contracts state the download-duration need instead of a 3 MB size
-  - 0.3.7 2026-10-23 Load-defined findings: R-13 no longer claims a host stall core (stall clause blocked on bench #55); hang build logs its anchor line and FR-19.1/NFR-19.1 timing states the bench clock resolution; NFR-5.2/NFR-5.3 tolerances aligned; FR-5.21 scans with the AP stopped; FR-5.28 resets through JTAG with the AP down; Phase 2 exit names bench #54; Appendix B parses as YAML
+  - "0.3.5 2026-10-23 factory reset on release (user decision): FR-18.1 superseded by FR-18.3/18.4, L17b and FR-7.32 added; FR-7.15 superseded by FR-7.31; R-13 and a host stall row for FR-15.11; FR-9.4 contract reachable under §5.3; FR-15.12/15.13/NFR-19.1 contract fixes"
+  - "0.3.6 2026-10-23 carried Load-defined observations: §5.3 Prohibited line scoped to stored credentials; no-network build carries a distinct version; FR-15.12/FR-15.13 contracts state the download-duration need instead of a 3 MB size"
+  - "0.3.7 2026-10-23 Load-defined findings: R-13 no longer claims a host stall core (stall clause blocked on bench #55); hang build logs its anchor line and FR-19.1/NFR-19.1 timing states the bench clock resolution; NFR-5.2/NFR-5.3 tolerances aligned; FR-5.21 scans with the AP stopped; FR-5.28 resets through JTAG with the AP down; Phase 2 exit names bench #54; Appendix B parses as YAML"
   - 0.3.8 2026-10-24 verification waivers accepted by the user for shipment (Appendix B); R-14 (bench #54), R-15 (one bench radio), R-16 (UDP listener) added; bench clock resolution in Appendix A; R-12/R-13 order
-  - 0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution
-  - 0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user
+  - "0.3.9 2026-10-24 waiver table honest: NFR-5.1, FR-16.3, FR-17.1 fully waived (no test evidence); FR-19.1 early-restart prohibition stated with the clock resolution"
+  - "0.4.0 2026-10-29 cloned for the T-Display-S3 AMOLED 1.91\": §2.2 and C-6.1 – C-6.5 restated for the RM67162 over QSPI (pins, GPIO 38 power, MADCTL 0x60), FR-6.4/FR-6.9/FR-6.10 contracts on 536 × 240, FR-6.7 lights the panel by its brightness register; bench SLOT1; C-6.4 75 MHz set by the user"
   - 0.5.0 2026-10-30 §21 Deep Sleep (FR-21.1 – FR-21.12, NFR-21.1) from the user's answers and weather-station example, approved by the user; L18, L19
   - 0.6.0 2026-10-30 §22 Time (FR-22.1 – FR-22.5, NFR-22.1) from the user's request; L20, R-19; server, zone and 10 s deadline approved by the user
   - 0.7.0 2026-10-30 §23 Weather Sensor (FR-23.1 – FR-23.10, NFR-23.1, NFR-23.2, C-23.1) from the user's answers (BME280 0x76 on GPIO 43/44, forced x1, all outputs, 600 s); FR-6.9 superseded by FR-6.11 (four screen lines); L21, L22, R-20, R-21; approved by the user
   - 0.7.1 2026-10-30 FR-22.2 time zone set to US Eastern (EST5EDT) by the user
   - 0.7.2 2026-10-30 readings shown in °F (screen, page, L21, `temp_f` in /api/readings) by the user
-  - 0.8.0 2026-10-30 from the user's request, approved by the user (humidity a whole number on line 4; 5 s live reading, 50 ms debounce): §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)
-  - 0.8.1 2026-10-30 FR-22.6 from the user's request: a reading from a never-set clock shows no time (page, `null` in /api/readings, `at=none` in L21)
-  - 0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)
+  - "0.8.0 2026-10-30 from the user's request, approved by the user (humidity a whole number on line 4; 5 s live reading, 50 ms debounce): §24 Setup Check (FR-24.1 – FR-24.8, L23, L24, R-22, Phase 6); five 33-character lines (FR-6.10, FR-6.11 superseded by FR-6.13, FR-6.12); `Hum` reading line (FR-23.6 superseded by FR-23.11); countdown logging (FR-7.11 superseded by FR-7.33)"
+  - "0.8.1 2026-10-30 FR-22.6 from the user's request: a reading from a never-set clock shows no time (page, `null` in /api/readings, `at=none` in L21)"
+  - "0.9.0 2026-10-30 pressure in mbar instead of hPa, approved by the user: FR-23.11 superseded by FR-23.12 (line 4), FR-23.8 superseded by FR-23.13 (`p_mbar` in /api/readings); page, L21, §23.1, §23.2, contracts and R-21 say mbar; the LED next to the user key flashes at 1 Hz during the setup check (FR-24.9), and line 5 says so (FR-24.4 superseded by FR-24.10)"
   - 0.10.0 2026-10-30 §25 Summary Email (FR-25.1 – FR-25.10, NFR-25.1) from the user's answers (direct SMTP to Gmail or own server on 465/587 with a public certificate, settings in the portal, one recipient, plain text, summary at a set time and interval, a failed send dropped and logged, WiFi on a timer wake only for a due summary); FR-21.10 superseded by FR-21.13; L25, L26, R-23, Phase 7; §4.3, §9.1 and Appendix A updated
-  - 0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)
-  - 0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)
-  - 0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16, FR-7.33 superseded by FR-7.34 (the BLE countdown logs once a minute); §1, §2, §4.3, §9.1, §11 and Appendix A updated
+  - "0.11.0 2026-10-30 the BOOT key, next to the blinking LED, ends the setup check as well as the user key, approved by the user: FR-24.5 superseded by FR-24.11, FR-24.10 superseded by FR-24.12 (`Press BOOT to start <mm>:<ss>`), FR-18.2 superseded by FR-18.5; FR-24.9 names the LED's place by the BOOT key; FR-25.11 (a send cut short by a reset is tried once more)"
+  - "0.12.0 2026-10-31 from the user's request: an optional sender address other than the login (`mail_from`, FR-25.13) and an optional second recipient sent its own email (`mail_to2`); FR-25.4 superseded by FR-25.12, FR-25.7 superseded by FR-25.14 (shared 30 s budget, L26 names the recipient); from the user's request and the proposals the user approved: readings every `sample_min` minutes and averages over `average_min` set in the portal (§23.1, FR-23.2 superseded by FR-23.14, FR-23.15, FR-23.16), the summary's min/max over every reading since the previous summary and a table of the averages (FR-25.15)"
+  - "0.13.0 2026-11-01 from the user's answers to the BLE setup plan (both first setup and later changes; custom GATT service with a Web Bluetooth page; passkey on the panel; no BLE with a failed panel; provisioning window and a 3 s user-key window closing after 5 min idle; portal kept): §26 BLE Setup (FR-26.1 – FR-26.18, NFR-26.1), T3 from BLE, T14, L27 – L30, R-24, R-25, Phase 8; FR-9.2 superseded by FR-26.18, FR-25.2 superseded by FR-25.16, FR-7.33 superseded by FR-7.34 (the BLE countdown logs once a minute); §1, §2, §4.3, §9.1, §11 and Appendix A updated"
   - 0.13.1 2026-11-01 all proposed BLE values accepted by the user (FR-26.7, FR-26.8, FR-26.13, FR-26.14, FR-26.17, NFR-26.1)
-  - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
+  - "0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated"
   - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
-  - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
-  - 0.16.0 2026-11-01 from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.15, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14) and a `services` master switch over ntfy and ThingsBoard (FR-32.15), both from the user's request, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated
-superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14]
-open_decisions: ["FR-32.1 tb_token 1 – 64 characters and tb_every dividing 1440", "FR-32.7 100 readings per request", "FR-32.11 10 s request answer", "FR-32.12 no new request after 40 s on a timer wake"]
+  - "0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated"
+  - "0.16.0 2026-11-01 from the user's answers to the 4-20 mA plan (input only, 24 V on the board, isolation in the first build, old history erased once, ±0.25 % of span, 300 ms settle, 3.6 / 21.0 mA faults, a sixth line in a smaller font): §29 4-20 mA Loop Input (FR-29.1 – FR-29.14, NFR-29.1, NFR-29.2, C-29.1), §29.2 add-on values shared with the planned RS232 input, FR-6.2 superseded by FR-6.15, FR-6.12 by FR-6.14, FR-23.13 by FR-23.18, FR-27.2 by FR-27.11, C-10.9 by C-10.10, L34 – L36, Phase 11; Appendix A updated"
+  - "0.17.0 2026-11-01 from the user's answers to the RS232 plan (read one instrument, instrument not known yet so generic settings, an add-on that is off leaves no trace, a USB-RS232 adapter on the testbench host): §30 RS232 Instrument Input (FR-30.1 – FR-30.13, NFR-30.1, NFR-30.2, C-30.1), slot 1 of §29.2, L37, L38, R-27, Phase 12; pins, parts and limits proposed; Appendix A updated"
+  - "0.18.0 2026-11-01 from the user's request (mark required fields, check them before sending, never lose what was typed): FR-13.8, FR-13.9 (portal form), FR-26.19 (the device's field rules over BLE, `control` `form=<offset>`), FR-26.20 (the BLE page keeps typed values)"
+  - "0.18.0-ntfy 2026-11-01 from the user's answers to the ntfy plan (alerts when something needs attention, not routine readings; a self-hosted server, tested at http://192.168.2.37:8080; the plan's recommendations: limits on temperature, humidity and pressure with hysteresis, alerts may start WiFi on a timer wake, a failed alert tried once more on the next run, an optional token): §31 Push Alerts (FR-31.1 – FR-31.14, NFR-31.1, NFR-31.2; alerts a selectable item, `ntfy` on or off, from the user's request), FR-21.13 gains the alert wake, L39, L40, R-28, Phase 13; §4.3, §9.1 and Appendix A updated"
+  - 0.19.0 2026-11-02 §29 (0.16.0), §30 (0.17.0) and §31 (0.18.0-ntfy, numbered on a side branch beside main's 0.18.0) brought onto main; they had merged into a branch that had already merged
+  - 0.19.1 2026-11-01 review of the 0.16.0 open items. §6.1 says six lines in two fonts, FR-5.29 derives from FR-6.15 (FR-6.2 is superseded), the GPIO 3 open decision records that the header brings it out, and the §29.1 bus row (proposed since 0.16.0) is listed as an open decision; change-history entries quoted so Appendix B parses as YAML again
+  - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
+  - "0.21.0 2026-11-02 the user accepted every proposed §29 value (GPIO 3 supply enable, the shunt, the loop ADS1115 and its bus, the loop field lengths and settle range, a mean of 4, the 50 ms supply margin, the FR-6.14 line tops); the loop ADS1115 runs at 128 SPS (§29.1, FR-29.2 contract); the loop supply is fed from the battery/system rail (§2, §29.1, Appendix A)"
+  - "0.22.0 2026-11-02 (drafted as 0.16.0 beside main) from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.15, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14) and a `services` master switch over ntfy and ThingsBoard (FR-32.15), both from the user's request, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated"
+superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
+open_decisions:
+  - "§30.1, C-30.1: UART1 on TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 (to confirm by loopback commissioning)"
+  - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
+  - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
+  - "NFR-30.1, NFR-30.2: port on at most rs_timeout_ms + 50 ms; at most 10 µA with the port off or asleep"
+  - "§33.3: cell_mail default off (email over cellular needs the user's mail service and route first)"
+  - "§33.2: Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier's own LiPo for modem peaks, ATTN not connected"
+  - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"
+  - "FR-33.4, FR-33.10: 2 s Notecard answer limit; FR-33.5: Notecard never power-cycled"
+  - "NFR-33.1: asleep within 10 s on a timer wake that sends notes; NFR-33.2: under 4 MB a month"
+  - "FR-32.1 tb_token 1 – 64 characters and tb_every dividing 1440"
+  - "FR-32.7 100 readings per request"
+  - "FR-32.11 10 s request answer"
+  - "FR-32.12 no new request after 40 s on a timer wake"
 related_test_baseline: none yet
 ```

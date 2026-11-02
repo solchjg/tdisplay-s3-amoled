@@ -1,3 +1,3 @@
 idf_component_register(SRCS "ble_settings_core.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES portal sampling summary)
+                       REQUIRES loop portal sampling summary)

@@ -25,24 +25,33 @@
 // No capitals, corrections or suggestions from a phone keyboard in these fields.
 #define NO_ASSIST " autocapitalize=\"none\" autocorrect=\"off\" spellcheck=\"false\""
 
-// FR-25.1: §25.2's fields, all optional as a group.
+// FR-25.1: §25.2's fields, all optional as a group. FR-13.8: each is in the
+// group "mail"; the portal's script makes the data-need ones required once any
+// of the group is filled.
+#define G " data-group=\"mail\""
+#define NEED G " data-need"
 static const char FORM_HTML[] =
     "<h2>Email summary (optional)</h2>"
+    "<p>Fill every starred field, or leave them all empty for no email.</p>"
     "<p><label>SMTP server (Gmail: smtp.gmail.com) "
-    "<input name=\"mail_host\" maxlength=\"64\"" NO_ASSIST "></label></p>"
-    "<p><label>Port <select name=\"mail_port\"><option value=\"\">-</option>"
+    "<input name=\"mail_host\" maxlength=\"64\" pattern=\"[A-Za-z0-9.\\-]+\""
+    NEED NO_ASSIST "></label></p>"
+    "<p><label>Port <select name=\"mail_port\"" NEED "><option value=\"\">-</option>"
     "<option>465</option><option>587</option></select></label></p>"
-    "<p><label>Login <input name=\"mail_user\" maxlength=\"64\"" NO_ASSIST "></label></p>"
+    "<p><label>Login <input name=\"mail_user\" maxlength=\"64\"" NEED NO_ASSIST "></label></p>"
     "<p><label>Password (Gmail: app password) <input name=\"mail_password\" "
-    "type=\"password\" maxlength=\"64\"></label></p>"
+    "type=\"password\" maxlength=\"64\"" NEED "></label></p>"
     "<p><label>From (if not the login) <input name=\"mail_from\" type=\"email\" "
-    "maxlength=\"64\"" NO_ASSIST "></label></p>"
-    "<p><label>Send to <input name=\"mail_to\" type=\"email\" maxlength=\"64\"" NO_ASSIST "></label></p>"
+    "maxlength=\"64\"" G NO_ASSIST "></label></p>"
+    "<p><label>Send to <input name=\"mail_to\" type=\"email\" maxlength=\"64\"" NEED NO_ASSIST
+    "></label></p>"
     "<p><label>Also send to (optional) <input name=\"mail_to2\" type=\"email\" "
-    "maxlength=\"64\"" NO_ASSIST "></label></p>"
-    "<p><label>First summary at <input name=\"mail_time\" type=\"time\"></label></p>"
-    "<p><label>Then every <input name=\"mail_every\" type=\"number\" min=\"1\" max=\"24\"> "
-    "hours</label></p>";
+    "maxlength=\"64\"" G NO_ASSIST "></label></p>"
+    "<p><label>First summary at <input name=\"mail_time\" type=\"time\"" NEED "></label></p>"
+    "<p><label>Then every <input name=\"mail_every\" type=\"number\" min=\"1\" max=\"24\""
+    NEED "> hours</label></p>";
+#undef G
+#undef NEED
 
 static sm_settings_t taken;     // from the accepted submission, until T3
 static sm_settings_t settings;  // as stored
@@ -312,7 +321,8 @@ mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
     closed_now = a->closed;
     uint32_t lines = closed_now - prev_closed, kept = wx_avg_count(a);
     *readings = sm_body(hostname, weather_stats(), weather_newest(), a, lines,
-                        lines > kept ? lines - kept : 0, iso, stamp_local, body, sizeof body);
+                        lines > kept ? lines - kept : 0, iso, stamp_local, weather_ext(), body,
+                        sizeof body);
     return send(hostname, i, subject, body, &deadline_us, &sent_at);
 }
 

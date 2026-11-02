@@ -15,7 +15,7 @@
 #define SENSOR_CLK_HZ 100000
 
 static const bme280_config_t sensor_cfg = {
-    .i2c_port = -1,
+    .i2c_port = 0,  // the loop ADS1115 joins this bus (§29.1)
     .sda_gpio = SENSOR_SDA_GPIO,
     .scl_gpio = SENSOR_SCL_GPIO,
     .address = SENSOR_ADDRESS,
@@ -33,6 +33,8 @@ static uint32_t average_s = 60 * 60;
 
 static bool started;
 static weather_note_cb_t note_cb;
+static wx_ext_cfg_t ext_cfg;          // §29.2: every add-on off until set
+static weather_ext_cb_t ext_cb;
 
 esp_err_t weather_sample(wx_reading_t *out)
 {
@@ -55,6 +57,7 @@ esp_err_t weather_sample(wx_reading_t *out)
                           .press_q8_pa = b.press_q8_pa,
                           .hum_q10_pct = b.hum_q10_pct,
                           .synced = time_sync_synced()};
+    wx_ext_clear(out);
     return ESP_OK;
 }
 
@@ -73,6 +76,9 @@ static int32_t utc_offset(time_t t)
 esp_err_t weather_read(wx_reading_t *out)
 {
     esp_err_t err = weather_sample(out);
+    if (err == ESP_OK && ext_cb) {
+        ext_cb(out);  // §29.2: the add-ons, after the BME280 reading (FR-29.2)
+    }
     if (err == ESP_OK) {
         wx_add(&history, out);
         wx_stats_add(&stats, out);
@@ -82,6 +88,17 @@ esp_err_t weather_read(wx_reading_t *out)
         }
     }
     return err;
+}
+
+void weather_set_ext(const wx_ext_cfg_t *cfg, weather_ext_cb_t read)
+{
+    ext_cfg = *cfg;
+    ext_cb = read;
+}
+
+const wx_ext_cfg_t *weather_ext(void)
+{
+    return &ext_cfg;
 }
 
 void weather_set_average(uint32_t minutes)
@@ -124,10 +141,10 @@ void weather_html(char *out, size_t len)
     if (r != NULL) {
         weather_iso(r, iso);
     }
-    wx_html(r, iso, out, len);
+    wx_html(r, iso, &ext_cfg, out, len);
 }
 
-// FR-23.13: the array is sent one element per chunk, so 144 readings need no
+// FR-23.18: the array is sent one element per chunk, so 144 readings need no
 // page-sized buffer. Watched while it runs, like every handler (FR-19.2).
 static esp_err_t get_readings(httpd_req_t *req)
 {
@@ -140,7 +157,7 @@ static esp_err_t get_readings(httpd_req_t *req)
         char iso[WX_ISO_MAX], el[WX_JSON_MAX + 1];
         weather_iso(r, iso);
         el[0] = i ? ',' : '\0';
-        wx_json(r, iso, el + (i ? 1 : 0), WX_JSON_MAX);
+        wx_json(r, iso, &ext_cfg, el + (i ? 1 : 0), WX_JSON_MAX);
         err = httpd_resp_sendstr_chunk(req, el);
     }
     if (err == ESP_OK) {
