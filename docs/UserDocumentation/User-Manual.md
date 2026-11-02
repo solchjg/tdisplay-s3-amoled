@@ -290,7 +290,9 @@ Leave `bluetoothctl` connected and press **Connect to device** on the page.
 The device can upload its readings to your own ThingsBoard server, in a batch
 every hour by default, for dashboards and server-side alarms. Setting up the
 server, the device's settings, the checks and the move to `https://` are in
-the [ThingsBoard Setup](ThingsBoard-Setup.md) guide.
+the [ThingsBoard Setup](ThingsBoard-Setup.md) guide. Building the production
+server on a cloud VM (ThingsBoard and ntfy behind `https://`, backups, moving
+the boards off the LAN server) is in the [Cloud Server](Cloud-Server.md) guide.
 
 ## 6. Troubleshooting
 
