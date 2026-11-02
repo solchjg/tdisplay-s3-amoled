@@ -1,15 +1,17 @@
 # RS232 instrument circuit
 
-This is the hardware for the RS232 instrument input of FSD §30. It connects one
-instrument to UART1 through a MAX3232 transceiver. The firmware for it is not
-built yet, and neither is this circuit. Every part is through-hole or panel-mount,
-so it builds on a breadboard or perfboard. Fritzing
-[sheet 4](wiring/wiring-4-rs232.png) shows the wiring. The figures come from the
-MAX3232E datasheet; check them against the current one.
+The hardware for the RS232 instrument input of FSD §30. It connects one instrument
+to UART1 through a MAX3232 transceiver. Neither the firmware nor this circuit is
+built yet. Every part is through-hole or panel-mount, so it builds on a breadboard
+or perfboard. Fritzing [sheet 4](wiring/wiring-4-rs232.png) shows the wiring.
+Figures come from the datasheets listed under Sources; check them against current
+ones.
 
 GPIO 13 is the transceiver's supply. While the port is off, the chip is unpowered
 and GPIO 11 and 12 float, so the circuit draws nothing from the board (C-30.2).
 The loop isolator is powered from GPIO 3 in the same way.
+
+![Blocks of the RS232 circuit, from the board through the MAX3232 to the instrument](rs232-circuit.svg)
 
 ## Parts
 
@@ -25,24 +27,59 @@ The loop isolator is powered from GPIO 3 in the same way.
 
 ## Connections
 
-| MAX3232 pin | To | Purpose |
-|-------------|----|---------|
-| 1 C1+, 3 C1− | C1 | Charge pump |
-| 4 C2+, 5 C2− | C2 | Charge pump |
-| 2 V+ | C3 to GND | About +5.5 V |
-| 6 V− | C4 to GND | About −5.5 V |
-| 16 VCC | GPIO 13; C5 to GND; R10 to GND | Supply, switched by the firmware |
-| 15 GND | Board GND, J1 pin 5, J2 GND | |
-| 11 T1IN | GPIO 11 (UART1 TX) | |
-| 14 T1OUT | J1 pin 3 (TXD), J2 TX | To the instrument's RXD |
-| 13 R1IN | J1 pin 2 (RXD), J2 RX | From the instrument's TXD |
-| 12 R1OUT | GPIO 12 (UART1 RX) | |
-| 10 T2IN | GND, or 3V3 when RTS is not wired | Optional RTS: T2IN low makes T2OUT high |
-| 7 T2OUT | J1 pin 7 (RTS), optional | Held asserted while the port is powered, for instruments that need it |
-| 8 R2IN, 9 R2OUT | Open | R2IN has an internal 5 kΩ pull-down |
+| Connection | Parts | Purpose |
+|------------|-------|---------|
+| GPIO 13 → U12 pin 16 VCC | C5, R10 to GND | The supply, switched by the firmware; R10 holds it off through sleep and reset |
+| GPIO 11 (UART1 TX) → pin 11 T1IN; pin 12 R1OUT → GPIO 12 (UART1 RX) | | Logic side at 3.3 V; both pins float while the port is off |
+| Pin 14 T1OUT → J1 pin 3 TXD and J2 TX | | To the instrument's RXD |
+| J1 pin 2 RXD and J2 RX → pin 13 R1IN | | From the instrument's TXD |
+| Pin 15 GND → board GND, J1 pin 5, J2 GND | | Signal ground |
+| Pin 7 T2OUT → J1 pin 7 RTS; pin 10 T2IN → GND | | Optional RTS, held asserted while the port is powered |
+| Pins 1 – 6 | C1 – C4 | The charge pump, see [Charge pump](#charge-pump) |
+| Pin 8 R2IN, pin 9 R2OUT | | Open; R2IN has an internal 5 kΩ pull-down |
 
 J1 is wired as a DTE, like a PC: a straight cable goes to a DCE instrument and a
 null-modem cable to a DTE one.
+
+## Circuit details
+
+![MAX3232 pinout with the charge-pump capacitors, and the DE-9 from the front](rs232-circuit-details.svg)
+
+### Charge pump
+
+| Ref | Between | Note |
+|-----|---------|------|
+| C1 | Pin 1 C1+ and pin 3 C1− | Flying capacitor of the doubler |
+| C2 | Pin 4 C2+ and pin 5 C2− | Flying capacitor of the inverter |
+| C3 | Pin 2 V+ and GND | Holds about +5.5 V |
+| C4 | Pin 6 V− and GND | Holds about −5.5 V |
+| C5 | Pin 16 VCC and GND | Decoupling, close to the socket |
+
+C3 can go to VCC instead of GND, as the datasheet allows; GND keeps it off
+the switched supply. Keep all five leads short: the pump switches at a few hundred
+kHz. The pump needs about 10 ms [proposed] after power-on to reach its levels,
+which is the settle of §30.1.
+
+### Supply from GPIO 13
+
+The MAX3232E draws 0.3 mA typical, 1 mA max, with no RS232 load, and a few mA more
+for each driver into an instrument's 3 – 7 kΩ input. GPIO 13 supplies that
+directly, as the loop's GPIO 3 supplies the isolator's side 1. With GPIO 13 low and
+R10 pulling it down, VCC is 0 V. GPIO 11 and 12 must then float, not drive high, or
+TX would power the chip through T1IN's input protection (check 2).
+
+### RTS
+
+Some instruments only answer with RTS (their CTS) asserted. The second driver holds
+it: T2IN at GND makes T2OUT high, the RS232 "asserted" level, for as long as the
+port is powered. With RTS not wired, tie T2IN to VCC (pin 16) instead, so T2OUT
+sits low and draws nothing extra. No GPIO controls it.
+
+### DE-9
+
+J1 is male, like a PC's serial port. From the front, pins 1 – 5 run left to right on
+the wide row and 6 – 9 on the narrow one. Only pins 2, 3, 5 and optionally 7 are
+used; leave the others unconnected, and do not tie DTR, DSR or DCD together.
 
 ## Budgets
 
@@ -70,8 +107,7 @@ What the RS232 component does after each BME280 reading, with `rs` not `off`
 ## To check before wiring
 
 1. **Header pins.** LilyGO's picture puts GPIO 11, 12 and 13 on the left header,
-   between GPIO 10 and 14. The loopback commissioning program of C-30.1 proves
-   them first, with GPIO 11 jumpered to GPIO 12 and no transceiver.
+   between GPIO 10 and 14. The loopback program under Bring-up proves them first.
 2. **No back-powering.** With the port off and the chip fitted, pin 16 should
    read below 0.3 V. If it reads higher, TX is not floating.
 3. **Supply under load.** With an instrument (or a 3 kΩ load from T1OUT to GND)
@@ -80,3 +116,36 @@ What the RS232 component does after each BME280 reading, with `rs` not `off`
    SHDN pin GPIO 13 can drive (about 1 µA in shutdown).
 4. **Levels.** With the port on and idle, J1 pin 3 should sit at about −5.5 V.
    During a poll it should swing to about +5.5 V.
+5. **The instrument.** Find whether it is a DTE or a DCE, its baud and format, and
+   whether it needs RTS, from its manual, before choosing the cable.
+
+## Bring-up
+
+A commissioning program, `commissioning/rs232-probe` (C-30.1, not written yet),
+runs before the first bench test, in two stages:
+
+- **Without the transceiver.** GPIO 11 jumpered to GPIO 12. It toggles GPIO 13,
+  then sends and reads back 64 bytes at every baud and format of §30.1. Every byte
+  must come back, and GPIO 13 must follow its command on a meter.
+- **With the transceiver.** J1 pins 2 and 3 joined by a loopback plug. The same
+  test runs through the MAX3232, with the 10 ms settle, and prints how long GPIO 13
+  was high.
+
+The bench tier then uses the testbench host's USB-RS232 adapter on J1, running a
+scripted instrument (FSD §30 test table).
+
+## Installation
+
+Use a shielded cable for runs longer than a few metres, with the shield earthed at
+the instrument end only, not on pin 5. RS232 is specified to 15 m at 19 200 baud
+(2500 pF); at 9600 baud a low-capacitance cable runs further. The port is not
+isolated: pin 5 is the board's GND, so an instrument earthed at another potential
+makes a ground loop through the USB host while the board is plugged in. Use a
+battery-powered board or a USB isolator then. Keep the cable away from mains wiring.
+
+## Sources
+
+- [MAX3222E/MAX3232E/MAX3237E/MAX3241E/MAX3246E datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/MAX3222E-MAX3246E.pdf)
+- [MAX3232ECPE+ at DigiKey](https://www.digikey.com/en/products/detail/analog-devices-inc-maxim-integrated/MAX3232ECPE/1130165)
+- [MAX3232EPE+ at DigiKey](https://www.digikey.com/en/products/detail/analog-devices-inc-maxim-integrated/MAX3232EPE/1512700)
+- [MAX3222ECPN+ at DigiKey](https://www.digikey.co.uk/en/products/detail/analog-devices-inc-maxim-integrated/MAX3222ECPN/1512884)
