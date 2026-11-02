@@ -2936,6 +2936,7 @@ submission without them leaves the uplink as it was (`wifi` on a new device).
 | `uplink` | `wifi` or `cell` | one of the two; `cell` needs `nh_product`, given or stored | the stored value; `wifi` when none is stored [proposed] |
 | `nh_product` | the Notehub ProductUID, e.g. `com.example.joe:weather` | 1 – 64 bytes, letters, digits, `.`, `:`, `-` and `_` | the stored value |
 | `cell_every` | minutes between the Notecard's outbound syncs | whole minutes, 10 – 1440 | 60 [proposed] |
+| `cell_mail` | email over cellular: `route` (a note to `mail.qo`, which a Notehub route passes to an HTTP mail service) or `off` (no email while `uplink` is `cell`) | one of the two | the stored value; `off` when none is stored [proposed] |
 
 ### 33.4 Notes
 
@@ -2944,7 +2945,7 @@ submission without them leaves the uplink as it was (`wifi` on a new device).
 | `tb.qo` | One ThingsBoard batch: the telemetry array of §32.3 as `body.t`, at most 100 readings | at the next periodic sync | General HTTP, JSONata `body.t`, to `<tb_url>/api/v1/<tb_token>/telemetry` |
 | `tbattr.qo` | The attributes of §32.3, with `"uplink":"cell"`, the signal bars and the Notecard's firmware version | at the next periodic sync | General HTTP to `<tb_url>/api/v1/<tb_token>/attributes` |
 | `alert.qo` | One alert: `topic`, `title`, `priority`, `tags`, `message` of §31.3 | at once (`sync:true`) | General HTTP to the ntfy server's JSON publish endpoint `<ntfy_url>/` |
-| `mail.qo` | One email: `to`, `subject`, `text` (the §25 message, the §28 result) | at once (`sync:true`) | see the email open decision (Appendix B) |
+| `mail.qo` | One email: `to`, `subject`, `text` (the §25 message, the §28 result); only with `cell_mail` `route` | at once (`sync:true`) | General HTTP to the user's mail service (e.g. SMTP2GO or SendGrid), its API key in the route |
 
 Secrets stay off the cellular path: the ThingsBoard token, the ntfy token and
 any mail credentials live in the Notehub routes, never in a note.
@@ -2960,8 +2961,14 @@ Settings:
   field (portal) or `invalid=<field>` (BLE).
 - **FR-33.2** [Must] [derived] Valid settings shall be stored in NVS with the
   other settings at T3, or by an accepted BLE write in a key window (T14),
-  reported by the `settings` read (FR-26.9) with `uplink=<wifi|cell>`, and
+  reported by the `settings` read (FR-26.9) with `uplink=<wifi|cell>` and `cell_mail=<route|off>`, and
   erased by a factory reset (T10), which also sets `uplink` back to `wifi`.
+- **FR-33.13** [Must] [user] Email over cellular shall be selectable by
+  `cell_mail`: with `route`, a due summary or test result is added to
+  `mail.qo` (FR-33.6); with `off`, while `uplink` is `cell`, no email is due
+  or sent, L25, L26 and L43 `mail` never appear, the mail settings (§25.2)
+  stay stored, and the summary period still advances as after a dropped send
+  so no backlog builds up. With `uplink` `wifi`, `cell_mail` has no effect.
 - **FR-33.3** [Must] [user] With `uplink` `wifi` the device shall never
   install the Notecard's I2C device, and behave as without §33.
 
@@ -2980,7 +2987,7 @@ Sending:
 
 - **FR-33.6** [Must] [user] With `uplink` `cell`, a due ThingsBoard upload
   (FR-32.4, FR-32.6), a due alert (§31) and a due summary or test result
-  (§25, §28) shall be sent as notes of §33.4 instead of over WiFi; a timer
+  (§25, §28, when `cell_mail` is `route`, FR-33.13) shall be sent as notes of §33.4 instead of over WiFi; a timer
   wake shall never start WiFi (FR-21.13 keeps the panel dark and WiFi off),
   and a window still starts WiFi for the page, OTA and BLE when credentials
   are stored.
@@ -3027,6 +3034,7 @@ Power and data:
 | FR-33.3 | Shipped build, `uplink` `wifi`, a Notecard on the bus; reset and a timer wake | L43 and L44 never appear; the sends of §25, §31 as before | A Notecard line | target (R-31) |
 | FR-33.4 (core) | `notecard` core builds `hub.set` from stored values; answers that match and that differ | No `hub.set` when they match; one with the four fields when they differ | `hub.set` on every boot | host |
 | FR-33.7 (core) | `uplink_core` over 250 readings after the mark; the second `note.add` refused; then all accepted | Notes of 100, 100, 50 in order; the mark at 100 after the refusal, at 250 afterwards | The mark moved on a refused note | host |
+| FR-33.13 (core) | `uplink` `cell`, a summary due: `cell_mail` `route`; `off`; `off` then `route` at the next due time; `uplink` `wifi` with `off` | A `mail.qo` note; nothing due, the period advanced, mail settings kept; one note for the new period only; sent over WiFi as §25 | An email or note with `off` on cellular; a backlog of summaries | host |
 | FR-33.8, FR-33.9 (core) | Alert `t_high` and a summary with every token and password stored | `alert.qo` and `mail.qo` bodies as §33.4 with `sync:true`; no secret in any body | A token or password in a note | host |
 | FR-33.10 (core) | Answers: none, `{"err":"…"}`, `{"total":1}` | L44 `timeout`, L44 `err`, L43 | Success on an error reply | host |
 | FR-33.6, FR-33.11, NFR-33.1 | Sleep test build, `uplink` `cell`, a Notecard on the bench (R-31), an upload due on the next timer wake | `web: wake cause=timer`, L21, L43 `tb.qo`, `web: sleep` within 10 s; the event on Notehub; no WiFi start | WiFi on a timer wake; the panel lit | target (R-31) |
@@ -3095,7 +3103,7 @@ Runtime configuration (the only persisted items):
 | `rs`, `rs_baud`, `rs_format`, `rs_cmd`, `rs_timeout_ms`, `rs_field`, `rs_scale`, `rs_offset`, `rs_name`, `rs_unit`, `rs_dec` | text / number | `off`, 9600, `8N1` | §30.1 | NVS | operational | portal (§13), BLE (§26) | FR-30.13 | immediate (T3); restart (T14) | erased by factory reset |
 | `ntfy`, `ntfy_url`, `ntfy_topic`, `alert_t_lo`, `alert_t_hi`, `alert_rh_lo`, `alert_rh_hi`, `alert_p_lo`, `alert_p_hi` | text / number | `off` | §31.2 | NVS | operational | portal (§13), BLE (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `ntfy_token` | text | none | 1 – 64 characters | NVS | secret | portal (§13), BLE write only (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
-| `uplink`, `nh_product`, `cell_every` | text / number | `wifi`, none, 60 | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
+| `uplink`, `nh_product`, `cell_every`, `cell_mail` | text / number | `wifi`, none, 60, `off` | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
@@ -3291,7 +3299,7 @@ change_history:
   - "0.18.0-ntfy 2026-11-01 from the user's answers to the ntfy plan (alerts when something needs attention, not routine readings; a self-hosted server, tested at http://192.168.2.37:8080; the plan's recommendations: limits on temperature, humidity and pressure with hysteresis, alerts may start WiFi on a timer wake, a failed alert tried once more on the next run, an optional token): §31 Push Alerts (FR-31.1 – FR-31.14, NFR-31.1, NFR-31.2; alerts a selectable item, `ntfy` on or off, from the user's request), FR-21.13 gains the alert wake, L39, L40, R-28, Phase 13; §4.3, §9.1 and Appendix A updated"
   - 0.19.0 2026-11-02 §29 (0.16.0), §30 (0.17.0) and §31 (0.18.0-ntfy, numbered on a side branch beside main's 0.18.0) brought onto main; they had merged into a branch that had already merged
   - 0.19.1 2026-11-01 review of the 0.16.0 open items. §6.1 says six lines in two fonts, FR-5.29 derives from FR-6.15 (FR-6.2 is superseded), the GPIO 3 open decision records that the header brings it out, and the §29.1 bus row (proposed since 0.16.0) is listed as an open decision; change-history entries quoted so Appendix B parses as YAML again
-  - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.12, NFR-33.1, NFR-33.2; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
+  - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
   - "§29.1: supply enable GPIO 3 (the header brings it out, pin 4)"
@@ -3305,7 +3313,7 @@ open_decisions:
   - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
   - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
   - "NFR-30.1, NFR-30.2: port on at most rs_timeout_ms + 50 ms; at most 10 µA with the port off or asleep"
-  - "§33.4: how the summary email goes over cellular (a Notehub route to an HTTP mail service, or no email on cellular)"
+  - "§33.3: cell_mail default off (email over cellular needs the user's mail service and route first)"
   - "§33.2: Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier's own LiPo for modem peaks, ATTN not connected"
   - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"
   - "FR-33.4, FR-33.10: 2 s Notecard answer limit; FR-33.5: Notecard never power-cycled"
