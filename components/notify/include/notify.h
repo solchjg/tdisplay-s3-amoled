@@ -15,6 +15,10 @@
 // with a suggested random topic when none is stored (FR-31.3).
 const char *notify_form_html(void);
 
+// FR-31.3: the topic the portal form and a BLE settings read show: the stored
+// one, else a random one drawn once per boot, the same in both.
+const char *notify_topic(void);
+
 // FR-31.1: the §31.2 fields of a portal or BLE settings body over the stored
 // settings; NULL when valid (held until notify_store), else the invalid field.
 const char *notify_take(const char *body, size_t len);

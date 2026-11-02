@@ -197,7 +197,7 @@ dl_hold_step_t dl_hold_step(dl_hold_t state, dl_hold_event_t event, bool guard,
     return (dl_hold_step_t){state, 0};
 }
 
-#define HOLD_PROMPT "Press BOOT to start "
+#define HOLD_PROMPT "Press flashing LED to start "
 
 void dl_hold_line(uint32_t held_s, uint32_t timeout_s, char out[DL_LINE_MAX])
 {
@@ -350,11 +350,12 @@ void dl_ble_line(const dl_ble_ctx_t *c, uint32_t now_s, int32_t passkey, char ou
         snprintf(out, DL_LINE_MAX, BLE_CODE "%06" PRId32, passkey % 1000000);
         return;
     }
-    if (c->state != DL_BLE_KEY) {
-        return;
-    }
     if (c->connected) {
         snprintf(out, DL_LINE_MAX, "BLE connected");
+        return;
+    }
+    if (c->state != DL_BLE_KEY) {
+        snprintf(out, DL_LINE_MAX, "BLE setup on");  // FR-26.23: setup by phone is open
         return;
     }
     uint32_t idle = now_s - c->since_s;

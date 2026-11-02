@@ -1956,7 +1956,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-23.12, FR-24.12]
+    verifies: [FR-23.12, FR-24.13]
     needs: []
     observable: "'70.6F Hum 45% 1013.25 mbar', '-40.0F Hum 100% 1100.00 mbar', 'Sensor --'; at most 33 characters; lines 1 - 3 unchanged"
     impl: [tests/host/test_weather.py::test_screen_line, tests/host/test_weather.py::test_screen_line_without_a_reading, tests/host/test_device_logic.py::test_lines_four_and_five_in_every_state]
@@ -2126,9 +2126,9 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: host
-    verifies: [FR-24.12]
+    verifies: [FR-24.13]
     needs: []
-    observable: "'Press BOOT to start 30:00', '... 29:59', '... 01:01', '... 00:00'; 25 characters"
+    observable: "'Press flashing LED to start 30:00', '... 29:59', '... 01:01', '... 00:00'; 33 characters"
     impl: tests/host/test_device_logic.py::test_countdown_line
     result: {status: not done}
 
@@ -2217,7 +2217,7 @@ tests:
     wave: 1
     fsd_phase: 6
     tier: bench
-    verifies: [FR-24.3, FR-24.12]
+    verifies: [FR-24.3, FR-24.13]
     needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280]
     observable: "operator watching 15 s with a finger on the sensor: line 5 counts down once a second; line 4 changes at least once"
     impl: []
@@ -2490,7 +2490,7 @@ tests:
     wave: 1
     fsd_phase: 8
     tier: host
-    verifies: [FR-26.14]
+    verifies: [FR-26.23]
     needs: []
     observable: "pure core driven by a C harness"
     impl: tests/host/test_ble_setup.py::test_line_five
@@ -2649,6 +2649,58 @@ tests:
     verifies: [FR-26.19, FR-26.20]
     needs: [bench-ble-pair-passkey, operator-at-bench, dut-amoled-slot1]
     observable: "operator on the setup page: partial mail group and short password not written; invalid=average_min named with values kept across a reconnect"
+    impl: manual (FSD §26.4 contract)
+    result: {status: not done}
+
+  - id: TC-BLE-33
+    title: "The BLE form description is the portal form"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.21, FR-26.19]
+    needs: []
+    observable: "the rules against the portal form HTML in the sources: fields in order, sections, intros, labels, option values and texts, extras, units, checks"
+    impl: tests/host/test_ble_setup.py::test_form_rules_match_the_portal_form
+    result: {status: not done}
+
+  - id: TC-BLE-34
+    title: "The BLE page draws the described form and writes what passes"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.19, FR-26.21]
+    needs: []
+    observable: "the page in headless Chromium against a simulated device (skips without node and Playwright)"
+    impl: [shared/tests/host/test_ble_page.py]
+    result: {status: not done}
+
+  - id: TC-BLE-35
+    title: "The BLE address is new whenever no bond is held"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 8
+    tier: host
+    verifies: [FR-26.22]
+    needs: []
+    observable: "pure core driven by a C harness: static random address from random bytes; kept only with a stored address and a bond"
+    impl: [shared/tests/host/test_ble_setup.py::test_static_address, shared/tests/host/test_ble_setup.py::test_address_kept_only_while_bonded]
+    result: {status: not done}
+
+  - id: TC-BLE-36
+    title: "A phone that kept an erased pairing pairs afresh"
+    shape: atomic
+    kind: standard
+    wave: 3
+    fsd_phase: 8
+    tier: bench
+    verifies: [FR-26.22, FR-26.1, FR-26.6]
+    needs: [bench-ble-pair-passkey, operator-at-bench, dut-amoled-slot1]
+    observable: "operator: pair in a key window, factory reset, provision over BLE from the same phone without removing the device: a new passkey on the first try"
     impl: manual (FSD §26.4 contract)
     result: {status: not done}
 

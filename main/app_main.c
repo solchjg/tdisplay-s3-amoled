@@ -152,7 +152,7 @@ static uint32_t quick_next_s;   // uptime of quick's next reading (FR-28.6)
 static uint32_t key_used_s;     // a press that ended the hold or a test is no half of a double
 static bool task_ran;
 static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.12)
-static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.12)
+static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.13)
 static char addons_line[DL_LINE_MAX];   // screen line 6 (FR-29.8)
 
 static dl_hold_t hold;         // the setup check (FSD §24)
@@ -162,7 +162,7 @@ static uint32_t live_read_s;   // uptime of the last live reading (FR-24.3)
 static uint32_t window_start_s;  // uptime the window counts from (FR-24.11)
 
 static dl_ble_ctx_t ble;               // the BLE setup windows (FSD §26)
-static volatile int32_t ble_passkey = -1;  // shown on line 5 while pairing (FR-26.14)
+static volatile int32_t ble_passkey = -1;  // shown on line 5 while pairing (FR-26.23)
 static dl_disp_t disp = DL_LCD_START;
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
@@ -326,8 +326,13 @@ static size_t ble_read_info(char *out, size_t cap)
 
 static size_t ble_read_settings(char *out, size_t cap)
 {
-    return bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(),
-                     notify_settings(), out, cap);  // FR-26.9, FR-28.3, FR-29.11, FR-31.2
+    static nf_settings_t alerts;  // the NimBLE host task only
+    alerts = *notify_settings();
+    strlcpy(alerts.topic, notify_topic(), sizeof alerts.topic);  // FR-31.3, as the portal shows it
+    size_t n = bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(), &alerts,
+                         out, cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2
+    memset(alerts.token, 0, sizeof alerts.token);
+    return n;
 }
 
 // FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.
@@ -1147,7 +1152,7 @@ static void hold_event(dl_hold_event_t ev, bool guard)
     execute_hold(step.actions);
 }
 
-// Each tick of the hold, before the draw: the countdown (FR-24.12) and the live
+// Each tick of the hold, before the draw: the countdown (FR-24.13) and the live
 // reading every 5 s (FR-24.3). The timeout (FR-24.6) is checked after the draw,
 // so 00:00 is shown.
 static void hold_tick(void)
@@ -1566,7 +1571,7 @@ void app_main(void)
         hold_tick();
         quick_tick();  // FR-28.6
         if (hold != DL_HOLD_ON) {
-            dl_ble_line(&ble, uptime_s(), ble_passkey, prompt_line);  // FR-26.14
+            dl_ble_line(&ble, uptime_s(), ble_passkey, prompt_line);  // FR-26.23
             if (!prompt_line[0] && test_result) {
                 sp_verdict_line(run, prompt_line);  // FR-28.11
             }

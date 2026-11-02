@@ -46,9 +46,9 @@ With no stored credentials the display shows `Setup WiFi`, the network name
    `Connecting` and the network name, then joins your WiFi. No restart is needed.
 4. The device now waits for you to check it before it starts its sleep cycle.
    The fourth line shows a live reading, updated every 5 seconds, and the fifth
-   shows `Press BOOT to start` with a countdown from 30:00, while the LED
-   next to the BOOT key flashes once a second. Check the readings, then press
-   BOOT briefly (the user key, the one that wakes the board, works too). The
+   shows `Press flashing LED to start` with a countdown from 30:00, while the
+   LED next to the BOOT key flashes once a second. Check the readings, then press
+   the BOOT key beside the flashing LED briefly (the user key, the one that wakes the board, works too). The
    device stays up for one more minute, takes its first reading and goes to
    sleep. Holding BOOT for 5 seconds still erases the settings (chapter 5).
 
@@ -238,12 +238,16 @@ device setup page that ships with the shared components
 GitHub Pages). nRF Connect works too: write the form text to the `settings`
 characteristic, then `apply` to `control`.
 
-- **First setup.** While the display says `Setup WiFi`, the device is also
-  visible over Bluetooth as `TDS3-…` (the same name as its WiFi portal). Open
+- **First setup.** While the display says `Setup WiFi`, Bluetooth is already
+  on by itself: line 5 shows `BLE setup on`, and the device is visible as
+  `TDS3-…` (the same name as its WiFi portal). There is no key to hold; the
+  user key opens a Bluetooth window only after the device is set up. Open
   the page, press **Connect to device**, pick it, and type the 6-digit code the
-  display shows on line 5 (`BLE code 123456`). Fill in the network and, if you
-  like, the email settings, and press **Save settings**. The device connects
-  exactly as if you had used the portal.
+  display shows on line 5 (`BLE code 123456`). The page shows the same form as
+  the portal, section by section (WiFi, Email summary, Readings, 4-20 mA
+  input, Push alerts), with the same choices and checkboxes. Fill in the
+  network and whatever else you want, and press **Save settings**. The device
+  connects exactly as if you had used the portal.
 
   As on the portal, required fields carry a `*`, the page checks every field
   before it writes, and a field the device refuses is named while everything
@@ -257,11 +261,13 @@ characteristic, then `apply` to `control`.
   connection, to turn Bluetooth off again.
 - **Reconnecting.** The device remembers up to 3 phones it has paired with,
   so a phone that paired once connects again without a code. After a factory
-  reset the device has forgotten them: remove `TDS3-…` from the phone's
-  Bluetooth devices once, then pair again. The page says so when a connection
-  fails twice. **Forget all phones** on the page (after pairing) makes the
-  device forget every phone without a factory reset; remove `TDS3-…` from each
-  phone's Bluetooth devices too.
+  reset, a fully erased flash, or **Forget all phones** on the page (after
+  pairing), the device has forgotten every phone and shows up as a new
+  Bluetooth device: pick `TDS3-…` on the page and type the new code, with
+  nothing to remove on the phone first. The phone's entry for the old one is
+  no longer used; you can remove it from the phone's Bluetooth devices. If a
+  connection still fails twice, the page asks you to remove `TDS3-…` from the
+  phone's Bluetooth devices and try again.
 
 - **Downloading the history.** In the same Bluetooth session (after holding
   the user key and typing the code), the page shows *History* with *From* and

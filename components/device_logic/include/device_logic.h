@@ -23,7 +23,7 @@ typedef struct {
     uint32_t requests;        // FR-14.6
     const char *hostname;     // FR-20.1, without ".local"
     const char *reading;      // line 4 in every state (FR-23.12)
-    const char *prompt;       // line 5 in every state, the setup check (FR-24.12)
+    const char *prompt;       // line 5 in every state, the setup check (FR-24.13)
     const char *addons;       // line 6 in every state, the add-on values (FR-29.8)
 } dl_view_t;
 
@@ -154,7 +154,7 @@ typedef struct {
 dl_hold_step_t dl_hold_step(dl_hold_t state, dl_hold_event_t event, bool guard,
                             dl_wake_t wake, uint32_t held_s, uint32_t timeout_s);
 
-// FR-24.12: "Press BOOT to start <mm>:<ss>" for the seconds left (0 at or past
+// FR-24.13: "Press flashing LED to start <mm>:<ss>" for the seconds left (0 at or past
 // the timeout).
 void dl_hold_line(uint32_t held_s, uint32_t timeout_s, char out[DL_LINE_MAX]);
 
@@ -234,7 +234,7 @@ dl_ble_step_t dl_ble_step(dl_ble_ctx_t *ctx, dl_ble_event_t event, uint32_t now_
 // FR-26.5: whether a key window keeps the task from running.
 bool dl_ble_holds_task(const dl_ble_ctx_t *ctx);
 
-// FR-26.14: line 5 for the BLE window; empty when nothing is to be shown.
+// FR-26.23: line 5 for the BLE window; empty when nothing is to be shown.
 // `passkey` < 0: no passkey awaited.
 void dl_ble_line(const dl_ble_ctx_t *ctx, uint32_t now_s, int32_t passkey,
                  char out[DL_LINE_MAX]);
