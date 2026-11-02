@@ -54,6 +54,7 @@ reused.
 | 29 | 4-20 mA Loop Input | L1 |
 | 30 | RS232 Instrument Input | L1 |
 | 31 | Push Alerts | L1 |
+| 33 | Cellular Uplink | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -144,6 +145,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
 | 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply enabled by GPIO 3, 100 Ω shunt, ADS1115 at 0x49 behind an I2C isolator on GPIO 43/44 (§29) | [user]; pin, address and parts [proposed] |
 | RS232 instrument (optional) | One instrument on a DE-9 (DTE): TRS3221E / MAX3221E transceiver, UART1 TX GPIO 11, RX GPIO 12, transceiver power GPIO 13 (§30) | [user]; pins and parts [proposed] |
+| Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW on a Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem (§33) | [user]; carrier, bus and power [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
@@ -384,6 +386,23 @@ testbench.
 - **Dependencies.** §23 (readings), §25 (the shared timer-wake WiFi start),
   §26 (BLE settings), §28 (test result), §29 and §30 (add-on failures).
 
+### 3.15 Phase 15: Cellular uplink
+
+- **Scope.** The optional Notecard uplink: settings, Notecard setup, the
+  ThingsBoard batches, alerts and summary email as notes, the clock from the
+  Notecard.
+- **Deliverables.** §33, L43, L44, the L20 `src=cell` form, R-31 – R-33; the
+  shared `notecard` component in esp-idf-components; a commissioning program
+  that talks to the Notecard on GPIO 43/44 beside the BME280; a User Manual
+  section for the Notehub project and its routes.
+- **Exit criteria.** With `uplink` `cell` a timer wake adds its notes and is
+  asleep within 10 s; the readings reach ThingsBoard, an alert reaches ntfy
+  and a summary reaches the inbox through Notehub; with `uplink` `wifi`
+  nothing changes.
+- **Dependencies.** §32 (ThingsBoard batches and the upload mark), §31
+  (alerts), §25 (summary), §22 (time), §26 (BLE settings), a NOTE-MBGLW and a
+  Notecarrier-A at the bench (R-31).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -419,6 +438,9 @@ testbench.
 | R-26 | OTA never rewrites the partition table, so a device updated only by OTA has no `history` partition | Certain | Low | FR-27.8: it runs without history and says so (L31); a USB flash of the full image adds the partition |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
 | R-28 | The testbench offers no ntfy server; the user's test server is at `192.168.2.37:8080` on the LAN, and the bench AP network may not route to it | Medium | Medium | The cores are host-tested; the unreachable-server row runs on the target tier; if the bench AP cannot reach the server, the bench rows are blocked (testbench change request, never a project workaround) and run by the operator with the device on the user's own WiFi |
+| R-31 | The testbench has no Notecard and no cellular coverage is declared at the bench, so the cellular rows need a Notecard on SLOT1's bus and a Notehub project | Certain | Medium | The user fits the Notecarrier-A by Qwiic at the bench; until then the cellular rows are `not done` and the cores are host-tested |
+| R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
+| R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
 ### 4.2 Assumptions
@@ -451,6 +473,7 @@ testbench.
 
 - ESP-IDF **v6.0.2**, the image the Harness uses (`espressif/idf:v6.0.2`). [user]
 - Managed component `espressif/mdns` (not bundled with IDF 6). [derived from §17]
+- Blues Notehub (cloud) for the cellular uplink (§33), with the routes the user sets up; the Notecard's included data. [user]
 - Embedded AI Harness testbench at `192.168.2.230`, SLOT1: USB flash, serial
   monitor, operator prompt, WiFi AP and station, HTTP relay, UDP log capture on
   port 5555, WiFi scan, port scan.
@@ -941,7 +964,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L16 | T13 | `web: ota not confirmed, restarting` | E |
 | L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
 | L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
-| L20 | Clock synced (FR-22.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>` (local time) | I |
+| L20 | Clock synced (FR-22.5, FR-33.12) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>[ src=cell]` (local time; `src=cell` when set from the Notecard) | I |
 | L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<mbar, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm>, or none (FR-22.6)> synced=<0\|1>` | I |
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
@@ -962,6 +985,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L38 | RS232 failed (FR-30.6) | `web: rs232 failed: <timeout\|long\|nonum\|ERR>[ line=<first 32 bytes>]` | W |
 | L39 | Alert delivered (FR-31.12) | `web: ntfy sent <event>` (§31.3 names) | I |
 | L40 | Alert not delivered (FR-31.11) | `web: ntfy failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|limit\|server\|timeout> <event>` | W |
+| L43 | Note accepted by the Notecard (FR-33.11) | `web: cell note <tb\|tbattr\|alert\|mail> n=<readings, or 1>` | I |
+| L44 | Notecard request failed (FR-33.4, FR-33.10) | `web: cell failed: <timeout\|err\|full> <req>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1416,7 +1441,7 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31) |
+| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31); with `uplink` `cell`, notes over I2C to the Notecard, which sends them to Blues Notehub (§33) |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
 | Credentials | One WiFi password, one mail password and an optional ntfy token, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-31.13) |
@@ -2862,6 +2887,163 @@ Sending:
 
 ---
 
+## 33. Cellular Uplink
+
+### 33.1 Purpose & peer
+
+Where no WiFi reaches the device, it sends its scheduled traffic over
+cellular instead: the ThingsBoard uploads (§32), the push alerts (§31) and
+the summary email (§25). The modem is a Blues Notecard Cell+WiFi
+**NOTE-MBGLW** (LTE Cat-1 bis, global bands, 500 MB of data and 10 years of
+service included) [user]. The device never opens a TCP connection over
+cellular. Each send becomes a JSON *note* that the device hands to the
+Notecard over I2C. The Notecard keeps it in its own flash and delivers it to
+Blues Notehub at its next sync, and a Notehub *route* the user sets up passes
+it on to the real peer: an HTTP POST to ThingsBoard, to ntfy, or to the mail
+service of §33.4. So a timer wake only reads, adds the notes and sleeps
+again; the radio work happens on the Notecard, which stays powered and idles
+at about 18 µA while the ESP32-S3 sleeps.
+
+The window (§21) is unchanged: panel, WiFi when credentials are stored, web
+page, OTA and BLE work as before. Cellular replaces WiFi only for the senders
+of §25, §31 and §32, and only while `uplink` is `cell`.
+
+Peers: the Notecard on the I2C bus; Notehub, reached by the Notecard; the
+routes' targets, reached by Notehub from the internet, so each target must
+be reachable from the internet (R-33). Built on a shared `notecard`
+component in esp-idf-components (Blues' `note-c` library over the ESP-IDF I2C
+master driver, plus a pure core for the request bodies and the answers); the
+pure `uplink_core` decides which transport each send uses and what each note
+holds, the composition root performs it.
+
+### 33.2 Hardware
+
+| Item | Value | Source |
+|------|-------|--------|
+| Modem | Blues Notecard Cell+WiFi NOTE-MBGLW (M.2 key E) | [user] |
+| Carrier | Blues Notecarrier-A: M.2 socket, LiPo connector and charger, Qwiic connectors, u.FL antennas | [proposed] |
+| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable; no address clash with 0x76 or 0x49 | [proposed] |
+| Power | The Notecarrier's own LiPo (or USB) supplies the Notecard's modem peaks (up to about 2 A); the board's 3.3 V supplies only the bus; the grounds join through the Qwiic cable | [proposed] |
+| ATTN | Not connected in the first build; the device polls the Notecard | [proposed] |
+
+### 33.3 Settings
+
+Added to the §13.2 form and the BLE `settings` write (§26); all optional, so a
+submission without them leaves the uplink as it was (`wifi` on a new device).
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `uplink` | `wifi` or `cell` | one of the two; `cell` needs `nh_product`, given or stored | the stored value; `wifi` when none is stored [proposed] |
+| `nh_product` | the Notehub ProductUID, e.g. `com.example.joe:weather` | 1 – 64 bytes, letters, digits, `.`, `:`, `-` and `_` | the stored value |
+| `cell_every` | minutes between the Notecard's outbound syncs | whole minutes, 10 – 1440 | 60 [proposed] |
+| `cell_mail` | email over cellular: `route` (a note to `mail.qo`, which a Notehub route passes to an HTTP mail service) or `off` (no email while `uplink` is `cell`) | one of the two | the stored value; `off` when none is stored [proposed] |
+
+### 33.4 Notes
+
+| Notefile | Holds | Sync | Notehub route (set up by the user, User Manual) |
+|----------|-------|------|------------------------------------------------|
+| `tb.qo` | One ThingsBoard batch: the telemetry array of §32.3 as `body.t`, at most 100 readings | at the next periodic sync | General HTTP, JSONata `body.t`, to `<tb_url>/api/v1/<tb_token>/telemetry` |
+| `tbattr.qo` | The attributes of §32.3, with `"uplink":"cell"`, the signal bars and the Notecard's firmware version | at the next periodic sync | General HTTP to `<tb_url>/api/v1/<tb_token>/attributes` |
+| `alert.qo` | One alert: `topic`, `title`, `priority`, `tags`, `message` of §31.3 | at once (`sync:true`) | General HTTP to the ntfy server's JSON publish endpoint `<ntfy_url>/` |
+| `mail.qo` | One email: `to`, `subject`, `text` (the §25 message, the §28 result); only with `cell_mail` `route` | at once (`sync:true`) | General HTTP to the user's mail service (e.g. SMTP2GO or SendGrid), its API key in the route |
+
+Secrets stay off the cellular path: the ThingsBoard token, the ntfy token and
+any mail credentials live in the Notehub routes, never in a note.
+
+### 33.5 Requirements
+
+Settings:
+
+- **FR-33.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry the fields of §33.3. A submission shall be valid
+  only if every field given is valid per §33.3 and, with `uplink` `cell`,
+  `nh_product` is given or stored, else answer 400 naming the first invalid
+  field (portal) or `invalid=<field>` (BLE).
+- **FR-33.2** [Must] [derived] Valid settings shall be stored in NVS with the
+  other settings at T3, or by an accepted BLE write in a key window (T14),
+  reported by the `settings` read (FR-26.9) with `uplink=<wifi|cell>` and `cell_mail=<route|off>`, and
+  erased by a factory reset (T10), which also sets `uplink` back to `wifi`.
+- **FR-33.13** [Must] [user] Email over cellular shall be selectable by
+  `cell_mail`: with `route`, a due summary or test result is added to
+  `mail.qo` (FR-33.6); with `off`, while `uplink` is `cell`, no email is due
+  or sent, L25, L26 and L43 `mail` never appear, the mail settings (§25.2)
+  stay stored, and the summary period still advances as after a dropped send
+  so no backlog builds up. With `uplink` `wifi`, `cell_mail` has no effect.
+- **FR-33.3** [Must] [user] With `uplink` `wifi` the device shall never
+  install the Notecard's I2C device, and behave as without §33.
+
+Notecard setup:
+
+- **FR-33.4** [Must] [derived from §33.1] On each boot with `uplink` `cell`,
+  the device shall check the Notecard with `card.version`, then, only when the
+  Notecard's stored values differ, send `hub.set` with `product`
+  `nh_product`, `mode` `periodic`, `outbound` `cell_every` and `inbound`
+  1440. A Notecard that does not answer within **2 s** [proposed] is logged
+  as L44 and that boot's sends are dropped as failed (FR-33.10).
+- **FR-33.5** [Must] [proposed] The device shall never cut the Notecard's
+  power or reset it; the Notecard stays powered through deep sleep.
+
+Sending:
+
+- **FR-33.6** [Must] [user] With `uplink` `cell`, a due ThingsBoard upload
+  (FR-32.4, FR-32.6), a due alert (§31) and a due summary or test result
+  (§25, §28, when `cell_mail` is `route`, FR-33.13) shall be sent as notes of §33.4 instead of over WiFi; a timer
+  wake shall never start WiFi (FR-21.13 keeps the panel dark and WiFi off),
+  and a window still starts WiFi for the page, OTA and BLE when credentials
+  are stored.
+- **FR-33.7** [Must] [user] For ThingsBoard, the upload mark (FR-32.8) shall
+  move when the Notecard answers a `note.add` to `tb.qo` without an error,
+  because the Notecard then holds the batch until Notehub has it. An upload
+  carries every reading after the mark in notes of at most 100 readings, as
+  FR-32.7.
+- **FR-33.8** [Must] [user] Alerts and email shall be added with `sync:true`,
+  so the Notecard connects at once; the device does not wait for that
+  connection. An alert or email counts as sent (L39, L25) when the Notecard
+  accepts the note; delivery is seen on Notehub and the target.
+- **FR-33.9** [Must] [derived from §9.1] No note shall carry the WiFi
+  password, the mail password, `tb_token` or `ntfy_token`.
+- **FR-33.10** [Must] [derived] A `note.add` that fails (no answer within
+  2 s, an `{err}` reply, a full Notefile) shall be logged as L44 and treated
+  as that send's failure: a ThingsBoard batch stays after the mark (FR-32.11),
+  an alert follows FR-31.6, an email follows §25's dropped send.
+- **FR-33.11** [Must] [derived] Each accepted note shall be logged as L43
+  (§7.2).
+
+Time:
+
+- **FR-33.12** [Must] [derived from FR-22.1] With `uplink` `cell`, on a boot
+  whose clock was never set (FR-22.6), the device shall ask the Notecard for
+  the time (`card.time`) and, when it answers with a time, set the clock and
+  mark readings synced as after an SNTP sync, logging L20 with `src=cell`.
+
+Power and data:
+
+- **NFR-33.1** [Must] [derived from NFR-32.1] A timer wake that sends notes
+  shall be back asleep within **10 s** [proposed] of the wake, whether the
+  Notecard accepts them or not.
+- **NFR-33.2** [Should] [proposed] With the `std` setup (§28) and hourly
+  ThingsBoard batches, the cellular data used shall stay under **4 MB a
+  month**, so the 500 MB included lasts the 10 years.
+
+### 33.6 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-33.1 (core) | Bodies, nothing stored: none of the fields; `uplink=cell` alone; with `nh_product`; `uplink=lte`; `nh_product` with a space; `cell_every` 9, 1441, 60 | `wifi`; 400 `nh_product`; `cell`; 400 `uplink`; 400 `nh_product`; 400 `cell_every` twice, then valid | `cell` stored without a ProductUID | host |
+| FR-33.3 (core) | `uplink_core` with `uplink` `wifi` at a due upload, alert and summary | Every send on WiFi; no Notecard call | A note added with `uplink` `wifi` | host |
+| FR-33.3 | Shipped build, `uplink` `wifi`, a Notecard on the bus; reset and a timer wake | L43 and L44 never appear; the sends of §25, §31 as before | A Notecard line | target (R-31) |
+| FR-33.4 (core) | `notecard` core builds `hub.set` from stored values; answers that match and that differ | No `hub.set` when they match; one with the four fields when they differ | `hub.set` on every boot | host |
+| FR-33.7 (core) | `uplink_core` over 250 readings after the mark; the second `note.add` refused; then all accepted | Notes of 100, 100, 50 in order; the mark at 100 after the refusal, at 250 afterwards | The mark moved on a refused note | host |
+| FR-33.13 (core) | `uplink` `cell`, a summary due: `cell_mail` `route`; `off`; `off` then `route` at the next due time; `uplink` `wifi` with `off` | A `mail.qo` note; nothing due, the period advanced, mail settings kept; one note for the new period only; sent over WiFi as §25 | An email or note with `off` on cellular; a backlog of summaries | host |
+| FR-33.8, FR-33.9 (core) | Alert `t_high` and a summary with every token and password stored | `alert.qo` and `mail.qo` bodies as §33.4 with `sync:true`; no secret in any body | A token or password in a note | host |
+| FR-33.10 (core) | Answers: none, `{"err":"…"}`, `{"total":1}` | L44 `timeout`, L44 `err`, L43 | Success on an error reply | host |
+| FR-33.6, FR-33.11, NFR-33.1 | Sleep test build, `uplink` `cell`, a Notecard on the bench (R-31), an upload due on the next timer wake | `web: wake cause=timer`, L21, L43 `tb.qo`, `web: sleep` within 10 s; the event on Notehub; no WiFi start | WiFi on a timer wake; the panel lit | target (R-31) |
+| FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 | A reading with `at=none` after L20 | target (R-31) |
+| FR-33.8 | The user's routes set up, an alert and a summary due | The ntfy message and the email arrive | Nothing on the target with L43 logged | bench (operator) |
+| NFR-33.2 | A month of the `std` setup on cellular | Notehub's data use for the device under 4 MB | — | bench (operator) |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2921,6 +3103,7 @@ Runtime configuration (the only persisted items):
 | `rs`, `rs_baud`, `rs_format`, `rs_cmd`, `rs_timeout_ms`, `rs_field`, `rs_scale`, `rs_offset`, `rs_name`, `rs_unit`, `rs_dec` | text / number | `off`, 9600, `8N1` | §30.1 | NVS | operational | portal (§13), BLE (§26) | FR-30.13 | immediate (T3); restart (T14) | erased by factory reset |
 | `ntfy`, `ntfy_url`, `ntfy_topic`, `alert_t_lo`, `alert_t_hi`, `alert_rh_lo`, `alert_rh_hi`, `alert_p_lo`, `alert_p_hi` | text / number | `off` | §31.2 | NVS | operational | portal (§13), BLE (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `ntfy_token` | text | none | 1 – 64 characters | NVS | secret | portal (§13), BLE write only (§26) | FR-31.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `uplink`, `nh_product`, `cell_every`, `cell_mail` | text / number | `wifi`, none, 60, `off` | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
@@ -3068,7 +3251,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.19.1
+fsd_version: 0.20.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3076,7 +3259,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-01
+last_updated: 2026-11-02
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -3116,6 +3299,7 @@ change_history:
   - "0.18.0-ntfy 2026-11-01 from the user's answers to the ntfy plan (alerts when something needs attention, not routine readings; a self-hosted server, tested at http://192.168.2.37:8080; the plan's recommendations: limits on temperature, humidity and pressure with hysteresis, alerts may start WiFi on a timer wake, a failed alert tried once more on the next run, an optional token): §31 Push Alerts (FR-31.1 – FR-31.14, NFR-31.1, NFR-31.2; alerts a selectable item, `ntfy` on or off, from the user's request), FR-21.13 gains the alert wake, L39, L40, R-28, Phase 13; §4.3, §9.1 and Appendix A updated"
   - 0.19.0 2026-11-02 §29 (0.16.0), §30 (0.17.0) and §31 (0.18.0-ntfy, numbered on a side branch beside main's 0.18.0) brought onto main; they had merged into a branch that had already merged
   - 0.19.1 2026-11-01 review of the 0.16.0 open items. §6.1 says six lines in two fonts, FR-5.29 derives from FR-6.15 (FR-6.2 is superseded), the GPIO 3 open decision records that the header brings it out, and the §29.1 bus row (proposed since 0.16.0) is listed as an open decision; change-history entries quoted so Appendix B parses as YAML again
+  - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
   - "§29.1: supply enable GPIO 3 (the header brings it out, pin 4)"
@@ -3129,5 +3313,10 @@ open_decisions:
   - "§30.1: TRS3221E or MAX3221E transceiver, DE-9 male (DTE) with a 3-pin terminal footprint"
   - "§30.1: rs_cmd 1 – 32 bytes, rs_timeout_ms 100 – 5000 (default 1000), rs_field 1 – 8, rs_dec 0 – 4, a 128-byte line"
   - "NFR-30.1, NFR-30.2: port on at most rs_timeout_ms + 50 ms; at most 10 µA with the port off or asleep"
+  - "§33.3: cell_mail default off (email over cellular needs the user's mail service and route first)"
+  - "§33.2: Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier's own LiPo for modem peaks, ATTN not connected"
+  - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"
+  - "FR-33.4, FR-33.10: 2 s Notecard answer limit; FR-33.5: Notecard never power-cycled"
+  - "NFR-33.1: asleep within 10 s on a timer wake that sends notes; NFR-33.2: under 4 MB a month"
 related_test_baseline: none yet
 ```
