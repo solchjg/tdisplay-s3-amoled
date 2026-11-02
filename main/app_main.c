@@ -28,6 +28,7 @@
 #include "history_core.h"
 #include "identity.h"
 #include "lcd.h"
+#include "loop.h"
 #include "mdns_name.h"
 #include "notify.h"
 #include "ota_rx.h"
@@ -114,16 +115,15 @@ static void page_extra(char *out, size_t len)
     }
 }
 
-// FR-25.1, FR-28.1, FR-31.1: the portal form's mail section, its setup
-// section, then its alerts section.
+// FR-25.1, FR-28.1, FR-29.11, FR-31.1: the portal form's mail section, its
+// setup section, its loop section, then its alerts section.
 static char form_html[6144];
 
 static const char *form_take(const char *body, size_t len)
 {
     const char *bad = summary_take(body, len);
-    if (!bad) {
-        bad = sampling_take(body, len);
-    }
+    bad = bad ? bad : sampling_take(body, len);
+    bad = bad ? bad : loop_take(body, len);
     return bad ? bad : notify_take(body, len);
 }
 
@@ -132,8 +132,8 @@ static const portal_extra_t form_extra = {.html = form_html, .take = form_take};
 static const portal_extra_t *form_fields(void)
 {
     if (!form_html[0]) {
-        snprintf(form_html, sizeof form_html, "%s%s%s", summary_portal_fields()->html,
-                 SAMPLING_FORM_HTML, notify_form_html());
+        snprintf(form_html, sizeof form_html, "%s%s%s%s", summary_portal_fields()->html,
+                 SAMPLING_FORM_HTML, LOOP_FORM_HTML, notify_form_html());
     }
     return &form_extra;
 }
@@ -153,6 +153,7 @@ static uint32_t key_used_s;     // a press that ended the hold or a test is no h
 static bool task_ran;
 static char reading_line[DL_LINE_MAX];  // screen line 4 (FR-23.12)
 static char prompt_line[DL_LINE_MAX];   // screen line 5 (FR-24.12)
+static char addons_line[DL_LINE_MAX];   // screen line 6 (FR-29.8)
 
 static dl_hold_t hold;         // the setup check (FSD §24)
 static uint32_t hold_start_s;  // uptime when the hold began
@@ -314,7 +315,10 @@ static size_t ble_read_info(char *out, size_t cap)
     size_t n = bset_info(esp_app_get_description()->version, hostname,
                          dl_conn_name(view.conn), out, cap);
     if (history_available() && n < cap) {
-        int k = snprintf(out + n, cap - n, "&history=%s", HIST_HEADER);
+        char header[HIST_HEADER_MAX];
+        size_t h = hist_header(weather_ext(), header);  // §29.2: with the add-on columns
+        header[h ? h - 1 : 0] = '\0';                    // without its newline
+        int k = snprintf(out + n, cap - n, "&history=%s", header);
         n += k > 0 && (size_t)k < cap - n ? (size_t)k : 0;
     }
     return n;
@@ -322,8 +326,8 @@ static size_t ble_read_info(char *out, size_t cap)
 
 static size_t ble_read_settings(char *out, size_t cap)
 {
-    return bset_dump(&stored, summary_settings(), sampling_sel(), notify_settings(), out,
-                     cap);  // FR-26.9, FR-28.3, FR-31.2
+    return bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(),
+                     notify_settings(), out, cap);  // FR-26.9, FR-28.3, FR-29.11, FR-31.2
 }
 
 // FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.
@@ -552,6 +556,7 @@ static void test_log_history(void)
 // The text of the last sensor and history failure, an alert's body (§31.3),
 // kept across sleep for an alert sent on a later run.
 static RTC_DATA_ATTR char sensor_fail[48], history_fail[48];
+static RTC_DATA_ATTR char loop_line[LP_LOG_MAX];  // the newest L34 or L35, an alert's body (§31.3)
 
 static bool history_add(const wx_reading_t *r)
 {
@@ -584,7 +589,63 @@ static void observe_alerts(const wx_reading_t *r, bool appended)
         nf_values(r, v);
         nf_observe_values(st, notify_settings(), v);
         nf_observe(st, NF_HISTORY, !appended);
+        if (loop_settings()->on) {
+            nf_observe(st, NF_LOOP, !wx_ext_has(r->ext[WX_EXT_LOOP]));  // §31.3 loop
+        }
     }
+}
+
+// ── Add-on values (FSD §29.2) ────────────────────────────────────────────
+
+// FR-29.2 – FR-29.5: the loop's value for a reading just sampled, logged as
+// L34, or L35 for a fault or an ADC that did not answer; never retried.
+static void read_addons(wx_reading_t *r)
+{
+    const lp_settings_t *lp = loop_settings();
+    if (!lp->on) {
+        return;  // FR-29.1
+    }
+    float ma, value;
+    bool ok;
+    char line[LP_LOG_MAX];
+    esp_err_t err = loop_read(&ma, &value, &ok);
+    if (err == ESP_OK && ok) {
+        r->ext[WX_EXT_LOOP] = value;
+        lp_log_value(ma, value, lp->unit, line);
+    } else {
+        lp_log_failed(err == ESP_OK ? NULL : esp_err_to_name(err), ma, line);
+    }
+    web_log_loop(line, err == ESP_OK && ok);
+    snprintf(loop_line, sizeof loop_line, "%s", line);
+}
+
+// §29.2: which add-ons are on, from their stored settings; set once a boot,
+// before the first reading (a settings change restarts the device).
+static void addons_setup(void)
+{
+    esp_err_t err = loop_init();  // NFR-29.2: the supply low, the loop on or off
+    if (err != ESP_OK) {
+        web_log_warn("loop supply", err);
+    }
+    wx_ext_cfg_t cfg = {0};
+    lp_ext_def(loop_settings(), &cfg.s[WX_EXT_LOOP]);
+    weather_set_ext(&cfg, read_addons);
+}
+
+// §29.2: the add-on slots that are on, as sp_reading_ext's mask.
+static uint8_t addons_on(void)
+{
+    uint8_t mask = 0;
+    for (int i = 0; i < WX_EXT; i++) {
+        mask |= weather_ext()->s[i].on ? (uint8_t)(1u << i) : 0;
+    }
+    return mask;
+}
+
+static void show_newest(void)
+{
+    wx_screen_line(weather_newest(), reading_line);       // FR-23.12
+    wx_ext_line(weather_newest(), weather_ext(), addons_line);  // FR-29.8
 }
 
 // One reading, logged (L21) and kept, or the failure logged (L22); either way the
@@ -610,7 +671,7 @@ static bool take_reading(void)
         wl_fmt_bme280_failed(sensor_fail, sizeof sensor_fail, esp_err_to_name(err));
         observe_alerts(NULL, false);
     }
-    wx_screen_line(weather_newest(), reading_line);
+    show_newest();
     return ok;
 }
 
@@ -631,7 +692,12 @@ static uint32_t test_reading(void)
     bool ok = take_reading();
     const wx_reading_t *r = weather_newest();
     const wx_avgs_t *a = weather_averages();
-    return sp_reading(run, ok, ok && r && r->time >= WX_TIME_SET_MIN, a->cur_start, a->closed);
+    uint8_t want = addons_on(), have = 0;  // FR-29.10, FR-29.14
+    for (int i = 0; ok && r && i < WX_EXT; i++) {
+        have |= wx_ext_has(r->ext[i]) ? (uint8_t)(1u << i) : 0;
+    }
+    return sp_reading_ext(run, ok, want, have, ok && r && r->time >= WX_TIME_SET_MIN,
+                          a->cur_start, a->closed);
 }
 
 // FR-28.9, FR-28.12: the test starts (L32); stored as running, so a reset
@@ -654,7 +720,7 @@ static void test_end(sp_by_t by)
 {
     sp_result_t res = sp_end(run, by);
     char line[SP_LOG_MAX];
-    sp_log_end(&res, line);
+    sp_log_end(&res, weather_ext(), line);
     web_log_test(line, sp_pass(&res));
     esp_err_t err = sampling_set(by == SP_BY_NONE ? sampling_sel()->tests : 0, -1);
     if (err != ESP_OK) {
@@ -739,7 +805,7 @@ static void send_test_mail(bool online)
     static char body[SP_LOG_MAX * SP_TESTS + 8];
     char subject[SM_SUBJECT_MAX];
     sp_mail_subject(run, hostname, subject);
-    sp_mail_body(run, body, sizeof body);
+    sp_mail_body(run, weather_ext(), body, sizeof body);
     uint32_t n, m;
     sp_verdict(run, &n, &m);
     for (int i = 0; summary_to(i); i++) {
@@ -800,6 +866,8 @@ static void alert_body(nf_cond_t c, bool end, char out[NF_BODY_MAX])
         char iso[WX_ISO_MAX];
         weather_iso(r, iso);
         wx_log_line(r, iso, out, NF_BODY_MAX);  // L21 after "web: "
+    } else if (c == NF_LOOP) {
+        snprintf(out, NF_BODY_MAX, "%s", loop_line);  // L35, or L34 for ok
     } else if (c == NF_HISTORY && !end) {
         snprintf(out, NF_BODY_MAX, "%s", history_fail);
     } else {
@@ -818,7 +886,8 @@ static void send_alerts(bool net)
          c = nf_next_due(st, (nf_cond_t)(c + 1), &end)) {
         char title[NF_TITLE_MAX], event[NF_EVENT_MAX];
         static char body[NF_BODY_MAX];
-        nf_title(hostname, c, end, NULL, title);
+        const nf_names_t names = {.loop_name = loop_settings()->name};
+        nf_title(hostname, c, end, &names, title);
         nf_event(c, end, event);
         alert_body(c, end, body);
         nt_reason_t why = net ? notify_send(hostname, title, body, end) : NT_ERR_CONNECT;
@@ -1061,7 +1130,7 @@ static void execute_hold(unsigned a)
         esp_timer_stop(led_timer);
         (void)lcd_led(dl_led_lit(DL_HOLD_NONE, 0));  // lit again with the panel
         prompt_line[0] = '\0';
-        wx_screen_line(weather_newest(), reading_line);  // line 4 back to the kept reading
+        show_newest();  // line 4 back to the kept reading
     }
     if (a & DL_H_START_WINDOW) {
         window_start_s = now;
@@ -1136,6 +1205,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = notify_store();  // FR-31.2
         if (err != ESP_OK) {
             web_log_warn("alert settings store", err);
+        err = loop_store();  // FR-29.11
+        if (err != ESP_OK) {
+            web_log_warn("loop store", err);
         }
         web_log_provisioned(stored.ssid);
     }
@@ -1156,6 +1228,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = notify_store();  // FR-31.2, FR-31.14
         if (err != ESP_OK) {
             web_log_warn("alert settings store", err);
+        err = loop_store();  // FR-29.11
+        if (err != ESP_OK) {
+            web_log_warn("loop store", err);
         }
         vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));  // FR-26.8: the result notification first
         ble_event(DL_BEV_WRITTEN);
@@ -1269,6 +1344,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = notify_erase();  // FR-31.2
         if (err != ESP_OK) {
             web_log_warn("alert settings erase", err);
+        err = loop_erase();  // FR-29.11
+        if (err != ESP_OK) {
+            web_log_warn("loop erase", err);
         }
         err = ble_setup_forget();  // FR-26.13
         if (err != ESP_OK) {
@@ -1342,6 +1420,7 @@ void app_main(void)
     wifi_net_base_mac(mac);
     id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
     id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);  // the summary's sender name
+    addons_setup();  // §29.2: before any reading or L33
     run = sampling_run();
     if (wake != DL_WAKE_TIMER) {
         int was = sampling_running();
@@ -1374,6 +1453,9 @@ void app_main(void)
     }
     queue = xQueueCreate(16, sizeof(app_event_t));
     esp_err_t herr = history_open();  // FR-27.7: finishes an erase a reset cut short
+    if (history_format_erased()) {
+        web_log_history_erased_format();  // L36 (FR-29.12)
+    }
     if (herr != ESP_OK && herr != ESP_ERR_NOT_FOUND) {
         web_log_history_failed(herr);  // FR-27.9
     }
@@ -1382,7 +1464,8 @@ void app_main(void)
     }
     view = (dl_view_t){.conn = DL_BOOT, .softap_ssid = softap_ssid,
                        .stored_ssid = stored.ssid, .ip = ip, .hostname = hostname,
-                       .reading = reading_line, .prompt = prompt_line};
+                       .reading = reading_line, .prompt = prompt_line,
+                       .addons = addons_line};
 
     // D1/D2: start, clear, and the first draw of the BOOT screen.
     char want[DL_LINES][DL_LINE_MAX];

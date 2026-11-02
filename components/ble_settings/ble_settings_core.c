@@ -100,11 +100,17 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
         return bad;
     }
     sp_sel_t sel;
-    return sp_parse(out, b.len, &sel);
+    bad = sp_parse(out, b.len, &sel);
+    if (bad) {
+        return bad;
+    }
+    lp_settings_t loop;
+    return lp_parse(out, b.len, &loop);
 }
 
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *sel,
-                 const nf_settings_t *alerts, char *out, size_t cap)
+                 const lp_settings_t *loop, const nf_settings_t *alerts, char *out,
+                 size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
@@ -134,6 +140,16 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
     field(&b, "sample_min", num);
     snprintf(num, sizeof num, "%u", (unsigned)col->average_min);
     field(&b, "average_min", num);
+    char v[LP_VALUE_MAX];
+    field(&b, "loop", loop->on ? "in" : "off");
+    field(&b, "loop_name", loop->name);
+    field(&b, "loop_unit", loop->unit);
+    lp_fmt_milli(loop->lo_milli, v);
+    field(&b, "loop_lo", v);
+    lp_fmt_milli(loop->hi_milli, v);
+    field(&b, "loop_hi", v);
+    snprintf(num, sizeof num, "%u", (unsigned)loop->warm_ms);
+    field(&b, "loop_warm_ms", num);
     field(&b, "ntfy", alerts->on ? "on" : "off");  // FR-31.2
     field(&b, "ntfy_url", alerts->url);
     field(&b, "ntfy_topic", alerts->topic);
@@ -182,10 +198,20 @@ static const char *const RULES[][15] = {
      "max", "60", NULL},
     {"average_min", "label", "Custom: average them over (minutes)", "type", "number", "min",
      "2", "max", "1440", "hint", "A whole number of readings, dividing a day.", NULL},
+    {"loop", "label", "4-20 mA input", "options", "off,in", "hint",
+     "in: read a 4-20 mA transmitter at each reading.", NULL},
+    {"loop_name", "label", "Loop name", "maxlength", "12", "pattern", "[A-Za-z0-9_\\-]{1,12}",
+     NULL},
+    {"loop_unit", "label", "Loop unit", "maxlength", "6", "pattern", "[^,]{0,6}", NULL},
+    {"loop_lo", "label", "Value at 4 mA", "pattern", "-?[0-9]{1,5}(\\.[0-9]{1,3})?", NULL},
+    {"loop_hi", "label", "Value at 20 mA", "pattern", "-?[0-9]{1,5}(\\.[0-9]{1,3})?", "hint",
+     "Not equal to the value at 4 mA.", NULL},
+    {"loop_warm_ms", "label", "Loop settle time (ms)", "type", "number", "min", "50", "max",
+     "5000", NULL},
     {"ntfy", "label", "Push alerts", "options", "off,on", "hint",
      "Alerts through an ntfy server; on needs the server and topic.", NULL},
     {"ntfy_url", "label", "ntfy server", "maxlength", "96", "pattern",
-     "https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?", "hint", "e.g. http://192.168.2.37:8080", NULL},
+     "https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?", "hint", "e.g. http://192.168.2.231", NULL},
     {"ntfy_topic", "label", "ntfy topic", "maxlength", "64", "pattern", "[A-Za-z0-9_\\-]+", NULL},
     {"ntfy_token", "label", "ntfy access token (optional)", "maxlength", "64", NULL},
     {"alert_t_lo", "label", "Alert: temperature below (F)", "type", "number", "step", "0.1",

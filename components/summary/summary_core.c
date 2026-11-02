@@ -260,7 +260,7 @@ static void put(char *out, size_t cap, size_t *k, const char *fmt, ...)
 
 uint32_t sm_body(const char *hostname, const wx_stats_t *st, const wx_reading_t *newest,
                  const wx_avgs_t *a, uint32_t lines, uint32_t dropped, sm_iso_fn_t iso,
-                 sm_stamp_fn_t stamp, char *out, size_t cap)
+                 sm_stamp_fn_t stamp, const wx_ext_cfg_t *cfg, char *out, size_t cap)
 {
     size_t k = 0;
     out[0] = '\0';
@@ -287,6 +287,21 @@ uint32_t sm_body(const char *hostname, const wx_stats_t *st, const wx_reading_t 
             "Humidity: min %s%%, max %s%%\n"
             "Pressure: min %s mbar, max %s mbar\n",
             from, to, st->n, line, t0, t1, h0, h1, p0, p1);
+        for (int i = 0; cfg && i < WX_EXT; i++) {
+            const wx_ext_def_t *d = &cfg->s[i];
+            if (!d->on) {
+                continue;
+            }
+            char lo[WX_EXT_TEXT_MAX] = "--", hi[WX_EXT_TEXT_MAX] = "--", mean[WX_EXT_TEXT_MAX] = "--";
+            uint32_t n = st->ext_n[i];
+            if (n) {
+                wx_fmt_ext(lo, sizeof lo, st->ext_lo[i], d->dec);
+                wx_fmt_ext(hi, sizeof hi, st->ext_hi[i], d->dec);
+                wx_fmt_ext(mean, sizeof mean, (float)(st->ext_sum[i] / n), d->dec);
+            }
+            put(out, cap, &k, "%s min %s max %s mean %s%s%s (%" PRIu32 " values)\n", d->name, lo,
+                hi, mean, d->unit[0] ? " " : "", d->unit, n);
+        }
     }
     uint32_t kept = wx_avg_count(a);
     lines = lines < kept ? lines : kept;
@@ -296,7 +311,13 @@ uint32_t sm_body(const char *hostname, const wx_stats_t *st, const wx_reading_t 
     if (lines == 0) {
         return st->n;
     }
-    put(out, cap, &k, "\n\"Time\",\"Temp F\",\"Hum %%\",\"ATM mbar\"\n");
+    put(out, cap, &k, "\n\"Time\",\"Temp F\",\"Hum %%\",\"ATM mbar\"");
+    for (int i = 0; cfg && i < WX_EXT; i++) {
+        if (cfg->s[i].on) {
+            put(out, cap, &k, ",\"%s\"", cfg->s[i].name);
+        }
+    }
+    put(out, cap, &k, "\n");
     for (uint32_t i = lines; i-- > 0;) {  // oldest first
         const wx_avg_t *v = wx_avg_get(a, i);
         char when[SM_STAMP_MAX], t[16], hu[16], p[16];
@@ -304,7 +325,15 @@ uint32_t sm_body(const char *hostname, const wx_stats_t *st, const wx_reading_t 
         wx_fmt_temp_f(t, sizeof t, v->temp_centi_c, 1);
         wx_fmt_hum(hu, sizeof hu, v->hum_q10_pct, 0);
         wx_fmt_press(p, sizeof p, v->press_q8_pa, 2);
-        put(out, cap, &k, "\"%s\",\"%s\",\"%s\",\"%s\"\n", when, t, hu, p);
+        put(out, cap, &k, "\"%s\",\"%s\",\"%s\",\"%s\"", when, t, hu, p);
+        for (int e = 0; cfg && e < WX_EXT; e++) {
+            if (cfg->s[e].on) {
+                char x[WX_EXT_TEXT_MAX];
+                wx_fmt_ext(x, sizeof x, v->ext[e], cfg->s[e].dec);
+                put(out, cap, &k, ",\"%.16s\"", x);
+            }
+        }
+        put(out, cap, &k, "\n");
     }
     return st->n;
 }

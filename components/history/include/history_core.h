@@ -10,12 +10,13 @@
 #include "weather_core.h"
 
 #define HIST_HEADER "time,synced,temp_f,rh_pct,p_mbar"
-#define HIST_LINE_MAX 64     // one line with its newline, terminator included
+#define HIST_HEADER_MAX 64   // the header with both add-on columns and a newline
+#define HIST_LINE_MAX 160    // one line with its newline, terminator included
 #define HIST_PAGE_MAX 512    // a BLE read (§27.3)
 #define HIST_CURSOR_MAX 16   // the source's opaque read position
 
-// §27.1: one reading in 16 bytes; the sensor's own units, so a history line
-// shows the values of its L21.
+// §27.1: one reading in 24 bytes; the sensor's own units, so a history line
+// shows the values of its L21, and the add-on values of §29.2.
 typedef struct {
     uint32_t time;          // seconds since the epoch; 0 for a clock never set
     int16_t temp_centi_c;   // 0.01 °C
@@ -23,14 +24,33 @@ typedef struct {
     uint8_t pad;
     uint32_t hum_q10_pct;   // 1/1024 %
     uint32_t press_q8_pa;   // 1/256 Pa
+    float ext[WX_EXT];      // §29.2, NaN for none
 } hist_rec_t;
+
+#define HIST_REC_OLD_SIZE 16  // the record before §29.2 (FR-29.12)
+#define HIST_FORMAT 2         // the record format this firmware writes
 
 void hist_pack(const wx_reading_t *r, hist_rec_t *out);
 void hist_unpack(const hist_rec_t *rec, wx_reading_t *out);
 
-// §27.1: "<iso>,<synced>,<temp_f>,<rh_pct>,<p_mbar>\n", an empty time for a
-// clock never set. Returns its length.
-size_t hist_line(const wx_reading_t *r, const char *iso, char out[HIST_LINE_MAX]);
+// §27.1, §29.2: HIST_HEADER, then ",<name>" for each add-on that is on, slot 1
+// first, and a newline. cfg NULL is every add-on off.
+size_t hist_header(const wx_ext_cfg_t *cfg, char out[HIST_HEADER_MAX]);
+
+// §27.1: "<iso>,<synced>,<temp_f>,<rh_pct>,<p_mbar>[,<add-on>]...\n", an empty
+// time for a clock never set, an empty add-on field for none. Returns its length.
+size_t hist_line(const wx_reading_t *r, const char *iso, const wx_ext_cfg_t *cfg,
+                 char out[HIST_LINE_MAX]);
+
+// FR-29.12: what to do at open with the format stored beside the history
+// (has_fmt false: none stored) and whether a record of the old format was found.
+typedef enum {
+    HIST_FMT_KEEP,   // already this format: nothing to do
+    HIST_FMT_ERASE,  // an old history: erase it, log L36, then store the format
+    HIST_FMT_MARK,   // nothing old (a new device): only store the format
+} hist_fmt_action_t;
+
+hist_fmt_action_t hist_format_action(bool has_fmt, uint8_t fmt, bool old_found);
 
 // FR-27.10: whole local days from `from` to `to`, either open.
 typedef struct {

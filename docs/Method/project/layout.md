@@ -7,7 +7,7 @@
 | L2 | Device Logic (FSD §5) | `components/device_logic/` — pure C, no ESP-IDF headers: both transition functions, retry delay, screen content, SSID sanitising | nothing |
 | L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the three-line display; layout core (`lcd_layout.c`) pure | `rm67162`, `text`, `tdisplay_s3_amoled` |
 | L0 | RM67162 panel driver | `shared/components/rm67162/` — board-agnostic QSPI bring-up, DMA canvas, rectangle writes, brightness; configured by `rm67162_config_t` | esp_lcd, SPI and GPIO drivers, `esp_try` |
-| L0 | Text renderer | `shared/components/text/` — 16 × 32 font and `text_render`/`text_width`, pure C | nothing |
+| L0 | Text renderer | `shared/components/text/` — 16 × 32 and 12 × 24 fonts, `text_render`/`text_width` and the font-taking `text_font_render`, pure C | nothing |
 | L0 | Board support | `shared/components/tdisplay_s3_amoled/` — header-only pin and panel constants, pure | nothing |
 | L0 | BME280 sensor | `shared/components/bme280/` — calibration, integer compensation and the forced-mode sequence over an abstract bus (core pure); `i2c_master` transport configured by `bme280_config_t` | esp_driver_i2c, `esp_try` |
 | L0 | Error propagation | `shared/components/esp_try/` — header-only `ESP_TRY` (return the error, never abort) | esp_err |
@@ -21,8 +21,9 @@
 | L1 | BOOT Button (FSD §18) | `shared/components/button/` (hold detector core pure); threshold and release through callbacks | GPIO driver, esp_timer |
 | L1 | Deep Sleep (FSD §21) | `shared/components/deep_sleep/` (period and wake-cause core pure); arms the timer and the user-key wake (`CONFIG_DEEP_SLEEP_WAKE_GPIO` 21), runs the prepare callbacks the composition root registers (`lcd_sleep`, `wifi_net_stop`), sleeps | esp_sleep, RTC GPIO, `esp_try` |
 | L1 | Time (FSD §22) | `shared/components/time_sync/` (synced-at-boot core pure); time zone from `CONFIG_TIME_SYNC_TZ`, SNTP from `CONFIG_TIME_SYNC_SERVER` started with the services, each sync reported through a callback (L20) | esp_netif SNTP |
-| L1 | Weather Sensor (FSD §23) | `components/weather/` (history ring, period averages and every rendering of a reading core pure); reads the BME280 at 0x76 on GPIO 43/44, keeps 144 readings, 96 averages and the summary's min/max in RTC memory, registers `GET /api/readings` on the server handle and gives `status_http` the page's reading section (`extra_html`) | `bme280`, `time_sync`, esp_http_server |
-| L1 | Reading History (FSD §27) | `components/history/` (record, CSV line, date range and BLE pager core pure); appends each kept reading to the `history` partition (C-10.9) through `flash_ring`, its end kept in RTC memory, registers `GET /api/history` when the partition exists, pages the same lines for `ble_setup`'s `history` characteristic, erases on a factory reset | `flash_ring`, `weather`, nvs_flash, esp_http_server |
+| L1 | Weather Sensor (FSD §23) | `components/weather/` (history ring, period averages and every rendering of a reading core pure); reads the BME280 at 0x76 on GPIO 43/44, keeps 144 readings, 96 averages and the summary's min/max in RTC memory, each with the two add-on values of §29.2 (float, NaN for none) filled by the callback set with `weather_set_ext`, registers `GET /api/readings` on the server handle and gives `status_http` the page's reading section (`extra_html`) | `bme280`, `time_sync`, esp_http_server |
+| L1 | Reading History (FSD §27) | `components/history/` (record, CSV line, date range and BLE pager core pure); appends each kept reading (a 24-byte record) to the `history` partition (C-10.10, 2 MB) through `flash_ring`, erases a history of the old 16-byte records once (the format kept in NVS namespace `history`), its end kept in RTC memory, registers `GET /api/history` when the partition exists, pages the same lines for `ble_setup`'s `history` characteristic, erases on a factory reset | `flash_ring`, `weather`, nvs_flash, esp_http_server |
+| L1 | 4-20 mA Loop Input (FSD §29) | `components/loop/` (settings, add-on slot and L34/L35 core pure); keeps the loop settings in NVS (namespace `loop`), adds its section to the portal form, drives the isolated supply's enable on GPIO 3 and reads the loop ADS1115 (0x49, A0 – A1, ±4.096 V, 128 SPS, mean of 4) on the BME280's bus (I2C port 0); the composition root registers the read with `weather_set_ext`, so it runs after each BME280 reading | `ads1115`, `loop420`, `weather`, `portal`, nvs_flash, GPIO driver |
 | L1 | Sampling Setups (FSD §28) | `components/sampling/` (selection, test progress, verdict and log-text core pure); keeps the chosen setup and the tests still to run in NVS, the run of tests in RTC memory, and adds its section to the portal form | `summary` (the collect core), `portal`, nvs_flash |
 | L1 | Setup Check (FSD §24) | `components/setup_check/` (key debounce core pure); the pending mark in NVS (`CONFIG_SETUP_CHECK_NVS_NAMESPACE`) and the keys that end the hold (`CONFIG_SETUP_CHECK_KEY_GPIO` 21, the user key; `CONFIG_SETUP_CHECK_KEY2_GPIO` 0, BOOT) sampled every 10 ms, each press through a callback; when to hold is `device_logic`'s | nvs_flash, GPIO driver, esp_timer |
 | L1 | Summary Email (FSD §25) | `components/summary/` (settings check, due rule and message core pure); adds the mail and reading-time fields to the portal (`portal_start_extra`), keeps the settings, the sample and average minutes and the last due slot in NVS (namespace `mail`), sends through `mail_tx` in a helper task while feeding the caller's watchdog; on a timer wake the composition root brings the station up only for a due summary | `mail_tx`, `portal`, `weather`, nvs_flash, esp_timer |
@@ -42,7 +43,7 @@ requirements first need them, never earlier.
 - `lcd` and `rm67162` return `esp_err_t` for every call and never retry or abort;
   policy belongs to `device_logic` (FSD §6.5).
 - The L0 components hold nothing specific to this app, so they can be reused
-  as they are: `lcd` is where the app's screen (five lines, white on black, their
+  as they are: `lcd` is where the app's screen (six lines, white on black, their
   positions) and the panel settings for this board are chosen.
 - The L1 interfaces except `lcd` and `web_log` are reusable too (see "Reusing
   components" below): none includes `web_log` or another app component. What
@@ -61,10 +62,12 @@ requirements first need them, never earlier.
 - Each draw waits for the DMA-done callback (100 ms bound) before the line
   buffer is refilled; a missed callback is `ESP_ERR_TIMEOUT`, i.e. a write
   failure for FSD D5.
-- Text uses a 16 × 32 fixed-width bitmap font (ASCII 0x20 – 0x7E only):
-  Terminus Font Bold 16x32 (SIL OFL 1.1, `shared/components/text/font/OFL.txt`),
-  converted by `shared/tools/bdf_to_c.py` into `shared/components/text/font16x32.c`.
-  Regenerate, never hand-edit. Lines 1 – 3 at
+- Text uses fixed-width bitmap fonts (ASCII 0x20 – 0x7E only): Terminus Font
+  Bold 16x32 on lines 1 – 5 and 12x24 on line 6 (SIL OFL 1.1,
+  `shared/components/text/font/OFL.txt`), converted by `shared/tools/bdf_to_c.py`
+  into `shared/components/text/font16x32.c` and `font12x24.c`
+  (`bdf_to_c.py ter-u24b.bdf 12x24`). Regenerate, never hand-edit. Line tops
+  are 8, 48, 88, 128, 168 and 208 px (`lcd_layout.c`). Lines 1 – 3 at
   y = 36, 104, 172, all at x = 0 (recommendation; FR-6.5 is the requirement). A
   changed line is redrawn as its full 536 px-wide row, so no characters of a
   longer previous text remain (FR-6.8).
@@ -97,9 +100,9 @@ IDF Component Manager git dependency pinned to a tag, or as a submodule.
   `id_softap_ssid` / `id_hostname`, so the `identity` core stays free of
   ESP-IDF headers.
 - `lcd`, `device_logic`, `web_log`, `weather`, `history`, `setup_check`,
-  `summary` and `ble_settings` stay in `components/`: they are this app's
+  `summary`, `loop` and `ble_settings` stay in `components/`: they are this app's
   screen, state machine, log vocabulary, sensor, reading history, setup check,
-  summary email and the meaning of its BLE settings body.
+  summary email, loop input and the meaning of its BLE settings body.
 
 ## BLE setup (FSD §26)
 

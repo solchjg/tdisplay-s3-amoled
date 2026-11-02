@@ -87,7 +87,7 @@ const char *notify_form_html(void)
              "history fails, or a test ends.</p>"
              "<p><label>Alerts <select name=\"ntfy\"><option%s>off</option>"
              "<option%s>on</option></select></label></p>"
-             "<p><label>ntfy server (e.g. http://192.168.2.37:8080) <input name=\"ntfy_url\" "
+             "<p><label>ntfy server (e.g. http://192.168.2.231) <input name=\"ntfy_url\" "
              "maxlength=\"96\" pattern=\"https?://[A-Za-z0-9.\\-]+(:[0-9]{1,5})?\" value=\"%s\""
              NO_ASSIST "></label></p>"
              "<p><label>Topic <input name=\"ntfy_topic\" maxlength=\"64\" "

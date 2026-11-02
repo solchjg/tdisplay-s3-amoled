@@ -7,13 +7,16 @@
 #include "esp_task_wdt.h"
 #include "flash_ring.h"
 #include "history_core.h"
+#include "nvs.h"
 #include "nvs_flash.h"
 #include "weather.h"
 
-#define LABEL "history"     // C-10.9
+#define LABEL "history"     // C-10.10
 #define CHUNK_MAX 1024      // lines gathered per HTTP chunk
+#define FMT_NS "history"    // NVS: the record format the partition holds (FR-29.12)
+#define FMT_KEY "fmt"
 
-_Static_assert(sizeof(hist_rec_t) == 16, "§27.1: a record is 16 bytes");
+_Static_assert(sizeof(hist_rec_t) == 24, "§27.1: a record is 24 bytes");
 _Static_assert(sizeof(fr_cursor_t) <= HIST_CURSOR_MAX, "the pager holds a ring cursor");
 
 // Kept across deep sleep so a timer wake appends without scanning the ring.
@@ -21,21 +24,89 @@ static RTC_DATA_ATTR flash_ring_saved_t saved;
 static flash_ring_t ring = {.label = LABEL, .payload_size = sizeof(hist_rec_t),
                             .saved = &saved};
 static bool available;
+static bool format_erased;
 static history_note_cb_t note_cb;
 
 // The BLE reader's state: host task only.
 static hist_range_t ble_range;
 static hist_pager_t ble_pager;
 
+static bool read_format(uint8_t *fmt)
+{
+    nvs_handle_t h;
+    if (nvs_open(FMT_NS, NVS_READONLY, &h) != ESP_OK) {
+        return false;
+    }
+    bool ok = nvs_get_u8(h, FMT_KEY, fmt) == ESP_OK;
+    nvs_close(h);
+    return ok;
+}
+
+static esp_err_t write_format(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(FMT_NS, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_u8(h, FMT_KEY, HIST_FORMAT);
+        if (err == ESP_OK) {
+            err = nvs_commit(h);
+        }
+        nvs_close(h);
+    }
+    return err;
+}
+
+// FR-29.12: a history of the old 16-byte records is erased once. Read as the
+// old ring; a reset during the erase leaves the format unstored, so the next
+// boot finds what is left and erases again.
+static esp_err_t check_format(void)
+{
+    uint8_t fmt = 0;
+    bool has = read_format(&fmt);
+    if (hist_format_action(has, fmt, false) == HIST_FMT_KEEP) {
+        return ESP_OK;
+    }
+    static flash_ring_saved_t old_saved;  // not RTC: a scan of the old ring
+    static flash_ring_t old = {.label = LABEL, .payload_size = HIST_REC_OLD_SIZE,
+                               .saved = &old_saved};
+    esp_err_t err = flash_ring_open(&old);
+    if (err != ESP_OK) {
+        return err;
+    }
+    fr_cursor_t c;
+    uint8_t rec[HIST_REC_OLD_SIZE];
+    bool found = flash_ring_begin(&old, &c) == ESP_OK && flash_ring_next(&old, &c, rec);
+    if (hist_format_action(has, fmt, found) == HIST_FMT_ERASE) {
+        err = flash_ring_clear(&old, NULL);
+        if (err != ESP_OK) {
+            return err;
+        }
+        format_erased = true;
+        saved.magic = 0;  // the new ring finds its (now empty) end afresh
+    }
+    return write_format();
+}
+
 esp_err_t history_open(void)
 {
     nvs_flash_init();  // the clear mark lives in NVS; a second init is harmless
-    esp_err_t err = flash_ring_open(&ring);
+    esp_err_t err = check_format();
+    if (err == ESP_ERR_NOT_FOUND) {
+        available = false;
+        return err;
+    }
+    esp_err_t ferr = err;
+    err = flash_ring_open(&ring);
     available = err == ESP_OK;
     if (available && flash_ring_clear_pending(&ring)) {
         err = flash_ring_clear(&ring, NULL);
     }
-    return err;
+    return err != ESP_OK ? err : ferr;
+}
+
+bool history_format_erased(void)
+{
+    return format_erased;
 }
 
 bool history_available(void)
@@ -99,7 +170,7 @@ static bool src_next(void *ctx, void *cursor, char line[HIST_LINE_MAX])
         if (hist_in_range(range, &r)) {
             char iso[WX_ISO_MAX] = "";
             weather_iso(&r, iso);
-            hist_line(&r, iso, line);
+            hist_line(&r, iso, weather_ext(), line);
             found = true;
         }
     }
@@ -130,7 +201,7 @@ static esp_err_t get_history(httpd_req_t *req)
     esp_task_wdt_add(NULL);
     httpd_resp_set_type(req, "text/csv");
     static char chunk[CHUNK_MAX];  // one handler at a time (httpd's single task)
-    size_t used = (size_t)snprintf(chunk, sizeof chunk, "%s\n", HIST_HEADER);
+    size_t used = hist_header(weather_ext(), chunk);  // CHUNK_MAX > HIST_HEADER_MAX
     esp_err_t err = ESP_OK;
     unsigned char cursor[HIST_CURSOR_MAX];
     char line[HIST_LINE_MAX];

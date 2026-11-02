@@ -67,19 +67,42 @@ int main(int argc, char **argv)
         static wx_stats_t st;
         static wx_avgs_t a;
         static wx_reading_t last;
+        // EXT_LOOP=<name>,<unit>,<v1>,<v2>,...: the loop on, reading i's value
+        // (empty: none).
+        static wx_ext_cfg_t cfg;
+        char vals[256] = "";
+        const char *loop = getenv("EXT_LOOP");
+        char *vp = NULL;
+        if (loop) {
+            snprintf(vals, sizeof vals, "%s", loop);
+            char *c1 = strchr(vals, ','), *c2 = c1 ? strchr(c1 + 1, ',') : NULL;
+            *c1 = 0;
+            if (c2) *c2 = 0;
+            cfg.s[WX_EXT_LOOP] = (wx_ext_def_t){.on = true, .dec = 3};
+            snprintf(cfg.s[WX_EXT_LOOP].name, sizeof cfg.s[WX_EXT_LOOP].name, "%.12s", vals);
+            snprintf(cfg.s[WX_EXT_LOOP].unit, sizeof cfg.s[WX_EXT_LOOP].unit, "%.6s", c1 + 1);
+            vp = c2 ? c2 + 1 : NULL;
+        }
         for (int i = 4; i + 3 < argc; i += 4) {
             wx_reading_t r = {.time = strtoll(argv[i], NULL, 10), .temp_centi_c = atoi(argv[i + 1]),
                               .press_q8_pa = (uint32_t)strtoul(argv[i + 2], NULL, 10),
                               .hum_q10_pct = (uint32_t)strtoul(argv[i + 3], NULL, 10),
                               .synced = true};
+            wx_ext_clear(&r);
+            if (vp) {
+                char *e = strchr(vp, ',');
+                if (e) *e = 0;
+                if (*vp) r.ext[WX_EXT_LOOP] = strtof(vp, NULL);
+                vp = e ? e + 1 : NULL;
+            }
             wx_stats_add(&st, &r);
             wx_avg_add(&a, &r, wx_period_start(r.time, 0, 3600));
             last = r;
         }
         static char out[SM_BODY_MAX];
         uint32_t n = sm_body("tds3-a1b2c3", &st, st.n ? &last : NULL, &a,
-                             (uint32_t)atoi(argv[2]), (uint32_t)atoi(argv[3]), iso, stamp, out,
-                             sizeof out);
+                             (uint32_t)atoi(argv[2]), (uint32_t)atoi(argv[3]), iso, stamp,
+                             loop ? &cfg : NULL, out, sizeof out);
         printf("%" PRIu32 "\n%s", n, out);
     } else if (!strcmp(argv[1], "collect")) {
         sm_collect_t c;
@@ -367,3 +390,35 @@ def test_collect_values(core, form, expect):
 ])
 def test_collect_refused(core, form, bad):
     assert core("collect", form) == f"bad {bad}"
+
+
+# TC-MAIL-30 · FR-29.9 (core): the loop line and the averages column
+H0 = 1793404800  # a UTC hour
+
+
+def test_body_with_the_loop_three_values_and_one_reading_without(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "tank,psi,10,,20,30.5,")
+    args = reading(H0) + reading(H0 + 60) + reading(H0 + 3600) + reading(H0 + 3660) + \
+        reading(H0 + 7200)
+    out = body(core, 2, 0, *args)
+    lines = out.splitlines()
+    assert "tank min 10.000 max 30.500 mean 20.167 psi (3 values)" in lines
+    assert lines.index("tank min 10.000 max 30.500 mean 20.167 psi (3 values)") == \
+        lines.index("Pressure: min 1013.00 mbar, max 1013.00 mbar") + 1
+    head = lines.index('"Time","Temp F","Hum %","ATM mbar","tank"')
+    assert lines[head + 1].endswith(',"10.000"')
+    assert lines[head + 2].endswith(',"25.250"')
+    assert "nan" not in out.lower()
+
+
+def test_body_with_the_loop_on_and_no_values(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "loop,mA,,")
+    args = reading(H0) + reading(H0 + 3600) + reading(H0 + 7200)
+    lines = body(core, 2, 0, *args).splitlines()
+    assert "loop min -- max -- mean -- mA (0 values)" in lines
+    assert lines[-1].endswith(',""') and lines[-2].endswith(',""')
+
+
+def test_body_with_the_loop_off_has_no_loop_line_or_column(core):
+    out = body(core, 2, 0, *(reading(H0) + reading(H0 + 3600) + reading(H0 + 7200)))
+    assert "values)" not in out and '"ATM mbar"\n' in out

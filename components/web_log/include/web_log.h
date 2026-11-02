@@ -93,6 +93,12 @@ void web_log_ble_off(const char *reason);
 void web_log_history_unavailable(void);
 void web_log_history_failed(esp_err_t err);
 
+// L36 (warning): an old-format history erased once (FR-29.12).
+void web_log_history_erased_format(void);
+
+// L34 (info, ok) and L35 (warning) (FR-29.4, FR-29.5), their text made by the
+// loop core.
+void web_log_loop(const char *text, bool ok);
 // L39 (an alert delivered, FR-31.12) and L40 (warning: not delivered, FR-31.11).
 void web_log_ntfy_sent(const char *event);
 void web_log_ntfy_failed(const char *reason, const char *event);

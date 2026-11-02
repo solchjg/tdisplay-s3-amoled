@@ -143,16 +143,29 @@ void sp_start(sp_run_t *r, sp_test_t t)
     r->done = r->taken = r->avg_planned = r->avg_closed = 0;
     r->last_period = 0;
     r->closed_base = 0;
+    r->ext_want = 0;
+    memset(r->ext_v, 0, sizeof r->ext_v);
 }
 
 uint32_t sp_reading(sp_run_t *r, bool ok, bool clock_set, int64_t period, uint32_t closed)
+{
+    return sp_reading_ext(r, ok, 0, 0, clock_set, period, closed);
+}
+
+uint32_t sp_reading_ext(sp_run_t *r, bool ok, uint8_t want, uint8_t have, bool clock_set,
+                        int64_t period, uint32_t closed)
 {
     if (!r->running) {
         return 0;
     }
     sp_test_t t = (sp_test_t)(r->running - 1);
     r->done++;
-    r->taken += ok;
+    have = ok ? have & want : 0;
+    r->taken += ok && have == want;
+    r->ext_want |= want;
+    for (int i = 0; i < WX_EXT; i++) {
+        r->ext_v[i] += (have >> i) & 1u;
+    }
     if (t == SP_CYCLE && clock_set && ok) {
         // FR-28.10: each period its readings moved on from owes a finished average.
         if (r->last_period == 0) {
@@ -178,7 +191,8 @@ sp_result_t sp_end(sp_run_t *r, sp_by_t by)
     sp_test_t t = (sp_test_t)(r->running - 1);
     res = (sp_result_t){.test = (uint8_t)t, .by = (uint8_t)by, .taken = r->taken,
                         .planned = PLANNED[t], .avg_closed = r->avg_closed,
-                        .avg_planned = r->avg_planned};
+                        .avg_planned = r->avg_planned, .tried = r->done,
+                        .ext_want = r->ext_want, .ext_v = {r->ext_v[0], r->ext_v[1]}};
     if (r->n < SP_TESTS) {
         r->result[r->n++] = res;
     }
@@ -217,12 +231,20 @@ void sp_log_start(sp_test_t t, char out[SP_LOG_MAX])
     snprintf(out, SP_LOG_MAX, "test start id=%s", sp_test_id(t));
 }
 
-void sp_log_end(const sp_result_t *res, char out[SP_LOG_MAX])
+void sp_log_end(const sp_result_t *res, const wx_ext_cfg_t *cfg, char out[SP_LOG_MAX])
 {
     static const char *const BY[] = {"", " by=key", " by=reset"};
-    snprintf(out, SP_LOG_MAX, "test end id=%s readings=%u/%u averages=%u/%u result=%s%s",
-             sp_test_id((sp_test_t)res->test), res->taken, res->planned, res->avg_closed,
-             res->avg_planned, sp_pass(res) ? "pass" : "fail", BY[res->by <= SP_BY_RESET ? res->by : 0]);
+    int n = snprintf(out, SP_LOG_MAX, "test end id=%s readings=%u/%u averages=%u/%u result=%s%s",
+                     sp_test_id((sp_test_t)res->test), res->taken, res->planned, res->avg_closed,
+                     res->avg_planned, sp_pass(res) ? "pass" : "fail",
+                     BY[res->by <= SP_BY_RESET ? res->by : 0]);
+    for (int i = 0; i < WX_EXT && n > 0 && n < SP_LOG_MAX; i++) {
+        if (res->ext_want & (1u << i)) {
+            const char *name = cfg && cfg->s[i].name[0] ? cfg->s[i].name : "ext";
+            n += snprintf(out + n, SP_LOG_MAX - (size_t)n, " %.12s=%u/%u", name, res->ext_v[i],
+                          res->tried);
+        }
+    }
 }
 
 void sp_mail_subject(const sp_run_t *r, const char *hostname, char out[SM_SUBJECT_MAX])
@@ -231,13 +253,13 @@ void sp_mail_subject(const sp_run_t *r, const char *hostname, char out[SM_SUBJEC
     snprintf(out, SM_SUBJECT_MAX, "%s test %s", hostname, sp_verdict(r, &n, &m) ? "pass" : "FAIL");
 }
 
-void sp_mail_body(const sp_run_t *r, char *out, size_t cap)
+void sp_mail_body(const sp_run_t *r, const wx_ext_cfg_t *cfg, char *out, size_t cap)
 {
     size_t k = 0;
     out[0] = '\0';
     for (uint8_t i = 0; i < r->n && k < cap; i++) {
         char line[SP_LOG_MAX];
-        sp_log_end(&r->result[i], line);
+        sp_log_end(&r->result[i], cfg, line);
         int w = snprintf(out + k, cap - k, "%s\n", line);
         k += w > 0 ? (size_t)w : 0;
     }

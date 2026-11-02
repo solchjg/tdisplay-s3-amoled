@@ -15,6 +15,8 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/components/ble_settings ${ROOT}/shared/components/ble_setup
                          ${ROOT}/components/setup_check ${ROOT}/components/summary ${ROOT}/components/sampling
                          ${ROOT}/shared/components/mail_tx ${ROOT}/components/notify ${ROOT}/shared/components/ntfy_tx
+                         ${ROOT}/components/loop ${ROOT}/shared/components/loop420
+                         ${ROOT}/shared/components/ads1115
                          ${ROOT}/shared/components/esp_try)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

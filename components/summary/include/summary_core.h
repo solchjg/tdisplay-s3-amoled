@@ -12,7 +12,7 @@
 #define SM_FIELD_MAX 64      // §25.2: host, user, password and addresses
 #define SM_TO_MAX 2          // FR-25.12: recipients, each sent its own email
 #define SM_SUBJECT_MAX 64
-#define SM_BODY_MAX 4608     // the summary block and WX_AVG_KEEP table lines
+#define SM_BODY_MAX 8192     // the summary block and WX_AVG_KEEP table lines, with add-on columns
 #define SM_STAMP_MAX 17      // "YYYY-MM-DD hh:mm" plus the terminator
 
 typedef struct {
@@ -104,7 +104,10 @@ void sm_subject(const char *hostname, const char *date_hhmm, char out[SM_SUBJECT
 // FR-25.12, FR-25.15: the body: the summary of `st`, the readings since the
 // previous summary, `newest` the newest of them; then the table of the newest
 // `lines` finished averages of `a`, oldest first, with `dropped` more that were
-// not kept. Returns st->n.
+// not kept. Each add-on that is on in cfg (NULL: none) adds its line
+// "<name> min <v> max <v> mean <v> <unit> (<n> values)" after the BME280's and
+// a column to the table, empty for a period with none (FR-29.9, FR-30.11).
+// Returns st->n.
 uint32_t sm_body(const char *hostname, const wx_stats_t *st, const wx_reading_t *newest,
                  const wx_avgs_t *a, uint32_t lines, uint32_t dropped, sm_iso_fn_t iso,
-                 sm_stamp_fn_t stamp, char *out, size_t cap);
+                 sm_stamp_fn_t stamp, const wx_ext_cfg_t *cfg, char *out, size_t cap);

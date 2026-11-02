@@ -43,5 +43,5 @@ CONFIG_BT_NIMBLE_NVS_PERSIST=y
 CONFIG_BT_NIMBLE_MAX_BONDS=3
 CONFIG_BLE_SETUP_BOND=y
 CONFIG_BLE_SETUP_BODY_MAX=2048
-# FR-26.19: the field rules, with the alert fields (§31.2), run past 2 KB.
+# FR-26.19: the field rules with the loop (§29) and alert (§31.2) fields outgrow the 2048 default
 CONFIG_BLE_SETUP_FORM_MAX=4096

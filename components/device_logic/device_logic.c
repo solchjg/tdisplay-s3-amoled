@@ -8,7 +8,7 @@
 
 static void put(char *line, const char *text)
 {
-    snprintf(line, DL_LINE_MAX, "%s", text ? text : "");
+    snprintf(line, DL_LINE_CHARS + 1, "%s", text ? text : "");
 }
 
 void dl_sanitize_ssid(const char *ssid, char out[DL_LINE_MAX])
@@ -40,9 +40,9 @@ void dl_screen(const dl_view_t *v, char out[DL_LINES][DL_LINE_MAX])
         dl_sanitize_ssid(v->stored_ssid, out[1]);
         break;
     case DL_ONLINE:
-        snprintf(out[0], DL_LINE_MAX, "IP %s", v->ip ? v->ip : "");
-        snprintf(out[1], DL_LINE_MAX, "Req: %" PRIu32, v->requests);
-        snprintf(out[2], DL_LINE_MAX, "%s.local", v->hostname ? v->hostname : "");
+        snprintf(out[0], DL_LINE_CHARS + 1, "IP %s", v->ip ? v->ip : "");
+        snprintf(out[1], DL_LINE_CHARS + 1, "Req: %" PRIu32, v->requests);
+        snprintf(out[2], DL_LINE_CHARS + 1, "%s.local", v->hostname ? v->hostname : "");
         break;
     case DL_WIFI_LOST:
         put(out[0], "WiFi lost");
@@ -51,6 +51,7 @@ void dl_screen(const dl_view_t *v, char out[DL_LINES][DL_LINE_MAX])
     }
     put(out[3], v->reading);
     put(out[4], v->prompt);
+    snprintf(out[5], DL_LINE6_CHARS + 1, "%s", v->addons ? v->addons : "");
 }
 
 dl_disp_step_t dl_disp_step(dl_disp_t state, dl_disp_event_t event, bool changed, bool ok)

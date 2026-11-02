@@ -11,6 +11,7 @@ void hist_pack(const wx_reading_t *r, hist_rec_t *out)
         .synced = r->synced ? 1 : 0,
         .hum_q10_pct = r->hum_q10_pct,
         .press_q8_pa = r->press_q8_pa,
+        .ext = {r->ext[0], r->ext[1]},
     };
 }
 
@@ -22,18 +23,55 @@ void hist_unpack(const hist_rec_t *rec, wx_reading_t *out)
         .press_q8_pa = rec->press_q8_pa,
         .hum_q10_pct = rec->hum_q10_pct,
         .synced = rec->synced != 0,
+        .ext = {rec->ext[0], rec->ext[1]},
     };
 }
 
-size_t hist_line(const wx_reading_t *r, const char *iso, char out[HIST_LINE_MAX])
+static size_t clamp(int n, size_t cap)
+{
+    return n < 0 ? 0 : (size_t)n < cap ? (size_t)n : cap - 1;
+}
+
+size_t hist_header(const wx_ext_cfg_t *cfg, char out[HIST_HEADER_MAX])
+{
+    size_t used = clamp(snprintf(out, HIST_HEADER_MAX, "%s", HIST_HEADER), HIST_HEADER_MAX);
+    for (int i = 0; cfg && i < WX_EXT; i++) {
+        if (cfg->s[i].on) {
+            used += clamp(snprintf(out + used, HIST_HEADER_MAX - used, ",%s", cfg->s[i].name),
+                          HIST_HEADER_MAX - used);
+        }
+    }
+    return used + clamp(snprintf(out + used, HIST_HEADER_MAX - used, "\n"),
+                        HIST_HEADER_MAX - used);
+}
+
+size_t hist_line(const wx_reading_t *r, const char *iso, const wx_ext_cfg_t *cfg,
+                 char out[HIST_LINE_MAX])
 {
     char t[16], h[16], p[16];
     wx_fmt_temp_f(t, sizeof t, r->temp_centi_c, 2);
     wx_fmt_hum(h, sizeof h, r->hum_q10_pct, 1);
     wx_fmt_press(p, sizeof p, r->press_q8_pa, 2);
-    int n = snprintf(out, HIST_LINE_MAX, "%s,%d,%s,%s,%s\n", wx_time_set(r) ? iso : "",
-                     r->synced ? 1 : 0, t, h, p);
-    return n < 0 ? 0 : (size_t)n < HIST_LINE_MAX ? (size_t)n : HIST_LINE_MAX - 1;
+    size_t used = clamp(snprintf(out, HIST_LINE_MAX, "%s,%d,%s,%s,%s",
+                                 wx_time_set(r) ? iso : "", r->synced ? 1 : 0, t, h, p),
+                        HIST_LINE_MAX);
+    for (int i = 0; cfg && i < WX_EXT; i++) {
+        if (cfg->s[i].on) {
+            char v[WX_EXT_TEXT_MAX];
+            wx_fmt_ext(v, sizeof v, r->ext[i], cfg->s[i].dec);
+            used += clamp(snprintf(out + used, HIST_LINE_MAX - used, ",%s", v),
+                          HIST_LINE_MAX - used);
+        }
+    }
+    return used + clamp(snprintf(out + used, HIST_LINE_MAX - used, "\n"), HIST_LINE_MAX - used);
+}
+
+hist_fmt_action_t hist_format_action(bool has_fmt, uint8_t fmt, bool old_found)
+{
+    if (has_fmt && fmt == HIST_FORMAT) {
+        return HIST_FMT_KEEP;
+    }
+    return old_found ? HIST_FMT_ERASE : HIST_FMT_MARK;
 }
 
 static int digits(const char *s, int n)

@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "summary_core.h"
+#include "weather_core.h"
 
 // §28.1: the normal setups, then the tests in the order they run.
 typedef enum { SP_STD, SP_FINE, SP_SLOW, SP_CUSTOM, SP_NORMALS } sp_normal_t;
@@ -21,7 +22,7 @@ typedef enum { SP_QUICK, SP_CYCLE, SP_TESTS } sp_test_t;
 #define SP_CYCLE_S 30      // FR-28.6: seconds asleep between them
 #define SP_CYCLE_AVG_MIN 2 // FR-28.6: average period while cycle runs
 #define SP_LINE_MAX 34     // a screen line (FSD §5.4) plus the terminator
-#define SP_LOG_MAX 96      // an L32 / L33 text after "web: "
+#define SP_LOG_MAX 144     // an L32 / L33 text after "web: ", with both add-on fields
 #define SP_VALUE_MAX 24    // "custom,quick,cycle" plus room
 
 typedef struct {
@@ -55,6 +56,9 @@ typedef struct {
     uint8_t by;    // sp_by_t
     uint16_t taken, planned;
     uint16_t avg_closed, avg_planned;
+    uint16_t tried;           // readings tried
+    uint8_t ext_want;         // §29.2: bit i, add-on slot i was on (FR-29.10, FR-30.12)
+    uint16_t ext_v[WX_EXT];   // of the readings tried, those with slot i's value
 } sp_result_t;
 
 typedef struct {
@@ -65,6 +69,8 @@ typedef struct {
     uint16_t avg_closed;  // averages finished since its first reading
     int64_t last_period;  // the period of its last reading with the clock set; 0: none
     uint32_t closed_base; // finished averages ever, after its first reading
+    uint8_t ext_want;     // add-on slots on during its readings
+    uint16_t ext_v[WX_EXT];
     uint8_t n;            // results below
     sp_result_t result[SP_TESTS];
 } sp_run_t;
@@ -86,6 +92,12 @@ static inline bool sp_running(const sp_run_t *r, sp_test_t t)
 // quick, asleep for cycle), or 0 when this was the last one.
 uint32_t sp_reading(sp_run_t *r, bool ok, bool clock_set, int64_t period, uint32_t closed);
 
+// The same with the add-ons of §29.2: want has bit i for each slot that is on,
+// have for each slot the reading has a value in. A reading counts as taken only
+// with every wanted value (FR-29.10, FR-30.12); ok alone still drives averages.
+uint32_t sp_reading_ext(sp_run_t *r, bool ok, uint8_t want, uint8_t have, bool clock_set,
+                        int64_t period, uint32_t closed);
+
 // FR-28.8 – FR-28.10: the running test ends; its result is kept and returned.
 sp_result_t sp_end(sp_run_t *r, sp_by_t by);
 
@@ -99,10 +111,11 @@ bool sp_verdict(const sp_run_t *r, uint32_t *n, uint32_t *m);
 void sp_verdict_line(const sp_run_t *r, char out[SP_LINE_MAX]);
 
 // L32: "test start id=<id>"; L33: "test end id=<id> readings=<n>/<m>
-// averages=<a>/<b> result=<pass|fail>[ by=<key|reset>]".
+// averages=<a>/<b> result=<pass|fail>[ by=<key|reset>]", then " <name>=<v>/<n>"
+// for each add-on slot that was on, slot 1 first, named by cfg (FR-29.10).
 void sp_log_start(sp_test_t t, char out[SP_LOG_MAX]);
-void sp_log_end(const sp_result_t *res, char out[SP_LOG_MAX]);
+void sp_log_end(const sp_result_t *res, const wx_ext_cfg_t *cfg, char out[SP_LOG_MAX]);
 
 // FR-28.13: "<hostname> test <pass|FAIL>", and the body, one L33 text per line.
 void sp_mail_subject(const sp_run_t *r, const char *hostname, char out[SM_SUBJECT_MAX]);
-void sp_mail_body(const sp_run_t *r, char *out, size_t cap);
+void sp_mail_body(const sp_run_t *r, const wx_ext_cfg_t *cfg, char *out, size_t cap);
