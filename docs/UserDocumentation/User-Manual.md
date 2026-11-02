@@ -285,6 +285,13 @@ pair <address>     # type the code the display shows
 
 Leave `bluetoothctl` connected and press **Connect to device** on the page.
 
+## 5d. ThingsBoard
+
+The device can upload its readings to your own ThingsBoard server, in a batch
+every hour by default, for dashboards and server-side alarms. Setting up the
+server, the device's settings, the checks and the move to `https://` are in
+the [ThingsBoard Setup](ThingsBoard-Setup.md) guide.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |
