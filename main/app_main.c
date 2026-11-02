@@ -556,7 +556,9 @@ static void test_log_history(void)
 // The text of the last sensor and history failure, an alert's body (§31.3),
 // kept across sleep for an alert sent on a later run.
 static RTC_DATA_ATTR char sensor_fail[48], history_fail[48];
-static RTC_DATA_ATTR char loop_line[LP_LOG_MAX];  // the newest L34 or L35, an alert's body (§31.3)
+// The newest L34 or L35 this boot, a loop alert's body (§31.3); not in RTC
+// memory, which is full: an alert retried on a later boot says "no reading".
+static char loop_line[LP_LOG_MAX];
 
 static bool history_add(const wx_reading_t *r)
 {
@@ -867,7 +869,7 @@ static void alert_body(nf_cond_t c, bool end, char out[NF_BODY_MAX])
         weather_iso(r, iso);
         wx_log_line(r, iso, out, NF_BODY_MAX);  // L21 after "web: "
     } else if (c == NF_LOOP) {
-        snprintf(out, NF_BODY_MAX, "%s", loop_line);  // L35, or L34 for ok
+        snprintf(out, NF_BODY_MAX, "%s", loop_line[0] ? loop_line : "no reading");  // L35 / L34
     } else if (c == NF_HISTORY && !end) {
         snprintf(out, NF_BODY_MAX, "%s", history_fail);
     } else {
