@@ -51,6 +51,7 @@ reused.
 | 26 | BLE Setup | L1 |
 | 27 | Reading History | L1 |
 | 28 | Sampling Setups | L1 |
+| 32 | ThingsBoard Telemetry | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -336,6 +337,21 @@ testbench.
 - **Dependencies.** §23 (readings, averages), §21 (sleep, the key wake),
   §25 (mail), §26 (BLE settings), §27 (history).
 
+### 3.14 Phase 14: ThingsBoard telemetry
+
+- **Scope.** The shared `tb_tx` component (on the same HTTP POST helper as
+  `ntfy_tx`, §31), the `telemetry_core` due rule and batching, the upload
+  mark, the settings in the portal and over BLE, uploads on timer wakes and
+  in windows.
+- **Deliverables.** §32, the FR-21.13 exception, L41, L42, R-30.
+- **Exit criteria.** Readings from timer wakes appear on the bench
+  ThingsBoard with their times; readings taken while it is stopped arrive with
+  the next upload; a timer wake that uploads is asleep within 50 s; an upload
+  over `https://` reaches the user's production server.
+- **Dependencies.** §27 (history), §21 (sleep and timer wakes), §25 (the shared
+  WiFi start), §26 (BLE settings), §22 (time); a ThingsBoard server on the
+  bench network (R-30).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -369,6 +385,7 @@ testbench.
 | R-24 | The testbench's BLE tools (`ble_scan`, `ble_connect`, `ble_write`) may not complete LE Secure Connections passkey pairing, so paired steps may need an operator and a phone | Medium | Medium | Scans and the unpaired refusal (FR-26.12) run on the bench; paired steps run by operator prompt with the Web Bluetooth page until the bench declares passkey pairing (testbench change request, never a project workaround) |
 | R-25 | BLE and WiFi share one 2.4 GHz radio and internal RAM (no PSRAM); a window slows WiFi and takes tens of KB of heap; NimBLE adds about 360 KB to the image (1.38 MB of the 4 MB slot, C-10.7) | Certain | Medium | BLE only inside windows (FR-26.18); no OTA download in a key window (FR-26.17); the task, and so the summary send, never runs in one (FR-26.5); NFR-14.1 is measured with no window open; NFR-26.1 checks the heap comes back |
 | R-26 | OTA never rewrites the partition table, so a device updated only by OTA has no `history` partition | Certain | Low | FR-27.8: it runs without history and says so (L31); a USB flash of the full image adds the partition |
+| R-30 | The bench offers no ThingsBoard server, so an upload has no automatic observer | Certain | Medium | The `tb_tx` and `telemetry_core` logic is host-tested; target tests need a ThingsBoard CE container on the bench network (testbench change request, never a project workaround); the production server is an operator check |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
 
 ### 4.2 Assumptions
@@ -897,6 +914,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L31 | History unavailable or failed (FR-27.8, FR-27.9) | `web: history unavailable` or `web: history failed: <ERR>` | W |
 | L32 | Test started (FR-28.12) | `web: test start id=<quick\|cycle>` | I |
 | L33 | Test ended (FR-28.12) | `web: test end id=<quick\|cycle> readings=<n>/<m> averages=<a>/<b> result=<pass\|fail>[ by=<key\|reset>]` | I (W when failed) |
+| L41 | ThingsBoard request accepted (FR-32.13) | `web: tb sent what=<telemetry\|attributes> n=<readings> left=<readings still after the mark>` | I |
+| L42 | ThingsBoard request failed (FR-32.11) | `web: tb failed: <wifi\|dns\|connect\|tls\|cert\|auth\|refused\|server\|timeout> what=<telemetry\|attributes> n=<readings>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1336,12 +1355,12 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25) |
+| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ThingsBoard server (§32) |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
-| Credentials | One WiFi password and one mail password, stored in NVS; never output by the device (FR-9.3, FR-25.10) |
+| Credentials | One WiFi password, one mail password and one ThingsBoard access token, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-32.3) |
 
-Accepted risks [user]: unauthenticated OTA (anyone on the LAN can make the device
+Accepted risks [user]: readings and the ThingsBoard token sent in plain text when `tb_url` is `http://` (§32); unauthenticated OTA (anyone on the LAN can make the device
 download and run any image from any HTTP URL); open portal SoftAP (anyone in radio
 range during PROVISIONING can submit credentials or read submitted ones);
 plaintext HTTP and logs; unencrypted NVS; anyone who can read the panel
@@ -1539,8 +1558,10 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
   wake the device shall leave the panel dark and the WiFi radio off, run the
   task, and sleep again; no window, no web server. The one exception is a
   summary email due on that wake (FR-25.6), for which WiFi runs as a station
-  only while it is sent; the other is the wake whose reading ends the last
-  test (FR-28.11), which continues as after a key wake.
+  only while it is sent; the second is a ThingsBoard upload due on that wake
+  (FR-32.5), for which WiFi likewise runs only while it is sent; the third is
+  the wake whose reading ends the last test (FR-28.11), which continues as
+  after a key wake.
 - **FR-21.11** [Must] [user] A key wake
   shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
   server, then the task (local maintenance and OTA).
@@ -1879,7 +1900,7 @@ leaves email off.
 - **FR-25.6** [Must] [user] When a summary is due on a timer wake, the task
   shall start WiFi as a station with the stored credentials, send the summary,
   stop WiFi (FR-21.7) and sleep; the panel stays dark. On a timer wake with no
-  summary due, WiFi stays off (FR-21.13).
+  summary and no ThingsBoard upload due, WiFi stays off (FR-21.13).
 - **FR-25.14** [Must] [user] An email that cannot be sent (no WiFi within
   **15 s**, a DNS, TCP, TLS or certificate failure, a server refusal, or no
   final `250` within **30 s** of the summary's first connection, a budget both
@@ -1957,7 +1978,7 @@ connecting).
 | Characteristic | UUID | Access | Link required | Value |
 |----------------|------|--------|---------------|-------|
 | `info` | `6e0a0002-…` | read | none | `fw=<V>&host=<hostname>&state=<S>` |
-| `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>`. Write: appended to the staged body |
+| `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>&tb_token_set=<0\|1>`. Write: appended to the staged body |
 | `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` after connecting; after each `apply`, `ok` or `invalid=<field>` naming the first invalid field |
 | `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `forget` erases every bond (FR-26.13); any other value is answered with the ATT error *Value Not Allowed* |
 
@@ -2003,9 +2024,10 @@ Settings:
   write the device shall notify `result`, then restart within **2 s**
  ; the setup-check mark is not set by this write
  .
-- **FR-26.9** [Must] [derived from §9.1, FR-9.3, FR-25.10] No BLE read or
-  notification shall carry `password` or `mail_password`; `settings` reads
-  report only whether each is stored (`password_set`, `mail_password_set`).
+- **FR-26.9** [Must] [derived from §9.1, FR-9.3, FR-25.10, FR-32.3] No BLE
+  read or notification shall carry `password`, `mail_password` or `tb_token`;
+  `settings` reads report only whether each is stored (`password_set`,
+  `mail_password_set`, `tb_token_set`).
 - **FR-26.10** [Must] [derived from `PORTAL_BODY_MAX`] A `settings` write that
   would make the staged body longer than **2048** bytes shall be refused with
   the ATT error *Invalid Attribute Value Length*, empty the staged body, and
@@ -2309,6 +2331,135 @@ Result:
 
 ---
 
+## 32. ThingsBoard Telemetry
+
+### 32.1 Purpose & peer
+
+The device uploads its readings to the user's own self-hosted ThingsBoard
+server, so they appear on ThingsBoard dashboards with the time each was taken.
+Uploads go in batches every `tb_every` minutes over ThingsBoard's HTTP device
+API, taken from the reading history (§27) after a stored upload mark, so
+readings taken while WiFi or the server is down go up with a later batch and a
+timer wake starts WiFi only once per batch. ThingsBoard keeps one value per key
+and time, so a reading sent twice is stored once, which makes resending after a
+failure or a reset harmless.
+
+Peer: the ThingsBoard server named by `tb_url`, reached through the stored WiFi
+network; the device authenticates with the access token of its ThingsBoard
+device. The server is reached first by plain `http://` on the LAN and later by
+`https://` with a Let's Encrypt certificate [user]. Alarms and notifications on
+the uploaded readings are set up on the server with ThingsBoard's rule engine;
+the firmware has no part in them (its own alerts are §31). Built on a shared
+`tb_tx` component (pure core for the request bodies and the answer, thin HTTP
+transport); the pure `telemetry_core` decides when an upload is due and what
+each request holds, the composition root reads the history, sends and logs.
+
+### 32.2 Settings
+
+Added to the §13.2 form and the BLE `settings` write (§26); all optional as a
+group, so a submission without them leaves ThingsBoard off.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `tb_url` | server base URL, e.g. `http://192.168.1.20:8080` or `https://tb.example.org` | `http://` or `https://`, then a host name or IPv4 address, an optional `:port`, no path, 1 – 128 bytes | ThingsBoard off |
+| `tb_token` | the access token of the device in ThingsBoard | 1 – 64 [proposed] letters, digits, `-` and `_` | ThingsBoard off |
+| `tb_every` | minutes between uploads | whole minutes, 1 – 1440, dividing 1440 [proposed] | 60 [user] |
+
+### 32.3 Requests
+
+| What | Method and path | Body (`application/json`) |
+|------|-----------------|---------------------------|
+| Telemetry | POST `<tb_url>/api/v1/<tb_token>/telemetry` | `[{"ts":<ms since the epoch>,"values":{"temp_f":<°F, 2 decimals>,"rh_pct":<%, 1 decimal>,"p_mbar":<mbar, 2 decimals>,"synced":<true\|false>}}, …]`, oldest first |
+| Attributes | POST `<tb_url>/api/v1/<tb_token>/attributes` | `{"hostname":"<FR-20.1>","fw_version":"<V>","ip":"<a.b.c.d>","rssi":<dBm>,"setup":"<normal id of §28.1>"}` |
+
+The values are those of the reading's history line (§27.1), so ThingsBoard
+shows what L21 and `/api/history` show.
+
+### 32.4 Requirements
+
+Settings:
+
+- **FR-32.1** [Must] [user] The portal form (§13.2) and a BLE `settings` write
+  (§26) shall carry the fields of §32.2. A submission with all three empty or
+  absent shall be valid and leave ThingsBoard off; a submission with any of
+  them filled shall be valid only if `tb_url` and `tb_token` are given and every
+  field given is valid per §32.2, else answer 400 naming the first invalid field
+  (portal) or `invalid=<field>` (BLE).
+- **FR-32.2** [Must] [user] Valid settings shall be stored in NVS with the
+  other settings at T3, or by an accepted BLE write in a key window (T14), and
+  erased with the upload mark by a factory reset (T10).
+- **FR-32.3** [Must] [derived from §9.1, FR-9.3] The device shall not output
+  `tb_token` on serial, UDP, any HTTP response, any email or any BLE read; the
+  `settings` read (FR-26.9) reports only `tb_token_set=<0|1>`, and log lines name
+  the server without the token.
+
+When:
+
+- **FR-32.4** [Must] [user] An upload is due at local midnight (FR-22.2) and
+  every `tb_every` minutes after it. The task (§21) shall upload on its first
+  run at or after a due time; one upload carries every reading not yet
+  accepted, so due times missed in between are never caught up one by one.
+  With the clock never set (FR-22.6), no upload is due.
+- **FR-32.5** [Must] [user] When an upload is due on a timer wake, the device
+  shall start WiFi as a station with the stored credentials, upload, stop WiFi
+  (FR-21.7) and sleep; the panel stays dark. When a summary (FR-25.6) is due
+  on the same wake, one WiFi start serves both, the summary first.
+- **FR-32.6** [Must] [user] On each boot with a window, once the device is
+  ONLINE, it shall upload once whether or not an upload is due, and send the
+  attributes of §32.3.
+
+What:
+
+- **FR-32.7** [Must] [user] An upload shall send, oldest first, every history
+  reading (§27) after the upload mark, as telemetry records of §32.3 in
+  requests of at most **100** [proposed] readings each. Readings with a clock
+  never set (FR-22.6) are not sent; the mark moves past them.
+- **FR-32.8** [Must] [user] The upload mark shall be the place in the history
+  of the newest reading the server has accepted, so a clock set back skips no
+  reading. It shall be stored in NVS and move only when the server answers 200
+  to the request that carried that reading. When the history has dropped
+  readings after the mark (FR-27.2), the upload starts at the oldest reading
+  kept.
+- **FR-32.9** [Must] [user] The device shall send each request to `tb_url` as
+  given: on `https://` it shall verify the server certificate against the
+  ESP-IDF CA bundle and the host name; on `http://` it sends in plain text.
+- **FR-32.10** [Must] [derived from FR-27.8] A device with no `history`
+  partition shall upload the readings kept in RTC memory (FR-23.9) not yet
+  accepted, with the upload mark kept in RTC memory beside them.
+
+Failures and limits:
+
+- **FR-32.11** [Must] [user] A request that fails (no WiFi within **15 s**, a
+  DNS, TCP, TLS or certificate failure, an answer 401 or 403, another 4xx, a
+  5xx, or no answer within **10 s** [proposed]) shall end the upload and be
+  logged as L42; it shall not be retried on that wake, the readings stay after
+  the mark for the next upload, and the device goes on as usual.
+- **FR-32.12** [Must] [user] On a timer wake the device shall start no new
+  request later than **40 s** [proposed] after the wake; readings left over
+  go with the next upload.
+- **NFR-32.1** [Must] [derived from NFR-25.1 and FR-32.12] A timer wake that
+  uploads, with or without a summary, shall be back asleep within **50 s** of
+  the wake, success or failure.
+- **FR-32.13** [Must] [derived] Each accepted request shall be logged as L41,
+  each failed one as L42 (§7.2).
+
+### 32.5 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-32.1 (core) | Form bodies: none of the fields; all valid; `tb_url` only; `tb_token` only; `tb_url=ftp://x`; `tb_url` with a path; a token with a space; `tb_every` 0, 7, 1441, empty | Off; on; `tb_token`; `tb_url`; `tb_url`; `tb_url`; `tb_token`; `tb_every` three times, then 60 | A partial group accepted | host |
+| FR-32.3 (core) | `settings` read and L41/L42 with a token stored; a request URL logged | `tb_token_set=1`; the token in no line | The token in any output | host |
+| FR-32.4 (core) | Due check, `tb_every` 60: 09:59 and 10:00 with the last upload at 09:00; 13:05 after three missed slots; the clock never set | Not due, due; one due; never due | Two uploads for one slot; an upload with the clock unset | host |
+| FR-32.7, FR-32.8 (core) | `telemetry_core` over a history of 250 readings, mark at 0; the second request refused; then all accepted; a clock-never-set reading in the middle; a history that wrapped past the mark | Requests of 100, 100, 50, oldest first; the mark at 100 after the refusal; at 250 afterwards; that reading skipped and passed; start at the oldest kept | A reading sent out of order; the mark moved on a refusal | host |
+| FR-32.7 (core) | `tb_tx` body for 0, 1 and 100 readings at the sensor's limits, synced and unsynced | Valid JSON of §32.3, numbers as the history CSV, ts in ms | Units in the values; a body over the request limit | host |
+| FR-32.11 (core) | `tb_tx` answer mapping: 200, 401, 403, 400, 413, 500, no answer | ok, auth, auth, refused, refused, server, timeout | Success on anything but 200 | host |
+| FR-32.5, FR-32.13, NFR-32.1 | Sleep test build, ThingsBoard on the bench (R-30), an upload due on the next timer wake | `web: wake cause=timer`, L41, `web: sleep` within 50 s; the readings readable through the ThingsBoard REST API with their times; panel dark | WiFi on a timer wake with nothing due; L2 or L7 lines | target |
+| FR-32.8, FR-32.11 | Same build, ThingsBoard stopped for two uploads, then started | L42 twice, then one L41 carrying every reading taken meanwhile | A reading missing in ThingsBoard; a retry on the failing wake | target |
+| FR-32.6 | Reset; device reaches ONLINE | L41 within the window; the attributes of §32.3 on the ThingsBoard device | No upload in the window | target |
+| FR-32.9 | Operator's production server on `https://` with a Let's Encrypt certificate | L41; the readings on the operator's dashboard | A send to a server whose certificate fails | bench (operator) |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2364,6 +2515,9 @@ Runtime configuration (the only persisted items):
 | `wifi_password` | bytes | none | empty or 8 – 63 bytes | NVS | secret | portal (§13), BLE write only (§26) | FR-13.4 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2), BLE (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `tb_url`, `tb_every` | text / minutes | none (ThingsBoard off); `tb_every` 60 | §32.2 | NVS | operational | portal (§13, §32.2), BLE (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `tb_token` | text | none | 1 – 64 letters, digits, `-`, `_` | NVS | secret | portal (§13, §32.2), BLE write only (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
+| `tb_mark` | place in the history | before the oldest reading | §27 | NVS | operational | moved by an accepted upload (FR-32.8) | none | next upload | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 1.5 MB, about 65,000 readings | flash partition (C-10.9) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
@@ -2432,6 +2586,9 @@ Build-time constants:
 | History record / per sector | 16-byte payload + 8-byte trailer / 170 | [derived from `flash_ring`] |
 | History append limit | ≤ 500 ms | [user] |
 | Full `GET /api/history` | ≤ 30 s | [user] |
+| ThingsBoard API | HTTP device API, `/api/v1/<token>/telemetry` and `/attributes` (§32.3) | [user] |
+| ThingsBoard readings per request | 100 | [proposed] |
+| ThingsBoard request answer / last request start on a timer wake | 10 s / 40 s after the wake | [proposed] |
 
 ## Appendix B — Lifecycle Metadata
 
@@ -2497,7 +2654,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.15.0
+fsd_version: 0.16.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2539,7 +2696,8 @@ change_history:
   - 0.14.0 2026-11-01 from the user's request (readings history downloadable over BLE and the web page): §27 Reading History (FR-27.1 – FR-27.10, NFR-27.1, NFR-27.2; a 1.5 MB partition and a date range, both chosen by the user), BLE `history` characteristic, C-10.6 superseded by C-10.9 (history partition), L31, R-26, Phase 9; Appendix A updated
   - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
   - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
+  - 0.16.0 2026-11-01 from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.13, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14]
-open_decisions: []
+open_decisions: ["FR-32.1 tb_token 1 – 64 characters and tb_every dividing 1440", "FR-32.7 100 readings per request", "FR-32.11 10 s request answer", "FR-32.12 no new request after 40 s on a timer wake"]
 related_test_baseline: none yet
 ```
