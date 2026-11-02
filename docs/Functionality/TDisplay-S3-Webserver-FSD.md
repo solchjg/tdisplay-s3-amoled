@@ -52,6 +52,7 @@ reused.
 | 27 | Reading History | L1 |
 | 28 | Sampling Setups | L1 |
 | 29 | 4-20 mA Loop Input | L1 |
+| 30 | RS232 Instrument Input | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -141,6 +142,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
 | 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply enabled by GPIO 3, 100 Ω shunt, ADS1115 at 0x49 behind an I2C isolator on GPIO 43/44 (§29) | [user]; pin, address and parts [proposed] |
+| RS232 instrument (optional) | One instrument on a DE-9 (DTE): TRS3221E / MAX3221E transceiver, UART1 TX GPIO 11, RX GPIO 12, transceiver power GPIO 13 (§30) | [user]; pins and parts [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
@@ -353,6 +355,21 @@ testbench.
 - **Dependencies.** §23 (readings), §27 (history), §28 (tests), §25 (mail),
   §26 (BLE settings), the carrier PCB's loop island.
 
+### 3.12 Phase 12: RS232 instrument input
+
+- **Scope.** The optional RS232 input as add-on slot 1 of §29.2: poll or
+  listen, one number from a text line, scaled, in readings, averages,
+  history, page, JSON, line 6, tests and email.
+- **Deliverables.** §30, L37, L38; the shared `serial_port` component; a
+  loopback commissioning program for GPIO 11 – 13; a USB-RS232 adapter on
+  the testbench host for the bench tier (R-27).
+- **Exit criteria.** A scripted instrument on the bench adapter is read at
+  every reading in `poll` and `listen`; silence, garbage and a long line log
+  L38 and stop nothing; with `rs` `off` RS232 leaves no trace; the value
+  appears on line 6, the page, `ext`, the CSV and the summary.
+- **Dependencies.** §29.2 (add-on values), §23, §27, §28, §25, §26, the
+  carrier PCB's RS232 block.
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -387,6 +404,7 @@ testbench.
 | R-25 | BLE and WiFi share one 2.4 GHz radio and internal RAM (no PSRAM); a window slows WiFi and takes tens of KB of heap; NimBLE adds about 360 KB to the image (1.38 MB of the 4 MB slot, C-10.7) | Certain | Medium | BLE only inside windows (FR-26.18); no OTA download in a key window (FR-26.17); the task, and so the summary send, never runs in one (FR-26.5); NFR-14.1 is measured with no window open; NFR-26.1 checks the heap comes back |
 | R-26 | OTA never rewrites the partition table, so a device updated only by OTA has no `history` partition | Certain | Low | FR-27.8: it runs without history and says so (L31); a USB flash of the full image adds the partition |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
+| R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
 ### 4.2 Assumptions
 
@@ -536,8 +554,8 @@ region; they change the screen content that D3 – D5 compare against.
 Six text lines, landscape: lines 1 – 5 at most 33 characters each, line 6
 in a smaller font at most 44 (FR-6.14, FR-6.15). Line 4 is the
 reading in every state (FR-23.12); line 5 is empty except during the setup
-check (FR-24.12) and a BLE window (FR-26.14); line 6 is the loop value
-(FR-29.8), empty with the loop off; the table gives lines 1 – 3.
+check (FR-24.12) and a BLE window (FR-26.14); line 6 holds the add-on values
+(FR-29.8, FR-30.10), empty with every add-on off; the table gives lines 1 – 3.
 
 | Connectivity state | Line 1 | Line 2 | Line 3 |
 |--------------------|--------|--------|--------|
@@ -921,6 +939,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L34 | Loop value (FR-29.5) | `web: loop ma=<mA, 3 decimals> v=<value, 3 decimals> <loop_unit>` | I |
 | L35 | Loop failed (FR-29.4) | `web: loop failed: <fault\|ERR> ma=<mA, 3 decimals, or none>` | W |
 | L36 | History erased for its new format (FR-29.12) | `web: history erased reason=format` | W |
+| L37 | RS232 value (FR-30.7) | `web: rs232 <rs_name>=<value, rs_dec decimals>[ <rs_unit>]` | I |
+| L38 | RS232 failed (FR-30.6) | `web: rs232 failed: <timeout\|long\|nonum\|ERR>[ line=<first 32 bytes>]` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -2369,7 +2389,7 @@ Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
 ### 29.2 Add-on values
 
 A reading carries up to two optional **add-on values** beside the BME280
-triple: slot 1 for the RS232 input (planned, not yet specified) and slot 2
+triple: slot 1 for the RS232 input (§30) and slot 2
 for the loop. Each is a 32-bit float, NaN when the add-on is off or gave no
 value, so every reading has the same size in RTC memory and in the history.
 
@@ -2380,11 +2400,11 @@ line 6. An add-on that is off leaves no trace anywhere (FR-29.14).
 
 | Where | An enabled add-on shows as |
 |-------|----------------------------|
-| `GET /api/readings` (FR-23.18) | `"ext": {"<loop_name>": <value or null>}` in each element; `{}` when every add-on is off |
-| History CSV (§27.1) | One column after `p_mbar` named `<loop_name>`, the value with 3 decimals, empty for none; the header and every line gain it only while the add-on is on |
+| `GET /api/readings` (FR-23.18) | `"ext": {"<rs_name>": <value or null>, "<loop_name>": <value or null>}` in each element, only the enabled ones; `{}` when every add-on is off |
+| History CSV (§27.1) | One column after `p_mbar` per enabled add-on, slot 1 first, named `<rs_name>` (`rs_dec` decimals) or `<loop_name>` (3 decimals), empty for none; the header and every line gain it only while the add-on is on |
 | Averages (FR-23.15) | A mean of the period's values with its own count, readings without a value left out |
 | Summary email (§25) | The add-on's min, max and mean beside the BME280's, with its name and unit |
-| L21 | Unchanged; the loop has its own line, L34 |
+| L21 | Unchanged; each add-on has its own line, L37 (RS232) and L34 (loop) |
 
 ### 29.3 Requirements
 
@@ -2477,6 +2497,140 @@ Settings and history format:
 
 ---
 
+## 30. RS232 Instrument Input
+
+### 30.1 Purpose & peer
+
+An optional serial port that reads one RS232 instrument at each reading and
+records its value with the BME280 reading, as add-on slot 1 of §29.2. Peer:
+an instrument with a text protocol (a meter, balance, analyser or
+controller) that answers a poll command, or sends lines by itself, at a
+fixed baud rate. Which instrument is not known yet, so the settings are
+generic. The port is off by default; a device without the RS232 hardware
+runs exactly as before. Built on the shared `serial_port` component (UART
+and transceiver power, with a pure line and number core); the composition
+root powers the port, reads it and routes the value.
+
+At each reading the board takes the transceiver out of shutdown, opens
+UART1, exchanges one poll or listens, closes the UART and shuts the
+transceiver down again.
+
+| Item | Value | Source |
+|------|-------|--------|
+| UART | UART1, no hardware flow control | [proposed] |
+| TX / RX | GPIO 11 (to the transceiver's T1IN) / GPIO 12 (from R1OUT); ADC2 pins, so no ESP32 ADC input is lost | [proposed] |
+| Transceiver power | GPIO 13 to FORCEOFF, active high, pulled low (100 kΩ) through sleep and reset | [proposed] |
+| Transceiver | TI TRS3221E or ADI MAX3221E: one driver, one receiver, 3.3 V, ±15 kV ESD, about 1 µA in shutdown | [proposed] |
+| Connector | DE-9 male, DTE: pin 2 RXD, pin 3 TXD, pin 5 GND; a 3-pin 3.5 mm terminal footprint beside it | [proposed] |
+
+Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `rs` | `off`, `poll` (send `rs_cmd`, read the reply) or `listen` (read what the instrument sends by itself) | one of the three | `off` [user] |
+| `rs_baud` | bits per second | 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 | 9600 [user] |
+| `rs_format` | data bits, parity, stop bits | `8N1`, `8E1`, `8O1`, `7E1`, `7O1`, `8N2` | `8N1` [user] |
+| `rs_cmd` | poll command, with `\r`, `\n` and `\xHH` escapes | 1 – 32 [proposed] bytes after the escapes; required with `poll` | none |
+| `rs_timeout_ms` | wait for a whole reply line | whole ms, 100 – 5000 [proposed] | 1000 [proposed] |
+| `rs_field` | which number in the line is the value | 1 – 8 [proposed] | 1 |
+| `rs_scale`, `rs_offset` | value = number × `rs_scale` + `rs_offset` | decimal, at most 6 decimals, −99999 – 99999, `rs_scale` not 0 | 1 and 0 |
+| `rs_name` | label for the screen, page, CSV column and email | 1 – 12 characters from `A-Z a-z 0-9 _ -`, not equal to `loop_name` while both add-ons are on | `rs232` |
+| `rs_unit` | unit text | 0 – 6 printable ASCII characters, no comma | empty |
+| `rs_dec` | decimals of the value on the screen, page, JSON, CSV and email | 0 – 4 [proposed] | 3 |
+
+A line ends at CR, LF or CRLF and holds at most **128** [proposed] bytes. A
+number is an optional sign, digits with an optional decimal point, and an
+optional exponent (`1.5e-3`); the fields are counted from the start of the
+line, so `ST,GS,+0012.34 g` gives 12.34 as field 1.
+
+### 30.2 Requirements
+
+Reading:
+
+- **FR-30.1** [Must] [user] With `rs` `off` the device shall keep GPIO 13
+  low, never install UART1, and behave as without §30.
+- **FR-30.2** [Must] [user] With `rs` not `off`, at each reading (FR-23.1,
+  FR-23.3, §28 tests) the device shall, after the BME280 reading, set GPIO 13
+  high, open UART1 at `rs_baud` and `rs_format`, take one value by FR-30.3
+  or FR-30.4, then close UART1 and set GPIO 13 low.
+- **FR-30.3** [Must] [user] With `rs` `poll` the device shall discard any
+  input already received, send `rs_cmd`, and take the first whole line that
+  arrives within `rs_timeout_ms` of the command.
+- **FR-30.4** [Must] [user] With `rs` `listen` the device shall take the
+  last whole line that arrives within `rs_timeout_ms` of the port opening.
+- **FR-30.5** [Must] [user] The value shall be the `rs_field`-th number in
+  the line (§30.1) times `rs_scale` plus `rs_offset`.
+- **FR-30.6** [Must] [user] No whole line in time, a line over 128 bytes, or
+  no number at `rs_field` shall give no value and log L38 with the reason and
+  the first 32 bytes of the line, non-printable bytes as `\xHH`. None of them
+  stops the BME280 reading, the window or sleep, and none is retried within
+  the same task run.
+- **FR-30.7** [Must] [derived] Each RS232 value shall be logged as L37; in
+  ONLINE it reaches the UDP log by FR-16.1.
+- **NFR-30.1** [Must] [user] With `rs` not `off`, GPIO 13 shall be high at
+  most `rs_timeout_ms` + **50 ms** [proposed] per reading.
+- **NFR-30.2** [Must] [user] With `rs` `off`, and while the device sleeps,
+  the RS232 hardware shall add at most **10 µA** [proposed] to the supply
+  current.
+
+Recording and showing:
+
+- **FR-30.8** [Must] [user] The RS232 value shall be slot 1 of §29.2: kept
+  with its reading (FR-23.9), averaged with its own count (FR-23.15), and
+  appended to the history with it (FR-27.1); in `ext`, the CSV and the email
+  it is named `rs_name` and shown with `rs_dec` decimals, its CSV column
+  before the loop's.
+- **FR-30.9** [Must] [user] In ONLINE, `GET /` shall show the RS232 mode,
+  the newest value with `rs_name` and `rs_unit`, or the reason of the last
+  L38 when the newest reading has none.
+- **FR-30.10** [Must] [user] With `rs` not `off`, line 6 of the screen
+  (FR-6.14) shall show `<rs_name> <value> <rs_unit>`, or `<rs_name> --` when
+  the newest reading has none. With the loop on too, line 6 shall show the
+  RS232 part, two spaces and the loop part of FR-29.8, cut at 44 characters.
+- **FR-30.11** [Must] [user] When mail is set up (§25), the summary shall
+  add one line `<rs_name> min <v> max <v> mean <v> <rs_unit> (<n> values)`
+  before the loop's (FR-29.9), and an RS232 column to the averages table
+  (FR-25.15), empty for a period with no value.
+- **FR-30.12** [Must] [user] RS232 shall follow FR-29.14: with `rs` `off`
+  it plays no part in a §28 test. With `rs` not `off`, a test reading shall
+  count (FR-28.10) only if it also has an RS232 value, and the test's L33
+  line shall end with ` <rs_name>=<v>/<n>` (v the test readings with an
+  RS232 value, n its readings), before the loop's suffix of FR-29.10, so the
+  result email (FR-28.13) reports it too. A missing value never stops data
+  collection: the BME280 reading is kept and appended as usual.
+
+Settings:
+
+- **FR-30.13** [Must] [user] The portal and BLE shall refuse an `rs` field
+  not valid per §30.1 with 400 naming the field (portal) or `invalid=<field>`
+  (BLE); valid values are stored in NVS with the other settings (T3, T14),
+  reported by the `settings` read (FR-26.9) and erased by a factory reset
+  (T10). Other fields are checked only with `rs` not `off`.
+- **C-30.1** [Must] [proposed] UART1 on TX GPIO 11, RX GPIO 12, and the
+  transceiver's FORCEOFF on GPIO 13, as in §30.1; the pins are confirmed by
+  a loopback commissioning program before the first build that uses them.
+
+### 30.3 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-30.5, FR-30.6 (core) | Lines `12.5\r\n`, `ST,GS,+0012.34 g\r`, `-1.5e-3\n`, `A=1 B=2 C=3` with field 3, `no number\r`, 129 bytes without an end, `\x02 7.00 pH\r`; scale 2, offset −1 | 24; 23.68; −1.003; 5; L38 `nonum`; L38 `long`; 13 | A value from a cut or numberless line; a number taken from inside a word | host |
+| FR-30.3, FR-30.4 (core) | `serial_port` core fed bytes in pieces: a line split over three reads; CR, LF and CRLF ends; two lines within the timeout in `listen` | One whole line each time; `listen` takes the second | A half line; an empty line as a value | host |
+| FR-30.13 (core) | Bodies: none; `rs=poll` without `rs_cmd`; `rs=poll&rs_cmd=%5Cr`; `rs_baud=9601`; `rs_format=9N1`; `rs_timeout_ms=99`; 5001; `rs_field=9`; `rs_scale=0`; `rs_name=loop` with the loop on and `loop_name=loop`; `rs_unit=a,b`; `rs_dec=5`; `rs=off&rs_baud=x` | off; 400 `rs_cmd`; poll with a 1-byte command; 400 for each named field; off (not checked) | A stored invalid value | host |
+| FR-30.8, §29.2 (core) | JSON and CSV with RS232 off; on with a value and `rs_dec` 0 and 4; on with none; RS232 and loop both on | No key or column; `rs_name` with 0 and 4 decimals; null and an empty field; RS232 column before the loop's | A key or column while off; `NaN` in JSON or CSV | host |
+| FR-30.10 (core) | Line 6 for `pH` 7.0234 `pH` with `rs_dec` 2; none; RS232 and loop both on with 12-character names and units | `pH 7.02 pH`; `pH --`; both parts, at most 44 characters | Wrapping; more than 44 characters | host |
+| FR-30.12, FR-29.14 (core) | Verdicts: `quick` with RS232 off; on with 12 values; on with 11 values; RS232 and loop both on | `result=pass` without an RS232 field; `… rs232=12/12`; `result=fail … rs232=11/12`; the RS232 suffix before the loop's | An RS232 field or effect while off | host |
+| FR-30.11 (core) | Summary with 3 RS232 values and one reading without | The RS232 line with n = 3, before the loop line; the averages column empty where none | A NaN printed | host |
+| C-30.1, FR-30.2 | Commissioning program: GPIO 11 jumpered to GPIO 12 at 3.3 V (no transceiver); send and read 64 bytes at every baud and format of §30.1 | Every byte back; GPIO 13 toggles as commanded | A lost byte; a pin that does not move | target |
+| FR-30.1, NFR-30.2 | Shipped build with `rs` `off`; sleep | No UART1 install in the log; GPIO 13 low; the sleep current unchanged within 10 µA | GPIO 13 high; UART1 installed | target |
+| FR-30.2, FR-30.3, FR-30.7, NFR-30.1 | Transceiver wired; the testbench host's USB-RS232 adapter on the DE-9 runs a scripted instrument answering `R\r` with `+0023.45 C\r`; `rs=poll&rs_cmd=R%5Cr`; reset over USB | L37 `rs232 rs232=23.450`; the script saw one `R\r` per reading; GPIO 13 high at most 1050 ms | No L37; a second command in one reading | bench |
+| FR-30.4 | As above, the script sending `+0023.45 C\r` every 200 ms; `rs=listen` | L37 with the last line's value | A half line | bench |
+| FR-30.6 | As above, the script silent, then answering `ERR\r`, then 200 bytes without CR, then unplugged | L38 `timeout`, `nonum line=ERR`, `long`, `timeout`; the window and sleep as usual; each BME280 reading still in the history | A restart; a value kept | bench |
+| FR-30.12 | Double press for `quick`, first with `rs` `off` and nothing on the DE-9, then `poll` with the script silent | `result=pass` and no L37/L38; then `result=fail … rs232=0/12` with all 12 readings in the history | An RS232 line while off; a reading missing from the history | bench |
+| FR-30.8, FR-30.9, FR-30.10, §29.2 | ONLINE with the script answering; relay `GET /`, `GET /api/readings`, `GET /api/history` | Page, `ext`, CSV column and line 6 all show the L37 value | A value differing from L37 | bench |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -2533,6 +2687,7 @@ Runtime configuration (the only persisted items):
 | `mail_host`, `mail_port`, `mail_user`, `mail_to`, `mail_time`, `mail_every` | text / number | none (email off) | §25.2 | NVS | operational | portal (§13, §25.2), BLE (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `mail_password` | bytes | none | 1 – 64 bytes | NVS | secret | portal (§13, §25.2), BLE write only (§26) | FR-25.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `loop`, `loop_name`, `loop_unit`, `loop_lo`, `loop_hi`, `loop_warm_ms` | text / number | `off` | §29.1 | NVS | operational | portal (§13), BLE (§26) | FR-29.11 | immediate (T3); restart (T14) | erased by factory reset |
+| `rs`, `rs_baud`, `rs_format`, `rs_cmd`, `rs_timeout_ms`, `rs_field`, `rs_scale`, `rs_offset`, `rs_name`, `rs_unit`, `rs_dec` | text / number | `off`, 9600, `8N1` | §30.1 | NVS | operational | portal (§13), BLE (§26) | FR-30.13 | immediate (T3); restart (T14) | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
@@ -2603,6 +2758,8 @@ Build-time constants:
 | Loop shunt / ADC | 100 Ω 0.1 % / ADS1115 at 0x49, A0 – A1, ±4.096 V, mean of 4 | [proposed] |
 | Loop fault limits | below 3.6 mA or above 21.0 mA (NAMUR NE43) | [user] |
 | Loop accuracy | ±0.25 % of span | [user] |
+| RS232 port | UART1, TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 / TRS3221E or MAX3221E / DE-9 male (DTE) | [proposed] |
+| RS232 line / timeout / port-on limit | ≤ 128 bytes, CR, LF or CRLF / `rs_timeout_ms` 100 – 5000 ms, default 1000 / `rs_timeout_ms` + 50 ms | [proposed] |
 | History append limit | ≤ 500 ms | [user] |
 | Full `GET /api/history` | ≤ 30 s | [user] |
 
@@ -2675,7 +2832,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.16.0
+fsd_version: 0.17.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -2718,6 +2875,7 @@ change_history:
   - 0.14.1 2026-11-01 all proposed history values accepted by the user (FR-27.7, NFR-27.1, NFR-27.2)
   - 0.15.0 2026-11-01 from the user's plan, approved as drafted: §28 Sampling Setups (FR-28.1 – FR-28.13; setups std, fine, slow, custom; tests quick and cycle; double press; verdict on line 5; result email), FR-23.14 superseded by FR-23.17, FR-21.13 gains the end-of-test wake, L32, L33, Phase 10; Appendix A updated
   - 0.16.0 2026-11-01 from the user's answers to the 4-20 mA plan (input only, 24 V on the board, isolation in the first build, old history erased once, ±0.25 % of span, 300 ms settle, 3.6 / 21.0 mA faults, a sixth line in a smaller font): §29 4-20 mA Loop Input (FR-29.1 – FR-29.14, NFR-29.1, NFR-29.2, C-29.1), §29.2 add-on values shared with the planned RS232 input, FR-6.2 superseded by FR-6.15, FR-6.12 by FR-6.14, FR-23.13 by FR-23.18, FR-27.2 by FR-27.11, C-10.9 by C-10.10, L34 – L36, Phase 11; Appendix A updated
+  - 0.17.0 2026-11-01 from the user's answers to the RS232 plan (read one instrument, instrument not known yet so generic settings, an add-on that is off leaves no trace, a USB-RS232 adapter on the testbench host): §30 RS232 Instrument Input (FR-30.1 – FR-30.13, NFR-30.1, NFR-30.2, C-30.1), slot 1 of §29.2, L37, L38, R-27, Phase 12; pins, parts and limits proposed; Appendix A updated
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
   - "§29.1: supply enable GPIO 3 (to confirm the header brings it out)"
