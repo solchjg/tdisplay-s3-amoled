@@ -54,16 +54,34 @@ battery connector is a JST GH 1.25 mm.
    says VSYS. Sheet 2 feeds the loop supply from them as the battery/system
    rail. With USB unplugged, check with a meter that they carry the battery
    voltage.
-2. **Loop isolated 3.3 V.** The FSD does not say what powers the loop ADS1115
-   and the isolator's side 2. Sheet 2 shows an LDO from the isolated 24 V,
-   marked proposed. An isolator with its own isolated supply would also work.
-3. **Load switch, converter and isolator parts.** The FSD names their function,
-   not their part numbers. The sheets draw generic modules, so match the pin
-   names to the modules you buy.
-4. **Water probe.** The checks in
+2. **Loop parts.** The FSD names each part's function (§29.1). The parts below
+   are the suggested ones; sheet 2 draws generic modules, so match the pin
+   names to the modules you buy. Run `commissioning/loop-probe` before the
+   first bench test: it checks the bus with the loop supply off and on, and
+   prints the loop current.
+3. **Water probe.** The checks in
    [water-probe-circuit.md](../water-probe-circuit.md#to-check-before-wiring)
    apply. LilyGO's picture puts GPIO 2 on the left header, third pin from the
    top.
-5. **RS232 transceiver.** A TRS3221E/MAX3221E needs its four charge-pump
+4. **RS232 transceiver.** A TRS3221E/MAX3221E needs its four charge-pump
    capacitors (on a breakout they are usually fitted). FORCEON is not in the
    FSD. Tie it high so that FORCEOFF alone decides whether the driver is on.
+
+## Sheet 2 parts
+
+| Ref | Function (FSD §29.1) | Suggested part | Notes |
+|---|---|---|---|
+| U2 | Load switch with a controlled rise time | TI TPS22918 (1 – 5.5 V in, 2 A) | CT about 1 nF for the soft start; EN on GPIO 3 with R1 |
+| U3 | Wide-input converter to 5 V | Pololu S7V8F5 (2.7 – 11.8 V in) | Leave SHDN open: its 100 k pull-up would fight R1, so U2 switches it |
+| U4 | Isolated 1 W DC-DC, 24 V | Mornsun B0524S-1WR3 (5 V in, 24 V at 4.2 – 42 mA, 1500 VDC) | Rated over 10 – 100 % load; the loop plus U5 and U8 keep it above 10 % |
+| U5 | Isolated 3.3 V LDO, at least 40 V in | TI TPS7A1633 (3 – 60 V in, 100 mA) | 1 µF/50 V in, 2.2 µF out |
+| U9 | Loop current limit, about 30 mA | Microchip DN2540N3 depletion MOSFET with a source resistor near 47 Ω | Trim the resistor on the bench so 21 mA passes untouched |
+| D1 | TVS across the terminals | SMAJ30A | K to the + terminal |
+| U7 | Loop ADC | ADS1115 (Adafruit 1085 or TI ADS1115IDGSR) | ADDR to VDD for 0x49 |
+| U8 | I2C isolator, floating while unpowered | TI ISO1540 | Side 1 on the board's 3V3, side 2 on U5 |
+| R2 | Shunt | 100 Ω, 0.1 %, 25 ppm/°C, 0805 | 40 mW at 20 mA |
+| R1 | Enable pull-down | 100 kΩ | |
+| C | Decoupling | 100 nF at U7 and at each side of U8; 10 µF at U3 out | |
+
+A 2-pin 5.08 mm screw terminal takes the transmitter. With the limiter (about
+3 V) and the shunt (2.1 V at 21 mA), about 19 V is left for the transmitter.
