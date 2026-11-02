@@ -15,8 +15,8 @@ datasheets listed under Sources; check them against current ones.
 |-----|----------------------|------|-------|
 | Q1, Q2 | Load switch with a controlled rise time | Diodes DMG2305UX P-MOSFET (SOT-23 on a SOT-23 board from the Adafruit 1230 set, −20 V, V<sub>GS(th)</sub> −0.5 to −0.9 V, 100 mΩ max at −2.5 V; AO3401A is a second source) and a 2N3904 (TO-92) | See [Load switch](#load-switch) |
 | U3 | Wide-input converter to 5 V | Pololu S7V8F5 (2.7 – 11.8 V in, 5 V out) | Leave SHDN open: its 100 kΩ pull-up to VIN would fight R1, so Q1 does the switching |
-| U4 | Isolated 1 W DC-DC, 24 V | Mornsun B0524S-1WR3, SIP-4 (4.5 – 5.5 V in, 24 V at 4.2 – 42 mA, 1500 VDC) | Specified over 10 – 100 % load; U5 alone keeps it above 10 % |
-| U5 | Isolated 3.3 V regulator, at least 40 V across it | LM317LZ (TO-92, 40 V in – out) | See [Isolated 3.3 V](#isolated-33-v) |
+| U4 | Isolated 1 W DC-DC, 24 V | Murata NME0524SC, SIP-4 (4.5 – 5.5 V in, 24 V at 4.2 – 42 mA, 1000 VDC; pins 1 – 4 −VIN, +VIN, −VOUT, +VOUT) | Specified over 10 – 100 % load; U5 alone keeps it above 10 % |
+| U5 | Isolated 3.3 V regulator, at least 40 V across it | onsemi LM317LZG (TO-92, Pb-free, 40 V in – out; pins 1 – 3 ADJ, OUT, IN) | See [Isolated 3.3 V](#isolated-33-v) |
 | Q3 | Loop current limit, about 30 mA | Microchip DN2540N3 depletion MOSFET (TO-92) | See [Loop and shunt](#loop-and-shunt) |
 | D1 | TVS across the terminals | P6KE33A (DO-15, 28.2 V stand-off) | Cathode (band) to J1 + |
 | U7 | Loop ADC | Adafruit 1085 ADS1115 breakout | ADDR to VDD for 0x49 |
@@ -97,7 +97,7 @@ The ADS1115 resolves 125 µV at ±4.096 V, which is 1.25 µA through R2.
 |--------|--------|------|
 | Loop voltage | 24 V − about 3 V (Q3, Rs) − 2.1 V (R2 at 21 mA) ≈ 19 V | Left for the transmitter; most need 10 – 12 V |
 | 24 V current | 30 mA (shorted loop) + 11 mA (U5) = 41 mA | U4 is rated 42 mA |
-| U4 output voltage | Within 10 % of 24 V over 10 – 100 % load | Below D1's 28.2 V stand-off |
+| U4 output voltage | Load regulation 7.5 % max over 10 – 100 % load: about 25.8 V at most | Below D1's 28.2 V stand-off |
 | Q3 in a short | 30 mA × about 21 V ≈ 0.6 W | Only for the 300 ms of a reading |
 | GPIO 3 load | Q2 base 0.26 mA + R1 0.03 mA + U8 side 1 about 3 mA + its LED | Well within a GPIO's drive; U8 needs at least 3.0 V on VCC1 |
 | Battery during a reading | About 0.25 – 0.35 A for about 0.3 s | An estimate from typical efficiencies, not measured |
@@ -154,8 +154,8 @@ ohmmeter between J1 and USB ground: above 100 MΩ.
 - [DMG2305UX datasheet](https://static.chipdip.ru/lib/159/DOC013159942.pdf)
 - [Adafruit 1230 SMT breakout set](https://www.adafruit.com/product/1230)
 - [Pololu S7V8F5](https://www.pololu.com/product/2123)
-- [Mornsun B05_S-1WR3 datasheet](https://www.rcscomponents.kiev.ua/datasheets/B05_S-1WR3.pdf)
-- [LM317L datasheet](https://www.rcscomponents.kiev.ua/datasheets/lm317l-1301242.pdf)
+- [Murata NME datasheet](https://docs.rs-online.com/c317/0900766b8167506a.pdf)
+- [onsemi LM317L datasheet](https://datasheet.ciiva.com/14562/70099595-14562037.pdf)
 - [ISO1540 datasheet](https://proto-pic.co.uk/content/iso1540.pdf)
 - [Adafruit ISO1540 guide](https://learn.adafruit.com/adafruit-iso1540-bidirectional-i2c-isolator)
 - [TE YR1B100RCC](https://octopart.com/part/te-connectivity/YR1B100RCC)
