@@ -3145,6 +3145,7 @@ holds, the composition root performs it.
 | Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) through a Qwiic cable from the carrier's I2C fan-out (§2.2), which also feeds the BME280 and the water probe board; no address clash with 0x76 or the water ADS1115's 0x48. The Notecard's own 10 kΩ pull-ups to its VIO join the bus, so the bus's pull-ups in parallel stay at or above about 2.2 kΩ | [proposed] |
 | Power | The Notecarrier's own LiPo (or USB) supplies the Notecard and its modem peaks (up to about 2 A); the cable joins GND, SDA and SCL only, its 3.3 V wire left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
 | ATTN | Not connected in the first build; the device polls the Notecard | [proposed] |
+| Antenna | LTE: the Notecarrier-A's onboard antenna, or one flexible LTE antenna on the Notecard's `MAIN` u.FL (its jumper to the onboard antenna unplugged), mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: not used by §33, so the `GPS` port's antenna needs no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
 
 ### 33.3 Settings
 
@@ -3484,7 +3485,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.26.0
+fsd_version: 0.27.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3542,6 +3543,7 @@ change_history:
   - "0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row"
   - "0.25.0 2026-11-02 from the user's acceptance of the RS232 revisit (through-hole and in-stock parts, nothing drawn while off, as the loop's own bus): §30.1 the transceiver is a MAX3232 in a DIP socket powered from GPIO 13 instead of a TRS3221E / MAX3221E with FORCEOFF, GPIO 11/12 float while off, a 10 ms settle and an optional RTS (proposed), a panel-mount DE-9 or 5.08 mm terminal; FR-30.1, FR-30.2 reworded; NFR-30.2 replaced by C-30.2 (no current while off); UART1 and GPIO 11 – 13 accepted (C-30.1); §2.2, Phase 12, Appendix A updated; circuit in rs232-circuit.md"
   - "0.26.0 2026-11-02 from the user's choice of separate attachable add-on boards: §2.2 gains the add-on boards (each analog add-on with its own ADS1115) and their connectors (proposed); §29.1 and §30.1 gain a Board row; §33.2 the Notecarrier joins by GND, SDA and SCL only, from the carrier's I2C fan-out (proposed); §29.1 peer wording"
+  - "0.27.0 2026-11-02 from the user's antenna question (orientation of the Blues combined LTE + GPS antenna, can it be cut): §33.2 gains an Antenna row (proposed)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"
@@ -3552,6 +3554,7 @@ open_decisions:
   - "NFR-30.1: port on at most rs_timeout_ms + 50 ms"
   - "§33.3: cell_mail default off (email over cellular needs the user's mail service and route first)"
   - "§33.2: Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier's own LiPo for modem peaks, ATTN not connected"
+  - "§33.2: antenna on the onboard or one vertical flexible LTE antenna, 10 mm clearance, the combined antenna never cut, GPS unplaced"
   - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"
   - "FR-33.4, FR-33.10: 2 s Notecard answer limit; FR-33.5: Notecard never power-cycled"
   - "NFR-33.1: asleep within 10 s on a timer wake that sends notes; NFR-33.2: under 4 MB a month"
