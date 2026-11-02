@@ -144,7 +144,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE 5 used only inside a setup window (§26, FR-26.18), sharing the radio by ESP-IDF software coexistence | [derived from the board] |
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
-| 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail, enabled by GPIO 3, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) behind an I2C isolator on GPIO 43/44 (§29) | [user] |
+| 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail behind a soft-start load switch, enabled by GPIO 3, a 30 mA loop current limit, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) on an isolated 3.3 V LDO, behind an I2C isolator on GPIO 43/44 (§29) | [user] |
 | RS232 instrument (optional) | One instrument on a DE-9 (DTE): TRS3221E / MAX3221E transceiver, UART1 TX GPIO 11, RX GPIO 12, transceiver power GPIO 13 (§30) | [user]; pins and parts [proposed] |
 | Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW on a Notecarrier-A, I2C 0x17 on GPIO 43/44 through Qwiic, its own LiPo for the modem (§33) | [user]; carrier, bus and power [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
@@ -350,11 +350,13 @@ testbench.
   averages, history, page, JSON and email, the sixth screen line, and the
   24-byte history record.
 - **Deliverables.** §29, §29.2, FR-6.14, FR-6.15, FR-23.18, FR-27.11,
-  C-10.10, L34 – L36; the shared `ads1115` and `loop420` components; a
-  commissioning program for the loop hardware.
+  C-10.10, L34 – L36; the shared `ads1115` and `loop420` components; the
+  commissioning program `loop-probe` for the loop hardware, run before the
+  first bench test of §29.
 - **Exit criteria.** With a calibrator at 4, 8, 12, 16 and 20 mA, every L34
   value is within ±0.25 % of span; a fault current logs L35 and stops
-  nothing; with `loop` `off` the loop leaves no trace; the value appears on line 6, the page, `ext`, the CSV and the
+  nothing; a shorted loop stays at or below 30 mA; the bus works with the
+  loop supply off; with `loop` `off` the loop leaves no trace; the value appears on line 6, the page, `ext`, the CSV and the
   summary; with `loop` `off` nothing changes; the old history is erased once.
 - **Dependencies.** §23 (readings), §27 (history), §28 (tests), §25 (mail),
   §26 (BLE settings), the carrier PCB's loop island.
@@ -458,6 +460,7 @@ testbench.
 | R-31 | The testbench has no Notecard and no cellular coverage is declared at the bench, so the cellular rows need a Notecard on SLOT1's bus and a Notehub project | Certain | Medium | The user fits the Notecarrier-A by Qwiic at the bench; until then the cellular rows are `not done` and the cores are host-tested |
 | R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
 | R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`, `192.168.2.231`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
+| R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
 ### 4.2 Assumptions
@@ -2503,11 +2506,13 @@ switches the supply off.
 
 | Item | Value | Source |
 |------|-------|--------|
-| Loop supply | 24 V, isolated 1 W DC-DC fed from the battery/system rail through a wide-input converter (not from 5 V, which is not live on battery), behind a load switch | [user] |
+| Loop supply | 24 V, isolated 1 W DC-DC fed from the battery/system rail through a wide-input converter (not from 5 V, which is not live on battery), behind a load switch with a controlled rise time, so the converters' inrush does not brown out the board on battery | [user] |
+| Isolated 3.3 V | An LDO fed from the isolated 24 V, rated for at least 40 V in (the unregulated 24 V rises at light load), powering the loop ADS1115 and the isolator's side 2 | [user] |
+| Loop protection | A current limit of about 30 mA in the loop, so a shorted transmitter or cable keeps the shunt voltage, and so the ADS1115 input, within the ADS1115's rating; a TVS diode across the terminals | [user] |
 | Supply enable | GPIO 3 (header pin 4), active high, pulled low through sleep and reset | [user] |
 | Shunt | 100 Ω, 0.1 %, 25 ppm/°C; 0.4 V at 4 mA, 2.0 V at 20 mA | [user] |
 | Loop ADC | ADS1115 at 0x49 on the isolated side, differential A0 – A1, ±4.096 V range, single shot at 128 SPS (DR 100, about 8 ms a conversion) | [user] |
-| Bus | Through an I2C isolator onto the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) | [user] |
+| Bus | Through an I2C isolator onto the BME280's bus (GPIO 43/44, 100 kHz, C-23.1); its outputs are high impedance while either side is unpowered | [user] |
 
 Settings, in the portal form (§13.2) and a BLE `settings` write (§26):
 
@@ -2566,6 +2571,13 @@ Reading:
   reset and power-on.
 - **C-29.1** [Must] [user] The loop side shall be galvanically isolated from
   the board's ground, including the loop ADS1115 and its supply.
+- **C-29.2** [Must] [user] With the loop supply off, the I2C isolator shall
+  leave GPIO 43/44 free, so the BME280 and every other device on the bus
+  answer as without §29.
+- **C-29.3** [Must] [user] A short across the loop terminals shall damage
+  nothing: the loop current stays at or below **30 mA**, the reading ends
+  with L35 `fault`, and the next reading after the short is removed is
+  valid again.
 
 Recording and showing:
 
@@ -2625,6 +2637,8 @@ Settings and history format:
 | FR-29.4 | Calibrator at 3.0 mA, then the terminal open, then the ADS1115 unplugged | L35 `fault ma=3.000`; L35 `fault ma=0.000`; L35 with `ESP_ERR_TIMEOUT`; the window and sleep as usual | A restart; a value kept | bench (operator) |
 | FR-29.10, FR-29.14 | Double press for `quick`, first with `loop` `off` and nothing on the terminals, then `in` with nothing on them | `result=pass` and no L34/L35; then `result=fail … loop=0/12` with all 12 readings in the history | A loop line while off; a reading missing from the history | bench (operator) |
 | C-29.1 | Board on USB; ohmmeter between the loop terminals and USB ground | Above 100 MΩ | Continuity | bench (operator) |
+| C-29.2 | Loop hardware fitted, `loop` `off`, then `in` with the calibrator at 12 mA; 5 readings each | Every reading logs L21 with BME280 values; with the supply off, the loop commissioning program finds 0x76 and not 0x49 | A BME280 or bus error; SDA or SCL held low | bench (operator) |
+| C-29.3 | `loop` `in`; the terminals shorted for 3 readings, then the calibrator at 12 mA | L35 `fault` with `ma=` at most 30.000 for each shorted reading; then L34 within 12.000 ± 0.040 | A restart; a value kept while shorted; a part hot to the touch | bench (operator) |
 | FR-29.7, FR-29.8, §29.2 | ONLINE with the calibrator at 12 mA; relay `GET /`, `GET /api/readings`, `GET /api/history` | Page, `ext`, CSV column and line 6 all show the L34 value | A value differing from L34 | bench |
 | FR-29.12 | Flash over a board holding a 16-byte history (all four images), then ONLINE | L36 once; `GET /api/history` holds only new readings | A garbled line; L36 on the next boot | bench |
 
@@ -3364,7 +3378,8 @@ Build-time constants:
 | Heap returned 10 s after a window | within 8 KB | [user] |
 | BLE service UUID | `6e0a0001-7d3b-4c2a-9f1e-54445333424c` | [derived] |
 | History record / per sector | 24-byte payload + 8-byte trailer / 128 | [derived from `flash_ring`] |
-| Loop supply / settle time | 24 V isolated from the battery/system rail, enable GPIO 3 / `loop_warm_ms`, default 300 ms | [user] |
+| Loop supply / settle time | 24 V isolated from the battery/system rail behind a soft-start load switch, enable GPIO 3 / `loop_warm_ms`, default 300 ms | [user] |
+| Loop isolated 3.3 V / current limit | LDO from the isolated 24 V, at least 40 V in / about 30 mA | [user] |
 | Loop shunt / ADC | 100 Ω 0.1 % / ADS1115 at 0x49, A0 – A1, ±4.096 V, 128 SPS, mean of 4 | [user] |
 | Loop fault limits | below 3.6 mA or above 21.0 mA (NAMUR NE43) | [user] |
 | Loop accuracy | ±0.25 % of span | [user] |
@@ -3450,7 +3465,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.22.3
+fsd_version: 0.23.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3501,6 +3516,7 @@ change_history:
   - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
   - "0.21.0 2026-11-02 the user accepted every proposed §29 value (GPIO 3 supply enable, the shunt, the loop ADS1115 and its bus, the loop field lengths and settle range, a mean of 4, the 50 ms supply margin, the FR-6.14 line tops); the loop ADS1115 runs at 128 SPS (§29.1, FR-29.2 contract); the loop supply is fed from the battery/system rail (§2, §29.1, Appendix A)"
   - "0.22.0 2026-11-02 (drafted as 0.16.0 beside main) from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.15, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14) and a `services` master switch over ntfy and ThingsBoard (FR-32.15), both from the user's request, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated"
+  - "0.23.0 2026-11-02 from the user's acceptance of the 4-20 mA plan review: §29.1 gains the soft-start load switch, the isolated 3.3 V LDO (at least 40 V in), the 30 mA loop current limit and terminal TVS, and an isolator that floats while unpowered; C-29.2 (the bus free with the loop off) and C-29.3 (a shorted loop damages nothing), R-34 (the accuracy budget at 20 mA), the Phase 11 commissioning program `loop-probe`; §2 and Appendix A updated"
   - "0.22.3 2026-11-02 from the user's clarifications: FR-24.13 (user) supersedes FR-24.12, line 5 of the hold reads `Press flashing LED to start <mm>:<ss>`; FR-26.23 (proposed) supersedes FR-26.14, line 5 says `BLE setup on` in the provisioning window, where BLE starts by itself and the user key opens no window"
   - "0.22.2 2026-11-02 BLE setup from the user's bench report (pairing failed after an erase, the BLE page unlike the WiFi form): FR-26.21 the page draws the portal form (user), FR-26.19 rules gain step, option labels, extras, placeholder, inputmode, unit, section and intro, FR-26.22 a static random address replaced while no bond is held (proposed), FR-26.18 names it"
   - "0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row"

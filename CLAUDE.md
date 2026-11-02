@@ -134,7 +134,9 @@ Other builds sharing the components:
   artefact only, never released.
 - `tests/target/sleep/` — shipped `main/` with a stand-in task that sleeps
   `SLEEP_S` (10 or 300) seconds twice per power-on (FSD §21.3); test artefact only.
-- `commissioning/{forward-path,lcd-probe}/` — Phase 2 bring-up programs, never released.
+- `commissioning/{forward-path,lcd-probe,wifi-probe,button-probe}/` — Phase 2 bring-up programs;
+  `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
+  bench tests). Never released.
 
 ## Testing
 

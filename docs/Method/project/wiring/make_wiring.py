@@ -287,9 +287,16 @@ def build_parts(used):
                     left=["+VIN", "-VIN"], right=["+24V", "0V"], w=1100,
                     color="#37474f", notes=["1 W, isolated"],
                     desc="Isolated 1 W DC-DC, 24 V out"))
-    add(module_part("tds3a_iso_ldo", ["LDO 3.3 V (iso)"], "proposed",
+    add(module_part("tds3a_iso_ldo", ["LDO 3.3 V (iso)"], "built",
                     left=["VIN", "GND"], right=["GND ", "3V3"], w=900, color="#37474f",
-                    desc="LDO for the isolated side's 3.3 V (not in the FSD)"))
+                    notes=["TPS7A1633, 60 V in"],
+                    desc="LDO for the isolated side's 3.3 V, at least 40 V in"))
+    add(module_part("tds3a_loop_limit", ["Limit 30 mA"], "built",
+                    left=["IN"], right=["OUT"], w=900, color="#37474f",
+                    notes=["DN2540 + R"],
+                    desc="Loop current limit, about 30 mA"))
+    add(two_pin("tds3a_tvs_v", "diode", "SMAJ30A", True, "D", "TVS diode",
+                pins=("K", "A")))
     add(module_part("tds3a_transmitter", ["4-20 mA transmitter"], "built",
                     left=["+"], right=["-"], w=1100, color="#6d4c41",
                     desc="2-wire 4-20 mA transmitter on the loop terminals"))
@@ -692,54 +699,58 @@ def sheet_core(S):
 
 def sheet_loop(S):
     B = "Board"
-    S.place(B, BOARD, 11800, 1500)
+    S.place(B, BOARD, 12900, 1500)
     S.place("U2", "tds3a_load_switch", 1500, 600)
     S.place("U3", "tds3a_wide_conv", 3000, 600)
     S.place("U4", "tds3a_iso_dcdc", 4600, 600)
-    S.place("U6", "tds3a_transmitter", 6300, 600)
-    S.place("R2", "tds3a_r100_v", 7600, 835)
-    S.place("U5", "tds3a_iso_ldo", 6300, 1600)
-    S.place("U7", "tds3a_ads1115_loop", 8300, 510)
-    S.place("U8", "tds3a_i2c_isolator", 10000, 510)
-    S.place("R1", "tds3a_r100k_v", 11200, 2400)
+    S.place("U9", "tds3a_loop_limit", 6000, 600)
+    S.place("U6", "tds3a_transmitter", 7400, 600)
+    S.place("D1", "tds3a_tvs_v", 7700, 1150)
+    S.place("R2", "tds3a_r100_v", 8700, 835)
+    S.place("U5", "tds3a_iso_ldo", 7400, 2200)
+    S.place("U7", "tds3a_ads1115_loop", 9400, 510)
+    S.place("U8", "tds3a_i2c_isolator", 11100, 510)
+    S.place("R1", "tds3a_r100k_v", 12300, 2400)
     # board to the load switch: GPIO 3 drives EN, R1 pulls it low
     S.wire((B, "IO3"), ("R1", "1"), "green")
     S.wire(("R1", "2"), (B, "GND"), "black", ("y", 3150))
-    S.wire(("R1", "1"), ("U2", "EN"), "green", ("x", 11000), ("y", 3500), ("x", 1350))
+    S.wire(("R1", "1"), ("U2", "EN"), "green", ("x", 12100), ("y", 3500), ("x", 1350))
     S.wire(("R1", "2"), ("U2", "GND"), "black", ("y", 3600), ("x", 1250))
-    S.wire((B, "VSYS"), ("U2", "IN"), "orange", ("x", 11700), ("y", 3700), ("x", 1150))
+    S.wire((B, "VSYS"), ("U2", "IN"), "orange", ("x", 12800), ("y", 3700), ("x", 1150))
     # supply chain
     S.wire(("U2", "OUT"), ("U3", "VIN"), "orange")
     S.wire(("U2", "GND "), ("U3", "GND"), "black")
     S.wire(("U3", "5V"), ("U4", "+VIN"), "red")
     S.wire(("U3", "GND "), ("U4", "-VIN"), "black")
-    # isolated side
-    S.wire(("U4", "+24V"), ("U6", "+"), "purple")
-    S.wire(("U6", "+"), ("U5", "VIN"), "purple", ("x", 6100))
+    # isolated side: the limit in the loop, the TVS across the terminals
+    S.wire(("U4", "+24V"), ("U9", "IN"), "purple")
+    S.wire(("U9", "OUT"), ("U6", "+"), "purple")
+    S.wire(("U4", "+24V"), ("U5", "VIN"), "purple", ("x", 5950))
     S.wire(("U4", "0V"), ("U5", "GND"), "grey", ("x", 5900))
+    S.wire(("D1", "K"), ("U6", "+"), "purple", ("y", 1100), ("x", 7300))
     S.wire(("U6", "-"), ("R2", "1"), "brown")
+    S.wire(("D1", "A"), ("R2", "1"), "brown", ("x", 8600))
     S.wire(("R2", "1"), ("U7", "A0"), "brown")
-    S.wire(("R2", "2"), ("U7", "A1"), "grey", ("x", 8050))
-    S.wire(("U7", "GND"), ("R2", "2"), "grey", ("x", 8150), ("y", 1485))
-    S.wire(("U5", "GND "), ("R2", "2"), "grey", ("x", 7700))
-    S.wire(("U5", "3V3"), ("U8", "VDD2"), "pink", ("x", 9600))
+    S.wire(("R2", "2"), ("U7", "A1"), "grey", ("x", 9150))
+    S.wire(("U7", "GND"), ("R2", "2"), "grey", ("x", 9250), ("y", 1485))
+    S.wire(("U5", "GND "), ("R2", "2"), "grey", ("x", 8800))
+    S.wire(("U5", "3V3"), ("U8", "VDD2"), "pink", ("x", 10700))
     S.wire(("U7", "VDD"), ("U8", "VDD2"), "pink")
-    S.wire(("U7", "ADDR"), ("U7", "VDD"), "pink", ("x", 9400))
+    S.wire(("U7", "ADDR"), ("U7", "VDD"), "pink", ("x", 10500))
     S.wire(("U7", "GND "), ("U8", "GND2"), "grey")
     S.wire(("U7", "SCL"), ("U8", "SCL2"), "yellow")
     S.wire(("U7", "SDA"), ("U8", "SDA2"), "blue")
     # isolator side 1 over the board to the right header
-    S.wire(("U8", "GND1"), (B, "GND R2"), "black", ("x", 13400))
-    S.wire(("U8", "SCL1"), (B, "IO44"), "yellow", ("x", 13500))
-    S.wire(("U8", "SDA1"), (B, "IO43"), "blue", ("x", 13600))
-    S.wire(("U8", "VDD1"), (B, "3V3 R1"), "red", ("x", 13700))
-    S.note(300, 4000, 11000, [
+    S.wire(("U8", "GND1"), (B, "GND R2"), "black", ("x", 14500))
+    S.wire(("U8", "SCL1"), (B, "IO44"), "yellow", ("x", 14600))
+    S.wire(("U8", "SDA1"), (B, "IO43"), "blue", ("x", 14700))
+    S.wire(("U8", "VDD1"), (B, "3V3 R1"), "red", ("x", 14800))
+    S.note(300, 4000, 12100, [
         "# 4-20 mA loop input (FSD 29) - firmware on main",
-        "GPIO 3 high switches the loop supply on; the 100k holds it off through sleep and reset.",
-        "VSYS is the battery/system rail. Grey (0V iso) and purple (24 V) are the isolated side:",
-        "they never touch the board's ground. Shunt 100 R 0.1 %: 0.4 V at 4 mA, 2.0 V at 20 mA,",
-        "read as A0 - A1 at +/-4.096 V. The FSD leaves the isolated 3.3 V open: an LDO from 24 V",
-        "is one way, an isolator with its own isolated supply another.",
+        "GPIO 3 high switches the loop supply on (soft-start load switch); the 100k holds it off through sleep and reset.",
+        "VSYS is the battery/system rail. Grey (0V iso) and purple (24 V) are the isolated side: they never touch",
+        "the board's ground. The 30 mA limit keeps a shorted loop under 3 V on the shunt (100 R 0.1 %: 0.4 V at 4 mA,",
+        "2.0 V at 20 mA, read as A0 - A1 at +/-4.096 V). The LDO feeds the ADS1115 and isolator side 2 from 24 V.",
         LEGEND,
     ])
 
@@ -847,7 +858,7 @@ SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
     ("wiring-2-loop-4-20ma", "2  4-20 mA loop input (FSD 29)",
-     (14300, 4800), {"IO3", "VSYS", "GND", "IO44", "IO43", "3V3"}, sheet_loop),
+     (15400, 4800), {"IO3", "VSYS", "GND", "IO44", "IO43", "3V3"}, sheet_loop),
     ("wiring-3-water-probe", "3  Water pressure probe (proposed)",
      (10800, 8100), {"IO2", "GND", "IO44", "IO43", "3V3"}, sheet_water),
     ("wiring-4-rs232", "4  RS232 instrument (FSD 30)",

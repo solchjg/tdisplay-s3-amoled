@@ -3120,6 +3120,32 @@ tests:
     impl: shared/tests/host/test_ads1115.py
     result: {status: not done}
 
+  - id: TC-LOOP-05
+    title: "Loop off leaves the I2C bus free"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: bench
+    verifies: [C-29.2]
+    needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-bme280, dut-loop-hardware, loop-calibrator]
+    observable: "5 readings with loop off and 5 with loop in at 12 mA each log L21 with BME280 values; loop-probe finds 0x76 and not 0x49 with the supply off"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-LOOP-06
+    title: "A shorted loop damages nothing"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: bench
+    verifies: [C-29.3]
+    needs: [bench-serial-monitor, bench-operator-prompt, operator-at-bench, dut-amoled-slot1, dut-loop-hardware, loop-calibrator]
+    observable: "L35 fault with ma at most 30.000 for each shorted reading, no restart; then L34 within 12.000 +/- 0.040 at 12 mA"
+    impl: []
+    result: {status: not done}
+
   - id: TC-WX-19
     title: "Readings JSON ext object"
     shape: atomic
