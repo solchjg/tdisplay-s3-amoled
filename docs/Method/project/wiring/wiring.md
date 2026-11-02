@@ -75,7 +75,14 @@ LilyGO's pinout picture of the board, chip side up with the USB-C end at the
 bottom; the AMOLED is drawn beside it. Source:
 [Xinyuan-LilyGO/T-Display-S3-AMOLED](https://github.com/Xinyuan-LilyGO/T-Display-S3-AMOLED),
 © 2023 Xinyuan-LilyGO, MIT License
-([notice](lilygo-t-display-s3-amoled-pinout.LICENSE)). The header pins, top to
+([notice](lilygo-t-display-s3-amoled-pinout.LICENSE)).
+
+![T-Display-S3 AMOLED pinout, display side](pinout-display-side.png)
+
+The same board from the display face, USB-C still at the bottom, so the two
+headers swap sides; the keys, the green LED and the RESET key are where you
+see them. Yellow tags give each pin's use in this project. `make_wiring.py`
+draws it ([SVG](pinout-display-side.svg)). The header pins, chip side up, top to
 bottom:
 
 | Left header | Right header |

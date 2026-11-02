@@ -894,6 +894,87 @@ SHEETS = [
 ]
 
 
+# ----------------------------------------------------------- pinout picture
+# Use on this project's boards, by header pin (display side, top to bottom).
+PIN_USE = {
+    "IO2": "water boost EN", "IO3": "loop supply EN", "IO11": "RS232 TX",
+    "IO12": "RS232 RX", "IO13": "RS232 supply", "IO15": "loop I2C SDA",
+    "IO16": "loop I2C SCL", "IO43": "I2C SDA", "IO44": "I2C SCL",
+    "VSYS": "battery/system rail",
+}
+
+
+def pinout_display_side():
+    """The board seen from the display face, USB-C down: LilyGO's chip-side
+    pinout with the headers swapped, as one picture."""
+    W, H = 7600, 6600
+    bx, by, bw, bh = 2900, 900, 1800, 4500
+    left = [n.split()[0] for n in RIGHT_HDR]   # chip side's right header
+    right = [n.split()[0] for n in LEFT_HDR]
+    s = [f'<rect x="0" y="0" width="{W}" height="{H}" fill="#ffffff"/>',
+         t(W / 2, 260, 'LilyGO T-Display-S3 AMOLED 1.91" - display side', 150, "middle", "bold"),
+         t(W / 2, 460, "AMOLED facing you, USB-C at the bottom: the headers are swapped from LilyGO's chip-side picture",
+           80, "middle"),
+         f'<rect x="{bx}" y="{by}" width="{bw}" height="{bh}" rx="90" fill="#1b1b1b" stroke="#000000" stroke-width="16"/>',
+         f'<rect x="{bx + 330}" y="{by + 120}" width="{bw - 660}" height="{bh - 600}" rx="30" fill="#0d1b3d" stroke="#555555" stroke-width="10"/>',
+         t(bx + bw / 2, by + bh / 2 - 60, "AMOLED", 110, "middle", "bold", "#9fb7ff"),
+         t(bx + bw / 2, by + bh / 2 + 60, "536 x 240", 70, "middle", fill="#9fb7ff"),
+         f'<rect x="{bx + bw / 2 - 230}" y="{by + bh - 60}" width="460" height="160" rx="60" fill="#bdbdbd" stroke="#777777" stroke-width="10"/>',
+         t(bx + bw / 2, by + bh + 45, "USB-C", 70, "middle", "bold")]
+
+    def colours(n):
+        if n == "GND":
+            return "#111111", "#ffffff"
+        if n in ("3V3", "VSYS"):
+            return "#cc1414", "#ffffff"
+        return "#5f5f5f", "#ffffff"
+
+    for side, names in (("L", left), ("R", right)):
+        px = bx + 150 if side == "L" else bx + bw - 150
+        for k, n in enumerate(names):
+            y = by + 600 + 230 * k
+            s.append(pin_svg(k, px, y, female=True).replace(f'id="connector{k}pin" ', ""))
+            label = n.replace("IO", "GPIO ") if n.startswith("IO") else n
+            bg, fg = colours(n)
+            bw_lab = 520
+            x0 = bx - 140 - bw_lab if side == "L" else bx + bw + 140
+            s.append(f'<line x1="{px}" y1="{y}" x2="{x0 + (bw_lab if side == "L" else 0)}" y2="{y}" stroke="#888888" stroke-width="8"/>')
+            s.append(f'<rect x="{x0}" y="{y - 75}" width="{bw_lab}" height="150" rx="25" fill="{bg}"/>')
+            s.append(t(x0 + bw_lab / 2, y + 28, label, 78, "middle", "bold", fg))
+            use = PIN_USE.get(n)
+            if use:
+                ux = x0 - 60 if side == "L" else x0 + bw_lab + 60
+                tw = 46 * len(use) + 80
+                rx = ux - tw if side == "L" else ux
+                s.append(f'<rect x="{rx}" y="{y - 70}" width="{tw}" height="140" rx="25" fill="#ffe24d"/>')
+                s.append(t(rx + tw / 2, y + 25, use, 72, "middle", "bold"))
+    # keys and LED at the USB end, as on LilyGO's display-side drawing
+    ky = by + bh - 260
+    for x, name, c in ((bx + 260, "BOOT key, GPIO 0", "#cccccc"),
+                       (bx + bw - 260, "user key, GPIO 21", "#cccccc")):
+        s.append(f'<rect x="{x - 90}" y="{ky - 60}" width="180" height="120" rx="25" fill="{c}" stroke="#777777" stroke-width="8"/>')
+    s.append(f'<circle cx="{bx + 260}" cy="{ky - 230}" r="45" fill="#47cc79" stroke="#1e7a40" stroke-width="10"/>')
+    s.append(f'<line x1="{bx + 170}" y1="{ky}" x2="{bx - 700}" y2="{by + bh + 350}" stroke="#555555" stroke-width="10"/>')
+    s.append(t(bx - 720, by + bh + 400, "BOOT key, GPIO 0", 80, "end", "bold"))
+    s.append(f'<line x1="{bx + 215}" y1="{ky - 230}" x2="{bx - 700}" y2="{by + bh + 150}" stroke="#555555" stroke-width="10"/>')
+    s.append(t(bx - 720, by + bh + 200, "green LED, GPIO 38", 80, "end", "bold", "#1e7a40"))
+    s.append(f'<line x1="{bx + bw - 170}" y1="{ky}" x2="{bx + bw + 700}" y2="{by + bh + 350}" stroke="#555555" stroke-width="10"/>')
+    s.append(t(bx + bw + 720, by + bh + 400, "user key, GPIO 21", 80, "start", "bold"))
+    s.append(f'<rect x="{bx - 40}" y="{by + bh - 900}" width="40" height="220" fill="#bdbdbd" stroke="#777777" stroke-width="6"/>')
+    s.append(f'<line x1="{bx - 40}" y1="{by + bh - 790}" x2="{bx - 700}" y2="{by + bh - 50}" stroke="#555555" stroke-width="10"/>')
+    s.append(t(bx - 720, by + bh, "RESET key (edge)", 80, "end", "bold"))
+    s.append(t(bx + bw / 2, by - 60, "antenna end", 70, "middle", fill="#555555"))
+    notes = ["On the back, behind the display: the battery connector (JST GH 1.25 mm) and the Qwiic connector",
+             "(GND, 3V3, GPIO 43, GPIO 44). Yellow: how this project uses the pin (wiring.md).",
+             "Drawn by make_wiring.py from LilyGO's chip-side pinout. GPIO 38 is the green LED on this",
+             "non-touch board (panel power on the touch board)."]
+    for k, line in enumerate(notes):
+        s.append(t(300, H - 420 + 90 * k, line, 68))
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" '
+            f'width="{W * PX * 2:.0f}" height="{H * PX * 2:.0f}" viewBox="0 0 {W} {H}">'
+            + "".join(s) + "</svg>\n")
+
+
 def main():
     try:
         import cairosvg
@@ -916,6 +997,11 @@ def main():
         if cairosvg:
             cairosvg.svg2png(bytestring=pic.encode(), write_to=os.path.join(HERE, f"{name}.png"))
         print(f"{name}: {len(S.inst)} parts, {len(S.wires)} wires")
+    pic = pinout_display_side()
+    with open(os.path.join(HERE, "pinout-display-side.svg"), "w") as f:
+        f.write(pic)
+    if cairosvg:
+        cairosvg.svg2png(bytestring=pic.encode(), write_to=os.path.join(HERE, "pinout-display-side.png"))
     sys.exit(1 if bad else 0)
 
 
