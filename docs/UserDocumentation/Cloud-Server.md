@@ -1,8 +1,8 @@
 # T-Display-S3 Webserver — Cloud Server
 
 How to set up the production servers on the existing cloud VM: ThingsBoard
-(FSD §32) at `https://tb.solchjg.net` and ntfy (FSD §31) at
-`https://ntfy.solchjg.net`, both behind `https://` with Let's Encrypt
+(FSD §32) at `https://tb.<your-fqdn>`[^fqdn] and ntfy (FSD §31) at
+`https://ntfy.<your-fqdn>`, both behind `https://` with Let's Encrypt
 certificates, how to back them up, and how to move the devices from the LAN
 test server `http://192.168.2.37:8080` to them.
 
@@ -14,6 +14,9 @@ repeat. Over cellular (FSD §33) Notehub posts to these servers from the
 internet, so the LAN servers cannot serve a cellular device (R-33).
 
 Times are US Eastern (America/New_York).
+
+Replace `<your-fqdn>` everywhere in this guide, commands and files included,
+with your own domain.
 
 ## What runs on the VM
 
@@ -79,20 +82,20 @@ file below publishes ThingsBoard on `127.0.0.1` only; never publish 8080,
 
 ## 2. Domain names
 
-At the DNS provider of `solchjg.net`, add records for both names, pointing
+At the DNS provider of `<your-fqdn>`, add records for both names, pointing
 at the VM:
 
 | Name | Type | Value |
 |------|------|-------|
-| `tb.solchjg.net` | `A` | the VM's IPv4 address |
-| `ntfy.solchjg.net` | `A` | the same address |
+| `tb.<your-fqdn>` | `A` | the VM's IPv4 address |
+| `ntfy.<your-fqdn>` | `A` | the same address |
 | both | `AAAA` | the VM's IPv6 address, if it has one |
 
 Check from your computer:
 
 ```bash
-dig +short tb.solchjg.net
-dig +short ntfy.solchjg.net    # the same address
+dig +short tb.<your-fqdn>
+dig +short ntfy.<your-fqdn>    # the same address
 ```
 
 The device's `tb_url` and `ntfy_url` take these names; an `https://` URL with an IP address
@@ -207,12 +210,12 @@ sudo apt update && sudo apt -y install caddy
     email you@example.org      # Let's Encrypt expiry notices
 }
 
-tb.solchjg.net {
+tb.<your-fqdn> {
     encode gzip
     reverse_proxy 127.0.0.1:8080
 }
 
-ntfy.solchjg.net {
+ntfy.<your-fqdn> {
     reverse_proxy 127.0.0.1:2586
 }
 ```
@@ -223,14 +226,14 @@ journalctl -u caddy -f      # "certificate obtained successfully" for both names
 ```
 
 **nginx with certbot** (nginx already on 80/443) —
-`/etc/nginx/sites-available/tb.solchjg.net`, and the same file for
-`ntfy.solchjg.net` with `proxy_pass http://127.0.0.1:2586;`:
+`/etc/nginx/sites-available/tb.<your-fqdn>`, and the same file for
+`ntfy.<your-fqdn>` with `proxy_pass http://127.0.0.1:2586;`:
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name tb.solchjg.net;
+    server_name tb.<your-fqdn>;
     client_max_body_size 1m;
 
     location / {
@@ -247,9 +250,9 @@ server {
 ```
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/{tb,ntfy}.solchjg.net /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/{tb,ntfy}.<your-fqdn> /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d tb.solchjg.net -d ntfy.solchjg.net --redirect   # adds the 443 server blocks
+sudo certbot --nginx -d tb.<your-fqdn> -d ntfy.<your-fqdn> --redirect   # adds the 443 server blocks
 sudo certbot renew --dry-run                          # renewal works
 systemctl list-timers | grep certbot                  # the renewal timer
 ```
@@ -257,9 +260,9 @@ systemctl list-timers | grep certbot                  # the renewal timer
 Check from your computer, with the certificate checked as the board does:
 
 ```bash
-curl -sI https://tb.solchjg.net/ | head -1            # HTTP/2 200 (or HTTP/1.1 200)
-curl -sI http://tb.solchjg.net/  | grep -i location   # https://tb.solchjg.net/
-openssl s_client -connect tb.solchjg.net:443 -servername tb.solchjg.net </dev/null 2>/dev/null \
+curl -sI https://tb.<your-fqdn>/ | head -1            # HTTP/2 200 (or HTTP/1.1 200)
+curl -sI http://tb.<your-fqdn>/  | grep -i location   # https://tb.<your-fqdn>/
+openssl s_client -connect tb.<your-fqdn>:443 -servername tb.<your-fqdn> </dev/null 2>/dev/null \
   | grep -E 'depth|verify return'
 ```
 
@@ -274,7 +277,7 @@ The boards and the Notehub alert route publish with a token, and nobody can
 read or write without a login. `/opt/tds3/ntfy/server.yml`:
 
 ```yaml
-base-url: "https://ntfy.solchjg.net"
+base-url: "https://ntfy.<your-fqdn>"
 listen-http: ":80"
 behind-proxy: true
 cache-file: "/var/lib/ntfy/cache.db"
@@ -296,17 +299,17 @@ docker compose exec ntfy ntfy user add --role=admin joe
 docker compose exec ntfy ntfy user add tds3
 docker compose exec ntfy ntfy access tds3 'tds3*' write-only
 docker compose exec ntfy ntfy token add tds3     # prints tk_… (32 characters)
-curl -s https://ntfy.solchjg.net/v1/health        # {"healthy":true}
+curl -s https://ntfy.<your-fqdn>/v1/health        # {"healthy":true}
 ```
 
-On the board, `ntfy_url` is `https://ntfy.solchjg.net`, `ntfy_topic` e.g.
+On the board, `ntfy_url` is `https://ntfy.<your-fqdn>`, `ntfy_topic` e.g.
 `tds3-alerts`, `ntfy_token` the `tk_…` token (FSD §31.2: it fits the 1 – 64
 printable characters). In the ntfy phone app: *Settings* → *Users* → add
-`https://ntfy.solchjg.net` with user `joe`, then subscribe to `tds3-alerts`
+`https://ntfy.<your-fqdn>` with user `joe`, then subscribe to `tds3-alerts`
 on that server. Test from your computer:
 
 ```bash
-curl -H "Authorization: Bearer tk_…" -d "test from curl" https://ntfy.solchjg.net/tds3-alerts
+curl -H "Authorization: Bearer tk_…" -d "test from curl" https://ntfy.<your-fqdn>/tds3-alerts
 ```
 
 ## 6. Notehub routes (cellular devices)
@@ -316,9 +319,9 @@ your project → *Routes* → *Create route* → *General HTTP/HTTPS Request/Res
 
 | Route | Notefiles | URL | Headers | Data |
 |-------|-----------|-----|---------|------|
-| ThingsBoard telemetry | `tb.qo` | `https://tb.solchjg.net/api/v1/<tb_token>/telemetry` | `Content-Type: application/json` | JSONata `body.t` |
-| ThingsBoard attributes | `tbattr.qo` | `https://tb.solchjg.net/api/v1/<tb_token>/attributes` | `Content-Type: application/json` | JSONata `body` |
-| ntfy alerts | `alert.qo` | `https://ntfy.solchjg.net/` | `Authorization: Bearer tk_…` | JSONata `body` |
+| ThingsBoard telemetry | `tb.qo` | `https://tb.<your-fqdn>/api/v1/<tb_token>/telemetry` | `Content-Type: application/json` | JSONata `body.t` |
+| ThingsBoard attributes | `tbattr.qo` | `https://tb.<your-fqdn>/api/v1/<tb_token>/attributes` | `Content-Type: application/json` | JSONata `body` |
+| ntfy alerts | `alert.qo` | `https://ntfy.<your-fqdn>/` | `Authorization: Bearer tk_…` | JSONata `body` |
 
 Each route holds the token, never the board (FR-33.9). With several cellular
 boards, one route per board (or a JSONata expression that picks the token by
@@ -333,19 +336,19 @@ boards one at a time, keep the LAN server running a week, then stop it.
 1. **Copy the setup.** On the LAN server, export each dashboard (*Dashboards*
    → ⋮ → *Export dashboard*, a JSON file) and the device profile *TDS3
    weather* (*Profiles* → *Device profiles* → ⋮ → *Export*). Import both on
-   `https://tb.solchjg.net` (**+** → *Import*). Re-select the alias's device
+   `https://tb.<your-fqdn>` (**+** → *Import*). Re-select the alias's device
    in each imported dashboard after step 2.
 2. **Create the devices** on the cloud server (ThingsBoard Setup, section 2),
    one per board, with **new** access tokens: the LAN tokens have travelled
    in plain text. Check each token with `curl` against
-   `https://tb.solchjg.net` (ThingsBoard Setup, section 8, step 2).
+   `https://tb.<your-fqdn>` (ThingsBoard Setup, section 8, step 2).
 3. **Copy old readings (optional).** The board uploads only readings after
    its upload mark, so readings already on the LAN server do not go to the
    cloud server by themselves. To keep them, copy them with the REST API:
 
    ```bash
    OLD=http://192.168.2.37:8080
-   NEW=https://tb.solchjg.net
+   NEW=https://tb.<your-fqdn>
    JWT=$(curl -s -X POST "$OLD/api/auth/login" -H 'Content-Type: application/json' \
      -d '{"username":"tenant@thingsboard.org","password":"<LAN password>"}' | jq -r .token)
    ID=<LAN device id>
@@ -368,8 +371,8 @@ boards one at a time, keep the LAN server running a week, then stop it.
    Every line prints `200`. ThingsBoard keeps one value per key and time, so
    running it twice does no harm.
 4. **Switch each board** over Bluetooth (ThingsBoard Setup, section 5):
-   `tb_url` `https://tb.solchjg.net`, `tb_token` the new token, and for
-   alerts `ntfy_url` `https://ntfy.solchjg.net` with the `tk_…` token. The
+   `tb_url` `https://tb.<your-fqdn>`, `tb_token` the new token, and for
+   alerts `ntfy_url` `https://ntfy.<your-fqdn>` with the `tk_…` token. The
    board restarts; check the `tb sent` lines and the dashboard (ThingsBoard
    Setup, section 6). Readings taken while it was switching go up with its
    first successful batch.
@@ -460,4 +463,8 @@ holds them.
 - **Certificates:** nothing to do; the proxy renews them. Check with
   `journalctl -u caddy | grep -i renew` or `sudo certbot certificates`.
 - **Is it up:** a free external monitor (e.g. UptimeRobot) on
-  `https://tb.solchjg.net/` and `https://ntfy.solchjg.net/v1/health`.
+  `https://tb.<your-fqdn>/` and `https://ntfy.<your-fqdn>/v1/health`.
+
+[^fqdn]: `<your-fqdn>` stands for your **fully qualified domain name**, the
+    complete domain under which the VM's names are registered, e.g.
+    `example.org`, giving `tb.example.org` and `ntfy.example.org`.
