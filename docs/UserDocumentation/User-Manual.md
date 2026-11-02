@@ -90,7 +90,11 @@ at one every 10 minutes; after that the oldest are dropped.
   end. A reading taken before the clock was ever set is left out of a range.
 
 Each line is `time,synced,temp_f,rh_pct,p_mbar`, oldest first, for example
-`2026-11-01T12:31:07-0500,1,70.63,45.3,1013.25`. Over Bluetooth, see chapter 5c.
+`2026-11-01T12:31:07-0500,1,70.63,45.3,1013.25`. With the 4-20 mA input on
+(chapter 5e) each line gains one more column, named by the loop's name, empty
+for a reading without a loop value. Over Bluetooth, see chapter 5c.
+The first start of a firmware with this history format erases a history kept
+by an older firmware, once (`web: history erased reason=format` in the log).
 A factory reset (chapter 5) erases the history; with a full history that
 takes up to about 20 seconds before the device restarts.
 
@@ -291,6 +295,33 @@ The device can upload its readings to your own ThingsBoard server, in a batch
 every hour by default, for dashboards and server-side alarms. Setting up the
 server, the device's settings, the checks and the move to `https://` are in
 the [ThingsBoard Setup](ThingsBoard-Setup.md) guide.
+
+## 5e. 4-20 mA input (optional)
+
+A board with the loop add-on reads one 2-wire 4-20 mA transmitter (a pressure,
+level, flow or temperature sensor) at each reading. The loop side is isolated
+from the board and powered with 24 V only while it is read. Wire the
+transmitter to the two loop terminals; polarity as marked.
+
+Turn it on in the setup form (chapter 2) or over Bluetooth (chapter 5c):
+
+| Field | Meaning | Default |
+|-------|---------|---------|
+| Loop (`loop`) | `off` or `in` (read a transmitter) | off |
+| Name (`loop_name`) | 1 – 12 letters, digits, `_` or `-`; shown on the screen, the page, the history column and the email | `loop` |
+| Unit (`loop_unit`) | up to 6 characters, no comma | `mA` |
+| Value at 4 mA / 20 mA (`loop_lo`, `loop_hi`) | the transmitter's range, up to 3 decimals, not equal | 4 and 20 (the value is the current) |
+| Settle time (`loop_warm_ms`) | wait after the supply turns on, 50 – 5000 ms | 300 |
+
+With the loop on, the bottom line of the screen shows `<name> <value> <unit>`,
+or `<name> --` when the newest reading has no loop value; the status page,
+`/api/readings` (`"ext": {"<name>": value}`), the history and the summary
+email show it too. Each value is logged as `web: loop ma=12.000 v=50.000 psi`.
+A current below 3.6 mA or above 21.0 mA (an open loop, a short or a failed
+transmitter) is a fault: no value is kept and `web: loop failed: fault
+ma=…` is logged; the weather reading is kept as usual. With the loop on, a quick
+or sleep-cycle test (chapter 5a) passes only if every reading has a loop value,
+and its result line ends with `<name>=<values>/<readings>`.
 
 ## 6. Troubleshooting
 
