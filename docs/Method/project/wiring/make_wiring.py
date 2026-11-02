@@ -280,8 +280,8 @@ def build_parts(used):
     # Pin names are the parts' own (docs/Method/project/loop-circuit.md, "Parts").
     add(module_part("tds3a_load_switch", ["Load switch"], "built",
                     left=["VIN", "GND", "ON"], right=["VOUT", "GND "], w=900,
-                    notes=["NDP6020P", "+ 2N3904"],
-                    desc="Load switch for the loop supply: NDP6020P P-MOSFET driven by a 2N3904"))
+                    notes=["DMG2305UX", "+ 2N3904"],
+                    desc="Load switch for the loop supply: DMG2305UX P-MOSFET on a SOT-23 breakout, driven by a 2N3904"))
     add(module_part("tds3a_wide_conv", ["Converter -> 5 V"], "built",
                     left=["VIN", "GND", "SHDN"], right=["VOUT", "GND "], w=1000,
                     notes=["Pololu S7V8F5", "SHDN open"],
