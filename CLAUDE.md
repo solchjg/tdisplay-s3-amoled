@@ -87,7 +87,8 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   `history` partition (2 MB) through the shared `flash_ring`, an old 16-byte history erased once (L36), served as CSV at `/api/history`
   (`?from=&to=` dates) and paged over BLE; `history_core.c` is the pure core.
 - `components/loop/` (L1) — the 4-20 mA loop input (FSD §29): settings in NVS, the
-  GPIO 3 supply, the loop ADS1115 (shared `ads1115`, scaled by shared `loop420`) read after
+  GPIO 3 supply (also the isolator's VCC1), the loop ADS1115 on its own bus (I2C port 1, GPIO 15/16; shared
+  `ads1115`, scaled by shared `loop420`) read after
   each BME280 reading through `weather_set_ext`; `loop_core.c` is the pure core (settings,
   L34/L35). Its value is add-on slot 2 of §29.2: a float (NaN for none) in every reading,
   average, history record, `ext` in `/api/readings`, line 6, the summary and the §28 verdict;
