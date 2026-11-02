@@ -13,7 +13,7 @@ datasheets listed under Sources; check them against current ones.
 
 | Ref | Function (FSD §29.1) | Part | Notes |
 |-----|----------------------|------|-------|
-| Q1, Q2 | Load switch with a controlled rise time | Diodes DMG2305UX P-MOSFET (SOT-23 on a SOT-23 board from the Adafruit 1230 set, −20 V, V<sub>GS(th)</sub> −0.5 to −0.9 V, 100 mΩ max at −2.5 V; AO3401A is a second source) and a 2N3904 (TO-92) | See [Load switch](#load-switch) |
+| Q1, Q2 | Load switch with a controlled rise time | Diodes DMG2305UX P-MOSFET (SOT-23 on any SOT-23-to-DIP adapter, such as SparkFun BOB-00717; −20 V, V<sub>GS(th)</sub> −0.5 to −0.9 V, 100 mΩ max at −2.5 V; AO3401A and Si2301CDS are other sources) and a 2N3904 (TO-92) | See [Load switch](#load-switch) |
 | U3 | Wide-input converter to 5 V | Pololu S7V8F5 (2.7 – 11.8 V in, 5 V out) | Leave SHDN open: its 100 kΩ pull-up to VIN would fight R1, so Q1 does the switching |
 | U4 | Isolated 1 W DC-DC, 24 V | Murata NME0524SC, SIP-4 (4.5 – 5.5 V in, 24 V at 4.2 – 42 mA, 1000 VDC; pins 1 – 4 −VIN, +VIN, −VOUT, +VOUT) | Specified over 10 – 100 % load; U5 alone keeps it above 10 % |
 | U5 | Isolated 3.3 V regulator, at least 40 V across it | onsemi LM317LZG (TO-92, Pb-free, 40 V in – out; pins 1 – 3 ADJ, OUT, IN) | See [Isolated 3.3 V](#isolated-33-v) |
@@ -55,8 +55,10 @@ datasheets listed under Sources; check them against current ones.
 
 With Q2 on, V<sub>GS</sub> is about −0.91 × VSYS: −2.7 V on a 3.0 V battery, where the
 DMG2305UX is under 100 mΩ: about 35 mV dropped at 0.35 A. No through-hole P-MOSFET in
-production specifies R<sub>DS(on)</sub> at this gate drive, so Q1 is the one part on a
-breakout. Check the breakout's pin order (G, S, D for the SOT-23) when wiring it. The gate settles with a time constant of 9.1 kΩ × 47 nF, about
+production specifies R<sub>DS(on)</sub> at this gate drive, so Q1 is the one part on an
+adapter. All three sources share the SOT-23 pinout: pin 1 G, 2 S, 3 D; wire by the
+adapter's silkscreen. C3 sets the rise time, so any of them gives the same soft start.
+The gate settles with a time constant of 9.1 kΩ × 47 nF, about
 0.4 ms, so the converter and DC-DC capacitors charge without a step on the battery. It
 turns off with 100 kΩ × 47 nF, about 4.7 ms, well inside the 50 ms margin of NFR-29.2.
 
@@ -152,7 +154,9 @@ ohmmeter between J1 and USB ground: above 100 MΩ.
 ## Sources
 
 - [DMG2305UX datasheet](https://static.chipdip.ru/lib/159/DOC013159942.pdf)
-- [Adafruit 1230 SMT breakout set](https://www.adafruit.com/product/1230)
+- [SparkFun SOT23 to DIP Adapter](https://www.sparkfun.com/sparkfun-sot23-to-dip-adapter.html)
+- [AO3401A datasheet](https://static.datasheets.com/doc/6022655-alpha-omega-ao3401a-ds.pdf)
+- [Si2301CDS datasheet](https://static.chipdip.ru/lib/667/DOC012667805.pdf)
 - [Pololu S7V8F5](https://www.pololu.com/product/2123)
 - [Murata NME datasheet](https://docs.rs-online.com/c317/0900766b8167506a.pdf)
 - [onsemi LM317L datasheet](https://datasheet.ciiva.com/14562/70099595-14562037.pdf)
