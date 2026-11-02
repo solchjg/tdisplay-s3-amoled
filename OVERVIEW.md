@@ -67,8 +67,10 @@ These are stacked: #21 ← #22 ← #23 ← #26.
   own, and one that is off leaves no trace. Open point: should a test fail when an
   enabled add-on gives no value (drafted as yes).
 - **RS232 instrument input** ([#23](https://github.com/solchjg/tdisplay-s3-amoled/pull/23), FSD §30):
-  read an instrument over RS232. Proposed values to approve: GPIO 11/12/13, a
-  TRS3221E or MAX3221E transceiver, a DE-9 connector.
+  read an instrument over RS232 through a through-hole MAX3232 powered from
+  GPIO 13 (UART1 on GPIO 11/12), a panel-mount DE-9 or a screw terminal; circuit
+  in `docs/Method/project/rs232-circuit.md`. Still proposed: the field limits,
+  a 10 ms settle and the optional RTS line.
 - **ntfy push alerts** ([#26](https://github.com/solchjg/tdisplay-s3-amoled/pull/26), FSD §31):
   alerts when a reading crosses a limit and returns, when the sensor, an add-on or
   the history fails or recovers, and when a test ends. Test server

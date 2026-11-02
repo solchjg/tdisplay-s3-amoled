@@ -29,7 +29,7 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 | [1 Board, battery, BME280, Notecard](wiring-1-board-bme280-notecard.png) ([.fzz](wiring-1-board-bme280-notecard.fzz)) | BME280 on main (FSD §23); Notecarrier-A specified (§33) | GPIO 43 SDA, GPIO 44 SCL, 3V3, GND, BAT JST, Qwiic |
 | [2 4-20 mA loop input](wiring-2-loop-4-20ma.png) ([.fzz](wiring-2-loop-4-20ma.fzz)) | On main (FSD §29), circuit in [loop-circuit.md](../loop-circuit.md) | GPIO 3 supply enable and isolator power, VSYS, GPIO 15/16 loop bus, GND |
 | [3 Water pressure probe](wiring-3-water-probe.png) ([.fzz](wiring-3-water-probe.fzz)) | Proposed ([water-probe-circuit.md](../water-probe-circuit.md)) | GPIO 2 boost enable, BAT+ tap, GPIO 43/44, 3V3, GND |
-| [4 RS232 instrument](wiring-4-rs232.png) ([.fzz](wiring-4-rs232.fzz)) | Specified (FSD §30), pins and parts proposed | GPIO 11 TX, GPIO 12 RX, GPIO 13 FORCEOFF, 3V3, GND |
+| [4 RS232 instrument](wiring-4-rs232.png) ([.fzz](wiring-4-rs232.fzz)) | Specified (FSD §30), circuit in [rs232-circuit.md](../rs232-circuit.md) | GPIO 11 TX, GPIO 12 RX, GPIO 13 transceiver supply, GND |
 
 The I2C devices on the board's bus share GPIO 43/44: the BME280 at 0x76, the
 water ADS1115 at 0x48 and the Notecard at 0x17. The loop ADS1115 (0x49) has its
@@ -64,6 +64,7 @@ battery connector is a JST GH 1.25 mm.
    [water-probe-circuit.md](../water-probe-circuit.md#to-check-before-wiring)
    apply. LilyGO's picture puts GPIO 2 on the left header, third pin from the
    top.
-4. **RS232 transceiver.** A TRS3221E/MAX3221E needs its four charge-pump
-   capacitors (on a breakout they are usually fitted). FORCEON is not in the
-   FSD. Tie it high so that FORCEOFF alone decides whether the driver is on.
+4. **RS232 transceiver.** The MAX3232 takes its supply from GPIO 13, so it
+   draws nothing while the port is off. Its charge-pump and decoupling
+   capacitors, the optional RTS line and the checks before wiring are in
+   [rs232-circuit.md](../rs232-circuit.md).
