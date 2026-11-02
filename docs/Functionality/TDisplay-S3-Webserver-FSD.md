@@ -56,6 +56,7 @@ reused.
 | 31 | Push Alerts | L1 |
 | 32 | ThingsBoard Telemetry | L1 |
 | 33 | Cellular Uplink | L1 |
+| 34 | WiFi Off | cross-cutting |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -77,7 +78,10 @@ returns the device to the portal. The same settings can also be entered, and
 later changed, from a phone over Bluetooth Low Energy (§26), in a short window
 that the portal or a 3 s hold of the user key opens. New firmware is installed by telling the
 device, over HTTP, a URL to download it from; an image that does not reach the
-network after its first boot is rolled back automatically.
+network after its first boot is rolled back automatically. WiFi can be
+switched off in the settings (§34): the device then keeps its readings,
+history and sleep, reports over cellular when that uplink is chosen, and is
+set up and read over BLE alone.
 
 **Goals.** A network-attached status device that can be provisioned, observed,
 updated and recovered without a USB cable, and whose every behaviour can be
@@ -425,6 +429,22 @@ testbench.
   (alerts), §25 (summary), §22 (time), §26 (BLE settings), a NOTE-MBGLW and a
   Notecarrier-A at the bench (R-31).
 
+### 3.16 Phase 16: WiFi off
+
+- **Scope.** The `wifi` setting in the portal form and the BLE settings, the
+  WIFI_OFF connectivity state, windows and timer wakes without WiFi, the
+  senders with WiFi off.
+- **Deliverables.** §34, the WIFI_OFF rows of §5.3 and §5.4, Appendix A; a
+  User Manual section on running without WiFi.
+- **Exit criteria.** Provisioned with `wifi` `off`, the device enters
+  WIFI_OFF after every boot, never joins the bench AP or opens the SoftAP,
+  sleeps and wakes as with WiFi on, and gives its settings and history over
+  BLE; a key-window write of `wifi=on` brings it ONLINE; with WiFi on nothing
+  changes.
+- **Dependencies.** §5 (connectivity), §13 (portal form), §26 (BLE settings),
+  §21 (windows and timer wakes), §33 (cellular uplink, for reporting without
+  WiFi).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -518,6 +538,7 @@ whether a new image is confirmed, and what the LCD shows.
 | Item | Origin | Type / unit | Range | Notes |
 |------|--------|-------------|-------|-------|
 | Stored credentials | NVS (Appendix A) | SSID + password | see FR-13.4 | Present or absent at boot |
+| WiFi switch | NVS (Appendix A) | `on` / `off` | §34.2 | `on` when none is stored |
 | Retry count n | logic | unsigned | 0 – 2³² − 1 | Failed attempts since the last ONLINE; 0 at boot |
 | Retry delay | derived from n | ms | FR-5.18 | |
 | Image pending verify | bootloader / `otadata` | boolean | | True on the first boot of a newly uploaded image |
@@ -538,14 +559,15 @@ for a state are logged at debug level and discarded.
 | **CONNECTING** | A station connection attempt with the stored credentials is in progress |
 | **ONLINE** | Station has an IPv4 address; status server, OTA, mDNS and UDP log active |
 | **WIFI_LOST** | Between failed attempts, waiting for the retry delay |
+| **WIFI_OFF** | `wifi` `off` stored (§34); station, SoftAP and portal off |
 
 A connection attempt **fails** when the station reports a disconnect, or when it
 has no IP address 15 s after the attempt started.
 
 | # | Current | Event | Guard | Next | Action | Limit |
 |---|---------|-------|-------|------|--------|-------|
-| T1 | BOOT | credentials read | none stored | PROVISIONING | Start SoftAP, portal, captive DNS | `web: state=PROVISIONING` ≤ 3000 ms after reset |
-| T2 | BOOT | credentials read | stored | CONNECTING | Start station attempt; no SoftAP | `web: state=CONNECTING` ≤ 3000 ms after reset |
+| T1 | BOOT | credentials read | none stored, `wifi` not `off` | PROVISIONING | Start SoftAP, portal, captive DNS | `web: state=PROVISIONING` ≤ 3000 ms after reset |
+| T2 | BOOT | credentials read | stored, `wifi` `on` | CONNECTING | Start station attempt; no SoftAP | `web: state=CONNECTING` ≤ 3000 ms after reset |
 | T3 | PROVISIONING | credentials submitted (portal or BLE, FR-26.6) | valid (FR-13.4, FR-25.1) | CONNECTING | Store in NVS; answer 200; stop SoftAP; start station attempt | SoftAP gone ≤ 5 s after the answer |
 | T4 | PROVISIONING | credentials submitted (portal or BLE) | invalid | PROVISIONING | Answer 400; NVS unchanged | — |
 | T5 | CONNECTING | IP acquired | — | ONLINE | n := 0; start status server, mDNS, UDP log; if image pending verify, confirm it | — |
@@ -553,18 +575,20 @@ has no IP address 15 s after the attempt started.
 | T7 | ONLINE | disconnected | — | WIFI_LOST | Abort any OTA download (FR-15.13); stop status server, mDNS, UDP log; n := 1; arm retry timer with delay(1) | `web: state=WIFI_LOST` ≤ 15 s after the AP stops (NFR-5.3) |
 | T8 | WIFI_LOST | retry timer | — | CONNECTING | Start station attempt | — |
 | T9 | ONLINE | IP changed | — | ONLINE | Update the shown IP; log `web: online` again | — |
-| T10 | PROVISIONING, CONNECTING, ONLINE, WIFI_LOST | factory reset (§18) | — | restart → BOOT | Abort any OTA download; erase credentials; restart | restart ≤ 2 s after the event |
+| T10 | PROVISIONING, CONNECTING, ONLINE, WIFI_LOST, WIFI_OFF | factory reset (§18) | — | restart → BOOT | Abort any OTA download; erase credentials; restart | restart ≤ 2 s after the event |
 | T11 | ONLINE | OTA download succeeded (FR-15.10) | — | restart → BOOT | Select new slot; restart | restart ≤ 2 s after `OTA succeeded` |
 | T12 | ONLINE | OTA download failed (FR-15.11) | — | ONLINE | Boot slot unchanged | — |
 | T13 | BOOT, PROVISIONING, CONNECTING, WIFI_LOST | 60 s since reset | image pending verify | restart → BOOT | Log; restart without confirming (bootloader rolls back) | restart ≤ 2 s after the deadline |
-| T14 | CONNECTING, ONLINE, WIFI_LOST | BLE settings accepted (key window, FR-26.7) | — | restart → BOOT | Store the settings; notify `result`; close the window; restart | restart ≤ 2 s after the notification (FR-26.8) |
+| T14 | CONNECTING, ONLINE, WIFI_LOST, WIFI_OFF | BLE settings accepted (key window, FR-26.7) | — | restart → BOOT | Store the settings; notify `result`; close the window; restart | restart ≤ 2 s after the notification (FR-26.8) |
+| T15 | BOOT | credentials read | `wifi` `off` stored | WIFI_OFF | No station, no SoftAP (FR-34.4) | `web: state=WIFI_OFF` ≤ 3000 ms after reset |
+| T16 | PROVISIONING | credentials submitted (portal or BLE) | valid, `wifi` `off` (FR-34.2) | WIFI_OFF | Store in NVS; answer 200 or `ok`; stop SoftAP and the provisioning window; no station (FR-34.5) | SoftAP gone ≤ 5 s after the answer |
 
 **Completeness.** Events: credentials read (CR), credentials submitted (CS), IP
 acquired (IP), attempt failed (AF), disconnected (DC), retry timer (RT), IP
 changed (IC), factory reset (FR), OTA succeeded (OS), OTA failed (OF), 60 s since
 reset (60), BLE settings accepted (BS). A BLE `settings` write in PROVISIONING is
 CS, not BS.
-- Any state × BS other than CONNECTING, ONLINE, WIFI_LOST: impossible — a key
+- Any state × BS other than CONNECTING, ONLINE, WIFI_LOST, WIFI_OFF: impossible — a key
   window exists only in those states (FR-26.2), and a BLE write in PROVISIONING
   is CS.
 - BOOT × CS / IP / AF / DC / RT / IC / OS / OF: impossible — no network interface
@@ -587,11 +611,17 @@ CS, not BS.
   download (logging K11 as part of T7) before this state was entered. × IP / IC: impossible (no attempt in progress). × AF:
   impossible (no attempt in progress). × DC: ignored. × 60 without image pending
   verify: ignored.
+- WIFI_OFF × CR: impossible (read once, in BOOT). × CS: impossible (no portal;
+  a BLE write here is BS). × IP / AF / DC / RT / IC: impossible — the station
+  is off. × OS / OF: impossible — no download is ever started (FR-34.8).
+  × 60 with image pending verify: impossible — only an OTA download makes an
+  image pending, OTA needs ONLINE, and FR-26.17 keeps BS from changing
+  `wifi` during a download; without it: ignored.
 - Any state × reset or watchdog reset (§19): restart into BOOT; only credentials
-  persist.
-- **Prohibited:** while credentials are stored, any transition into
+  and the other settings persist.
+- **Prohibited:** while credentials or `wifi` `off` are stored, any transition into
   PROVISIONING (only T10's erase and restart lead back to it through T1,
-  FR-5.19); any restart other than T10, T11, T13, T14 and the watchdog.
+  FR-5.19, FR-34.6); any restart other than T10, T11, T13, T14 and the watchdog.
 
 #### Display region
 
@@ -630,6 +660,7 @@ check (FR-24.13) and a BLE window (FR-26.23); line 6 holds the add-on values
 | CONNECTING | `Connecting` | the stored SSID, per FR-5.29 | (empty) |
 | ONLINE | `IP <a.b.c.d>` | `Req: <n>` | `<hostname>.local` (FR-20.1) |
 | WIFI_LOST | `WiFi lost` | `Retrying` | (empty) |
+| WIFI_OFF | `WiFi off` | `Hold key 3 s for BLE` | (empty) |
 
 `<n>` is the request count of FR-14.6 in decimal, no leading zeros.
 
@@ -638,9 +669,10 @@ check (FR-24.13) and a BLE window (FR-26.23); line 6 holds the add-on values
 Connectivity:
 
 - **FR-5.11** [Must] [user] When no credentials are stored at boot, the device
-  shall enter PROVISIONING (T1).
+  shall enter PROVISIONING (T1), unless `wifi` `off` is stored (FR-34.4).
 - **FR-5.12** [Must] [user] When credentials are stored at boot, the device shall
-  enter CONNECTING (T2) without starting the SoftAP.
+  enter CONNECTING (T2) without starting the SoftAP, unless `wifi` `off` is
+  stored (FR-34.4).
 - **FR-5.13** [Must] [user] When valid credentials are submitted in PROVISIONING,
   the device shall store them in NVS and enter CONNECTING without restarting (T3).
 - **FR-5.14** [Must] [derived from FR-13.4] When invalid credentials are submitted
@@ -1147,6 +1179,7 @@ port 53. The form contract matches the testbench's default `enter-portal` call.
 - **FR-13.4** [Must] [derived from IEEE 802.11 and WPA2] A submission shall be
   valid only if `ssid` is 1 – 32 bytes and `password` is empty or 8 – 63 bytes;
   any other submission, or one missing a field, shall answer 400 naming the field.
+  With `wifi` `off` both fields may be missing (FR-34.2).
 - **FR-13.5** [Should] [pack:esp32] In PROVISIONING, every DNS A query shall be
   answered with 192.168.4.1.
 - **FR-13.6** [Should] [pack:esp32] A `GET` of any path other than `/` shall answer
@@ -1467,7 +1500,7 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31); outbound HTTP or HTTPS to the configured ThingsBoard server (§32); with `uplink` `cell`, notes over I2C to the Notecard, which sends them to Blues Notehub (§33) |
+| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31); outbound HTTP or HTTPS to the configured ThingsBoard server (§32); with `uplink` `cell`, notes over I2C to the Notecard, which sends them to Blues Notehub (§33); with `wifi` `off`, nothing over WiFi at all (§34) |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
 | Credentials | One WiFi password, one mail password, one ThingsBoard access token and an optional ntfy token, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-31.13, FR-32.3) |
@@ -1678,10 +1711,11 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
   test (FR-28.11), which continues as after a key wake.
 - **FR-21.11** [Must] [user] A key wake
   shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
-  server, then the task (local maintenance and OTA).
+  server (with `wifi` `on`, FR-34.9), then the task (local maintenance and OTA).
 - **FR-21.12** [Must] [user] The device shall not sleep before WiFi
-  provisioning is complete: while no credentials are stored (PROVISIONING),
-  the task does not run, whatever the time since boot.
+  provisioning is complete: while no credentials are stored (PROVISIONING;
+  a stored `wifi` `off` completes it, FR-34.5), the task does not run,
+  whatever the time since boot.
 - **FR-21.5** [Must] [user] Pressing the user key (GPIO 21) during sleep shall
   wake the device before the period ends.
 - **NFR-21.1** [Must] [user] Arming the key wake shall add no more than
@@ -3211,7 +3245,7 @@ Sending:
   (§25, §28, when `cell_mail` is `route`, FR-33.13) shall be sent as notes of §33.4 instead of over WiFi; a timer
   wake shall never start WiFi (FR-21.13 keeps the panel dark and WiFi off),
   and a window still starts WiFi for the page, OTA and BLE when credentials
-  are stored.
+  are stored and `wifi` is `on` (§34).
 - **FR-33.7** [Must] [user] For ThingsBoard, the upload mark (FR-32.8) shall
   move when the Notecard answers a `note.add` to `tb.qo` without an error,
   because the Notecard then holds the batch until Notehub has it. An upload
@@ -3262,6 +3296,111 @@ Power and data:
 | FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 | A reading with `at=none` after L20 | target (R-31) |
 | FR-33.8 | The user's routes set up, an alert and a summary due | The ntfy message and the email arrive | Nothing on the target with L43 logged | bench (operator) |
 | NFR-33.2 | A month of the `std` setup on cellular | Notehub's data use for the device under 4 MB | — | bench (operator) |
+
+---
+
+## 34. WiFi Off
+
+### 34.1 Purpose & peer
+
+WiFi is optional. A device placed where no WiFi reaches, or whose owner does
+not want it on a network, is set to `wifi` `off`: it never starts the
+station, the SoftAP after provisioning, or any service that runs over WiFi,
+and keeps everything else. It takes its readings, keeps its history and
+sleeps as before (§21, §23, §27), sends its scheduled traffic as notes when
+`uplink` is `cell` (§33), and is set up and read over BLE (§26, §27.3).
+Bluetooth is unchanged: the provisioning window at first setup and the 3 s
+key window afterwards. Peer: the person setting up the device, through the
+portal (§13) at first setup or a BLE settings write (§26). The pure
+`device_logic` decides the WIFI_OFF state (§5.3); the portal and
+`ble_settings` cores check the field; the composition root leaves the WiFi
+driver uninitialised.
+
+With WiFi off the device loses the status page and its API (§14), HTTP OTA
+(§15; firmware is then updated over USB, or after turning WiFi back on over
+BLE), mDNS (§17), the UDP log (§16) and SNTP (§22).
+
+### 34.2 Setting
+
+Added to the §13.2 form, in the WiFi section before `ssid`, and to the BLE
+`settings` write (§26); optional, so a submission without it leaves WiFi as
+it was (`on` on a new device).
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `wifi` | `on` or `off` | one of the two | the stored value; `on` when none is stored [user] |
+
+### 34.3 Requirements
+
+Settings:
+
+- **FR-34.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry `wifi`; a submission with any other value shall be
+  answered 400 naming `wifi` (portal) or `invalid=wifi` (BLE), NVS unchanged.
+- **FR-34.2** [Must] [proposed] With `wifi` `off` in a submission, `ssid`
+  and `password` shall be optional: given, they are checked by FR-13.4 and
+  stored; absent in PROVISIONING, no credentials are stored; absent in a key
+  window, the stored ones are kept (FR-26.7). Stored credentials are never
+  erased by turning WiFi off, so turning it back on needs no retyping.
+- **FR-34.3** [Must] [derived from FR-26.9] A `settings` read shall report
+  `wifi=<on|off>`, and the form description (FR-26.19) shall carry the field,
+  so the BLE page draws it as the portal does (FR-26.21).
+
+States:
+
+- **FR-34.4** [Must] [user] At boot with `wifi` `off` stored, the device
+  shall enter WIFI_OFF (T15) without starting the station or the SoftAP,
+  whether or not credentials are stored.
+- **FR-34.5** [Must] [user] When a valid submission with `wifi` `off`
+  arrives in PROVISIONING, from the portal or BLE, the device shall store
+  it, answer 200 or `result` `ok`, stop the SoftAP and the provisioning
+  window, and enter WIFI_OFF without restarting (T16). Provisioning is then
+  complete (FR-21.12) and the setup-check mark is set as at T3 (FR-24.1).
+- **FR-34.6** [Must] [derived from FR-5.19] In WIFI_OFF the device shall
+  leave the state only by a restart: a factory reset (T10) back to
+  PROVISIONING, or an accepted key-window write (T14), after which it boots
+  into CONNECTING when that write set `wifi` `on` with credentials given or
+  stored.
+- **FR-34.7** [Must] [derived] Entering WIFI_OFF shall log L2
+  (`web: state=WIFI_OFF`), and the screen shall show the WIFI_OFF lines of
+  §5.4.
+
+Behaviour with WiFi off:
+
+- **FR-34.8** [Must] [user] In WIFI_OFF the WiFi radio shall stay off in
+  every boot, window and wake: no station, no SoftAP, no status server, OTA,
+  mDNS, UDP log or SNTP, and nothing at the station or SoftAP MAC addresses
+  in a bench scan.
+- **FR-34.9** [Must] [user] The window after a boot that is not a timer
+  wake (FR-21.2, FR-21.3, FR-21.11) shall run in WIFI_OFF as with WiFi on but
+  without WiFi: the panel with its lines, the setup check (§24), the BLE key
+  window (§26), then the task and sleep (§21). A timer wake shall follow
+  FR-21.13 without any of its WiFi exceptions.
+- **FR-34.10** [Must] [user] With `wifi` `off` and `uplink` `cell`, the
+  summary, alerts and ThingsBoard uploads shall be sent as notes as §33
+  describes, unchanged.
+- **FR-34.11** [Must] [proposed] With `wifi` `off` and `uplink` `wifi`,
+  nothing shall be sent: no summary, test result email, alert or upload is
+  due; the summary period advances as after a dropped send (as FR-33.13),
+  alert conditions are still tracked (§31.3) but not sent, and the
+  ThingsBoard mark (FR-32.8) stays, so the readings since it are uploaded once
+  WiFi or cellular is back. The portal and BLE form say so in the WiFi
+  section's hint.
+- **FR-34.12** [Must] [derived from FR-22.1] In WIFI_OFF the clock shall be
+  set only from the Notecard (FR-33.12); with `uplink` `wifi`, readings after
+  a power loss carry no time (FR-22.3, FR-22.6) until the clock is set.
+
+### 34.4 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-34.1, FR-34.2 (core) | Portal and `ble_settings` cores, nothing stored: `wifi=off` alone; `wifi=off` with a valid `ssid`; `wifi=off` with a 33-byte `ssid`; `wifi=no`; `ssid` alone; key window with credentials stored: `wifi=off` alone | valid, no credentials; valid, credentials kept; 400 `ssid`; 400 `wifi`; valid, `wifi` `on`; valid, credentials still stored | `wifi=off` refused for a missing `ssid`; stored credentials erased | host |
+| T15, T16, T10, T14 (core) | Transition function: BOOT with `wifi` `off` stored, with and without credentials; PROVISIONING with a valid `wifi=off` submission; WIFI_OFF with factory reset and with BS | WIFI_OFF with no station or SoftAP action; WIFI_OFF with SoftAP stop; restart; restart | CONNECTING or PROVISIONING from WIFI_OFF without a restart | host |
+| FR-34.11 (core) | `wifi` `off`, `uplink` `wifi`: a summary, an alert and an upload due | Nothing sent; the summary period advanced; the mark unchanged | Any send; WiFi started | host |
+| FR-34.5, FR-34.7 | Erased flash, shipped build; bench `enter-portal` with `wifi=off` and no `ssid` | 200, then `web: state=WIFI_OFF` with no boot line between; the FR-13.1 SSID gone from a bench scan ≤ 5 s after the 200 | `web: state=CONNECTING`; a restart | bench |
+| FR-34.4, FR-34.8 | Provisioned with `wifi=off` and the bench AP's credentials; USB reset; observe 120 s with the bench AP up | `web: state=WIFI_OFF` ≤ 3000 ms after reset; the bench AP's station list never shows the device; no FR-13.1 SSID in scans | An association with the bench AP; `web: online`; the SoftAP seen | bench |
+| FR-34.9 | As FR-34.4, sleep test build, a summary due on the next timer wake | The window without WiFi, `web: sleep`, `web: wake cause=timer`, L21, `web: sleep`; no WiFi start | A WiFi start on any wake; the panel lit on the timer wake | target |
+| FR-34.6, FR-34.3 | WIFI_OFF; a key window; the bench BLE central reads `settings`, then writes `wifi=on` and applies | The read holds `wifi=off`; `result` `ok`; a restart; `web: state=CONNECTING`, then `web: online` | ONLINE without a restart; PROVISIONING | bench |
 
 ---
 
@@ -3329,6 +3468,7 @@ Runtime configuration (the only persisted items):
 | `tb_token` | text | none | 1 – 64 letters, digits, `-`, `_` | NVS | secret | portal (§13, §32.2), BLE write only (§26) | FR-32.1 | immediate (T3); restart (T14) | erased by factory reset |
 | `tb_mark` | place in the history | before the oldest reading | §27 | NVS | operational | moved by an accepted upload (FR-32.8) | none | next upload | erased by factory reset |
 | `uplink`, `nh_product`, `cell_every`, `cell_mail` | text / number | `wifi`, none, 60, `off` | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
+| `wifi` | on/off | `on` | `on`, `off` | NVS | operational | portal (§13, §34.2), BLE (§26) | FR-34.1 | immediate (T3, T16); restart (T14) | erased by factory reset (back to `on`) |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
@@ -3485,7 +3625,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.27.0
+fsd_version: 0.28.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3544,8 +3684,13 @@ change_history:
   - "0.25.0 2026-11-02 from the user's acceptance of the RS232 revisit (through-hole and in-stock parts, nothing drawn while off, as the loop's own bus): §30.1 the transceiver is a MAX3232 in a DIP socket powered from GPIO 13 instead of a TRS3221E / MAX3221E with FORCEOFF, GPIO 11/12 float while off, a 10 ms settle and an optional RTS (proposed), a panel-mount DE-9 or 5.08 mm terminal; FR-30.1, FR-30.2 reworded; NFR-30.2 replaced by C-30.2 (no current while off); UART1 and GPIO 11 – 13 accepted (C-30.1); §2.2, Phase 12, Appendix A updated; circuit in rs232-circuit.md"
   - "0.26.0 2026-11-02 from the user's choice of separate attachable add-on boards: §2.2 gains the add-on boards (each analog add-on with its own ADS1115) and their connectors (proposed); §29.1 and §30.1 gain a Board row; §33.2 the Notecarrier joins by GND, SDA and SCL only, from the carrier's I2C fan-out (proposed); §29.1 peer wording"
   - "0.27.0 2026-11-02 from the user's antenna question (orientation of the Blues combined LTE + GPS antenna, can it be cut): §33.2 gains an Antenna row (proposed)"
+  - "0.28.0 2026-11-02 from the user's request for an option to turn WiFi off with Bluetooth left as it is: §34 WiFi Off (FR-34.1 – FR-34.12), the WIFI_OFF state with T15 and T16 (§5.3) and its screen (§5.4), T10 and T14 from WIFI_OFF, exceptions for `wifi` `off` added to FR-5.11, FR-5.12, FR-13.4, FR-21.11, FR-21.12 and FR-33.6, §9.1, Phase 16; Appendix A `wifi`"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
+  - "§34 WiFi Off as a whole, drafted for the user's approval"
+  - "FR-34.2: with `wifi` `off`, WiFi credentials optional, and stored ones kept so WiFi can be turned back on without retyping"
+  - "FR-34.11: with `wifi` `off` and `uplink` `wifi`, the setting is accepted and nothing is sent (summary period advances, ThingsBoard mark stays)"
+  - "§5.4: WIFI_OFF screen `WiFi off` / `Hold key 3 s for BLE`"
   - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"
   - "FR-26.23: line 5 `BLE setup on` in the provisioning window"
   - "FR-26.22: a static random BLE address, replaced whenever no bond is held (phones keep a stale entry for the old one)"
