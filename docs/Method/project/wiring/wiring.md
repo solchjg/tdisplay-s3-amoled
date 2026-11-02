@@ -26,7 +26,7 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 
 | Sheet | Status | Board pins |
 |---|---|---|
-| [1 Board, battery, BME280, Notecard](wiring-1-board-bme280-notecard.png) ([.fzz](wiring-1-board-bme280-notecard.fzz)) | BME280 on main (FSD §23); Notecarrier-A specified (§33) | GPIO 43 SDA, GPIO 44 SCL, 3V3, GND, BAT JST, Qwiic |
+| [1 Board, battery, BME280, Notecard](wiring-1-board-bme280-notecard.png) ([.fzz](wiring-1-board-bme280-notecard.fzz)) | BME280 on main (FSD §23); Notecarrier-X v1.3 specified (§33) | GPIO 43 SDA, GPIO 44 SCL, 3V3, GND, BAT JST, Qwiic |
 | [2 4-20 mA loop input](wiring-2-loop-4-20ma.png) ([.fzz](wiring-2-loop-4-20ma.fzz)) | On main (FSD §29), circuit in [loop-circuit.md](../loop-circuit.md) | GPIO 3 supply enable and isolator power, VSYS, GPIO 15/16 loop bus, GND |
 | [3 Water pressure probe](wiring-3-water-probe.png) ([.fzz](wiring-3-water-probe.fzz)) | Proposed ([water-probe-circuit.md](../water-probe-circuit.md)) | GPIO 2 boost enable, VSYS, GPIO 43/44, 3V3, GND |
 | [4 RS232 instrument](wiring-4-rs232.png) ([.fzz](wiring-4-rs232.fzz)) | Specified (FSD §30), circuit in [rs232-circuit.md](../rs232-circuit.md) | GPIO 11 TX, GPIO 12 RX, GPIO 13 transceiver supply, GND |
@@ -53,7 +53,7 @@ Over four to six pins the 2.5 mm pitch fits 0.1" perfboard.
 | 5-pin XH | 4-20 mA loop (sheet 2) | GND, VSYS, GPIO 3, GPIO 15 SDA, GPIO 16 SCL | 0.25 – 0.35 A on VSYS for about 0.3 s a reading |
 | 6-pin XH | Water probe (sheet 3) | GND, VSYS, 3V3, GPIO 43 SDA, GPIO 44 SCL, GPIO 2 | About 0.5 µA on 3V3 in sleep (ADS1115 powered down) |
 | 4-pin XH | RS232 (sheet 4) | GND, GPIO 13, GPIO 11 TX, GPIO 12 RX | Up to about 6 mA from GPIO 13 while the port is on |
-| 4-pin Qwiic (JST-SH) | Notecarrier-A (sheet 1) | GND, not connected, GPIO 43 SDA, GPIO 44 SCL | None from the board: the Notecarrier's own LiPo or USB powers it |
+| 4-pin Qwiic (JST-SH) | Notecarrier-X (sheet 1) | GND, not connected, GPIO 43 SDA, GPIO 44 SCL | None from the board: the Notecarrier's own LiPo or USB powers it |
 
 - **I2C fan-out.** GPIO 43/44 run on the carrier to the BME280, the water socket and the
   Qwiic socket, so the board's own Qwiic connector stays free. The Notecard has its own
