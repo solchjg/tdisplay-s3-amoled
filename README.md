@@ -17,4 +17,4 @@ identity, RM67162 driver, board constants, font) live in
 [`solchjg/esp-idf-components`](https://github.com/solchjg/esp-idf-components),
 the submodule `shared/`: clone with `git clone --recurse-submodules`.
 
-Documentation: [`docs/00-Overview.md`](docs/00-Overview.md).
+Documentation: [`docs/00-Overview.md`](docs/00-Overview.md). Project status at a glance: [`OVERVIEW.md`](OVERVIEW.md).
