@@ -285,6 +285,9 @@ def build_parts(used):
     add(module_part("tds3a_lte_antenna", ["LTE antenna", "flexible, u.FL"], "specified",
                     left=["u.FL"], w=1000, color="#424242",
                     desc="Flexible LTE antenna with a u.FL lead, on the Notecard's MAIN port"))
+    add(module_part("tds3a_gps_antenna", ["GPS antenna", "optional, gps on"], "specified",
+                    left=["u.FL"], w=1000, color="#424242",
+                    desc="GPS antenna with a u.FL lead, on the Notecard's GPS port (optional)"))
     # 4-20 mA loop input, FSD section 29
     # Pin names are the parts' own (docs/Method/project/loop-circuit.md, "Parts").
     add(module_part("tds3a_load_switch", ["Load switch"], "built",
@@ -903,7 +906,9 @@ def sheet_blues(S):
                              ("Q SDA", "SDA", "blue", 3700, 2800),
                              ("Q SCL", "SCL", "yellow", 3600, 2700)):
         S.wire((B, bp), ("U2", np_), c, ("y", y), ("x", x))
+    S.place("AE2", "tds3a_gps_antenna", 6400, 3425)
     S.wire(("U2", "MAIN"), ("AE1", "u.FL"), "white")
+    S.wire(("U2", "GPS"), ("AE2", "u.FL"), "grey", ("x", 4700), ("y", 2850), ("x", 6200))
     S.wire(("U2", "BAT-"), ("BT2", "-"), "black")
     S.wire(("U2", "BAT+"), ("BT2", "+"), "red")
     S.note(300, 4100, 5800, [
@@ -912,8 +917,9 @@ def sheet_blues(S):
         "GND, SDA GPIO 43 and SCL GPIO 44 only. The cable's 3V3 wire and the Notecarrier's",
         "3V3 pin stay unconnected. The Notecarrier's own LiPo (2000 mAh or more, JST-PH)",
         "or its USB-C feeds the Notecard and the modem peaks of up to about 2 A.",
-        "Fit the LTE antenna on MAIN before power-up. GPS and WIFI stay empty (cellular",
-        "only, FR-33.14). Parts, budgets and checks in blues-cellular.md.",
+        "Fit the LTE antenna on MAIN before power-up. WIFI stays empty (cellular only,",
+        "FR-33.14). The GPS antenna is fitted only with gps on, for a fix during the",
+        "setup check (FR-33.15). Parts, budgets and checks in blues-cellular.md.",
         LEGEND,
     ])
 
@@ -928,7 +934,7 @@ SHEETS = [
     ("wiring-4-rs232", "4  RS232 instrument (FSD 30)",
      (9200, 6000), {"IO11", "IO12", "IO13", "GND"}, sheet_rs232),
     ("wiring-5-blues-cellular", "5  Blues cellular uplink (FSD 33)",
-     (6400, 5100), set(), sheet_blues),
+     (7700, 5200), set(), sheet_blues),
 ]
 
 

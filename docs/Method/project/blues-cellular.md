@@ -2,7 +2,8 @@
 
 The hardware for the cellular uplink of FSD §33: a Blues Notecard Cell+WiFi
 **NOTE-MBGLW**, hardware v2.5, on a **Notecarrier-X v1.3**, both parts the user owns.
-The device runs the Notecard on cellular only (FR-33.14). The FSD specifies it, but
+The device runs the Notecard on cellular only (FR-33.14), and, when `gps` is `on`,
+uses its GPS once per setup check to take a fix of the place (FR-33.15). The FSD specifies it, but
 neither the firmware nor the wiring is built yet. Nothing is soldered: the Notecarrier
 joins the I2C bus by a Qwiic cable, and the antenna and the LiPo plug into it. Fritzing
 [sheet 5](wiring/wiring-5-blues-cellular.png) shows the wiring, and sheet 1 shows the
@@ -23,6 +24,7 @@ Sources; check them against the current ones.
 | U2 | Modem | Blues Notecard Cell+WiFi NOTE-MBGLW v2.5, M.2 key E: LTE Cat-1 bis, global bands, 500 MB and 10 years of service included | I2C 0x17, 10 kΩ pull-ups to its VIO. Its WiFi stays unused (FR-33.14) |
 | U2 | Carrier | Blues Notecarrier-X v1.3: M.2 socket, USB-C, JST-PH LiPo connector and charger, Qwiic and ESLOV I2C connectors | No onboard antenna. ESLOV also carries ATTN, which this device does not use |
 | AE1 | LTE antenna | Flexible LTE antenna with a u.FL lead, such as Blues' flexible LTE antenna | On the Notecard's `MAIN` port. Required: the carrier has none |
+| AE2 | GPS antenna, optional | The GPS part of Blues' combined LTE + GPS flexible antenna, or a single passive GPS antenna, u.FL | On the Notecard's `GPS` port, only with `gps` `on`. Never cut the combined antenna |
 | BT2 | Notecard supply | LiPo cell, 3.7 V, at least 2000 mAh, JST-PH 2.0 mm, protected | Check the JST-PH polarity: makers wire it both ways |
 | W1 | Bus link | Qwiic (JST-SH 4-pin) cable, 100 – 200 mm | Its red 3.3 V wire is cut or pulled from the plug at the carrier end |
 
@@ -53,8 +55,9 @@ unreliable access point.
 | Carrier Qwiic socket pin 3 | Notecarrier-X Qwiic SDA | GPIO 43, SDA |
 | Carrier Qwiic socket pin 4 | Notecarrier-X Qwiic SCL | GPIO 44, SCL |
 | Notecard `MAIN` u.FL | AE1 | LTE RF |
+| Notecard `GPS` u.FL | AE2, only with `gps` `on` | GPS RF |
 | Notecarrier-X JST-PH | BT2 | LiPo, charged from USB-C |
-| Notecard `GPS`, `WIFI` u.FL; ESLOV; Notecarrier headers | nothing | Unused |
+| Notecard `WIFI` u.FL; ESLOV; Notecarrier headers | nothing | Unused |
 
 On the bench, sheet 5 takes the bus from the board's own Qwiic connector, which carries
 the same GPIO 43/44. In the build, the carrier's I2C fan-out feeds the BME280, the water
@@ -80,6 +83,16 @@ Notecarrier's regulator are never tied together, and the shared ground keeps the
 levels referenced. The Notecard's VIO is 3.3 V from the carrier, the same level as the
 board's bus.
 
+### GPS at setup
+
+The Notecard's GPS and its modem never run together, and the GPS turns on only after
+the Notecard's first completed Notehub sync. So the device starts the search after the
+setup check's time step, keeps it for the hold, and, on a fix, sends
+`card.location.mode` `fixed` with the place: the GPS turns off, and Notehub tags later
+events with it. A cold first fix takes 1 – 2 minutes with a view of the sky; the
+Notecard gives a seek up after about 17 minutes, or after 90 s with no signal at all
+(R-35).
+
 ### Always powered
 
 The Notecard stays powered through deep sleep (FR-33.5) and idles at about 18 µA.
@@ -94,6 +107,7 @@ network, so nothing on the board switches it.
 | One sync, idle included | about 0.42 mAh | Blues' 30-minute test |
 | Hourly syncs (`cell_every` 60) | about 10 mAh a day | Each `sync:true` alert or email adds a session; weak signal costs more |
 | BT2 runtime | about 6 months on 2000 mAh | Between charges; `cell_every` 240 cuts the sync cost about 4×, with readings up to 4 h late |
+| GPS | at most one seek per setup check, about 17 min at the longest | From BT2; off the rest of the time (FR-33.15) |
 | Modem peaks | up to about 2 A | Carried by BT2 and the Notecarrier's regulator |
 | Board current | none | Only the I2C pull-ups' share while the bus is driven |
 | Data | about 1 – 2.5 MB a month at hourly syncs | Blues measured 1.3 – 3.5 KB per sync of up to 100 notes; NFR-33.2 allows 4 MB |
@@ -113,10 +127,14 @@ What the firmware does with `uplink` `cell` (FSD §33.5):
 4. On a boot whose clock was never set, ask `card.time`. In a window, request one
    `hub.sync` and ask again every 5 s for up to 60 s; on a timer wake ask once
    (FR-33.12).
-5. Add the due notes with `note.add`: `tb.qo` batches of at most 100 readings, then
+5. In a setup check with `gps` `on`, send `card.location.mode` `continuous` and ask
+   `card.location` every 5 s. On a fix, store it, send `fixed` with it and log L45;
+   at the end of a hold without one, send `fixed` with the stored place or `off`, and
+   log L45 `none`. Line 6 shows the search meanwhile (FR-33.16 – FR-33.19).
+6. Add the due notes with `note.add`: `tb.qo` batches of at most 100 readings, then
    `tbattr.qo`; `alert.qo` and `mail.qo` with `sync:true` (FR-33.6 – FR-33.8). Each
    accepted note is L43, each refused one L44.
-6. Move the upload mark past each accepted batch (FR-33.7), and sleep within 10 s of the
+7. Move the upload mark past each accepted batch (FR-33.7), and sleep within 10 s of the
    wake (NFR-33.1).
 
 Notehub reaches the route targets from the internet, so the LAN test servers can't
@@ -136,7 +154,9 @@ in a note (FR-33.9).
    Notecarrier only with its supply on.
 5. **The antenna first.** Fit AE1 on `MAIN` before powering the Notecarrier: the modem
    must not transmit without a load.
-6. **BT2's plug.** Check the LiPo's JST-PH polarity against the Notecarrier's marking.
+6. **AE2, when used.** Fit it on `GPS`, not `MAIN`: the two u.FL ports sit side by
+   side.
+7. **BT2's plug.** Check the LiPo's JST-PH polarity against the Notecarrier's marking.
 
 ## Bring-up
 
@@ -147,6 +167,8 @@ on GPIO 43/44 beside the BME280. It:
 - reads `card.version`, `card.transport` and `card.wireless` (the signal bars);
 - adds one `tb.qo` note of 100 readings and prints how long `note.add` took, which must
   fit in NFR-33.1's 10 s at 100 kHz, else the batch limit is 50 (FR-33.7);
+- with AE2 fitted, turns the GPS on after a sync and prints the `card.location` status
+  every 5 s until a fix, to time a cold fix at the bench window;
 - forces one sync and reads the session's data use from Notehub, to compute the monthly
   figure for NFR-33.2 from a measurement.
 
@@ -156,7 +178,9 @@ Mount AE1 per the [User Manual, 5g](../../UserDocumentation/User-Manual.md#5g-pl
 long axis vertical, on the inside of a plastic enclosure wall, at least 10 mm from
 metal, the LiPo and both PCBs, its coax clear of the AMOLED's QSPI lines and the
 ESP32-S3's antenna. Check the fit by the signal bars in `tbattr.qo` with the enclosure
-closed. Keep USB-C on the Notecarrier reachable, or route it out, to charge BT2.
+closed. With `gps` `on`, give AE2 the best view of the sky the site allows (the
+upper wall facing a window, or outdoors), and run the setup check with the box in place,
+so the fix is the place where it stands. Keep USB-C on the Notecarrier reachable, or route it out, to charge BT2.
 
 ## Sources
 
@@ -165,6 +189,8 @@ closed. Keep USB-C on the Notecarrier reachable, or route it out, to charge BT2.
 - [Blues: Low-Power Firmware Design, power usage estimates](https://dev.blues.io/notecard/notecard-walkthrough/low-power-firmware-design/#power-usage-estimates)
 - [Blues: Notecard WiFi v2 deep sleep](https://dev.blues.io/notecard/notecard-walkthrough/low-power-firmware-design/#deep-sleep-mode-on-notecard-wifi-v2)
 - [Blues: Cell+WiFi, WiFi first with cellular fallback](https://dev.blues.io/blog/next-generation-of-notecards/#wifi-connectivity-with-a-fallback-to-cellular)
+- [Blues: Time and location requests, GPS](https://dev.blues.io/notecard/notecard-walkthrough/time-and-location-requests/#working-with-gps-on-the-notecard)
+- [Blues: Diagnosing GPS issues](https://dev.blues.io/support/diagnosing-gps-issues/)
 - [Blues: Antenna guide](https://dev.blues.io/datasheets/application-notes/antenna-guide/)
 - [Blues: Low Bandwidth Design, data usage](https://dev.blues.io/notecard/notecard-walkthrough/low-bandwidth-design/#periodic-minimum-mode-usage)
 - [Blues: Understanding event credits](https://dev.blues.io/notehub/notehub-walkthrough/#understanding-event-credits)

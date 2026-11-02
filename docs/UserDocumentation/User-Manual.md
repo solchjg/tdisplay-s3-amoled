@@ -52,6 +52,12 @@ With no stored credentials the display shows `Setup WiFi`, the network name
    device stays up for one more minute, takes its first reading and goes to
    sleep. Holding BOOT for 5 seconds still erases the settings (chapter 5).
 
+   With the cellular uplink and GPS turned on (`gps` `on`, chapter 5g), the sixth
+   line shows `GPS searching` with the time so far, then the place once the
+   Notecard has a fix. Leave the device where it will stand until the place
+   shows, then press the key. A first fix usually takes a few minutes; without
+   one, the device keeps the place it found before.
+
    If nobody presses the key within 30 minutes, the device goes to sleep
    anyway. It waits again the next time it is woken by the key or powered on,
    until the key is pressed during a wait. A timer wake never waits. A factory
@@ -381,8 +387,11 @@ whether the Notecard gets a signal once the board is in its enclosure.
   LiPo, the Notecarrier, the display board and screws.
 - Bend the antenna and its thin cable only in gentle curves, never a crease.
   Route the cable away from the display board.
-- The GPS port is not used, so its antenna can stay unplugged or stowed. The
-  Notecard's own WiFi is not used either (the device runs it on cellular
+- The GPS port is used only when GPS is turned on in the settings (`gps` `on`),
+  for a fix of the place during the setup check. Then plug the GPS antenna (the
+  GPS part of the combined antenna, or a single one) into the Notecard's `GPS`
+  u.FL and give it the best view of the sky: the upper wall facing a window, or
+  outdoors. With GPS off, the port can stay empty. The Notecard's own WiFi is not used either (the device runs it on cellular
   only), so its small onboard WiFi antenna and `WIFI` connector need nothing.
 - Do not cut the combined LTE + GPS flexible antenna to place the two parts
   apart: both parts are tuned together on one strip. If you want them in
