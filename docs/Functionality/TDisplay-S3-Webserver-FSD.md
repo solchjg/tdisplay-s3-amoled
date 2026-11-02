@@ -380,7 +380,7 @@ testbench.
   alerts with hysteresis, the test alert, sending on a timer wake.
 - **Deliverables.** §31, the FR-21.13 exception for a due alert, L39, L40,
   R-28; the shared `ntfy_tx` component in esp-idf-components.
-- **Exit criteria.** With the user's test server at `http://192.168.2.37:8080`
+- **Exit criteria.** With the user's test server at `http://192.168.2.231`
   a reading past a limit puts one message on the topic and the reading back
   inside it one more; an unreachable server logs L40 and the device still
   sleeps within 50 s; with `ntfy` `off` nothing changes and the settings stay.
@@ -454,10 +454,10 @@ testbench.
 | R-26 | OTA never rewrites the partition table, so a device updated only by OTA has no `history` partition | Certain | Low | FR-27.8: it runs without history and says so (L31); a USB flash of the full image adds the partition |
 | R-30 | The bench offers no ThingsBoard server, so an upload has no automatic observer | Certain | Medium | The `tb_tx` and `telemetry_core` logic is host-tested; target tests need a ThingsBoard CE container on the bench network (testbench change request, never a project workaround); the production server is an operator check |
 | R-22 | Bench tests that provision the DUT and then expect it to sleep after the window now meet the setup check hold, and SLOT1 cannot drive GPIO 21 | Certain | Medium | Tests that need sleep press the key by operator prompt, or run the sleep test builds, whose hold times out after 60 s; the shipped 30 min is a build constant, not a runtime value |
-| R-28 | The testbench offers no ntfy server; the user's test server is at `192.168.2.37:8080` on the LAN, and the bench AP network may not route to it | Medium | Medium | The cores are host-tested; the unreachable-server row runs on the target tier; if the bench AP cannot reach the server, the bench rows are blocked (testbench change request, never a project workaround) and run by the operator with the device on the user's own WiFi |
+| R-28 | The testbench offers no ntfy server; the user's test server is at `http://192.168.2.231` (port 80) on the LAN, reached from the bench AP network; `192.168.2.37:8080` is ThingsBoard, not ntfy | Low | Medium | The cores are host-tested; the unreachable-server row runs on the target tier; if the bench AP stops reaching the server, the bench rows are blocked (testbench change request, never a project workaround) and run by the operator with the device on the user's own WiFi |
 | R-31 | The testbench has no Notecard and no cellular coverage is declared at the bench, so the cellular rows need a Notecard on SLOT1's bus and a Notehub project | Certain | Medium | The user fits the Notecarrier-A by Qwiic at the bench; until then the cellular rows are `not done` and the cores are host-tested |
 | R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
-| R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
+| R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`, `192.168.2.231`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
 ### 4.2 Assumptions
@@ -2771,7 +2771,7 @@ valid and leaves alerts off.
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
 | `ntfy` | alerts `on` or `off` | one of the two; `on` needs `ntfy_url` and `ntfy_topic`, given or stored | the stored value; `off` when none is stored [user] |
-| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.37:8080` | 10 – 96 bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | none |
+| `ntfy_url` | server base URL, `http://` or `https://`, host, optional `:port`, no path, query or trailing `/`; e.g. `http://192.168.2.231` | 10 – 96 bytes; host of letters, digits, `.` and `-`; port 1 – 65535 | none |
 | `ntfy_topic` | topic name | 1 – 64 characters from `A-Z a-z 0-9 _ -` (ntfy's own limit); required with `ntfy_url` | none |
 | `ntfy_token` | access token, sent as `Authorization: Bearer <token>` | 1 – 64 printable ASCII characters, no space | no `Authorization` header |
 | `alert_t_lo`, `alert_t_hi` | temperature limits, °F | decimal, at most 1 decimal, −40.0 – 185.0 | no alert on that side |
@@ -2899,7 +2899,7 @@ Sending:
 | FR-31.4 (core) | Every limit pair at its edge and one hysteresis step inside; a sensor fail and recover; RS232 and loop off with L38/L35-like inputs | Start and end exactly as §31.3; nothing for an add-on that is off | An alert for an add-on that is off (FR-29.14) | host |
 | FR-31.8, FR-31.13 (core) | `ntfy_tx` core builds the request for `t_high` with and without a token; titles and bodies at their longest names | Method, path, the four headers and `Authorization` only with a token; body as §31.3; no request over 1024 bytes | The token in the body or title; a header missing | host |
 | FR-31.11 (core) | `ntfy_tx` core maps replies 200, 401, 403, 429, 500, a cut reply | `ok`, `auth`, `auth`, `limit`, `server`, `timeout` | Success on a non-`2xx` reply | host |
-| FR-31.8, FR-31.12, NFR-31.2 | Provisioned with `ntfy_url=http://192.168.2.37:8080` (the user's test server) and a test topic, `alert_t_hi` set 1 °F below the room; ONLINE; the test polls `GET <url>/<topic>/json?poll=1` | L39 `t_high`; the message on the server with the title, priority 4 and the `warning` tag within 5 s of L21 | No message; two messages | bench (R-28) |
+| FR-31.8, FR-31.12, NFR-31.2 | Provisioned with `ntfy_url=http://192.168.2.231` (the user's test server) and a test topic, `alert_t_hi` set 1 °F below the room; ONLINE; the test polls `GET <url>/<topic>/json?poll=1` | L39 `t_high`; the message on the server with the title, priority 4 and the `warning` tag within 5 s of L21 | No message; two messages | bench (R-28) |
 | FR-31.10, NFR-31.1 | Sleep test build, the same server and limit, a timer wake | `web: wake cause=timer`, L21, L39, `web: sleep` within 50 s; panel dark | WiFi on a timer wake with nothing due; L2 or L7 lines | target / bench (R-28) |
 | FR-31.11 | Same build, `ntfy_url` pointing at an address with no server | L40 `connect` with the event, then `web: sleep` within 50 s; on the next timer wake one more try and L40; on the one after, nothing | A retry in the same run; a third try | target |
 | FR-31.7 | Mail off, ntfy set; double press for `quick` | One `test pass` message with the L33 line as its body; L39 `test_pass` | A message per reading; the result email expected | bench (R-28) |
@@ -3425,7 +3425,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.22.0
+fsd_version: 0.22.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3476,6 +3476,7 @@ change_history:
   - "0.20.0 2026-11-02 from the user's choice of the Blues NOTE-MBGLW over the Walter module as the first cellular option: §33 Cellular Uplink (FR-33.1 – FR-33.13, NFR-33.1, NFR-33.2; email over cellular selectable by `cell_mail`, route or off, from the user's request; ThingsBoard batches, alerts and summary email as Notecard notes routed by Notehub, the clock from the Notecard), L20 `src=cell`, L43, L44, R-31 – R-33, Phase 15; §2.2, §4.4, §9.1 and Appendix A updated; carrier, bus, power, settings and limits proposed"
   - "0.21.0 2026-11-02 the user accepted every proposed §29 value (GPIO 3 supply enable, the shunt, the loop ADS1115 and its bus, the loop field lengths and settle range, a mean of 4, the 50 ms supply margin, the FR-6.14 line tops); the loop ADS1115 runs at 128 SPS (§29.1, FR-29.2 contract); the loop supply is fed from the battery/system rail (§2, §29.1, Appendix A)"
   - "0.22.0 2026-11-02 (drafted as 0.16.0 beside main) from the user's answers to the ThingsBoard plan (self-hosted server, HTTP device API rather than MQTT, a batch every 60 minutes, `http://` first and `https://` with Let's Encrypt later, alarms in ThingsBoard's rule engine as well as the firmware's own ntfy alerts): §32 ThingsBoard Telemetry (FR-32.1 – FR-32.15, NFR-32.1), FR-21.13 and FR-25.6 gain the upload wake, FR-26.9 covers `tb_token`, a `tb` on/off switch (FR-32.14) and a `services` master switch over ntfy and ThingsBoard (FR-32.15), both from the user's request, L41, L42, R-30, Phase 14; §9.1 and Appendix A updated"
+  - 0.22.1 2026-11-02 the ntfy test server is `http://192.168.2.231` (the user's correction; `192.168.2.37:8080` is ThingsBoard): §31.2 example, Phase 13 exit criteria, R-28 (the bench AP reaches it, seen at the bench check), R-33, the FR-31.8 test row
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9]
 open_decisions:
   - "§30.1, C-30.1: UART1 on TX GPIO 11, RX GPIO 12, transceiver FORCEOFF GPIO 13 (to confirm by loopback commissioning)"

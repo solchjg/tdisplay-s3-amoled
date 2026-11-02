@@ -323,6 +323,20 @@ void web_log_loop(const char *text, bool ok)
     }
 }
 
+void web_log_ntfy_sent(const char *event)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ntfy_sent(line, sizeof line, event);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_ntfy_failed(const char *reason, const char *event)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_ntfy_failed(line, sizeof line, reason, event);
+    ESP_LOGW(TAG, "%s", line);
+}
+
 void web_log_test(const char *text, bool ok)
 {
     if (ok) {

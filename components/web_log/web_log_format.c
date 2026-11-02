@@ -154,6 +154,16 @@ void wl_fmt_history_failed(char *buf, size_t len, const char *err)
     snprintf(buf, len, "history failed: %s", err);
 }
 
+void wl_fmt_ntfy_sent(char *buf, size_t len, const char *event)
+{
+    snprintf(buf, len, "ntfy sent %s", event);
+}
+
+void wl_fmt_ntfy_failed(char *buf, size_t len, const char *reason, const char *event)
+{
+    snprintf(buf, len, "ntfy failed: %s %s", reason, event);
+}
+
 void wl_fmt_history_erased_format(char *buf, size_t len)
 {
     snprintf(buf, len, "history erased reason=format");

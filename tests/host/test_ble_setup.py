@@ -138,12 +138,12 @@ int main(int argc, char **argv)
 {
     pc_creds_t cur = {"home net", "pw-secret1"};
     char out[2048 + BSET_MERGE_EXTRA];  // CONFIG_BLE_SETUP_BODY_MAX
-    static char form[3072];             // CONFIG_BLE_SETUP_FORM_MAX
+    static char form[4096];             // CONFIG_BLE_SETUP_FORM_MAX
     if (!strcmp(argv[1], "prepare")) {
         size_t n = 0;
         const char *bad = bset_prepare(argv[3], strlen(argv[3]),
                                        strcmp(argv[2], "prov") ? BSET_CHANGE : BSET_PROVISION,
-                                       &cur, "mail-secret", out, sizeof out, &n);
+                                       &cur, "mail-secret", out, 2048 + BSET_MERGE_EXTRA, &n);
         if (bad) { printf("bad %s", bad); return 0; }
         pc_creds_t c; sm_settings_t s; sp_sel_t sel; lp_settings_t lp;
         pc_parse_form(out, n, &c);
@@ -167,11 +167,14 @@ int main(int argc, char **argv)
         }
         lp_settings_t loop;
         lp_defaults(&loop);
+        nf_settings_t a = {0};
         if (argv[2][0] == '1') {
             lp_parse("loop=in&loop_name=tank&loop_unit=m%20WC&loop_lo=-1.5&loop_hi=10",
                      63, &loop);
+            a.on = true; strcpy(a.url, "http://192.168.2.231"); strcpy(a.topic, "tds3-t");
+            strcpy(a.token, "tk-secret"); a.has = 2; a.lim[NF_T][1] = 9000;
         }
-        bset_dump(&cur, &s, &sel, &loop, out, sizeof out);
+        bset_dump(&cur, &s, &sel, &loop, &a, out, sizeof out);
         printf("%s", out);
     } else if (!strcmp(argv[1], "form")) {
         printf("%zu|", bset_form(form, sizeof form));
@@ -193,10 +196,11 @@ def bset(compile_harness):
     return compile_harness("ble_settings", SET_HARNESS,
                            ["ble_settings/ble_settings_core.c", "sampling/sampling_core.c",
                             "summary/summary_core.c", "portal/portal_core.c",
-                            "weather/weather_core.c", "loop/loop_core.c", "loop420/loop420.c"],
+                            "weather/weather_core.c", "loop/loop_core.c", "loop420/loop420.c",
+                            "notify/notify_core.c", "ntfy_tx/ntfy_tx_core.c"],
                            ["ble_settings/include", "sampling/include", "summary/include",
                             "portal/include", "weather/include", "loop/include",
-                            "loop420/include"])
+                            "loop420/include", "notify/include", "ntfy_tx/include"])
 
 
 # TC-BLE-06 · FR-26.6 (core): in the provisioning window a write is a portal submission
@@ -248,14 +252,18 @@ def test_dump_has_no_secret(bset):
                   "&mail_user=me%40x.org&mail_password_set=1&mail_from=&mail_to=you%40x.org"
                   "&mail_to2=&mail_time=07%3A05&mail_every=6&setup=custom&sample_min=5"
                   "&average_min=30&loop=in&loop_name=tank&loop_unit=m%20WC&loop_lo=-1.5"
-                  "&loop_hi=10&loop_warm_ms=300")
+                  "&loop_hi=10&loop_warm_ms=300&ntfy=on&ntfy_url=http%3A%2F%2F192.168.2.231"
+                  "&ntfy_topic=tds3-t&ntfy_token_set=1&alert_t_lo=&alert_t_hi=90.0"
+                  "&alert_rh_lo=&alert_rh_hi=&alert_p_lo=&alert_p_hi=")
     off = bset("dump", "0")
     assert "mail_host=&mail_port=&" in off and "mail_password_set=0" in off
     # TC-SET-02 · FR-28.3 (core): the setup with the tests still to run
     assert "&setup=std%2Ccycle&sample_min=10&average_min=60&" in off
     # FR-29.11 (core): the loop settings, off with the defaults
-    assert off.endswith("&loop=off&loop_name=loop&loop_unit=mA&loop_lo=4&loop_hi=20"
-                        "&loop_warm_ms=300")
+    assert ("&loop=off&loop_name=loop&loop_unit=mA&loop_lo=4&loop_hi=20"
+            "&loop_warm_ms=300&ntfy=off&") in off
+    # TC-NTFY-11 · FR-31.2, FR-31.13 (core): the token only as its flag
+    assert "ntfy_token_set=0" in off and "ntfy_token=" not in on
 
 
 def test_dump_round_trips_through_a_key_window_write(bset):
@@ -279,7 +287,7 @@ def test_key_window_write_checks_the_loop(bset, body, expected):
 def test_form_rules_cover_every_field(bset):
     import urllib.parse as up
     n, body = bset("form").split("|", 1)
-    assert int(n) == len(body) < 3072
+    assert int(n) == len(body) < 4096
     rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
              for k, v in up.parse_qsl(body, keep_blank_values=True)}
     shown = [k[:-4] if k.endswith("_set") else k

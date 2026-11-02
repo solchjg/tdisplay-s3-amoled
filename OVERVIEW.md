@@ -72,7 +72,7 @@ These are stacked: #21 ← #22 ← #23 ← #26.
 - **ntfy push alerts** ([#26](https://github.com/solchjg/tdisplay-s3-amoled/pull/26), FSD §31):
   alerts when a reading crosses a limit and returns, when the sensor, an add-on or
   the history fails or recovers, and when a test ends. Test server
-  `http://192.168.2.37:8080`. Three proposed values to approve.
+  `http://192.168.2.231`.
 
 ### Plans (no PR yet)
 

@@ -325,6 +325,35 @@ ma=…` is logged; the weather reading is kept as usual. With the loop on, a qui
 or sleep-cycle test (chapter 5a) passes only if every reading has a loop value,
 and its result line ends with `<name>=<values>/<readings>`.
 
+## 5f. Push alerts
+
+The device can send a short push notification to your phone when something
+needs attention: a reading goes past a limit you set (and again when it comes
+back), the sensor or the history fails (and again when it works), or a test
+(chapter 5a) ends. Alerts go through an [ntfy](https://ntfy.sh) server, your
+own or the public one; on the phone, install the ntfy app and subscribe to
+the same topic. Routine readings stay in the summary email (chapter 5b).
+
+| Field | What to enter |
+|-------|---------------|
+| Alerts | `on` to send alerts, `off` to stop them; off keeps everything below |
+| ntfy server | e.g. `http://192.168.2.231` or `https://ntfy.sh`; no path |
+| Topic | letters, digits, `-` and `_`; the setup page suggests a random one. On a public server anyone who knows the topic can read the alerts |
+| Access token | only if your server needs one; never shown or logged |
+| Temperature below / above | °F, one decimal; empty for no alert on that side |
+| Humidity below / above | whole %; empty for none |
+| Pressure below / above | mbar, two decimals; empty for none |
+
+An alert says what happened, e.g. *tds3-a1b2c3 temperature high* with
+*Temp 91.2 F, limit 90.0 F, 2026-11-01 14:05*; tapping it opens the device's
+page when your phone is on the same network. A reading must come back past
+the limit by 1 °F, 2 % or 1 mbar before the *normal* alert goes out, so a
+reading sitting on the limit does not send a stream of alerts. While asleep,
+the device turns WiFi on only when an alert is due. If an alert cannot be
+sent, the serial log says why (`ntfy failed: ... <event>`) and the device
+tries once more at its next reading. Change these settings with your phone
+(chapter 5c), or by a factory reset and a new setup.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |

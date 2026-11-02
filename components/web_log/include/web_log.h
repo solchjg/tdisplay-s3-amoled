@@ -99,6 +99,9 @@ void web_log_history_erased_format(void);
 // L34 (info, ok) and L35 (warning) (FR-29.4, FR-29.5), their text made by the
 // loop core.
 void web_log_loop(const char *text, bool ok);
+// L39 (an alert delivered, FR-31.12) and L40 (warning: not delivered, FR-31.11).
+void web_log_ntfy_sent(const char *event);
+void web_log_ntfy_failed(const char *reason, const char *event);
 
 // L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning
 // level when the test failed (ok false).

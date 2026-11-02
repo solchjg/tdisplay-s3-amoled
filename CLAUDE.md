@@ -99,6 +99,10 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/summary/` (L1) — the summary email (FSD §25): mail settings from
   the portal form in NVS, the due rule, the message (`summary_core.c` pure), sent
   through the shared `mail_tx`; a timer wake starts WiFi only for a due summary.
+- `components/notify/` (L1) — push alerts (FSD §31): ntfy settings from the portal form or a BLE
+  write in NVS, the condition state (limits with hysteresis, failures, one retry) in RTC memory,
+  titles and bodies (`notify_core.c` pure), sent through the shared `ntfy_tx`; a timer wake starts
+  WiFi only for due alerts or a due summary.
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key
   window), the `settings` read without secrets, the field rules the page checks
@@ -108,7 +112,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ble_setup`, `flash_ring` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `ble_setup`, `flash_ring` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through

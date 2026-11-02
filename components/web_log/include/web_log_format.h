@@ -88,3 +88,6 @@ void wl_fmt_history_failed(char *buf, size_t len, const char *err);
 
 // L36 "history erased reason=format" (FR-29.12).
 void wl_fmt_history_erased_format(char *buf, size_t len);
+// L39 "ntfy sent <event>" (FR-31.12); L40 "ntfy failed: <reason> <event>" (FR-31.11).
+void wl_fmt_ntfy_sent(char *buf, size_t len, const char *event);
+void wl_fmt_ntfy_failed(char *buf, size_t len, const char *reason, const char *event);

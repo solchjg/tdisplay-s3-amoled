@@ -4,7 +4,8 @@ How to set up the production servers on the existing cloud VM: ThingsBoard
 (FSD §32) at `https://tb.<your-fqdn>`[^fqdn] and ntfy (FSD §31) at
 `https://ntfy.<your-fqdn>`, both behind `https://` with Let's Encrypt
 certificates, how to back them up, and how to move the devices from the LAN
-test server `http://192.168.2.37:8080` to them.
+test servers (ThingsBoard `http://192.168.2.37:8080`, ntfy
+`http://192.168.2.231`) to them.
 
 **Status: specified, not yet built.** The device side of ThingsBoard and ntfy
 follows the FSD; this guide covers only the server. Device settings, the

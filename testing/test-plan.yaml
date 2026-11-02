@@ -349,6 +349,13 @@ capabilities:
     available: no
     consequence: >
       Not built yet; TC-WX-12 is blocked until it is.
+  ntfy-server:
+    what: "The user's ntfy test server at http://192.168.2.231 (port 80), reachable from the bench AP network and from the test host"
+    available: unproven
+    consequence: >
+      R-28; TC-NTFY-20 is its first run. If the bench AP cannot route to
+      it, the bench rows are blocked (testbench change request) and run by
+      the operator with the DUT on the user's own WiFi.
   operator-at-bench:
     what: A person at the bench answers operator prompts and can see the AMOLED panel, held USB-C to the right
     available: yes
@@ -2838,6 +2845,175 @@ tests:
     needs: []
     observable: "two short presses within 1 s are a double; a long press, presses 1.5 s apart, a key held from the start or a 40 ms glitch are not"
     impl: [tests/host/test_sampling.py::test_two_short_presses_are_a_double, tests/host/test_sampling.py::test_a_long_press_then_a_short_one_is_no_double, tests/host/test_sampling.py::test_presses_too_far_apart_are_no_double, tests/host/test_sampling.py::test_a_key_held_from_the_start_must_be_released_first, tests/host/test_sampling.py::test_a_glitch_is_not_a_press]
+    result: {status: not done}
+
+  - id: TC-NTFY-01
+    title: "Alert fields of the portal form and a BLE write"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: host
+    verifies: [FR-31.1, FR-31.2, FR-31.14]
+    needs: []
+    observable: "none: off; ntfy=on alone: 400 ntfy; on with URL and topic: on; each field invalid in turn: 400 naming it; t limits 70 and 71: 400 alert_t_hi; ntfy=maybe: 400 ntfy; over stored settings: off keeps URL, topic, token and limits, an absent token is kept, an empty one clears it"
+    impl: [tests/host/test_notify.py::test_parse, tests/host/test_notify.py::test_parse_over_stored]
+    result: {status: not done}
+
+  - id: TC-NTFY-02
+    title: "Alerts start, end and retry with hysteresis"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: host
+    verifies: [FR-31.4, FR-31.5, FR-31.6, FR-31.11]
+    needs: []
+    observable: "alert_t_hi 90.0, readings 89.0, 90.5, 91.0, 89.5, 88.9, 90.1 F: t_high at 90.5, nothing at 91.0 and 89.5, t_high_ok at 88.9, t_high at 90.1; a failed send tried once more, then dropped; a start never delivered has no end alert"
+    impl: [tests/host/test_notify.py::test_high_limit_sequence, tests/host/test_notify.py::test_failed_send_tried_once_more_then_dropped, tests/host/test_notify.py::test_start_never_delivered_has_no_end, tests/host/test_notify.py::test_end_failed_then_back_up_says_nothing_new]
+    result: {status: not done}
+
+  - id: TC-NTFY-03
+    title: "Every limit and failure condition"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: host
+    verifies: [FR-31.4]
+    needs: []
+    observable: "each limit pair at its edge and one hysteresis step inside starts and ends exactly as §31.3; sensor and history failures start and end; no limit, no alert"
+    impl: [tests/host/test_notify.py::test_each_limit, tests/host/test_notify.py::test_failures, tests/host/test_notify.py::test_values]
+    result: {status: not done}
+
+  - id: TC-NTFY-04
+    title: "Alert titles, bodies, priority and tags"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: host
+    verifies: [FR-31.8]
+    needs: []
+    observable: "titles per §31.3 and event names with _ok; Temp 91.2 F, limit 90.0 F, <stamp>; humidity whole, pressure 2 decimals, no time for a clock never set; test pass 3 white_check_mark, FAIL 4 warning"
+    impl: [tests/host/test_notify.py::test_titles, tests/host/test_notify.py::test_limit_bodies, tests/host/test_notify.py::test_test_alert]
+    result: {status: not done}
+
+  - id: TC-NTFY-05
+    title: "ntfy_tx core: checks, request and reply"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: host
+    verifies: [FR-31.8, FR-31.9, FR-31.11, FR-31.13]
+    needs: []
+    observable: "URL, topic and token checks; the POST with Title, Priority, Tags, Click and Authorization only with a token; header values one line, cut; no request over 1024 bytes; 200 ok, 401/403 auth, 429 limit, 5xx server, others refused"
+    impl: shared/tests/host/test_ntfy_tx.py
+    result: {status: not done}
+
+  - id: TC-NTFY-11
+    title: "The token never in a BLE settings read"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: host
+    verifies: [FR-31.2, FR-31.13]
+    needs: []
+    observable: "settings read with a token stored: ntfy_token_set=1 and no token byte; without: ntfy_token_set=0"
+    impl: [tests/host/test_ble_setup.py::test_dump_has_no_secret]
+    result: {status: not done}
+
+  - id: TC-NTFY-12
+    title: "L39 and L40 lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: host
+    verifies: [FR-31.11, FR-31.12]
+    needs: []
+    observable: "ntfy sent t_high; ntfy failed: connect sensor_ok"
+    impl: [tests/host/test_web_log.py::test_ntfy_lines]
+    result: {status: not done}
+
+  - id: TC-NTFY-20
+    title: "A limit crossing reaches the test server"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: bench
+    verifies: [FR-31.8, FR-31.12, NFR-31.2]
+    needs: [bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1, bench-wifi-ap, ntfy-server]
+    observable: "provisioned with ntfy_url=http://192.168.2.231, a test topic and alert_t_hi 1 F below the room, ONLINE: L39 t_high and one message on the topic (GET <url>/<topic>/json?poll=1) with the title, priority 4 and tag warning within 5 s of L21"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-NTFY-21
+    title: "An alert on a timer wake"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: target
+    verifies: [FR-31.10, NFR-31.1]
+    needs: [bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1, seam-sleep-build, ntfy-server]
+    observable: "sleep test build, the same server and limit: web: wake cause=timer, L21, L39, web: sleep within 50 s, panel dark; no WiFi on a wake with nothing due"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-NTFY-22
+    title: "An unreachable server"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: target
+    verifies: [FR-31.11]
+    needs: [bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1, seam-sleep-build]
+    observable: "ntfy_url at an address with no server: L40 connect with the event and web: sleep within 50 s; one more try and L40 on the next timer wake; nothing on the one after"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-NTFY-23
+    title: "The test alert"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: bench
+    verifies: [FR-31.7]
+    needs: [bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1, bench-wifi-ap, ntfy-server, operator-at-bench, dut-user-key]
+    observable: "mail off, ntfy on; double press for quick: one test pass message with the L33 line as its body and L39 test_pass"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-NTFY-24
+    title: "Alerts off leave no trace"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: target
+    verifies: [FR-31.14]
+    needs: [bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1, seam-sleep-build]
+    observable: "alerts set up, then ntfy=off written over BLE, a timer wake with a reading past the limit: L21 and web: sleep with no L39, L40 or WiFi start"
+    impl: []
+    result: {status: not done}
+
+  - id: TC-NTFY-25
+    title: "The alert on the user's phone"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 13
+    tier: bench
+    verifies: [FR-31.8, FR-31.13]
+    needs: [operator-at-bench, ntfy-server]
+    observable: "the phone subscribed to the topic in the ntfy app: the alert shows with its title; tapping it on the LAN opens the device page; a token marker never in serial, UDP or a message"
+    impl: []
     result: {status: not done}
 
   - id: TC-LOOP-01
