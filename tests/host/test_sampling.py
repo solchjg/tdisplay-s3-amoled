@@ -12,11 +12,14 @@ HARNESS = r"""
 // | run <tests mask> <script>: script letters, one per reading of the running test:
 //     o ok, x failed, then for cycle readings optionally ':<period>:<closed>' per letter
 //     is given as separate argv items "o:<period>:<closed>"; "K" ends by key, "R" by reset
+// EXT_LOOP=<name> turns the loop on: a step "o-" is a reading without its value.
+static wx_ext_cfg_t cfg;
+
 static void show(const sp_run_t *r)
 {
     for (int i = 0; i < r->n; i++) {
         char line[SP_LOG_MAX];
-        sp_log_end(&r->result[i], line);
+        sp_log_end(&r->result[i], &cfg, line);
         printf("%s\n", line);
     }
     char v[SP_LINE_MAX];
@@ -47,6 +50,13 @@ int main(int argc, char **argv)
         // prints the wait after each reading, "next" when a test starts.
         static sp_run_t r;
         uint8_t mask = (uint8_t)atoi(argv[2]);
+        const char *loop = getenv("EXT_LOOP");
+        uint8_t want = 0;
+        if (loop) {
+            cfg.s[WX_EXT_LOOP].on = true;
+            snprintf(cfg.s[WX_EXT_LOOP].name, sizeof cfg.s[WX_EXT_LOOP].name, "%s", loop);
+            want = 1u << WX_EXT_LOOP;
+        }
         sp_begin(&r);
         int t = sp_next(mask);
         if (t >= 0) {
@@ -62,7 +72,9 @@ int main(int argc, char **argv)
             long long period = 0;
             unsigned closed = 0;
             bool clock = sscanf(a + 1, ":%lld:%u", &period, &closed) == 2;
-            uint32_t wait = sp_reading(&r, a[0] == 'o', clock, period, closed);
+            uint8_t have = strchr(a, '-') ? 0 : want;
+            uint32_t wait = want ? sp_reading_ext(&r, a[0] == 'o', want, have, clock, period, closed)
+                                 : sp_reading(&r, a[0] == 'o', clock, period, closed);
             printf("%u ", (unsigned)wait);
             if (wait == 0) {
                 sp_end(&r, SP_BY_NONE);
@@ -78,7 +90,7 @@ int main(int argc, char **argv)
         show(&r);
         char subj[SM_SUBJECT_MAX], body[512];
         sp_mail_subject(&r, "tds3-a1b2c3", subj);
-        sp_mail_body(&r, body, sizeof body);
+        sp_mail_body(&r, &cfg, body, sizeof body);
         printf("%s\n%s", subj, body);
     }
     return 0;
@@ -245,3 +257,37 @@ def test_a_key_held_from_the_start_must_be_released_first(taps):
 def test_a_glitch_is_not_a_press(taps):
     s = presses(("0", 5), ("1", 2), ("0", 15), ("1", 5), ("0", 5))
     assert taps(s).split() == ["27P"]
+
+
+# TC-SET-09 · FR-29.10, FR-29.14 (core): with the loop on, a reading counts only
+# with its loop value, and L33 ends with the loop's count
+def test_quick_with_the_loop_off_has_no_loop_field(core):
+    out = core("run", 1, *["o"] * 12).splitlines()
+    assert out[1] == "test end id=quick readings=12/12 averages=0/0 result=pass"
+
+
+def test_quick_with_the_loop_on_and_every_value(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "loop")
+    out = core("run", 1, *["o"] * 12).splitlines()
+    assert out[1] == "test end id=quick readings=12/12 averages=0/0 result=pass loop=12/12"
+    assert out[2] == "Test pass 12/12"
+    assert out[4] == out[1], "the result email reports it too"
+
+
+def test_quick_with_one_loop_value_missing_fails(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "tank")
+    out = core("run", 1, *["o"] * 11, "o-").splitlines()
+    assert out[1] == "test end id=quick readings=11/12 averages=0/0 result=fail tank=11/12"
+    assert out[2] == "Test FAIL 11/12"
+
+
+def test_quick_with_no_loop_value_at_all(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "loop")
+    out = core("run", 1, *["o-"] * 12).splitlines()
+    assert out[1].endswith("readings=0/12 averages=0/0 result=fail loop=0/12")
+
+
+def test_a_failed_bme280_reading_has_no_loop_value_counted(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "loop")
+    out = core("run", 1, "x", *["o"] * 11).splitlines()
+    assert out[1].endswith("readings=11/12 averages=0/0 result=fail loop=11/12")

@@ -5,8 +5,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define DL_LINES 5
-#define DL_LINE_MAX 34  // 33 characters (FSD §5.4) plus the terminator
+#define DL_LINES 6
+#define DL_LINE_CHARS 33   // lines 1 – 5 (FSD §5.4)
+#define DL_LINE6_CHARS 44  // line 6, in the smaller font (FR-6.14)
+#define DL_LINE_MAX 45     // the longest line plus the terminator
 #define DL_SSID_SHOWN 20  // FR-5.29
 
 // Connectivity states (FSD §5.3).
@@ -22,9 +24,11 @@ typedef struct {
     const char *hostname;     // FR-20.1, without ".local"
     const char *reading;      // line 4 in every state (FR-23.12)
     const char *prompt;       // line 5 in every state, the setup check (FR-24.12)
+    const char *addons;       // line 6 in every state, the add-on values (FR-29.8)
 } dl_view_t;
 
-// The five lines of FSD §5.4 for v's state.
+// The six lines of FSD §5.4 for v's state, lines 1 – 5 cut at 33 characters
+// and line 6 at 44.
 void dl_screen(const dl_view_t *v, char out[DL_LINES][DL_LINE_MAX]);
 
 // FR-5.29: each byte outside 0x20 – 0x7E becomes '?'; cut to 20 characters.

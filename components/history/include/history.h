@@ -14,8 +14,12 @@
 
 // Finds the partition and the ring's end, and finishes a factory reset's erase
 // cut short (FR-27.7). ESP_ERR_NOT_FOUND: no `history` partition (FR-27.8).
+// FR-29.12: a history of the old 16-byte records is erased first, once.
 esp_err_t history_open(void);
 bool history_available(void);
+
+// FR-29.12: whether this boot's history_open erased an old-format history (L36).
+bool history_format_erased(void);
 
 // FR-27.1: one kept reading.
 esp_err_t history_append(const wx_reading_t *r);

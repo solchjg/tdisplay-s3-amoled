@@ -44,10 +44,11 @@ int main(int argc, char **argv)
 {
     if (strcmp(argv[1], "screen") == 0) {
         // screen <state> <softap_ssid> <stored_ssid> <ip> <requests> <hostname>
-        // optional 8th and 9th: line 4's reading (FR-23.12), line 5's prompt (FR-24.12)
+        // optional 8th – 10th: line 4's reading (FR-23.12), line 5's prompt (FR-24.12),
+        // line 6's add-on values (FR-29.8)
         dl_view_t v = {conn(argv[2]), argv[3], argv[4], argv[5],
                        (uint32_t)strtoul(argv[6], NULL, 10), argv[7], argc > 8 ? argv[8] : NULL,
-                       argc > 9 ? argv[9] : NULL};
+                       argc > 9 ? argv[9] : NULL, argc > 10 ? argv[10] : NULL};
         char lines[DL_LINES][DL_LINE_MAX];
         dl_screen(&v, lines);
         for (int i = 0; i < DL_LINES; i++) {
@@ -499,3 +500,19 @@ def test_t14_ble_settings_store_and_restart(run):
             ("BOOT", cacts(run, "STORE_SETTINGS", "RESTART"), 2), state
     for state in ("BOOT", "PROVISIONING"):
         assert conn(run, state, "BS", guard=1) == (state, 0, 0), f"{state} x BS is impossible"
+
+
+# TC-DL-12 · FR-29.8, FR-6.14 (core): line 6 holds the add-on values in every
+# state, cut at 44 characters; lines 1 - 5 stay cut at 33
+@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
+def test_line_six_in_every_state(run, state):
+    lines = run("screen", state, *ONLINE[1:], "r", "p", "Tank 12.346 psi").split("\n")
+    assert lines[5] == "Tank 12.346 psi"
+    assert lines[:3] == screen(run, state)
+    assert run("screen", state, *ONLINE[1:]).split("\n")[5] == ""
+
+
+def test_line_six_is_cut_at_44_and_line_four_at_33(run):
+    lines = run("screen", "ONLINE", *ONLINE[1:], "R" * 40, "", "L" * 50).split("\n")
+    assert lines[3] == "R" * 33
+    assert lines[5] == "L" * 44

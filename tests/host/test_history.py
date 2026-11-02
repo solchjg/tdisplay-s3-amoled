@@ -29,9 +29,33 @@ static bool next(void *ctx, void *cursor, char line[HIST_LINE_MAX])
 
 static wx_reading_t reading(char **a)
 {
-    return (wx_reading_t){.time = atoll(a[0]), .synced = atoi(a[1]) != 0,
-                          .temp_centi_c = atoi(a[2]), .hum_q10_pct = (uint32_t)atol(a[3]),
-                          .press_q8_pa = (uint32_t)atol(a[4])};
+    wx_reading_t r = {.time = atoll(a[0]), .synced = atoi(a[1]) != 0,
+                      .temp_centi_c = atoi(a[2]), .hum_q10_pct = (uint32_t)atol(a[3]),
+                      .press_q8_pa = (uint32_t)atol(a[4])};
+    wx_ext_clear(&r);
+    return r;
+}
+
+// EXT_LOOP=<name>[,<value>] and EXT_RS=<name>,<dec>[,<value>] turn add-ons on.
+static wx_ext_cfg_t cfg;
+static void ext_from_env(wx_reading_t *r)
+{
+    const char *loop = getenv("EXT_LOOP"), *rs = getenv("EXT_RS");
+    if (loop) {
+        cfg.s[WX_EXT_LOOP] = (wx_ext_def_t){.on = true, .dec = 3};
+        sscanf(loop, "%12[^,]", cfg.s[WX_EXT_LOOP].name);
+        const char *v = strchr(loop, ',');
+        if (v) r->ext[WX_EXT_LOOP] = strtof(v + 1, NULL);
+    }
+    if (rs) {
+        cfg.s[WX_EXT_RS232] = (wx_ext_def_t){.on = true};
+        int dec = 3;
+        sscanf(rs, "%12[^,],%d", cfg.s[WX_EXT_RS232].name, &dec);
+        cfg.s[WX_EXT_RS232].dec = (uint8_t)dec;
+        const char *v = strchr(rs, ',');
+        v = v ? strchr(v + 1, ',') : NULL;
+        if (v) r->ext[WX_EXT_RS232] = strtof(v + 1, NULL);
+    }
 }
 
 int main(int argc, char **argv)
@@ -39,12 +63,16 @@ int main(int argc, char **argv)
     const char *cmd = argv[1];
     if (!strcmp(cmd, "line")) {  // line <time> <synced> <centi_c> <q10> <q8> <iso>
         wx_reading_t r = reading(argv + 2), back;
+        ext_from_env(&r);
         hist_rec_t rec;
         hist_pack(&r, &rec);
         hist_unpack(&rec, &back);
-        char out[HIST_LINE_MAX];
-        hist_line(&back, argv[7], out);
-        printf("%zu|%s", sizeof rec, out);
+        char out[HIST_LINE_MAX], head[HIST_HEADER_MAX];
+        hist_line(&back, argv[7], &cfg, out);
+        hist_header(&cfg, head);
+        printf("%zu|%s|%s", sizeof rec, head, out);
+    } else if (!strcmp(cmd, "fmt")) {  // fmt <has> <fmt> <old_found>
+        printf("%d", hist_format_action(atoi(argv[2]), (uint8_t)atoi(argv[3]), atoi(argv[4])));
     } else if (!strcmp(cmd, "dates")) {  // dates <from> <to>
         hist_dates_t d;
         bool ok = hist_parse_dates(argv[2], strlen(argv[2]), argv[3], strlen(argv[3]), &d);
@@ -113,6 +141,7 @@ int main(void)
     char b[96];
     wl_fmt_history_unavailable(b, sizeof b); puts(b);
     wl_fmt_history_failed(b, sizeof b, "ESP_ERR_FLASH_OP_FAIL"); puts(b);
+    wl_fmt_history_erased_format(b, sizeof b); puts(b);
     return 0;
 }
 """
@@ -138,15 +167,54 @@ def core(compile_harness):
     (("1793550667", 1, 8500, 102400, 28160000, "x"), "x,1,185.00,100.0,1100.00\n"),
 ])
 def test_record_round_trip_and_line(core, args, line):
-    size, out = core("line", *args).split("|")
-    assert size == "16"
+    size, head, out = core("line", *args).split("|")
+    assert size == "24"
+    assert head == "time,synced,temp_f,rh_pct,p_mbar\n", "no add-on column while off"
     assert out == line
 
 
 def test_line_matches_the_l21_values(core):
     # the same reading as test_weather's L21 example renders the same numbers
-    out = core("line", 1793550667, 1, 2146, 46336, 25939200, "T").split("|")[1]
+    out = core("line", 1793550667, 1, 2146, 46336, 25939200, "T").split("|")[2]
     assert out.split(",")[2:] == ["70.63", "45.3", "1013.25\n"]
+
+
+# TC-HIST-05 · FR-29.6, §29.2 (core): an add-on column only while it is on
+READING = (1793550667, 1, 2146, 46336, 25939200, "T")
+
+
+def test_loop_column_with_a_value(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "tank,12.3456")
+    _, head, out = core("line", *READING).split("|")
+    assert head == "time,synced,temp_f,rh_pct,p_mbar,tank\n"
+    assert out == "T,1,70.63,45.3,1013.25,12.346\n"
+
+
+def test_loop_column_without_a_value_is_empty(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "tank")
+    out = core("line", *READING).split("|")[2]
+    assert out == "T,1,70.63,45.3,1013.25,\n"
+    assert "nan" not in out.lower()
+
+
+def test_both_columns_slot_1_first_and_the_longest_line_fits(core, monkeypatch):
+    monkeypatch.setenv("EXT_LOOP", "abcdefghijkl,-3e38")
+    monkeypatch.setenv("EXT_RS", "mnopqrstuvwx,4,-3e38")
+    _, head, out = core("line", *READING).split("|")
+    assert head == "time,synced,temp_f,rh_pct,p_mbar,mnopqrstuvwx,abcdefghijkl\n"
+    assert out.endswith("\n") and out.count(",") == 6 and len(out) < 160
+
+
+# TC-HIST-06 · FR-29.12 (core): an old history erased once, a new device only marked
+@pytest.mark.parametrize("has,fmt,old,action", [
+    (0, 0, 1, 1),   # first boot over an old history: erase (L36)
+    (0, 0, 0, 2),   # a new device: only store the format, no L36
+    (1, 2, 0, 0),   # the next boot: keep
+    (1, 2, 1, 0),   # stored format wins: never erase again
+    (1, 1, 1, 1),   # another format stored: erase
+])
+def test_format_action(core, has, fmt, old, action):
+    assert core("fmt", has, fmt, old) == str(action)
 
 
 # TC-HIST-02 · FR-27.10 (core): the dates of a range.
@@ -209,8 +277,9 @@ def test_page_positions(core):
     assert restart == first
 
 
-# TC-HIST-04 · FR-27.8, FR-27.9 (core): L31
-def test_l31_lines(compile_harness):
+# TC-HIST-04 · FR-27.8, FR-27.9, FR-29.12 (core): L31, L36
+def test_l31_l36_lines(compile_harness):
     run = compile_harness("history_l31", L31, ["web_log/web_log_format.c"], ["web_log/include"])
     assert run().splitlines() == ["history unavailable",
-                                  "history failed: ESP_ERR_FLASH_OP_FAIL"]
+                                  "history failed: ESP_ERR_FLASH_OP_FAIL",
+                                  "history erased reason=format"]

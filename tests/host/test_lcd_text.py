@@ -24,6 +24,11 @@ int main(int argc, char **argv)
                TDISPLAY_S3_AMOLED_LCD_W, TDISPLAY_S3_AMOLED_LCD_H);
     } else if (strcmp(argv[1], "font") == 0) {
         printf("%d %d %d %d %zu\n", FONT_W, FONT_H, FONT_FIRST, FONT_LAST, sizeof font16x32);
+        printf("%d %d %zu\n", FONT_SMALL_W, FONT_SMALL_H, sizeof font12x24);
+        for (int i = 0; i < LCD_TEXT_LINES; i++) {
+            printf("%d ", lcd_text_line_font(i)->w);
+        }
+        printf("\n");
     } else if (strcmp(argv[1], "rect") == 0) {
         for (int i = 0; i < LCD_TEXT_LINES; i++) {
             lcd_rect_t r = lcd_text_line_rect(i);
@@ -33,8 +38,9 @@ int main(int argc, char **argv)
         // Lit-pixel extent of a rendered line: minx maxx miny maxy (in screen coordinates).
         int line = argv[2][0] - '0';
         lcd_rect_t r = lcd_text_line_rect(line);
+        const text_font_t *f = lcd_text_line_font(line);
         static uint16_t buf[TDISPLAY_S3_AMOLED_LCD_W * FONT_H];
-        text_render(argv[3], 0xFFFF, 0x0000, buf, r.w);
+        text_font_render(f, argv[3], 0xFFFF, 0x0000, buf, r.w);
         int minx = 9999, maxx = -1, miny = 9999, maxy = -1;
         for (int y = 0; y < r.h; y++) {
             for (int x = 0; x < r.w; x++) {
@@ -46,7 +52,7 @@ int main(int argc, char **argv)
                 }
             }
         }
-        printf("%d %d %d %d %d\n", minx, maxx, miny, maxy, text_width(argv[3]));
+        printf("%d %d %d %d %d %d\n", minx, maxx, miny, maxy, text_font_width(f, argv[3]), f->h);
     } else if (strcmp(argv[1], "redraw") == 0) {
         // Render argv[2] then argv[3] into one row buffer; compare with a fresh argv[3].
         lcd_rect_t r = lcd_text_line_rect(1);
@@ -65,7 +71,7 @@ int main(int argc, char **argv)
 def run(compile_harness):
     return compile_harness(
         "lcd_text", HARNESS,
-        ["text/text.c", "text/font16x32.c", "lcd/lcd_layout.c"],
+        ["text/text.c", "text/font16x32.c", "text/font12x24.c", "lcd/lcd_layout.c"],
         ["text/include", "lcd", "tdisplay_s3_amoled/include"])
 
 
@@ -76,36 +82,45 @@ def test_configuration_states_the_fsd_values(run):
         "madctl=0x60", "size=536x240"]
 
 
-# TC-LCD-02 · FR-6.2
-def test_font_is_fixed_16x32(run):
-    w, h, first, last, size = map(int, run("font").split())
+# TC-LCD-02 · FR-6.15
+def test_fonts_are_fixed_16x32_and_12x24(run):
+    large, small, per_line = run("font").splitlines()
+    w, h, first, last, size = map(int, large.split())
     assert (w, h) == (16, 32)
     assert (first, last) == (0x20, 0x7E)
     assert size == (last - first + 1) * h * 2, "one 16-bit row per pixel row per glyph"
+    sw, sh, ssize = map(int, small.split())
+    assert (sw, sh) == (12, 24) and ssize == (last - first + 1) * sh * 2
+    assert per_line.split() == ["16", "16", "16", "16", "16", "12"]
 
 
-# TC-LCD-05 · FR-6.12
-def test_five_lines_are_stacked_inside_the_visible_area(run):
+# TC-LCD-05 · FR-6.14
+def test_six_lines_are_stacked_inside_the_visible_area(run):
     rects = [tuple(map(int, ln.split())) for ln in run("rect").splitlines()]
-    assert len(rects) == 5, f"{len(rects)} text lines, FSD §5.4 has five"
+    assert len(rects) == 6, f"{len(rects)} text lines, FSD §5.4 has six"
+    assert [r[1] for r in rects] == [8, 48, 88, 128, 168, 208]
     for x, y, w, h in rects:
         assert 0 <= x and x + w <= 536 and 0 <= y and y + h <= 240
     for (_, y0, _, h0), (_, y1, _, _) in zip(rects, rects[1:]):
-        assert y1 >= y0 + h0, "a line overlaps the one above it"
+        assert y1 > y0 + h0 - 1, "a line overlaps the one above it"
     for line in "01234":
-        minx, maxx, miny, maxy, _ = map(int, run("ink", line, "W" * 33).split())
+        minx, maxx, miny, maxy, _, _ = map(int, run("ink", line, "W" * 33).split())
         assert 0 <= minx and maxx <= 535 and 0 <= miny and maxy <= 239
+    minx, maxx, miny, maxy, width, h = map(int, run("ink", "5", "W" * 44).split())
+    assert (width, h) == (528, 24)
+    assert 0 <= minx and maxx <= 527 and 208 <= miny and maxy <= 239
+    assert maxy - miny < 24, "line 6 spans more than one row"
 
 
 # TC-LCD-06 · FR-6.13
 def test_thirty_three_characters_fit_one_row(run):
     text = "-40.0F Hum 100% 1100.00 mbar#####"   # 33 characters, the widest FSD §5.4 allows
-    minx, maxx, miny, maxy, width = map(int, run("ink", "1", text).split())
+    minx, maxx, miny, maxy, width, _ = map(int, run("ink", "1", text).split())
     assert width == 33 * 16
     assert maxx <= 527, f"rightmost pixel at x={maxx}"
     assert maxy - miny < 32, "text spans more than one row"
     assert maxx > minx, "nothing rendered (positive control)"
-    _, maxx_last, _, _, _ = map(int, run("ink", "1", " " * 32 + "W").split())
+    _, maxx_last, _, _, _, _ = map(int, run("ink", "1", " " * 32 + "W").split())
     assert maxx_last >= 512, "the 33rd character is not drawn (clipped)"
 
 

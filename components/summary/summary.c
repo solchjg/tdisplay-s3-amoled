@@ -321,7 +321,8 @@ mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
     closed_now = a->closed;
     uint32_t lines = closed_now - prev_closed, kept = wx_avg_count(a);
     *readings = sm_body(hostname, weather_stats(), weather_newest(), a, lines,
-                        lines > kept ? lines - kept : 0, iso, stamp_local, body, sizeof body);
+                        lines > kept ? lines - kept : 0, iso, stamp_local, weather_ext(), body,
+                        sizeof body);
     return send(hostname, i, subject, body, &deadline_us, &sent_at);
 }
 

@@ -515,15 +515,15 @@ tests:
     result: {status: successful, commit: e5d36e3, firmware: "0.0.0-dev (e5d36e3, Build Firmware run 40039430162)", date: 2026-10-24, evidence: "Build Firmware run 40039430162 inspect step; rerun locally on its artefact: 8 passed"}
 
   - id: TC-BUILD-06
-    title: Partition table is exactly C-10.9
+    title: Partition table is exactly C-10.10
     shape: atomic
     kind: standard
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [C-10.9]
+    verifies: [C-10.10]
     needs: []
-    observable: "parsed partition-table.bin equals the six C-10.9 rows"
+    observable: "parsed partition-table.bin equals the six C-10.10 rows"
     impl: tests/host/test_build.py::test_partition_table_is_exactly_the_stated_one
     result: {status: not done}
 
@@ -567,29 +567,29 @@ tests:
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-LCD-02
-    title: Fixed 16x32 font covering 0x20-0x7E
+    title: Fixed 16x32 and 12x24 fonts covering 0x20-0x7E
     shape: atomic
     kind: standard
     wave: 1
     fsd_phase: 1
     tier: host
-    verifies: [FR-6.2]
+    verifies: [FR-6.15]
     needs: []
-    observable: "cell 16x32, glyphs 0x20-0x7E"
-    impl: tests/host/test_lcd_text.py::test_font_is_fixed_16x32
+    observable: "cells 16x32 (lines 1-5) and 12x24 (line 6), glyphs 0x20-0x7E"
+    impl: tests/host/test_lcd_text.py::test_fonts_are_fixed_16x32_and_12x24
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 
   - id: TC-LCD-05
-    title: Five text lines stacked inside the visible area
+    title: Six text lines stacked inside the visible area
     shape: atomic
     kind: standard
     wave: 1
-    fsd_phase: 6
+    fsd_phase: 11
     tier: host
-    verifies: [FR-6.12]
+    verifies: [FR-6.14]
     needs: []
-    observable: "5 non-overlapping line boxes inside 536x240; 33-char renders stay inside"
-    impl: tests/host/test_lcd_text.py::test_five_lines_are_stacked_inside_the_visible_area
+    observable: "6 non-overlapping line boxes, tops 8/48/88/128/168/208, inside 536x240; 33-char renders on lines 1-5 and a 44-char render on line 6 stay inside"
+    impl: tests/host/test_lcd_text.py::test_six_lines_are_stacked_inside_the_visible_area
     result: {status: not done}
 
   - id: TC-LCD-06
@@ -1975,10 +1975,10 @@ tests:
     wave: 1
     fsd_phase: 5
     tier: host
-    verifies: [FR-23.13]
+    verifies: [FR-23.18]
     needs: []
-    observable: "valid JSON, exactly time, synced, temp_f, rh_pct, p_mbar with the stated decimals"
-    impl: [tests/host/test_weather.py::test_json_element_has_exactly_the_five_keys, tests/host/test_weather.py::test_json_keeps_the_stated_decimals]
+    observable: "valid JSON, exactly time, synced, temp_f, rh_pct, p_mbar, ext with the stated decimals"
+    impl: [tests/host/test_weather.py::test_json_element_has_exactly_the_six_keys, tests/host/test_weather.py::test_json_keeps_the_stated_decimals]
     result: {status: not done}
 
   - id: TC-WX-06
@@ -2743,10 +2743,10 @@ tests:
     wave: 1
     fsd_phase: 9
     tier: host
-    verifies: [FR-27.8, FR-27.9]
+    verifies: [FR-27.8, FR-27.9, FR-29.12]
     needs: []
-    observable: "history unavailable; history failed: <ERR>"
-    impl: tests/host/test_history.py::test_l31_lines
+    observable: "history unavailable; history failed: <ERR>; history erased reason=format"
+    impl: tests/host/test_history.py::test_l31_l36_lines
     result: {status: not done}
 
   - id: TC-SET-01
@@ -2838,4 +2838,186 @@ tests:
     needs: []
     observable: "two short presses within 1 s are a double; a long press, presses 1.5 s apart, a key held from the start or a 40 ms glitch are not"
     impl: [tests/host/test_sampling.py::test_two_short_presses_are_a_double, tests/host/test_sampling.py::test_a_long_press_then_a_short_one_is_no_double, tests/host/test_sampling.py::test_presses_too_far_apart_are_no_double, tests/host/test_sampling.py::test_a_key_held_from_the_start_must_be_released_first, tests/host/test_sampling.py::test_a_glitch_is_not_a_press]
+    result: {status: not done}
+
+  - id: TC-LOOP-01
+    title: "Loop settings of a portal or BLE body"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.11]
+    needs: []
+    observable: "none, loop=off and loop=off with a bad field are off; loop=in takes the defaults; each invalid field is named; values stored in thousandths"
+    impl: [tests/host/test_loop.py::test_valid_bodies, tests/host/test_loop.py::test_invalid_bodies_name_the_field, tests/host/test_loop.py::test_every_field, tests/host/test_loop.py::test_decimals_and_reversed_scale, tests/host/test_loop.py::test_empty_fields_take_the_defaults, tests/host/test_loop.py::test_milli_text]
+    result: {status: not done}
+
+  - id: TC-LOOP-02
+    title: "L34 and L35 loop log lines, and the scale through the settings"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.3, FR-29.4, FR-29.5]
+    needs: []
+    observable: "loop ma=<3dp> v=<3dp>[ <unit>]; loop failed: fault|<ERR> ma=<3dp|none>; 3.5 and 21.1 mA faults, 3.6 to 21.0 mA scaled unclamped"
+    impl: [tests/host/test_loop.py::test_l34, tests/host/test_loop.py::test_l35, tests/host/test_loop.py::test_reading_through_the_settings]
+    result: {status: not done}
+
+  - id: TC-LOOP-03
+    title: "4-20 mA core: NAMUR limits and the unclamped scale"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.3, FR-29.4]
+    needs: []
+    observable: "3.5 and 21.1 mA faults; 3.6, 4, 12, 20, 21.0 mA give -2.5, 0, 50, 100, 106.25 on 0-100; the reversed scale mirrored"
+    impl: shared/tests/host/test_loop420.py
+    result: {status: not done}
+
+  - id: TC-LOOP-04
+    title: "ADS1115 core: single-shot A0-A1 at 4.096 V and 128 SPS, mean of 4"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.2]
+    needs: []
+    observable: "config 0x8383 (MUX 000, PGA 001, single shot, DR 100); four conversions each started, polled and read; never continuous mode"
+    impl: shared/tests/host/test_ads1115.py
+    result: {status: not done}
+
+  - id: TC-WX-19
+    title: "Readings JSON ext object"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-23.18, FR-29.14]
+    needs: []
+    observable: "ext {} with every add-on off; a number with 3 decimals with the loop on; null for none; slot 1 first; never NaN"
+    impl: [tests/host/test_weather.py::test_json_ext_loop_on_with_a_value, tests/host/test_weather.py::test_json_ext_loop_on_without_a_value_is_null, tests/host/test_weather.py::test_json_ext_both_slot_1_first, tests/host/test_weather.py::test_json_ext_with_the_longest_values_fits, tests/host/test_weather.py::test_json_element_has_exactly_the_six_keys]
+    result: {status: not done}
+
+  - id: TC-WX-20
+    title: "Line 6: the add-on values"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.8, FR-6.14]
+    needs: []
+    observable: "Tank 12.346 psi; Tank --; empty with every add-on off; at most 44 characters"
+    impl: [tests/host/test_weather.py::test_line_6, tests/host/test_weather.py::test_line_6_empty_with_every_add_on_off, tests/host/test_weather.py::test_line_6_both_add_ons_cut_at_44, tests/host/test_weather.py::test_line_6_without_a_reading, tests/host/test_weather.py::test_fmt_ext, tests/host/test_device_logic.py::test_line_six_in_every_state, tests/host/test_device_logic.py::test_line_six_is_cut_at_44_and_line_four_at_33]
+    result: {status: not done}
+
+  - id: TC-WX-21
+    title: "Add-on averages and summary stats with their own count"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.6, FR-29.9]
+    needs: []
+    observable: "each add-on's mean over the readings with a value; a period with none is empty; min, max, mean and count since the summary"
+    impl: tests/host/test_weather.py::test_ext_averages_and_stats_count_only_values
+    result: {status: not done}
+
+  - id: TC-WX-22
+    title: "The page's loop row"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.7]
+    needs: []
+    observable: "the loop name with the newest value and unit (escaped), or none kept; no row with the loop off"
+    impl: [tests/host/test_weather.py::test_html_loop_row, tests/host/test_weather.py::test_html_without_add_ons_has_no_row]
+    result: {status: not done}
+
+  - id: TC-HIST-05
+    title: "History record of 24 bytes and the add-on column"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.6, FR-29.12]
+    needs: []
+    observable: "a 24-byte record round-trips; no column while off; <loop_name> with 3 decimals; an empty field for none; never NaN"
+    impl: [tests/host/test_history.py::test_record_round_trip_and_line, tests/host/test_history.py::test_loop_column_with_a_value, tests/host/test_history.py::test_loop_column_without_a_value_is_empty, tests/host/test_history.py::test_both_columns_slot_1_first_and_the_longest_line_fits]
+    result: {status: not done}
+
+  - id: TC-HIST-06
+    title: "An old-format history erased once"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.12]
+    needs: []
+    observable: "first boot over an old history erases (L36); a new device only stores the format; the stored format never erases again"
+    impl: tests/host/test_history.py::test_format_action
+    result: {status: not done}
+
+  - id: TC-SET-09
+    title: "Test verdicts with the loop on and off"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.10, FR-29.14]
+    needs: []
+    observable: "loop off: no loop field; on with 12 values: result=pass loop=12/12; 11 values: result=fail loop=11/12; the result email the same"
+    impl: [tests/host/test_sampling.py::test_quick_with_the_loop_off_has_no_loop_field, tests/host/test_sampling.py::test_quick_with_the_loop_on_and_every_value, tests/host/test_sampling.py::test_quick_with_one_loop_value_missing_fails, tests/host/test_sampling.py::test_quick_with_no_loop_value_at_all, tests/host/test_sampling.py::test_a_failed_bme280_reading_has_no_loop_value_counted]
+    result: {status: not done}
+
+  - id: TC-MAIL-30
+    title: "Summary loop line and averages column"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.9]
+    needs: []
+    observable: "<loop_name> min max mean <unit> (<n> values) after the pressure line; a loop column empty where none; no line or column while off; no NaN"
+    impl: [tests/host/test_summary.py::test_body_with_the_loop_three_values_and_one_reading_without, tests/host/test_summary.py::test_body_with_the_loop_on_and_no_values, tests/host/test_summary.py::test_body_with_the_loop_off_has_no_loop_line_or_column]
+    result: {status: not done}
+
+  - id: TC-BLE-40
+    title: "BLE settings with the loop fields"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-29.11, FR-26.19]
+    needs: []
+    observable: "a write with an invalid loop field is refused by name; the settings read shows the loop fields; the field rules cover them"
+    impl: [tests/host/test_ble_setup.py::test_key_window_write_checks_the_loop, tests/host/test_ble_setup.py::test_dump_has_no_secret, tests/host/test_ble_setup.py::test_form_patterns_match_the_device]
+    result: {status: not done}
+
+  - id: TC-TEXT-01
+    title: "Text renderer with both fonts"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 11
+    tier: host
+    verifies: [FR-6.15]
+    needs: []
+    observable: "12x24 cell, 44 characters in 528 px; the 16x32 output unchanged through both calls"
+    impl: shared/tests/host/test_text.py
     result: {status: not done}
