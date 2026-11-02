@@ -292,8 +292,8 @@ def build_parts(used):
                     desc="Isolated 1 W DC-DC Mornsun B0524S-1WR3, 24 V out"))
     add(module_part("tds3a_iso_ldo", ["LDO 3.3 V (iso)"], "built",
                     left=["IN", "GND"], right=["GND ", "OUT"], w=900, color="#37474f",
-                    notes=["LM317LZ", "150 / 240 R"],
-                    desc="LM317LZ regulator for the isolated side's 3.3 V"))
+                    notes=["LM317LZG", "150 / 240 R"],
+                    desc="onsemi LM317LZG regulator for the isolated side's 3.3 V"))
     add(module_part("tds3a_loop_limit", ["Limit 30 mA"], "built",
                     left=["IN"], right=["OUT"], w=900, color="#37474f",
                     notes=["DN2540N3 + Rs"],

@@ -16,7 +16,7 @@ datasheets listed under Sources; check them against current ones.
 | Q1, Q2 | Load switch with a controlled rise time | Diodes DMG2305UX P-MOSFET (SOT-23 on a SOT-23 board from the Adafruit 1230 set, −20 V, V<sub>GS(th)</sub> −0.5 to −0.9 V, 100 mΩ max at −2.5 V; AO3401A is a second source) and a 2N3904 (TO-92) | See [Load switch](#load-switch) |
 | U3 | Wide-input converter to 5 V | Pololu S7V8F5 (2.7 – 11.8 V in, 5 V out) | Leave SHDN open: its 100 kΩ pull-up to VIN would fight R1, so Q1 does the switching |
 | U4 | Isolated 1 W DC-DC, 24 V | Mornsun B0524S-1WR3, SIP-4 (4.5 – 5.5 V in, 24 V at 4.2 – 42 mA, 1500 VDC) | Specified over 10 – 100 % load; U5 alone keeps it above 10 % |
-| U5 | Isolated 3.3 V regulator, at least 40 V across it | LM317LZ (TO-92, 40 V in – out) | See [Isolated 3.3 V](#isolated-33-v) |
+| U5 | Isolated 3.3 V regulator, at least 40 V across it | onsemi LM317LZG (TO-92, Pb-free, 40 V in – out; pins 1 – 3 ADJ, OUT, IN) | See [Isolated 3.3 V](#isolated-33-v) |
 | Q3 | Loop current limit, about 30 mA | Microchip DN2540N3 depletion MOSFET (TO-92) | See [Loop and shunt](#loop-and-shunt) |
 | D1 | TVS across the terminals | P6KE33A (DO-15, 28.2 V stand-off) | Cathode (band) to J1 + |
 | U7 | Loop ADC | Adafruit 1085 ADS1115 breakout | ADDR to VDD for 0x49 |
@@ -155,7 +155,7 @@ ohmmeter between J1 and USB ground: above 100 MΩ.
 - [Adafruit 1230 SMT breakout set](https://www.adafruit.com/product/1230)
 - [Pololu S7V8F5](https://www.pololu.com/product/2123)
 - [Mornsun B05_S-1WR3 datasheet](https://www.rcscomponents.kiev.ua/datasheets/B05_S-1WR3.pdf)
-- [LM317L datasheet](https://www.rcscomponents.kiev.ua/datasheets/lm317l-1301242.pdf)
+- [onsemi LM317L datasheet](https://datasheet.ciiva.com/14562/70099595-14562037.pdf)
 - [ISO1540 datasheet](https://proto-pic.co.uk/content/iso1540.pdf)
 - [Adafruit ISO1540 guide](https://learn.adafruit.com/adafruit-iso1540-bidirectional-i2c-isolator)
 - [TE YR1B100RCC](https://octopart.com/part/te-connectivity/YR1B100RCC)
