@@ -363,6 +363,37 @@ sent, the serial log says why (`ntfy failed: ... <event>`) and the device
 tries once more at its next reading. Change these settings with your phone
 (chapter 5c), or by a factory reset and a new setup.
 
+## 5g. Placing the cellular antenna
+
+With the Blues Notecard (cellular uplink), where the antenna sits decides
+whether the Notecard gets a signal once the board is in its enclosure.
+
+- Use the Notecarrier-A's onboard antenna, or one flexible LTE antenna on the
+  Notecard's `MAIN` u.FL connector. To use a flexible antenna, unplug the short
+  jumper from `MAIN` to the onboard antenna and plug the antenna in its place.
+  Plug it once and leave it: u.FL connectors wear out after a few dozen
+  matings.
+- Stick the flexible antenna to the inside of a plastic wall, in the upper half
+  of the enclosure, with its long side vertical. Indoors, use the wall that
+  faces a window or an outside wall. Never use a metal enclosure or one with a
+  conductive coating.
+- Keep at least 10 mm (20 mm is better) between the antenna and any metal, the
+  LiPo, the Notecarrier, the display board and screws. With the onboard
+  antenna, keep the same 10 mm clear around it.
+- Bend the antenna and its thin cable only in gentle curves, never a crease.
+  Route the cable away from the display board.
+- The GPS port is not used, so its antenna can stay unplugged or stowed.
+- Do not cut the combined LTE + GPS flexible antenna to place the two parts
+  apart: both parts are tuned together on one strip. If you want them in
+  different places, use two single flexible antennas, one per port.
+- If the cable does not reach, a u.FL extension of up to about 20 cm is fine;
+  longer runs lose signal. For an outdoor box, use an outdoor antenna on a
+  u.FL-to-SMA bulkhead cable. The Notecarrier-A cannot power an active GPS
+  antenna.
+- Check the signal with the enclosure closed: the signal bars go to ThingsBoard
+  with the attributes (chapter 5d). If they drop compared with the open box,
+  move the antenna.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |
