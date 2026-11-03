@@ -104,6 +104,9 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   write in NVS, the condition state (limits with hysteresis, failures, one retry) in RTC memory,
   titles and bodies (`notify_core.c` pure), sent through the shared `ntfy_tx`; a timer wake starts
   WiFi only for due alerts or a due summary.
+- `components/uplink/` (L1) — the cellular uplink (FSD §33): so far only its pure core
+  `uplink_core.c` (the §33.3 settings, notes of at most 100 readings, the GPS line 6 of
+  the setup check). The Notecard driver is the shared `notecard` (Blues' note-c, vendored).
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key
   window), the `settings` read without secrets, the field rules the page checks
@@ -113,7 +116,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `ble_setup`, `flash_ring` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through
@@ -136,6 +139,8 @@ Other builds sharing the components:
 - `tests/target/sleep/` — shipped `main/` with a stand-in task that sleeps
   `SLEEP_S` (10 or 300) seconds twice per power-on (FSD §21.3); test artefact only.
 - `commissioning/{forward-path,lcd-probe,wifi-probe,button-probe}/` — Phase 2 bring-up programs;
+  `commissioning/notecard-probe/` — the Notecard bring-up (FSD §33, Phase 15: bus, version,
+  transport, note timing, optional sync and GPS);
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
   bench tests). Never released.
 

@@ -1,0 +1,19 @@
+menu "Notecard probe"
+
+config PROBE_PRODUCT
+    string "Notehub ProductUID (empty: leave hub.set and card.transport as they are)"
+    default ""
+    help
+        With a ProductUID the probe sends hub.set (mode periodic, outbound 60,
+        inbound 1440) and card.transport cell when the Notecard differs, as
+        FR-33.4 and FR-33.14 do.
+
+config PROBE_SYNC
+    bool "Force one sync and report its data use (needs a ProductUID)"
+    default n
+
+config PROBE_GPS
+    bool "Seek a GPS fix (needs the GPS antenna and one completed sync)"
+    default n
+
+endmenu
