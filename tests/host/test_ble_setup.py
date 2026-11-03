@@ -176,7 +176,14 @@ int main(int argc, char **argv)
             a.on = true; strcpy(a.url, "http://192.168.2.231"); strcpy(a.topic, "tds3-t");
             strcpy(a.token, "tk-secret"); a.has = 2; a.lim[NF_T][1] = 9000;
         }
-        bset_dump(&cur, &s, &sel, &loop, &a, out, sizeof out);
+        ul_settings_t u;
+        ul_defaults(&u);
+        if (argv[2][0] == '1') {
+            u.cell = u.mail_route = u.gps = true;
+            strcpy(u.product, "com.example.joe:weather");
+            u.cell_every = 120;
+        }
+        bset_dump(&cur, &s, &sel, &loop, &a, &u, out, sizeof out);
         printf("%s", out);
     } else if (!strcmp(argv[1], "form")) {
         printf("%zu|", bset_form(form, sizeof form));
@@ -199,10 +206,12 @@ def bset(compile_harness):
                            ["ble_settings/ble_settings_core.c", "sampling/sampling_core.c",
                             "summary/summary_core.c", "portal/portal_core.c",
                             "weather/weather_core.c", "loop/loop_core.c", "loop420/loop420.c",
-                            "notify/notify_core.c", "ntfy_tx/ntfy_tx_core.c"],
+                            "notify/notify_core.c", "ntfy_tx/ntfy_tx_core.c",
+                            "uplink/uplink_core.c", "notecard/notecard_core.c"],
                            ["ble_settings/include", "sampling/include", "summary/include",
                             "portal/include", "weather/include", "loop/include",
-                            "loop420/include", "notify/include", "ntfy_tx/include"])
+                            "loop420/include", "notify/include", "ntfy_tx/include",
+                            "uplink/include", "notecard/include"])
 
 
 # TC-BLE-06 · FR-26.6 (core): in the provisioning window a write is a portal submission
@@ -256,7 +265,9 @@ def test_dump_has_no_secret(bset):
                   "&average_min=30&loop=in&loop_name=tank&loop_unit=m%20WC&loop_lo=-1.5"
                   "&loop_hi=10&loop_warm_ms=300&ntfy=on&ntfy_url=http%3A%2F%2F192.168.2.231"
                   "&ntfy_topic=tds3-t&ntfy_token_set=1&alert_t_lo=&alert_t_hi=90.0"
-                  "&alert_rh_lo=&alert_rh_hi=&alert_p_lo=&alert_p_hi=")
+                  "&alert_rh_lo=&alert_rh_hi=&alert_p_lo=&alert_p_hi="
+                  "&uplink=cell&nh_product=com.example.joe%3Aweather&cell_every=120"
+                  "&cell_mail=route&gps=on")
     off = bset("dump", "0")
     assert "mail_host=&mail_port=&" in off and "mail_password_set=0" in off
     # TC-SET-02 · FR-28.3 (core): the setup with the tests still to run
@@ -266,6 +277,8 @@ def test_dump_has_no_secret(bset):
             "&loop_warm_ms=300&ntfy=off&") in off
     # TC-NTFY-11 · FR-31.2, FR-31.13 (core): the token only as its flag
     assert "ntfy_token_set=0" in off and "ntfy_token=" not in on
+    # TC-CELL-07 · FR-33.2 (core): the uplink settings, wifi on a new device
+    assert off.endswith("&uplink=wifi&nh_product=&cell_every=60&cell_mail=off&gps=off")
 
 
 def test_dump_round_trips_through_a_key_window_write(bset):
@@ -309,6 +322,10 @@ def test_form_rules_cover_every_field(bset):
     assert rules["setup"]["extras"].split(",") == ["quick", "cycle"]
     assert (rules["mail_every"]["min"], rules["mail_every"]["max"]) == ("1", "24")
     assert (rules["sample_min"]["min"], rules["sample_min"]["max"]) == ("1", "60")
+    assert rules["uplink"]["options"].split(",") == ["wifi", "cell"]            # FR-33.1
+    assert rules["cell_mail"]["options"].split(",") == ["off", "route"]
+    assert rules["gps"]["options"].split(",") == ["off", "on"]
+    assert (rules["cell_every"]["min"], rules["cell_every"]["max"]) == ("10", "1440")
 
 
 # TC-BLE-31 · FR-26.19 (core): each pattern accepts what the device accepts
@@ -319,6 +336,8 @@ def test_form_rules_cover_every_field(bset):
     ("loop_name", "abcdefghijklm", False), ("loop_unit", "m3/h", True), ("loop_unit", "a,b", False),
     ("loop_lo", "-99999.999", True), ("loop_lo", "4", True), ("loop_lo", "1e3", False),
     ("loop_lo", "4.0001", False), ("loop_hi", ".5", False),
+    ("nh_product", "com.example.joe:weather", True), ("nh_product", "org.solch.x:field_data", True),
+    ("nh_product", "has space", False), ("nh_product", "semi;colon", False),
 ])
 def test_form_patterns_match_the_device(bset, name, value, ok):
     import urllib.parse as up
@@ -393,13 +412,14 @@ def test_log_lines(compile_harness):
                                   "ble off reason=idle"]
 
 
-# The portal form (§13.2, §25.2, §28.2, §29.4, §31.2) as the C sources state it.
+# The portal form (§13.2, §25.2, §28.2, §29.4, §31.2, §33.3) as the C sources state it.
 PORTAL_PARTS = [  # file, first and last text of its form HTML
     ("shared/components/portal/portal.c", "<body><h1>", "</label></p>\";"),
     ("components/summary/summary.c", "<h2>Email summary", "hours</label></p>\";"),
     ("components/sampling/sampling.c", "<h2>Readings", "10 min)</label></p>\";"),
     ("components/loop/loop.c", "<h2>4-20 mA", "ms</label></p>\";"),
     ("components/notify/notify.c", "<h2>Push alerts", "mbar</p>\","),
+    ("components/uplink/uplink.c", "<h2>Cellular uplink", "on</option></select></label></p>\","),
 ]
 
 

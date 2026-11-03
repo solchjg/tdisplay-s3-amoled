@@ -362,9 +362,13 @@ capabilities:
       refused with {product-noexist}.
     consequence: >
       The 100-reading batch fits NFR-33.1's 10 s at 100 kHz, so FR-33.7 keeps
-      notes of 100 readings. A device at 0x6a also answers on the main bus and
-      is not identified. The bench signal (1 bar) is marginal for sync
-      timing tests; place AE1 per the User Manual 5g before them.
+      notes of 100 readings. The device at 0x6a answered only once the Notecard
+      and its Notecarrier-X were on the bus, so it is one of their parts (most
+      likely the carrier's LiPo charger, whose address is not in Blues'
+      datasheets); it clashes with nothing on the bus. The bench stands inside,
+      near a window: the signal (1 bar) is marginal and a GPS fix may be slow or
+      fail there, so sync timing and GPS results on the bench are read with
+      that in mind; place AE1 per the User Manual 5g and AE2 on the glass.
   seam-sensor-fault-build:
     what: "Test build that reads the sensor at 0x77, where nothing answers (FSD §23.4)"
     available: no
@@ -3360,4 +3364,95 @@ tests:
     needs: []
     observable: "hub.set with product, mode periodic, outbound and inbound; no hub.set when hub.get already matches; card.transport cell unless the answer is cell; answer fields read by dotted path; err detected"
     impl: shared/tests/host/test_notecard.py
+    result: {status: not done}
+
+  - id: TC-CELL-06
+    title: "Which path an alert and an email take"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.3, FR-33.6, FR-33.13]
+    needs: []
+    observable: "wifi: both on WiFi, cell_mail without effect; cell with cell_mail off: alerts as notes, no email; cell with route: both as notes"
+    impl: tests/host/test_uplink.py::test_via
+    result: {status: not done}
+
+  - id: TC-CELL-07
+    title: "Uplink settings in the BLE settings read and the page's rules"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.1, FR-33.2]
+    needs: []
+    observable: "a new device reads uplink=wifi, nh_product empty, cell_every=60, cell_mail=off, gps=off; the rules give the choices, 10 - 1440 minutes and a ProductUID pattern matching the device's check, as the portal form does"
+    impl: [tests/host/test_ble_setup.py::test_dump_has_no_secret, tests/host/test_ble_setup.py::test_form_rules_cover_every_field, tests/host/test_ble_setup.py::test_form_rules_match_the_portal_form]
+    result: {status: not done}
+
+  - id: TC-CELL-08
+    title: "alert.qo and mail.qo bodies"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.8, FR-33.9]
+    needs: []
+    observable: "alert: topic, title, priority, tags as an array, message, quotes and newlines escaped, no token; mail: to, subject, text, no password; a body that does not fit is refused"
+    impl: [tests/host/test_uplink.py::test_alert_body, tests/host/test_uplink.py::test_mail_body]
+    result: {status: not done}
+
+  - id: TC-CELL-09
+    title: "A failed Notecard request named for L44"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.10]
+    needs: []
+    observable: "no answer: timeout; an err answer: err; a full Notefile ({full}, {file-storage-full}, {note-max}): full; {\"total\":1}: success"
+    impl: [tests/host/test_uplink.py::test_fail_reason, shared/tests/host/test_notecard.py::test_err_full]
+    result: {status: not done}
+
+  - id: TC-CELL-10
+    title: "The clock from the Notecard"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.12]
+    needs: []
+    observable: "window, a time on the 4th ask: one hub.sync, asks at 5 s steps, set at the 4th; never a time: asks stop at 60 s; a time at once: no hub.sync; timer wake: one ask, no wait; a time before 2024 is not a time"
+    impl: [tests/host/test_uplink.py::test_time_window_set_on_the_fourth_ask, tests/host/test_uplink.py::test_time_window_never, tests/host/test_uplink.py::test_time_set_at_once, tests/host/test_uplink.py::test_time_timer_wake_asks_once, shared/tests/host/test_time_sync.py::test_a_time_from_another_source]
+    result: {status: not done}
+
+  - id: TC-CELL-11
+    title: "The GPS search in the setup check"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.15, FR-33.16, FR-33.17, FR-33.18, FR-33.19]
+    needs: []
+    observable: "gps on: continuous once, asks at 5 s steps, fixed with the place on the 3rd, the hold not ended by it, line 6 the place and the add-ons again after the hold; gps off: no request; no fix: fixed with the stored place, or off when none, L45 none"
+    impl: [tests/host/test_uplink.py::test_gps_fix_on_the_third_ask, tests/host/test_uplink.py::test_gps_search_line, tests/host/test_uplink.py::test_gps_off, tests/host/test_uplink.py::test_gps_end_without_fix]
+    result: {status: not done}
+
+  - id: TC-CELL-12
+    title: "L20 with src=cell"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.12]
+    needs: []
+    observable: "time synced 2026-11-03T01:40:00+0000 src=cell"
+    impl: tests/host/test_web_log.py::test_time_synced_line
     result: {status: not done}

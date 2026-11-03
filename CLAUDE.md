@@ -104,9 +104,13 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   write in NVS, the condition state (limits with hysteresis, failures, one retry) in RTC memory,
   titles and bodies (`notify_core.c` pure), sent through the shared `ntfy_tx`; a timer wake starts
   WiFi only for due alerts or a due summary.
-- `components/uplink/` (L1) — the cellular uplink (FSD §33): so far only its pure core
-  `uplink_core.c` (the §33.3 settings, notes of at most 100 readings, the GPS line 6 of
-  the setup check). The Notecard driver is the shared `notecard` (Blues' note-c, vendored).
+- `components/uplink/` (L1) — the cellular uplink (FSD §33): the §33.3 settings from the
+  portal form or a BLE write and the GPS place in NVS, and the Notecard requests (setup,
+  `note.add`, `card.time`, location) over the shared `notecard` (Blues' note-c, vendored) on
+  the BME280's bus; `uplink_core.c` is the pure core (settings, which path each send takes,
+  the `alert.qo` and `mail.qo` bodies, the clock and GPS steps, notes of at most 100
+  readings, line 6 during the search). With `uplink` `cell`, alerts and email go out as
+  notes and a timer wake never starts WiFi; the ThingsBoard notes wait for §32.
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key
   window), the `settings` read without secrets, the field rules the page checks
@@ -171,7 +175,7 @@ Other builds sharing the components:
 ## CI
 
 - `ci.yml` — ruff + host tests; builds the devcontainer and checks IDF v6.0.2.
-- `build.yml` — firmware + lcd_fault builds on push; on `v*.*.*` tags, flashes the
+- `build.yml` — firmware + lcd_fault builds on push and on pull requests; on `v*.*.*` tags, flashes the
   built bytes and runs the journey on the self-hosted `testbench` runner (from
   `.devcontainer/`), and releases only if that passes.
 - `commissioning.yml` — builds the commissioning programs.

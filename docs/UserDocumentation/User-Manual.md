@@ -403,6 +403,54 @@ whether the Notecard gets a signal once the board is in its enclosure.
   with the attributes (chapter 5d). If they drop compared with the open box,
   move the antenna.
 
+## 5h. Cellular uplink (Blues Notecard)
+
+Where no WiFi reaches the device, a Blues Notecard on the sensor's bus sends
+the push alerts and the summary email over cellular instead. The device never
+talks to ntfy or a mail server over cellular: it hands each alert or email to
+the Notecard as a *note*, the Notecard delivers it to Blues Notehub, and a
+Notehub *route* you set up passes it on. The setup check, the status page,
+updates and Bluetooth work as before.
+
+**In Notehub** (notehub.io, free for this use):
+
+1. Create a project and copy its ProductUID, e.g. `com.example.you:weather`.
+2. Add a route of type *General HTTP/HTTPS Request* for the alerts: Notefile
+   `alert.qo`, URL your ntfy server's address with no topic (e.g.
+   `https://ntfy.example.org/`), data *body only*. If your server needs a
+   token, add the header `Authorization: Bearer <token>` in the route; the
+   token never goes into a note. The ntfy server must be reachable from the
+   internet, since Notehub sends to it.
+3. For email, add a second route for Notefile `mail.qo` to your mail
+   service's HTTP API (e.g. SMTP2GO or SendGrid), its API key in the route.
+   Each note's body holds `to`, `subject` and `text`; map them onto the
+   service's own fields with the route's JSONata transform.
+
+**On the device** (setup page, chapter 2, or your phone, chapter 5c):
+
+| Field | What to enter |
+|-------|---------------|
+| Uplink | `cell` to send through the Notecard, `wifi` (the default) as before |
+| Notehub ProductUID | the one from step 1; needed for `cell` |
+| Sync every | minutes between the Notecard's regular connections, 10 – 1440 (60) |
+| Email over cellular | `route` to send the summary and test results as `mail.qo` notes (step 3), `off` for no email while on cellular |
+| GPS fix in the setup check | `on` to take the place during each setup check (needs `cell` and the GPS antenna, chapter 5g) |
+
+With `cell`, the device sets the Notecard up at each start (it never turns it
+off or resets it), takes its clock from the Notecard when nothing else set it,
+and while asleep wakes only to add its notes: WiFi stays off. Alerts and email
+are handed over at once (the Notecard connects for them), so they usually
+arrive within a minute or two; with a weak signal they arrive later, but the
+Notecard keeps them until it gets through. The serial log shows each note
+handed over (`cell note alert n=1`), and a failure (`cell failed: <timeout|err|full> <request>`).
+
+With GPS on, line 6 shows `GPS searching mm:ss` during the setup check, then
+the place (`GPS 40.71278 -74.00597`), which is kept and given to the Notecard,
+so Notehub tags each later event with it. Indoors a fix can take many minutes
+or fail; stick the GPS antenna flat on the window glass. If the check ends
+without a fix, the place kept from before stays. A factory reset sets the
+uplink back to `wifi` and forgets the place.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |

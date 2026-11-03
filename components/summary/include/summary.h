@@ -5,6 +5,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -49,6 +50,15 @@ const char *summary_to(int i);
 // in a helper task, feeding the calling task's watchdog if it is watched.
 // MT_OK with *readings set, or why it was dropped.
 mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings);
+
+// FR-33.6: the due summary's subject and text, as summary_send would mail
+// them, for a mail.qo note; *readings as summary_send.
+void summary_compose(const char *hostname, char subject[SM_SUBJECT_MAX], char *body, size_t cap,
+                     uint32_t *readings);
+
+// FR-33.8: the Notecard accepted a note of the due summary; summary_done then
+// counts it as sent (FR-25.12).
+void summary_noted(void);
 
 // FR-28.13: one plain email with this subject and body to recipient i (network
 // up), from the summary's sender; not a summary (no slot, no readings cleared).

@@ -1,5 +1,7 @@
 """Host tier: Cellular Uplink (FSD §33), the pure settings, note split and GPS line core."""
 
+import json
+
 import pytest
 
 HARNESS = r"""
@@ -16,11 +18,92 @@ static void show(const ul_settings_t *s)
            ul_gps_wanted(s) ? "gps-wanted" : "no-gps");
 }
 
+static const char *via(ul_via_t v)
+{
+    return v == UL_VIA_CELL ? "cell" : v == UL_VIA_WIFI ? "wifi" : "none";
+}
+
+// A Notecard that answers card.time with a time on ask `k` (0: never).
+static void time_sim(bool window, int k, uint32_t until)
+{
+    ul_time_t t = {0};
+    int asks = 1;  // the boot's ask, at 0
+    unsigned a = ul_time_step(&t, asks == k ? UL_TE_TIME : UL_TE_NO_TIME, window, 0);
+    printf("%s0", asks == k ? "T@" : "N@");
+    for (uint32_t now = 0; now <= until; now++) {
+        if (now > 0) {
+            a = ul_time_step(&t, UL_TE_TICK, window, now);
+        }
+        if (a & UL_TA_SYNC) {
+            printf(" S@%u", (unsigned)now);
+        }
+        if (a & UL_TA_ASK) {
+            asks++;
+            printf(" %s%u", asks == k ? "T@" : "A@", (unsigned)now);
+            a = ul_time_step(&t, asks == k ? UL_TE_TIME : UL_TE_NO_TIME, window, now);
+            if (a & UL_TA_SYNC) {
+                printf(" S@%u", (unsigned)now);
+            }
+        }
+    }
+}
+
+// A hold of `end_s` seconds; card.location answers a fix on ask `k` (0: never).
+static void gps_sim(bool wanted, bool place, int k, uint32_t end_s)
+{
+    ul_gps_t g = {0};
+    int asks = 0;
+    char line[UL_LINE6_MAX + 8];
+    unsigned a = ul_gps_step(&g, UL_GE_START, wanted, place, 0, 0, 0);
+    printf("%s", a & UL_GA_CONTINUOUS ? "C@0" : "-");
+    for (uint32_t now = 0; now <= end_s; now++) {
+        a = ul_gps_step(&g, UL_GE_TICK, wanted, place, now, 0, 0);
+        if (a & UL_GA_ASK) {
+            asks++;
+            printf(" A@%u", (unsigned)now);
+            a = asks == k ? ul_gps_step(&g, UL_GE_FIX, wanted, place, now, 40.712776, -74.005974)
+                          : ul_gps_step(&g, UL_GE_NO_FIX, wanted, place, now, 0, 0);
+            if (a & UL_GA_FIXED_NEW) {
+                printf(" F@%u", (unsigned)now);
+            }
+        }
+    }
+    printf(" |%s|", ul_gps_shown(&g, end_s, line, sizeof line) ? line : "addons");
+    a = ul_gps_step(&g, UL_GE_END, wanted, place, end_s, 0, 0);
+    printf(" end:%s%s%s", a & UL_GA_FIXED_KEPT ? "kept" : "", a & UL_GA_OFF ? "off" : "",
+           a ? "" : "-");
+    printf(" |%s|", ul_gps_shown(&g, end_s, line, sizeof line) ? line : "addons");
+}
+
 // argv: parse <stored body> <body> | split <left> | line <s> [lat lon]
+//       | via <body> | alert <topic> <title> <prio> <tags> <msg> | mail <to> <subj> <text>
+//       | fail <answered> <json> | time <window> <k> <until> | gps <wanted> <place> <k> <end>
 int main(int argc, char **argv)
 {
     static ul_settings_t none, stored, s;
-    if (!strcmp(argv[1], "parse")) {
+    static char buf[1024];
+    if (!strcmp(argv[1], "via")) {
+        ul_defaults(&none);
+        if (ul_parse(argv[2], strlen(argv[2]), &none, &s)) {
+            printf("bad");
+        } else {
+            printf("%s %s", via(ul_alert_via(&s)), via(ul_mail_via(&s)));
+        }
+    } else if (!strcmp(argv[1], "alert")) {
+        size_t n = ul_alert_body(buf, argc > 7 ? (size_t)atoi(argv[7]) : sizeof buf, argv[2],
+                                 argv[3], atoi(argv[4]), argv[5], argv[6]);
+        printf(n ? "%s" : "TOOLONG", buf);
+    } else if (!strcmp(argv[1], "mail")) {
+        size_t n = ul_mail_body(buf, sizeof buf, argv[2], argv[3], argv[4]);
+        printf(n ? "%s" : "TOOLONG", buf);
+    } else if (!strcmp(argv[1], "fail")) {
+        const char *r = ul_fail_reason(atoi(argv[2]) != 0, argv[3]);
+        printf("%s", r ? r : "ok");
+    } else if (!strcmp(argv[1], "time")) {
+        time_sim(atoi(argv[2]) != 0, atoi(argv[3]), (uint32_t)atoi(argv[4]));
+    } else if (!strcmp(argv[1], "gps")) {
+        gps_sim(atoi(argv[2]) != 0, atoi(argv[3]) != 0, atoi(argv[4]), (uint32_t)atoi(argv[5]));
+    } else if (!strcmp(argv[1], "parse")) {
         ul_defaults(&none);
         const char *bad = ul_parse(argv[2], strlen(argv[2]), &none, &stored);
         if (bad) { printf("stored bad %s", bad); return 0; }
@@ -114,3 +197,85 @@ def test_gps_line(ul, args, want):
     out = ul("line", *args)
     assert out == want
     assert len(out) <= 44
+
+
+# FR-33.3, FR-33.6, FR-33.13 (core): the path of an alert and of an email
+@pytest.mark.parametrize("body,want", [
+    ("", "wifi wifi"),
+    ("cell_mail=route", "wifi wifi"),                  # cell_mail has no effect with wifi
+    (f"uplink=cell&nh_product={P}", "cell none"),      # cell_mail off: no email at all
+    (f"uplink=cell&nh_product={P}&cell_mail=route", "cell cell"),
+])
+def test_via(ul, body, want):
+    assert ul("via", body) == want
+
+
+# §33.4, FR-33.8, FR-33.9 (core): the alert.qo body
+def test_alert_body(ul):
+    out = ul("alert", "tds3-abcdefghijkl", 'tds3-48c3 temperature "high"', 4, "warning",
+             "77.2 F above 75.0 F\nat 2026-11-03 01:40")
+    assert json.loads(out) == {
+        "topic": "tds3-abcdefghijkl", "title": 'tds3-48c3 temperature "high"', "priority": 4,
+        "tags": ["warning"], "message": "77.2 F above 75.0 F\nat 2026-11-03 01:40"}
+    assert json.loads(ul("alert", "t", "x", 0, "a,b,,c", "m")) == {
+        "topic": "t", "title": "x", "tags": ["a", "b", "c"], "message": "m"}
+    assert json.loads(ul("alert", "t", "x", 3, "", "m"))["tags"] == []
+    assert ul("alert", "t", "x", 3, "warning", "m" * 100, 64) == "TOOLONG"
+
+
+# §33.4, FR-33.8, FR-33.9 (core): the mail.qo body
+def test_mail_body(ul):
+    text = "Readings 2026-11-02 08:00 - 2026-11-03 08:00\n\ttemp 70.1 F \u00b0"
+    assert json.loads(ul("mail", "joe@example.com", "tds3-48c3 summary", text)) == {
+        "to": "joe@example.com", "subject": "tds3-48c3 summary", "text": text}
+
+
+# FR-33.10 (core): answers none, {"err":"…"}, a full Notefile, {"total":1}
+@pytest.mark.parametrize("answered,answer,want", [
+    (0, "", "timeout"),
+    (1, '{"err":"error adding note: product UID has not yet been specified {product-noexist}"}',
+     "err"),
+    (1, '{"err":"notefile is full {full}"}', "full"),
+    (1, '{"total":1}', "ok"),
+])
+def test_fail_reason(ul, answered, answer, want):
+    assert ul("fail", answered, answer) == want
+
+
+# FR-33.12 (core): the clock from the Notecard
+def test_time_window_set_on_the_fourth_ask(ul):
+    assert ul("time", 1, 4, 90) == "N@0 S@0 A@5 A@10 T@15"
+
+
+def test_time_window_never(ul):
+    asks = " ".join(f"A@{s}" for s in range(5, 61, 5))
+    assert ul("time", 1, 0, 120) == "N@0 S@0 " + asks      # one hub.sync; asks stop at 60 s
+
+
+def test_time_set_at_once(ul):
+    assert ul("time", 1, 1, 90) == "T@0"                    # no hub.sync, no polling
+
+
+def test_time_timer_wake_asks_once(ul):
+    assert ul("time", 0, 0, 90) == "N@0"                    # no hub.sync, no wait
+
+
+# FR-33.15 – FR-33.17, FR-33.19 (core): the GPS search in the hold
+def test_gps_fix_on_the_third_ask(ul):
+    assert ul("gps", 1, 0, 3, 30) == (
+        "C@0 A@0 A@5 A@10 F@10 |GPS 40.71278 -74.00597| end:- |addons|")
+
+
+def test_gps_search_line(ul):
+    assert ul("gps", 1, 0, 0, 75).split("|")[1] == "GPS searching 01:15"
+
+
+def test_gps_off(ul):
+    assert ul("gps", 0, 1, 1, 30) == "- |addons| end:- |addons|"
+
+
+# FR-33.18 (core): the hold ends with no fix
+def test_gps_end_without_fix(ul):
+    kept = ul("gps", 1, 1, 0, 12)
+    assert kept.endswith("end:kept |addons|")
+    assert ul("gps", 1, 0, 0, 12).endswith("end:off |addons|")

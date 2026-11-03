@@ -66,7 +66,7 @@ void web_log_sleep(uint32_t s);
 void web_log_wake(const char *cause);
 
 // L20 after each clock sync (FR-22.5): the local time now.
-void web_log_time_synced(void);
+void web_log_time_synced(const char *src);  // src NULL, or "cell" (FR-33.12)
 
 // L21 for each reading (FR-23.5), its text made by the weather core; L22 (error)
 // when the sensor fails (FR-23.4).
@@ -102,6 +102,12 @@ void web_log_loop(const char *text, bool ok);
 // L39 (an alert delivered, FR-31.12) and L40 (warning: not delivered, FR-31.11).
 void web_log_ntfy_sent(const char *event);
 void web_log_ntfy_failed(const char *reason, const char *event);
+
+// L43 (FR-33.11), L44 (FR-33.4, FR-33.10, warning) and L45 (FR-33.17, FR-33.18;
+// lat and lon NULL for "gps none").
+void web_log_cell_note(const char *what, int n);
+void web_log_cell_failed(const char *reason, const char *req);
+void web_log_gps(const double *lat, const double *lon);
 
 // L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning
 // level when the test failed (ok false).

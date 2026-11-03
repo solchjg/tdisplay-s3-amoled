@@ -304,13 +304,9 @@ static mt_reason_t send(const char *hostname, int i, const char *subject, const 
     return MT_ERR_TIMEOUT;
 }
 
-mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
+void summary_compose(const char *hostname, char subject[SM_SUBJECT_MAX], char *body, size_t cap,
+                     uint32_t *readings)
 {
-    *readings = 0;
-    if (job.done) {
-        return MT_ERR_TIMEOUT;  // a helper that never finished still uses the buffers
-    }
-    static char body[SM_BODY_MAX], subject[SM_SUBJECT_MAX];
     char stamp[20];
     time_t now = time(NULL);
     struct tm t;
@@ -322,7 +318,24 @@ mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
     uint32_t lines = closed_now - prev_closed, kept = wx_avg_count(a);
     *readings = sm_body(hostname, weather_stats(), weather_newest(), a, lines,
                         lines > kept ? lines - kept : 0, iso, stamp_local, weather_ext(), body,
-                        sizeof body);
+                        cap);
+}
+
+void summary_noted(void)
+{
+    if (!sent_at) {
+        sent_at = time(NULL);
+    }
+}
+
+mt_reason_t summary_send(const char *hostname, int i, uint32_t *readings)
+{
+    *readings = 0;
+    if (job.done) {
+        return MT_ERR_TIMEOUT;  // a helper that never finished still uses the buffers
+    }
+    static char body[SM_BODY_MAX], subject[SM_SUBJECT_MAX];
+    summary_compose(hostname, subject, body, sizeof body, readings);
     return send(hostname, i, subject, body, &deadline_us, &sent_at);
 }
 

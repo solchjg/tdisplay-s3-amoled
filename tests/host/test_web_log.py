@@ -73,7 +73,7 @@ int main(int argc, char **argv)
         double lat = atof(argv[2]), lon = argc > 3 ? atof(argv[3]) : 0;
         wl_fmt_gps(line, sizeof line, argc > 3 ? &lat : NULL, argc > 3 ? &lon : NULL);
     } else if (strcmp(argv[1], "time") == 0) {
-        wl_fmt_time_synced(line, sizeof line, argv[2]);
+        wl_fmt_time_synced(line, sizeof line, argv[2], argc > 3 ? argv[3] : NULL);
     } else if (strcmp(argv[1], "wake") == 0) {
         wl_fmt_wake(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "http") == 0) {
@@ -172,6 +172,9 @@ def test_sleep_and_wake_lines(fmt):
 # TC-TIME-02 · FR-22.5 (core): L20
 def test_time_synced_line(fmt):
     assert fmt("time", "2026-10-30T02:50:12+0000") == "time synced 2026-10-30T02:50:12+0000"
+    # FR-33.12: set from the Notecard
+    assert fmt("time", "2026-11-03T01:40:00+0000", "cell") == (
+        "time synced 2026-11-03T01:40:00+0000 src=cell")
 
 
 # TC-WX-02 · FR-23.4 (core): L22
