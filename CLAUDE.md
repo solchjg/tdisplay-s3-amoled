@@ -94,7 +94,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   average, history record, `ext` in `/api/readings`, line 6, the summary and the §28 verdict;
   an add-on that is off shows nowhere.
 - `components/sampling/` (L1) — sampling setups (FSD §28): the selection (`std`, `fine`, `slow`,
-  `custom`, plus the `quick` and `cycle` tests) from the portal form or a BLE write, kept in NVS;
+  `custom`, plus the `quick`, `cycle` and `gps` tests, `gps` the FR-33.20 search) from the portal form or a BLE write, kept in NVS;
   the run of tests in RTC memory; `sampling_core.c` is the pure core (selection, test progress,
   verdict, L32/L33). The double press of the user key is `setup_check_core`'s `sk_taps_sample`.
 - `components/summary/` (L1) — the summary email (FSD §25): mail settings from

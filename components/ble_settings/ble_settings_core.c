@@ -204,9 +204,10 @@ static const char *const RULES[][24] = {
      "std,fine,slow,custom", "labels",
      "Standard: every 10 min, 60 min averages|Frequent: every 1 min, 15 min averages|"
      "Battery saver: every 30 min, 180 min averages|Custom: the minutes below",
-     "extras", "quick,cycle", "extras_intro", "Run first, once:", "extra_labels",
+     "extras", "quick,cycle,gps", "extras_intro", "Run first, once:", "extra_labels",
      "Quick check (12 readings, 10 s apart, 2 min)|"
-     "Sleep cycle check (20 readings, 30 s asleep between, 10 min)", NULL},
+     "Sleep cycle check (20 readings, 30 s asleep between, 10 min)|"
+     "GPS check (a fix within 20 min, awake; needs cellular and GPS on)", NULL},
     {"sample_min", "label", "Custom: a reading every", "type", "number", "min", "1", "max", "60",
      "placeholder", "10", "unit", "minutes", NULL},
     {"average_min", "label", "Custom: average them over", "type", "number", "min", "2", "max",

@@ -319,7 +319,7 @@ def test_form_rules_cover_every_field(bset):
         "mail_every"}
     assert rules["mail_port"]["options"] == ",465,587"                  # none allowed
     assert rules["setup"]["options"].split(",") == ["std", "fine", "slow", "custom"]  # FR-28.1
-    assert rules["setup"]["extras"].split(",") == ["quick", "cycle"]
+    assert rules["setup"]["extras"].split(",") == ["quick", "cycle", "gps"]
     assert (rules["mail_every"]["min"], rules["mail_every"]["max"]) == ("1", "24")
     assert (rules["sample_min"]["min"], rules["sample_min"]["max"]) == ("1", "60")
     assert rules["uplink"]["options"].split(",") == ["wifi", "cell"]            # FR-33.1
@@ -416,7 +416,7 @@ def test_log_lines(compile_harness):
 PORTAL_PARTS = [  # file, first and last text of its form HTML
     ("shared/components/portal/portal.c", "<body><h1>", "</label></p>\";"),
     ("components/summary/summary.c", "<h2>Email summary", "hours</label></p>\";"),
-    ("components/sampling/sampling.c", "<h2>Readings", "10 min)</label></p>\";"),
+    ("components/sampling/sampling.c", "<h2>Readings", "GPS on)</label></p>\";"),
     ("components/loop/loop.c", "<h2>4-20 mA", "ms</label></p>\";"),
     ("components/notify/notify.c", "<h2>Push alerts", "mbar</p>\","),
     ("components/uplink/uplink.c", "<h2>Cellular uplink", "on</option></select></label></p>\","),

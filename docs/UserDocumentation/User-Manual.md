@@ -188,7 +188,8 @@ single press of the user key during the Quick check, or one that wakes the
 device during the Sleep cycle check, stops the test and counts it as failed;
 so does a reset. Over Bluetooth (chapter 5c) the setup is the `setup` box:
 type, for example, `std,quick` or `fine,cycle` (one of `std`, `fine`, `slow`,
-`custom`, plus any of `quick` and `cycle`).
+`custom`, plus any of `quick`, `cycle` and `gps`). The GPS check (`gps`, chapter
+5h) runs last.
 
 A sleeping board does not appear on USB; to flash it, press the user key first
 or unplug and replug it, and flash within 60 seconds.
@@ -450,6 +451,15 @@ so Notehub tags each later event with it. Indoors a fix can take many minutes
 or fail; stick the GPS antenna flat on the window glass. If the check ends
 without a fix, the place kept from before stays. A factory reset sets the
 uplink back to `wifi` and forgets the place.
+
+To look for a fix again without a factory reset, run the **GPS check**: tick
+*GPS check* on the setup page, or type `std,gps` (your setup plus `gps`) in the
+`setup` box over Bluetooth, and save. After the restart and its 60 s window the
+device stays awake and searches for up to 20 minutes, with `GPS searching
+mm:ss` on line 6. It ends at the first fix (`Test pass 1/1`, the new place
+kept) or after 20 minutes (`Test FAIL 0/1`, the old place kept); a press of
+the user key stops it. It needs the uplink on `cell` and GPS on, and fails at
+once otherwise. The serial log shows `test end id=gps fix=yes result=pass`.
 
 ## 6. Troubleshooting
 

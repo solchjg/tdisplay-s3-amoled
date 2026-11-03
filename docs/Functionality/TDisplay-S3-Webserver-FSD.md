@@ -1035,8 +1035,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L29 | BLE `settings` written (FR-26.16) | `web: ble settings <ok\|invalid=<field>>` | I (W when invalid) |
 | L30 | BLE window closed (FR-26.16) | `web: ble off reason=<provisioned\|idle\|done\|written\|pairing>` | I |
 | L31 | History unavailable or failed (FR-27.8, FR-27.9) | `web: history unavailable` or `web: history failed: <ERR>` | W |
-| L32 | Test started (FR-28.12) | `web: test start id=<quick\|cycle>` | I |
-| L33 | Test ended (FR-28.12) | `web: test end id=<quick\|cycle> readings=<n>/<m> averages=<a>/<b> result=<pass\|fail>[ by=<key\|reset>]` | I (W when failed) |
+| L32 | Test started (FR-28.12) | `web: test start id=<quick\|cycle\|gps>` | I |
+| L33 | Test ended (FR-28.12) | `web: test end id=<quick\|cycle> readings=<n>/<m> averages=<a>/<b> result=<pass\|fail>[ by=<key\|reset>]`; for `gps` (FR-33.20) `web: test end id=gps fix=<yes\|no> result=<pass\|fail>[ by=<key\|reset>]` | I (W when failed) |
 | L34 | Loop value (FR-29.5) | `web: loop ma=<mA, 3 decimals> v=<value, 3 decimals> <loop_unit>` | I |
 | L35 | Loop failed (FR-29.4) | `web: loop failed: <fault\|ERR> ma=<mA, 3 decimals, or none>` | W |
 | L36 | History erased for its new format (FR-29.12) | `web: history erased reason=format` | W |
@@ -2434,8 +2434,9 @@ and screen text); the composition root reads the sensor, sleeps and sends.
 | `custom` | normal | Custom | `sample_min` | `average_min` | until changed |
 | `quick` | test | Quick check | 10 s, awake | the normal setup's | 12 readings (2 min) |
 | `cycle` | test | Sleep cycle check | 30 s, asleep between | 2 min | 20 readings (10 min) |
+| `gps` | test | GPS check (§33, FR-33.20) | no readings | — | until a fix, at most 20 min |
 
-During `quick` the device stays awake as in the window (panel, WiFi, web
+During `quick` and `gps` the device stays awake as in the window (panel, WiFi, web
 server); during `cycle` every reading after the first is a timer wake
 (FR-21.13).
 
@@ -3293,8 +3294,9 @@ Location (optional, during the setup check):
 
 - **FR-33.15** [Must] [user] With `uplink` `cell` and `gps` `on`, the device
   shall seek a GPS fix with the Notecard's own GPS during each setup check
-  hold (§24), and only then. With `gps` `off`, on a timer wake, and outside
-  the hold, it never turns the Notecard's GPS on.
+  hold (§24) and during the `gps` test (FR-33.20), and only then. With `gps`
+  `off`, on a timer wake, and outside the hold and the test, it never turns
+  the Notecard's GPS on.
 - **FR-33.16** [Must] [proposed] When the hold starts, after the Notecard
   setup (FR-33.4, FR-33.14) and the time step of FR-33.12, the device shall
   send `card.location.mode` `continuous` and ask `card.location` every
@@ -3317,6 +3319,18 @@ Location (optional, during the setup check):
   shall show `GPS searching <mm>:<ss>` (time since the search began) until
   a fix, then `GPS <lat> <lon>` (5 decimals, at most 44 characters), in
   place of the add-on values, which return when the hold ends.
+- **FR-33.20** [Must] [user] The `gps` test of §28 shall run the search of
+  FR-33.16 – FR-33.19 outside the hold, without a factory reset, keeping the
+  device awake as `quick` does (FR-28.6) and running after any other test.
+  It passes at the first fix (FR-33.17) and fails when no fix comes within
+  **20 min** [proposed] (the Notecard ends a seek after about 17 min, R-35),
+  or at once when no search can start (`uplink` not `cell`, `gps` `off`, or
+  the Notecard not set up); either way the search ends as in FR-33.18. A
+  press of the user key ends it as failed with `by=key`, and a reset with
+  `by=reset`, after which the next boot ends the search (FR-33.18). It
+  counts as one planned reading in FR-28.11, taken when it found a fix, and
+  logs L32 and L33 with `fix=<yes|no>` in place of `readings=` and
+  `averages=` (§7.2).
 
 Power and data:
 
@@ -3351,6 +3365,8 @@ Power and data:
 | FR-33.18 (core) | Hold ends by key with no fix: a place stored; none stored | `fixed` with the stored place, L45 `none`; `off`, L45 `none` | The stored place erased by a failed search |
 | FR-33.19 (core) | Line 6 at 0 s, 75 s, after a fix at 40.712776, -74.005974 | `GPS searching 00:00`; `GPS searching 01:15`; `GPS 40.71278 -74.00597` | More than 44 characters; the add-on values during the search |
 | FR-33.15, FR-33.17 | A Notecard with its GPS antenna at a window (R-31, R-35), `gps` `on`, provisioned | L45 with the bench's place within the hold; `latitude` and `longitude` in the next `tbattr.qo` | L45 on a timer wake | bench (operator) |
+| FR-33.20, FR-28.1, FR-28.12 (core) | `setup=std,gps`; `setup=gps` alone; `quick` then `gps` with a fix; `gps` with none; `gps` ended by a key | `std,gps`; 400 `setup`; `… id=gps fix=yes result=pass`, `Test pass 13/13`; `fix=no result=fail`, `Test FAIL 0/1`; `fix=no result=fail by=key` | `gps` before `quick` or `cycle`; a reading counted for `gps` | host |
+| FR-33.20 | A Notecard with its GPS antenna at a window (R-31, R-35), `uplink` `cell`, `gps` `on`; BLE write `setup=std,gps` | L32 `id=gps`, line 6 `GPS searching <mm>:<ss>`, then L45 with the place and L33 `fix=yes result=pass` within 20 min, or L45 `none` and L33 `fix=no result=fail`; no sleep during the test | The search on a timer wake; a factory reset needed | bench (operator) |
 | FR-33.8 | The user's routes set up, an alert and a summary due | The ntfy message and the email arrive | Nothing on the target with L43 logged | bench (operator) |
 | NFR-33.2 | A month of the `std` setup on cellular | Notehub's data use for the device under 4 MB | — | bench (operator) |
 
@@ -3683,7 +3699,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.31.0
+fsd_version: 0.32.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3746,6 +3762,7 @@ change_history:
   - "0.29.0 2026-11-02 from the user's acceptance of the Notecard review (the NOTE-MBGLW v2.5 the user owns, on a Notecarrier-X v1.3, run on cellular only): §2.2 and §33.2 name the card and carrier (user), the antenna row needs one flexible LTE antenna (no onboard antenna on the Notecarrier-X) and leaves the WiFi antenna unplaced, the power row gains the 10 mAh-a-day estimate and a 2000 mAh LiPo; FR-33.14 cellular-only transport (user); FR-33.12 one hub.sync and 60 s of time polls in a window; FR-33.7 100 readings confirmed by commissioning, else 50; NFR-33.2 a Notefile template and a measured batch; FR-34.8 covers the Notecard's WiFi; §4.3 the Notecard's WiFi out of scope; Phase 15 commissioning measures batch time and size"
   - "0.30.0 2026-11-02 from the user's request that the GPS be optionally used during setup: the `gps` setting (§33.3), FR-33.15 – FR-33.19 (a fix with the Notecard's GPS during the setup check, stored, sent to the Notecard as its fixed place and to ThingsBoard as `latitude` and `longitude`, shown on line 6 during the hold), L45, R-35; §24.1, §5.4, §33.2 antenna row, §33.4, Phase 15 and Appendix A updated"
   - "0.31.0 2026-11-03 from the user's request for an option to wire the Blues cellular without the connector: §33.2 gains a Wiring row, Qwiic or three wires soldered to the Notecarrier-X's header (GND, SDA, SCL; VIO unconnected), the LiPo optionally soldered to VBAT and GND (proposed); §2.2, the Bus, Power and ATTN rows reworded"
+  - "0.32.0 2026-11-03 from the user's request for a way to keep the GPS running longer for a test, and their choice of a test in the setup box: the `gps` test (§28.1, FR-33.20, user; 20 min proposed), FR-33.15 allows the search in the test, L32 and L33 name `gps`"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"

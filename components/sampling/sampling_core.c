@@ -6,9 +6,9 @@
 #include "portal_core.h"
 
 static const char *const NORMAL[SP_NORMALS] = {"std", "fine", "slow", "custom"};
-static const char *const TEST[SP_TESTS] = {"quick", "cycle"};
+static const char *const TEST[SP_TESTS] = {"quick", "cycle", "gps"};
 static const sm_collect_t PRESET[SP_NORMALS] = {{10, 60}, {1, 15}, {30, 180}, {0, 0}};
-static const uint16_t PLANNED[SP_TESTS] = {SP_QUICK_N, SP_CYCLE_N};
+static const uint16_t PLANNED[SP_TESTS] = {SP_QUICK_N, SP_CYCLE_N, 1};
 
 const char *sp_normal_id(sp_normal_t n)
 {
@@ -182,6 +182,15 @@ uint32_t sp_reading_ext(sp_run_t *r, bool ok, uint8_t want, uint8_t have, bool c
     return t == SP_QUICK ? SP_QUICK_S : SP_CYCLE_S;
 }
 
+void sp_gps_result(sp_run_t *r, bool fix)
+{
+    if (!sp_running(r, SP_GPS)) {
+        return;
+    }
+    r->done = 1;
+    r->taken = fix;
+}
+
 sp_result_t sp_end(sp_run_t *r, sp_by_t by)
 {
     sp_result_t res = {0};
@@ -234,6 +243,11 @@ void sp_log_start(sp_test_t t, char out[SP_LOG_MAX])
 void sp_log_end(const sp_result_t *res, const wx_ext_cfg_t *cfg, char out[SP_LOG_MAX])
 {
     static const char *const BY[] = {"", " by=key", " by=reset"};
+    if (res->test == SP_GPS) {
+        snprintf(out, SP_LOG_MAX, "test end id=gps fix=%s result=%s%s", res->taken ? "yes" : "no",
+                 sp_pass(res) ? "pass" : "fail", BY[res->by <= SP_BY_RESET ? res->by : 0]);
+        return;
+    }
     int n = snprintf(out, SP_LOG_MAX, "test end id=%s readings=%u/%u averages=%u/%u result=%s%s",
                      sp_test_id((sp_test_t)res->test), res->taken, res->planned, res->avg_closed,
                      res->avg_planned, sp_pass(res) ? "pass" : "fail",

@@ -3456,3 +3456,29 @@ tests:
     observable: "time synced 2026-11-03T01:40:00+0000 src=cell"
     impl: tests/host/test_web_log.py::test_time_synced_line
     result: {status: not done}
+
+  - id: TC-CELL-13
+    title: "The gps test"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.20, FR-28.1, FR-28.12]
+    needs: []
+    observable: "setup=std,gps accepted, gps runs after quick and cycle; a fix: test end id=gps fix=yes result=pass, Test pass 13/13 after quick; none: fix=no result=fail, Test FAIL 0/1; a key: by=key; L32 test start id=gps"
+    impl: [tests/host/test_sampling.py::test_selection, tests/host/test_sampling.py::test_gps_with_a_fix_passes, tests/host/test_sampling.py::test_gps_without_a_fix_fails, tests/host/test_sampling.py::test_a_key_ends_gps, tests/host/test_sampling.py::test_gps_start_line]
+    result: {status: not done}
+
+  - id: TC-CELL-14
+    title: "The gps test on the bench"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: bench
+    verifies: [FR-33.20]
+    needs: [dut-notecard]
+    observable: "BLE write setup=std,gps with uplink cell and gps on: L32 id=gps, line 6 GPS searching mm:ss, then L45 with the place and L33 fix=yes result=pass within 20 min, or L45 none and L33 fix=no result=fail; no web: sleep during the test"
+    impl: []
+    result: {status: not done}
