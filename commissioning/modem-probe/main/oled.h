@@ -1,0 +1,19 @@
+// The modem probe's status screen: a 128x64 SSD1306 on its own I2C bus, five
+// lines of 21 characters (Terminus 6x12). Optional: without a panel every call
+// does nothing.
+#pragma once
+
+#include <stdbool.h>
+
+#define OLED_LINES 5
+#define OLED_COLS 21
+
+// Finds the panel at 0x3C or 0x3D on I2C port 1 and turns it on; false when
+// none answers.
+bool oled_start(int sda, int scl);
+
+// Sets line n (0 - 4), printf style, cut to OLED_COLS, and redraws the screen.
+void oled_line(int n, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+
+// Blanks the panel (before deep sleep).
+void oled_off(void);
