@@ -273,8 +273,7 @@ const char *uplink_location_mode(const char *mode, const double *lat, const doub
     return nc_req_location_mode(line, sizeof line, mode, lat, lon) ? ask(line) : "err";
 }
 
-bool uplink_location(double *lat, double *lon)
+const char *uplink_location(void)
 {
-    return ready && !ask_name("card.location") && nc_num(rsp, "lat", lat) &&
-           nc_num(rsp, "lon", lon);
+    return ready && !ask_name("card.location") ? rsp : NULL;
 }

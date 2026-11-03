@@ -3440,8 +3440,8 @@ tests:
     tier: host
     verifies: [FR-33.15, FR-33.16, FR-33.17, FR-33.18, FR-33.19]
     needs: []
-    observable: "gps on: continuous once, asks at 5 s steps, fixed with the place on the 3rd, the hold not ended by it, line 6 the place and the add-ons again after the hold; gps off: no request; no fix: fixed with the stored place, or off when none, L45 none"
-    impl: [tests/host/test_uplink.py::test_gps_fix_on_the_third_ask, tests/host/test_uplink.py::test_gps_search_line, tests/host/test_uplink.py::test_gps_off, tests/host/test_uplink.py::test_gps_end_without_fix]
+    observable: "only a GPS fix newer than the search start, or than the location the first answer held, counts; gps on: continuous once, asks at 5 s steps, fixed with the place on the 3rd, the hold not ended by it, line 6 the place and the add-ons again after the hold; gps off: no request; no fix: fixed with the stored place, or off when none, L45 none"
+    impl: [tests/host/test_uplink.py::test_gps_fix_on_the_third_ask, tests/host/test_uplink.py::test_gps_search_line, tests/host/test_uplink.py::test_gps_off, tests/host/test_uplink.py::test_gps_end_without_fix, tests/host/test_uplink.py::test_gps_held_location_is_not_a_fix, tests/host/test_uplink.py::test_gps_older_than_the_search_start_is_not_a_fix, tests/host/test_uplink.py::test_gps_none_held_then_a_fix, tests/host/test_uplink.py::test_gps_a_cell_tower_location_is_not_a_fix]
     result: {status: not done}
 
   - id: TC-CELL-12

@@ -994,11 +994,13 @@ static void gps_event(ul_gps_ev_t ev)
     int64_t at = 0;
     bool place = ev == UL_GE_END && gps.on && !gps.fixed && uplink_place(&lat, &lon, &at);
     unsigned a = ul_gps_step(&gps, ev, wanted, place, uptime_s(), 0, 0);
+    if (a & UL_GA_CONTINUOUS) {  // FR-33.16: only a fix taken after this counts
+        gps.after = time_sync_synced() ? (int64_t)time(NULL) : 0;
+    }
     gps_act(a);
     if (a & UL_GA_ASK) {
-        bool fix = uplink_location(&lat, &lon);
-        gps_act(ul_gps_step(&gps, fix ? UL_GE_FIX : UL_GE_NO_FIX, wanted, false, uptime_s(),
-                            fix ? lat : 0, fix ? lon : 0));
+        ul_gps_ev_t got = ul_gps_answer(&gps, uplink_location(), &lat, &lon);
+        gps_act(ul_gps_step(&gps, got, wanted, false, uptime_s(), lat, lon));
     }
 }
 

@@ -103,6 +103,14 @@ int main(int argc, char **argv)
         time_sim(atoi(argv[2]) != 0, atoi(argv[3]), (uint32_t)atoi(argv[4]));
     } else if (!strcmp(argv[1], "gps")) {
         gps_sim(atoi(argv[2]) != 0, atoi(argv[3]) != 0, atoi(argv[4]), (uint32_t)atoi(argv[5]));
+    } else if (!strcmp(argv[1], "answers")) {  // answers <after> <json|->...
+        ul_gps_t g = {.on = true, .after = atoll(argv[2])};
+        for (int i = 3; i < argc; i++) {
+            double lat = 0, lon = 0;
+            ul_gps_ev_t e = ul_gps_answer(&g, strcmp(argv[i], "-") ? argv[i] : NULL, &lat, &lon);
+            if (e == UL_GE_FIX) printf("F%.5f,%.5f ", lat, lon); else printf("N ");
+        }
+        printf("after=%lld", (long long)g.after);
     } else if (!strcmp(argv[1], "parse")) {
         ul_defaults(&none);
         const char *bad = ul_parse(argv[2], strlen(argv[2]), &none, &stored);
@@ -279,3 +287,30 @@ def test_gps_end_without_fix(ul):
     kept = ul("gps", 1, 1, 0, 12)
     assert kept.endswith("end:kept |addons|")
     assert ul("gps", 1, 0, 0, 12).endswith("end:off |addons|")
+
+
+def _loc(t, lat=39.94374, lon=-84.05926, status="GPS updated (58 sec) {gps-active} {gps-signal} {gps-sats} {gps}"):
+    return ('{"status":"%s","mode":"continuous","lat":%s,"lon":%s,"time":%d}' % (status, lat, lon, t))
+
+
+OLD = _loc(1762140000)
+NEW = _loc(1762141000, 39.94401, -84.05901)
+
+
+# FR-33.16 (core): a location the Notecard already held is not the search's fix
+def test_gps_held_location_is_not_a_fix(ul):
+    assert ul("answers", 0, OLD, OLD, NEW) == "N N F39.94401,-84.05901 after=1762140000"
+
+
+def test_gps_older_than_the_search_start_is_not_a_fix(ul):
+    assert ul("answers", 1762140500, OLD, NEW) == "N F39.94401,-84.05901 after=1762140500"
+
+
+def test_gps_none_held_then_a_fix(ul):
+    searching = '{"status":"GPS search (19 sec, 41dB SNR, 5 sats) {gps-active} {gps-signal} {gps-sats}","mode":"continuous"}'
+    assert ul("answers", 0, searching, "-", NEW) == "N N F39.94401,-84.05901 after=0"
+
+
+def test_gps_a_cell_tower_location_is_not_a_fix(ul):
+    tower = _loc(1762141000, status="GPS search (19 sec) {gps-active} {gps-signal}")
+    assert ul("answers", 1762140500, tower) == "N after=1762140500"
