@@ -1,0 +1,77 @@
+# LTE-M modem evaluation
+
+A plain LTE-M modem gives the device an ordinary IP link over cellular, so the
+WiFi senders (ntfy, mail, ThingsBoard over HTTP) can run over it with no vendor
+cloud between the device and its peers. No FSD section covers it yet: this page
+describes the evaluation that comes before `/define`, not product behaviour.
+
+The evaluation board is the user's **LilyGO T-SIM7080G-S3 V1.0** (ESP32-S3,
+SIMCom SIM7080G LTE-M / NB-IoT with GNSS, AXP2101 PMU), run on its own, not
+wired to the T-Display. Its modem is the one a modem-only add-on board would
+carry, so coverage, attach time, power and GPS results carry over.
+
+## Board
+
+From LilyGO's `utilities.h` and `ATDebug.ino` (repo `Xinyuan-LilyGO/LilyGo-T-SIM7080G`):
+
+| Item | Value |
+|------|-------|
+| Modem UART | UART 1, ESP32-S3 RX GPIO 4, TX GPIO 5, 115200 baud, no flow control |
+| Modem control | PWRKEY GPIO 41 (low, high 1 s, low toggles power or wakes from PSM), DTR GPIO 42 (held low), RI GPIO 3 |
+| PMU | AXP2101 at 0x34, SDA GPIO 15, SCL GPIO 7, IRQ GPIO 6 |
+| Modem rail | DC3 at 3.0 V |
+| Level shifter rail | BLDO1 at 3.3 V, never off |
+| GPS antenna rail | BLDO2 at 3.3 V, on only while seeking a fix |
+| Limits | A SIM fitted after power-up is not seen; GNSS and LTE share the RF path, so one runs at a time |
+
+## Probe
+
+[`commissioning/modem-probe`](../../../commissioning/modem-probe/main/main.c) is the
+evaluation program (never released). Each run sets the rails, wakes the modem, prints
+its firmware, SIM, ICCID and signal, optionally seeks one GPS fix with LTE off (first
+run only), registers on LTE-M and times the attach, then brings up PPP through
+`esp_modem`, sets the clock by SNTP and POSTs one telemetry record straight to
+ThingsBoard (the §32.3 shape with fixed test values plus `probe_*` keys: run, attach
+time, CSQ, battery mV). On the first run it also sends one alert through the shared
+`ntfy_tx`, unchanged from the WiFi path. It then leaves PPP and prints the run's
+timings and running totals.
+
+Options are under "Modem probe" in `idf.py menuconfig`: APN (default `iot.1nce.net`),
+radio access (LTE-M, NB-IoT or both), ThingsBoard URL and token, ntfy URL, topic and
+token, GPS, PSM (TAU 1 h, active time 10 s) and minutes between runs. With 0 minutes it
+runs once and then prints the signal every 30 s; above 0 it deep-sleeps between runs,
+the modem in PSM or, without PSM, powered down so each run is a cold attach.
+
+Without a local toolchain, run the "Commissioning aids" workflow by hand: `modem_apn`,
+`modem_tb_url`, `modem_ntfy` (`<base URL> <topic>`), `modem_tests` (`gps`, `psm`) and
+`modem_every` set the same options; the tokens come from the repository secrets
+`MODEM_PROBE_TB_TOKEN` and `MODEM_PROBE_NTFY_TOKEN`. The tokens are compiled into the
+`modem-probe` artefact, so use a ThingsBoard test device and a test topic.
+
+Lines start with `modemprobe:`; `CHECK` marks a result to look at. The run summary is
+`modemprobe: run=<n> awake_ms=… attach_ok=… attach_mean_ms=… thingsboard_ok=… ntfy_ok=… vbat_mv=…`.
+
+## Bench steps
+
+1. **Smoke test.** Fit an IoT SIM (before power-up) and the LTE antenna. Flash the
+   probe with no ThingsBoard or ntfy set: `AT+CPIN?` answers `READY`, `AT+CSQ` is not
+   `99`, and `registered attach_ms=` appears.
+2. **Senders.** Set the ThingsBoard URL and token and the ntfy server: `thingsboard
+   status=200` and `ntfy ESP_OK` appear, and the record and the alert arrive.
+3. **GPS.** Fit the GPS antenna and enable GPS: `gps fix lat= lon= after_s=` appears,
+   outdoors or at a window.
+4. **Power.** Enable PSM, set 60 minutes, power the board from a LiPo through a
+   current meter: the current between runs, and the charge of one run from its
+   `awake_ms` and the meter. These are whole-board figures, including the ESP32-S3.
+5. **Soak.** 24 h at 60 minutes: `thingsboard_ok` against `run`.
+
+Proposed pass marks: attach within 60 s, at least 95% of records arrive, under 1 mAh
+a run, a GPS fix within 2 min. The bench's SLOT1 holds the T-Display; this board needs
+another slot or a short swap, after which SLOT1 gets the shipped build back.
+
+## Sources
+
+- [LilyGO T-SIM7080G-S3 wiki](https://wiki.lilygo.cc/products/t-sim-series/t-sim7080-s3/)
+- [LilyGO utilities.h](https://github.com/Xinyuan-LilyGO/LilyGo-T-SIM7080G/blob/master/examples/ATDebug/utilities.h)
+- [XPowersLib AXP2101 registers](https://github.com/lewisxhe/XPowersLib/blob/master/src/REG/AXP2101Constants.h)
+- [Espressif esp_modem](https://docs.espressif.com/projects/esp-protocols/esp_modem/docs/latest/README.html)

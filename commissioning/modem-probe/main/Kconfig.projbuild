@@ -1,0 +1,69 @@
+menu "Modem probe"
+
+config PROBE_APN
+    string "APN of the SIM (e.g. iot.1nce.net for 1NCE, hologram for Hologram)"
+    default "iot.1nce.net"
+
+choice PROBE_RAT
+    prompt "Radio access"
+    default PROBE_RAT_CATM
+    config PROBE_RAT_CATM
+        bool "LTE-M only (AT+CMNB=1)"
+    config PROBE_RAT_NB
+        bool "NB-IoT only (AT+CMNB=2)"
+    config PROBE_RAT_BOTH
+        bool "LTE-M and NB-IoT (AT+CMNB=3)"
+endchoice
+
+config PROBE_ATTACH_S
+    int "Seconds to wait for network registration"
+    range 30 600
+    default 180
+
+config PROBE_TB_URL
+    string "ThingsBoard base URL (empty: no telemetry POST)"
+    default ""
+    help
+        As tb_url of FSD 32.2, e.g. https://tb.example.org. Use a test device:
+        every run posts one record.
+
+config PROBE_TB_TOKEN
+    string "ThingsBoard device access token"
+    default ""
+
+config PROBE_NTFY_URL
+    string "ntfy server base URL (empty: no alert)"
+    default ""
+
+config PROBE_NTFY_TOPIC
+    string "ntfy topic"
+    default ""
+
+config PROBE_NTFY_TOKEN
+    string "ntfy access token (empty: none)"
+    default ""
+
+config PROBE_GPS
+    bool "Seek one GPS fix on the first run (LTE off meanwhile; needs the GPS antenna)"
+    default n
+
+config PROBE_GPS_LIMIT_S
+    int "Seconds to wait for the GPS fix"
+    depends on PROBE_GPS
+    range 60 3600
+    default 1200
+
+config PROBE_PSM
+    bool "Ask the network for PSM (TAU 1 h, active time 10 s)"
+    default n
+
+config PROBE_EVERY_MIN
+    int "Minutes between runs (0: run once, then print the signal every 30 s)"
+    range 0 1440
+    default 0
+    help
+        Above 0 the probe is a soak test: after each run the ESP32-S3 deep-sleeps
+        until the next one. Without PSM the modem is powered down between runs,
+        so each run is a cold attach.
+
+endmenu

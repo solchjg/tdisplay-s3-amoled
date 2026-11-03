@@ -23,6 +23,26 @@ on:
         description: 'notecard-probe only: seek one GPS fix (PROBE_GPS)'
         type: boolean
         default: false
+      modem_apn:
+        description: 'modem-probe only: APN of the SIM (PROBE_APN)'
+        required: false
+        default: 'iot.1nce.net'
+      modem_tb_url:
+        description: 'modem-probe only: ThingsBoard base URL (token from secret MODEM_PROBE_TB_TOKEN); empty skips'
+        required: false
+        default: ''
+      modem_ntfy:
+        description: 'modem-probe only: ntfy <base URL> <topic> (token from secret MODEM_PROBE_NTFY_TOKEN); empty skips'
+        required: false
+        default: ''
+      modem_tests:
+        description: 'modem-probe only: any of gps, psm (space separated)'
+        required: false
+        default: ''
+      modem_every:
+        description: 'modem-probe only: minutes between runs, 0 runs once (PROBE_EVERY_MIN)'
+        required: false
+        default: '0'
 
 permissions:
   contents: read
@@ -33,7 +53,7 @@ jobs:
     container: espressif/idf:v6.0.2
     strategy:
       matrix:
-        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe, notecard-probe]
+        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe, notecard-probe, modem-probe]
     defaults:
       run:
         shell: bash
@@ -44,7 +64,7 @@ jobs:
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
         with:
-          submodules: true   # lcd-probe, loop-probe and notecard-probe build shared components
+          submodules: true   # lcd-probe, loop-probe, notecard-probe and modem-probe build shared components
       # forward-path uses the product's own table (C-10.6), named relative to
       # the project directory; the others ignore the copy.
       - name: Use the shipped partition table
@@ -62,6 +82,35 @@ jobs:
             [ "$GPS" = true ] && echo "CONFIG_PROBE_GPS=y"
             true; } >> sdkconfig.defaults
           cat sdkconfig.defaults
+      - name: Probe options (workflow_dispatch)
+        if: matrix.program == 'modem-probe' && github.event_name == 'workflow_dispatch'
+        env:
+          APN: ${{ inputs.modem_apn }}
+          TB_URL: ${{ inputs.modem_tb_url }}
+          NTFY: ${{ inputs.modem_ntfy }}
+          TESTS: ${{ inputs.modem_tests }}
+          EVERY: ${{ inputs.modem_every }}
+          TB_TOKEN: ${{ secrets.MODEM_PROBE_TB_TOKEN }}
+          NTFY_TOKEN: ${{ secrets.MODEM_PROBE_NTFY_TOKEN }}
+        run: |
+          plain() { case "$1" in *[!A-Za-z0-9.:/_-]*) echo "FATAL: $2 has unexpected characters"; exit 1;; esac; }
+          read -r NTFY_URL NTFY_TOPIC <<< "$NTFY"
+          plain "$APN" APN; plain "$TB_URL" modem_tb_url; plain "$NTFY_URL" ntfy_url
+          plain "$NTFY_TOPIC" ntfy_topic; plain "$TB_TOKEN" MODEM_PROBE_TB_TOKEN
+          plain "$NTFY_TOKEN" MODEM_PROBE_NTFY_TOKEN
+          case "$EVERY" in ''|*[!0-9]*) echo "FATAL: modem_every is not a number"; exit 1;; esac
+          { echo "CONFIG_PROBE_APN=\"$APN\""
+            echo "CONFIG_PROBE_TB_URL=\"$TB_URL\""
+            echo "CONFIG_PROBE_TB_TOKEN=\"$TB_TOKEN\""
+            echo "CONFIG_PROBE_NTFY_URL=\"$NTFY_URL\""
+            echo "CONFIG_PROBE_NTFY_TOPIC=\"$NTFY_TOPIC\""
+            echo "CONFIG_PROBE_NTFY_TOKEN=\"$NTFY_TOKEN\""
+            echo "CONFIG_PROBE_EVERY_MIN=$EVERY"
+            for t in $TESTS; do
+              case "$t" in gps) echo "CONFIG_PROBE_GPS=y";; psm) echo "CONFIG_PROBE_PSM=y";;
+                *) echo "FATAL: unknown modem test $t" >&2; exit 1;; esac
+            done; } >> sdkconfig.defaults
+          grep -v TOKEN sdkconfig.defaults
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null
