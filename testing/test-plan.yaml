@@ -344,6 +344,27 @@ capabilities:
     consequence: >
       Wired by the user (2026-10-30); not yet observed answering. TC-WX-10
       is its first run.
+  dut-notecard:
+    what: A Blues NOTE-MBGLW on a Notecarrier-X at 0x17 on SDA GPIO 43 / SCL GPIO 44 (100 kHz) of the board in SLOT1, beside the BME280, taking note.add batches and joining LTE
+    available: yes
+    observed: 2026-11-03
+    evidence: >
+      notecard-probe (commissioning/notecard-probe at 6f3c35d, IDF v6.0.2,
+      PROBE_PRODUCT org.solch.solchjg:field_data_monitor, sync and GPS off) on
+      the board with MAC 48:27:e2:ea:48:3c, 2026-11-03 ~01:33Z: scan 0x17 0x6a
+      0x76 (0x48 absent, no water board fitted); start ESP_OK; card.version
+      notecard-11.4.1.17828, NOTE-MBGLW, board 5.13; every request answered in
+      105 - 156 ms; hub.get product as set, periodic, outbound 60, inbound
+      1440; card.transport cell (was wifi-cell); note.add to probe.qo of 100
+      readings (9207-byte body) 6890 ms and of 50 (4607 bytes) 3385 ms, both
+      accepted; card.wireless LTE band 2, 1 bar, rsrp -117, sinr 2. card.time
+      {no-time} before the first sync. Without a ProductUID note.add is
+      refused with {product-noexist}.
+    consequence: >
+      The 100-reading batch fits NFR-33.1's 10 s at 100 kHz, so FR-33.7 keeps
+      notes of 100 readings. A device at 0x6a also answers on the main bus and
+      is not identified. The bench signal (1 bar) is marginal for sync
+      timing tests; place AE1 per the User Manual 5g before them.
   seam-sensor-fault-build:
     what: "Test build that reads the sensor at 0x77, where nothing answers (FSD §23.4)"
     available: no

@@ -201,8 +201,15 @@ beside the BME280 and, once after reset:
   every 5 s until a fix (up to 20 min), to time a cold fix at the bench window.
 
 Its options are under "Notecard probe" in `idf.py menuconfig`: the ProductUID, the
-forced sync and the GPS seek. Lines start with `notecardprobe:`; `CHECK` marks a result
+forced sync and the GPS seek. Without a local toolchain, run the "Commissioning aids"
+workflow by hand: its `notecard_product`, `notecard_sync` and `notecard_gps` inputs set
+the same options in the `notecard-probe` artefact. Lines start with `notecardprobe:`; `CHECK` marks a result
 to look at.
+
+Without a ProductUID the Notecard refuses every `note.add` (`{product-noexist}`), so
+the batch timing needs one. On the bench Notecard (capability `dut-notecard` in
+[`test-plan.yaml`](../../../testing/test-plan.yaml)) a note of 100 readings takes about
+6.9 s and one of 50 about 3.4 s, so notes keep 100 readings (FR-33.7).
 
 ## Installation
 
