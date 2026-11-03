@@ -69,6 +69,11 @@ int main(int argc, char **argv)
                 sp_end(&r, a[0] == 'K' ? SP_BY_KEY : SP_BY_RESET);
                 break;  // FR-28.8: the remaining tests are dropped
             }
+            if (a[0] == 'F' || a[0] == 'N') {  // the gps test: a fix, or none by its end
+                sp_gps_result(&r, a[0] == 'F');
+                sp_end(&r, SP_BY_NONE);
+                break;  // gps runs last
+            }
             long long period = 0;
             unsigned closed = 0;
             bool clock = sscanf(a + 1, ":%lld:%u", &period, &closed) == 2;
@@ -131,6 +136,10 @@ def core(compile_harness):
     ("setup=quick,quick,std", "bad setup"),
     ("setup=nope", "bad setup"),
     ("setup=std,", "bad setup"),
+    ("setup=std,gps", "std,gps 10/60"),
+    ("setup=gps,cycle,quick,custom", "custom,quick,cycle,gps 10/60"),
+    ("setup=gps", "bad setup"),
+    ("setup=std,gps,gps", "bad setup"),
     ("setup=STD", "bad setup"),
     ("setup=%zz", "bad setup"),
     ("setup=custom&sample_min=0", "bad sample_min"),
@@ -140,7 +149,7 @@ def test_selection(core, body, expected):
     assert core("parse", body) == expected
 
 
-QUICK, CYCLE = 1, 2
+QUICK, CYCLE, GPS = 1, 2, 4
 
 
 # TC-SET-03 · FR-28.5, FR-28.6, FR-28.9 (core): tests in order, then none
@@ -291,3 +300,28 @@ def test_a_failed_bme280_reading_has_no_loop_value_counted(core, monkeypatch):
     monkeypatch.setenv("EXT_LOOP", "loop")
     out = core("run", 1, "x", *["o"] * 11).splitlines()
     assert out[1].endswith("readings=11/12 averages=0/0 result=fail loop=11/12")
+
+
+# TC-CELL-13 · FR-33.20 (core): the gps test, after the others; a fix passes
+def test_gps_with_a_fix_passes(core):
+    out = core("run", QUICK | GPS, *(["o"] * 12), "F").split("\n")
+    assert out[0].split()[-1] == "next"
+    assert out[1] == "test end id=quick readings=12/12 averages=0/0 result=pass"
+    assert out[2] == "test end id=gps fix=yes result=pass"
+    assert out[3] == "Test pass 13/13"
+    assert out[5:7] == [out[1], out[2]]
+
+
+def test_gps_without_a_fix_fails(core):
+    out = core("run", GPS, "N").split("\n")
+    assert out[1] == "test end id=gps fix=no result=fail"
+    assert out[2] == "Test FAIL 0/1"
+
+
+def test_a_key_ends_gps(core):
+    out = core("run", GPS, "K").split("\n")
+    assert out[1] == "test end id=gps fix=no result=fail by=key"
+
+
+def test_gps_start_line(core):
+    assert core("start", 2) == "test start id=gps"

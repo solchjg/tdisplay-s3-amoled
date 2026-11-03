@@ -33,7 +33,9 @@ const char SAMPLING_FORM_HTML[] =
     "<label><input type=\"checkbox\" name=\"setup\" value=\"quick\"> Quick check "
     "(12 readings, 10 s apart, 2 min)</label><br>"
     "<label><input type=\"checkbox\" name=\"setup\" value=\"cycle\"> Sleep cycle check "
-    "(20 readings, 30 s asleep between, 10 min)</label></p>";
+    "(20 readings, 30 s asleep between, 10 min)</label><br>"
+    "<label><input type=\"checkbox\" name=\"setup\" value=\"gps\"> GPS check "
+    "(a fix within 20 min, awake; needs cellular and GPS on)</label></p>";
 
 static stored_t taken;
 static stored_t cur = {.sel = {SP_STD, 0, {SM_SAMPLE_DEFAULT, SM_AVERAGE_DEFAULT}}, .running = -1};

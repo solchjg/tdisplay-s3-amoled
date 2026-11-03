@@ -13,7 +13,7 @@
 
 // §28.1: the normal setups, then the tests in the order they run.
 typedef enum { SP_STD, SP_FINE, SP_SLOW, SP_CUSTOM, SP_NORMALS } sp_normal_t;
-typedef enum { SP_QUICK, SP_CYCLE, SP_TESTS } sp_test_t;
+typedef enum { SP_QUICK, SP_CYCLE, SP_GPS, SP_TESTS } sp_test_t;
 
 #define SP_BIT(t) (1u << (t))
 #define SP_QUICK_N 12      // FR-28.6: readings
@@ -21,9 +21,10 @@ typedef enum { SP_QUICK, SP_CYCLE, SP_TESTS } sp_test_t;
 #define SP_CYCLE_N 20
 #define SP_CYCLE_S 30      // FR-28.6: seconds asleep between them
 #define SP_CYCLE_AVG_MIN 2 // FR-28.6: average period while cycle runs
+#define SP_GPS_S 1200      // FR-33.20: the longest search of the gps test, awake
 #define SP_LINE_MAX 34     // a screen line (FSD §5.4) plus the terminator
 #define SP_LOG_MAX 144     // an L32 / L33 text after "web: ", with both add-on fields
-#define SP_VALUE_MAX 24    // "custom,quick,cycle" plus room
+#define SP_VALUE_MAX 28    // "custom,quick,cycle,gps" plus room
 
 typedef struct {
     uint8_t normal;       // sp_normal_t
@@ -98,6 +99,9 @@ uint32_t sp_reading(sp_run_t *r, bool ok, bool clock_set, int64_t period, uint32
 uint32_t sp_reading_ext(sp_run_t *r, bool ok, uint8_t want, uint8_t have, bool clock_set,
                         int64_t period, uint32_t closed);
 
+// FR-33.20: the gps test's outcome, a fix or none; its one planned "reading".
+void sp_gps_result(sp_run_t *r, bool fix);
+
 // FR-28.8 – FR-28.10: the running test ends; its result is kept and returned.
 sp_result_t sp_end(sp_run_t *r, sp_by_t by);
 
@@ -113,6 +117,7 @@ void sp_verdict_line(const sp_run_t *r, char out[SP_LINE_MAX]);
 // L32: "test start id=<id>"; L33: "test end id=<id> readings=<n>/<m>
 // averages=<a>/<b> result=<pass|fail>[ by=<key|reset>]", then " <name>=<v>/<n>"
 // for each add-on slot that was on, slot 1 first, named by cfg (FR-29.10).
+// The gps test's L33 is "test end id=gps fix=<yes|no> result=…" (FR-33.20).
 void sp_log_start(sp_test_t t, char out[SP_LOG_MAX]);
 void sp_log_end(const sp_result_t *res, const wx_ext_cfg_t *cfg, char out[SP_LOG_MAX]);
 

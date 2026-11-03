@@ -765,6 +765,8 @@ static void send_alerts_awake(void);
 static void send_summary(bool net);
 static void send_summary_notes(void);
 static bool mail_note(int i, const char *subject, const char *text, uint32_t n);
+static void gps_test_begin(void);
+static void gps_test_end(sp_by_t by);
 
 static void quick_tick(void)
 {
@@ -778,10 +780,12 @@ static void quick_tick(void)
         return;
     }
     test_end(SP_BY_NONE);
-    if (test_next()) {
-        run_task_and_sleep();  // cycle: its first reading, then asleep
-    } else {
+    if (!test_next()) {
         tests_over();
+    } else if (sp_running(run, SP_GPS)) {
+        gps_test_begin();  // FR-33.20: awake, as quick
+    } else {
+        run_task_and_sleep();  // cycle: its first reading, then asleep
     }
 }
 
@@ -790,6 +794,12 @@ static void quick_tick(void)
 static void tap(bool twice)
 {
     uint32_t now = uptime_s();
+    if (sp_running(run, SP_GPS)) {  // FR-33.20: as quick
+        gps_test_end(SP_BY_KEY);
+        key_used_s = now;
+        tests_over();
+        return;
+    }
     if (sp_running(run, SP_QUICK)) {
         test_end(SP_BY_KEY);
         key_used_s = now;
@@ -992,8 +1002,40 @@ static void gps_event(ul_gps_ev_t ev)
     }
 }
 
+static uint32_t gps_test_start_s;
+
+// FR-33.20: the gps test starts the search of FR-33.16 outside the hold.
+static void gps_test_begin(void)
+{
+    gps = (ul_gps_t){0};  // nothing from an earlier hold
+    gps_test_start_s = uptime_s();
+    gps_event(UL_GE_START);
+}
+
+// FR-33.20: the gps test ends; the search ends as a hold's does (FR-33.18).
+static void gps_test_end(sp_by_t by)
+{
+    sp_gps_result(run, gps.fixed);
+    gps_event(UL_GE_END);
+    test_end(by);
+    show_newest();  // line 6 back to the add-ons
+}
+
+// FR-33.20: the gps test passes at a fix and fails after SP_GPS_S, or at
+// once when no search could start (no cell, gps off, no Notecard).
+static void gps_test_tick(void)
+{
+    if (!sp_running(run, SP_GPS)) {
+        return;
+    }
+    if (!gps.on || gps.fixed || uptime_s() - gps_test_start_s >= SP_GPS_S) {
+        gps_test_end(SP_BY_NONE);
+        tests_over();  // gps runs last
+    }
+}
+
 // Each tick of a window, before the draw: the clock's asks (FR-33.12), the GPS
-// search and its line 6 in the hold (FR-33.16, FR-33.19).
+// search and its line 6 in the hold or the gps test (FR-33.16, FR-33.19, FR-33.20).
 static void cell_tick(void)
 {
     if (!uplink_ready()) {
@@ -1002,7 +1044,7 @@ static void cell_tick(void)
     if (ul_time_step(&cell_time, UL_TE_TICK, true, uptime_s()) & UL_TA_ASK) {
         cell_time_ask(true);
     }
-    if (hold == DL_HOLD_ON) {
+    if (hold == DL_HOLD_ON || sp_running(run, SP_GPS)) {
         gps_event(UL_GE_TICK);
         ul_gps_shown(&gps, uptime_s(), addons_line, sizeof addons_line);
     }
@@ -1191,6 +1233,10 @@ static uint32_t run_task(void)
         send_alerts_awake();  // FR-31.10
         return 0;
     }
+    if (sp_running(run, SP_GPS)) {  // FR-33.20: awake; the tick ends it
+        gps_test_begin();
+        return 0;
+    }
     if (sp_running(run, SP_CYCLE)) {  // FR-28.6: asleep between readings
         uint32_t s = test_reading();
         send_due_messages();
@@ -1200,6 +1246,8 @@ static uint32_t run_task(void)
         test_end(SP_BY_NONE);
         if (!test_next()) {
             tests_over();  // FR-28.11: awake as after a key wake
+        } else if (sp_running(run, SP_GPS)) {
+            gps_test_begin();  // FR-33.20: awake
         }
         return 0;
     }
@@ -1649,6 +1697,10 @@ void app_main(void)
                 sp_begin(run);  // RTC memory lost with the reset
                 sp_start(run, (sp_test_t)was);
             }
+            if (was == SP_GPS) {  // FR-33.20: a search a reset cut short ends (FR-33.18)
+                gps.on = true;
+                gps_event(UL_GE_END);
+            }
             test_end(wake == DL_WAKE_KEY ? SP_BY_KEY : SP_BY_RESET);
             tests_over();
         } else if (run->running) {
@@ -1780,6 +1832,7 @@ void app_main(void)
 #endif
         hold_tick();
         quick_tick();  // FR-28.6
+        gps_test_tick();  // FR-33.20
         if (hold != DL_HOLD_ON) {
             dl_ble_line(&ble, uptime_s(), ble_passkey, prompt_line);  // FR-26.23
             if (!prompt_line[0] && test_result) {
