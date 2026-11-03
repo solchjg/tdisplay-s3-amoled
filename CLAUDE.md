@@ -146,7 +146,8 @@ Other builds sharing the components:
   `commissioning/notecard-probe/` — the Notecard bring-up (FSD §33, Phase 15: bus, version,
   transport, note timing, optional sync and GPS);
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
-  bench tests). Never released.
+  bench tests); `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
+  T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`). Never released.
 
 ## Testing
 
