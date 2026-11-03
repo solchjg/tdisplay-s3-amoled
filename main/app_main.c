@@ -764,6 +764,7 @@ static void run_task_and_sleep(void);
 static void send_alerts_awake(void);
 static void send_summary(bool net);
 static void send_summary_notes(void);
+static bool mail_note(int i, const char *subject, const char *text, uint32_t n);
 
 static void quick_tick(void)
 {
