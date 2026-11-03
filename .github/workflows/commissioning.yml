@@ -10,6 +10,19 @@ on:
   pull_request:
     paths: ['commissioning/**', 'shared', '.github/workflows/commissioning.yml']
   workflow_dispatch:
+    inputs:
+      notecard_product:
+        description: 'notecard-probe only: Notehub ProductUID (PROBE_PRODUCT); empty leaves the Notecard alone'
+        required: false
+        default: ''
+      notecard_sync:
+        description: 'notecard-probe only: force one sync (PROBE_SYNC; uses cellular data)'
+        type: boolean
+        default: false
+      notecard_gps:
+        description: 'notecard-probe only: seek one GPS fix (PROBE_GPS)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,6 +49,19 @@ jobs:
       # the project directory; the others ignore the copy.
       - name: Use the shipped partition table
         run: cp "$GITHUB_WORKSPACE/partitions.csv" .
+      - name: Probe options (workflow_dispatch)
+        if: matrix.program == 'notecard-probe' && github.event_name == 'workflow_dispatch'
+        env:
+          PRODUCT: ${{ inputs.notecard_product }}
+          SYNC: ${{ inputs.notecard_sync }}
+          GPS: ${{ inputs.notecard_gps }}
+        run: |
+          case "$PRODUCT" in *[!A-Za-z0-9.:_-]*) echo "FATAL: ProductUID has characters outside FSD 33.3"; exit 1;; esac
+          { echo "CONFIG_PROBE_PRODUCT=\"$PRODUCT\""
+            [ "$SYNC" = true ] && echo "CONFIG_PROBE_SYNC=y"
+            [ "$GPS" = true ] && echo "CONFIG_PROBE_GPS=y"
+            true; } >> sdkconfig.defaults
+          cat sdkconfig.defaults
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null
