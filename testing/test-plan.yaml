@@ -359,7 +359,14 @@ capabilities:
       readings (9207-byte body) 6890 ms and of 50 (4607 bytes) 3385 ms, both
       accepted; card.wireless LTE band 2, 1 bar, rsrp -117, sinr 2. card.time
       {no-time} before the first sync. Without a ProductUID note.add is
-      refused with {product-noexist}.
+      refused with {product-noexist}. Shipped firmware with uplink=cell on the
+      same board, 2026-11-03: ca3569e logged "time synced
+      ... src=cell", and its quick test's alert "cell note alert n=1" with no
+      L44; 1e6c27d booted with no E lines (no i2c.master error) and its gps
+      test passed 1 s in on the location the Notecard held; 647ff02, with
+      FR-33.16's fresh-fix rule, logged "GPS searching 00:01" counting up and
+      L45 with a new fix 56 s in (about 300 m from the held place), then
+      "test end id=gps fix=yes result=pass".
     consequence: >
       The 100-reading batch fits NFR-33.1's 10 s at 100 kHz, so FR-33.7 keeps
       notes of 100 readings. The device at 0x6a answered only once the Notecard
@@ -368,7 +375,10 @@ capabilities:
       datasheets); it clashes with nothing on the bus. The bench stands inside,
       near a window: the signal (1 bar) is marginal and a GPS fix may be slow or
       fail there, so sync timing and GPS results on the bench are read with
-      that in mind; place AE1 per the User Manual 5g and AE2 on the glass.
+      that in mind; place AE1 per the User Manual 5g and AE2 on the glass. A GPS
+      fix at the window comes within about a minute, so the gps test (TC-CELL-14)
+      can run on the bench. card.location answers with the held location, which
+      is why FR-33.16 counts only a fix newer than the search.
   seam-sensor-fault-build:
     what: "Test build that reads the sensor at 0x77, where nothing answers (FSD §23.4)"
     available: no
