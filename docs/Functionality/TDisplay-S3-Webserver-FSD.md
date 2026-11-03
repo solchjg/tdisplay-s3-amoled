@@ -3300,7 +3300,12 @@ Location (optional, during the setup check):
 - **FR-33.16** [Must] [proposed] When the hold starts, after the Notecard
   setup (FR-33.4, FR-33.14) and the time step of FR-33.12, the device shall
   send `card.location.mode` `continuous` and ask `card.location` every
-  **5 s** until it answers with a fix (`lat` and `lon`) or the hold ends.
+  **5 s** until it answers with a fix or the hold ends. A fix is a GPS
+  location (`{gps}` in its `status`, with `lat`, `lon` and `time`) taken
+  after the search began: its `time` later than the search's start when the
+  clock is set, else later than the location the first answer held
+  [derived]. A location the Notecard already held, from GPS or a cell
+  tower, is never the search's fix.
   The Notecard turns its GPS on only after its first completed Notehub
   sync, and never while its modem is on, so the search may wait for a
   session to end (R-35).
@@ -3362,6 +3367,7 @@ Power and data:
 | FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 within 60 s | A reading with `at=none` after L20 | target (R-31) |
 | FR-33.1, FR-33.15 (core) | Bodies: `gps=on` with `uplink` `wifi` stored; with `uplink=cell`; `gps=yes` | 400 `gps`; stored; 400 `gps` | `gps` `on` stored with `uplink` `wifi` |
 | FR-33.15, FR-33.16, FR-33.17 (core) | Hold with `gps` `on`: `card.location` answers no fix twice, then a fix; `gps` `off`; a timer wake | `continuous` once, asks at 5 s steps, then `fixed` with the place, the place stored, L45; no location request with `off` or on a timer wake | A location request outside the hold; the hold ended by the fix |
+| FR-33.16 (core) | `card.location` answers: the held location twice, then a newer GPS fix; with the clock set, a location older than the start, then a newer one; no location, then a fix; a newer cell tower location without `{gps}` | No fix, no fix, the fix; no fix, the fix; no fix, the fix; no fix | The held location taken as the fix |
 | FR-33.18 (core) | Hold ends by key with no fix: a place stored; none stored | `fixed` with the stored place, L45 `none`; `off`, L45 `none` | The stored place erased by a failed search |
 | FR-33.19 (core) | Line 6 at 0 s, 75 s, after a fix at 40.712776, -74.005974 | `GPS searching 00:00`; `GPS searching 01:15`; `GPS 40.71278 -74.00597` | More than 44 characters; the add-on values during the search |
 | FR-33.15, FR-33.17 | A Notecard with its GPS antenna at a window (R-31, R-35), `gps` `on`, provisioned | L45 with the bench's place within the hold; `latitude` and `longitude` in the next `tbattr.qo` | L45 on a timer wake | bench (operator) |
@@ -3699,7 +3705,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.32.0
+fsd_version: 0.32.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3763,6 +3769,7 @@ change_history:
   - "0.30.0 2026-11-02 from the user's request that the GPS be optionally used during setup: the `gps` setting (§33.3), FR-33.15 – FR-33.19 (a fix with the Notecard's GPS during the setup check, stored, sent to the Notecard as its fixed place and to ThingsBoard as `latitude` and `longitude`, shown on line 6 during the hold), L45, R-35; §24.1, §5.4, §33.2 antenna row, §33.4, Phase 15 and Appendix A updated"
   - "0.31.0 2026-11-03 from the user's request for an option to wire the Blues cellular without the connector: §33.2 gains a Wiring row, Qwiic or three wires soldered to the Notecarrier-X's header (GND, SDA, SCL; VIO unconnected), the LiPo optionally soldered to VBAT and GND (proposed); §2.2, the Bus, Power and ATTN rows reworded"
   - "0.32.0 2026-11-03 from the user's request for a way to keep the GPS running longer for a test, and their choice of a test in the setup box: the `gps` test (§28.1, FR-33.20, user; 20 min proposed), FR-33.15 allows the search in the test, L32 and L33 name `gps`"
+  - "0.32.1 2026-11-03 from the user's bench run of the gps test, which passed 1 s after its start on the location the Notecard already held: FR-33.16 counts only a GPS fix taken after the search began (derived)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"

@@ -128,6 +128,8 @@ typedef struct {
     bool fixed;  // a fix arrived in this hold
     uint32_t start_s, next_s;
     double lat, lon;  // the fix, rounded to 5 decimals
+    int64_t after;    // FR-33.16: a fix counts only with a later time (seconds since 1970)
+    bool asked;       // a card.location answer was read in this search
 } ul_gps_t;
 
 typedef enum {
@@ -148,6 +150,14 @@ typedef enum {
 // with UL_GE_FIX, else ignored.
 unsigned ul_gps_step(ul_gps_t *g, ul_gps_ev_t ev, bool wanted, bool have_place, uint32_t now_s,
                      double lat, double lon);
+
+// FR-33.16: what a card.location answer (NULL for none) means for the search.
+// UL_GE_FIX, with *lat and *lon, only for a GPS fix ("{gps}" in its status)
+// whose time is later than g->after: the search's start when the clock was
+// set (the caller sets g->after after UL_GE_START), else the time of the
+// location the first answer held. So a location the Notecard already held,
+// GPS or cell tower, never counts as the search's fix. Else UL_GE_NO_FIX.
+ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *lon);
 
 // FR-33.19: line 6 for the search, or false outside it (the add-on values).
 bool ul_gps_shown(const ul_gps_t *g, uint32_t now_s, char *out, size_t cap);

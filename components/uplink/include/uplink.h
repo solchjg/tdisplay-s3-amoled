@@ -60,5 +60,6 @@ const char *uplink_hub_sync(void);
 // with lat and lon, "off").
 const char *uplink_location_mode(const char *mode, const double *lat, const double *lon);
 
-// FR-33.16: card.location; true with a fix.
-bool uplink_location(double *lat, double *lon);
+// FR-33.16: card.location; its answer (valid until the next request), or NULL
+// when the Notecard did not answer. ul_gps_answer says whether it is a fix.
+const char *uplink_location(void);

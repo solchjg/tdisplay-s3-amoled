@@ -296,6 +296,33 @@ unsigned ul_gps_step(ul_gps_t *g, ul_gps_ev_t ev, bool wanted, bool have_place, 
     return 0;
 }
 
+ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *lon)
+{
+    double la = 0, lo = 0, t = 0;
+    bool has = answer && nc_num(answer, "lat", &la) && nc_num(answer, "lon", &lo) &&
+               nc_num(answer, "time", &t);
+    bool gps = false;
+    const char *v;
+    size_t n;
+    if (answer && nc_find(answer, "status", &v, &n)) {
+        for (size_t i = 0; i + 5 <= n && !gps; i++) {
+            gps = memcmp(v + i, "{gps}", 5) == 0;
+        }
+    }
+    bool first = !g->asked;
+    g->asked = true;
+    if (first && g->after == 0 && has) {
+        g->after = (int64_t)t;  // held before the search: never its fix
+        return UL_GE_NO_FIX;
+    }
+    if (!has || !gps || (int64_t)t <= g->after) {
+        return UL_GE_NO_FIX;
+    }
+    *lat = la;
+    *lon = lo;
+    return UL_GE_FIX;
+}
+
 bool ul_gps_shown(const ul_gps_t *g, uint32_t now_s, char *out, size_t cap)
 {
     if (!g->on) {
