@@ -89,9 +89,9 @@ void wl_fmt_sleep(char *buf, size_t len, uint32_t s)
     snprintf(buf, len, "sleep s=%" PRIu32, s);
 }
 
-void wl_fmt_time_synced(char *buf, size_t len, const char *iso)
+void wl_fmt_time_synced(char *buf, size_t len, const char *iso, const char *src)
 {
-    snprintf(buf, len, "time synced %s", iso);
+    snprintf(buf, len, "time synced %s%s%s", iso, src ? " src=" : "", src ? src : "");
 }
 
 void wl_fmt_wake(char *buf, size_t len, const char *cause)

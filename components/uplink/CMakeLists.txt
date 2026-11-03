@@ -1,4 +1,4 @@
-idf_component_register(SRCS "uplink_core.c"
+idf_component_register(SRCS "uplink.c" "uplink_core.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES notecard
-                       PRIV_REQUIRES portal)
+                       REQUIRES esp_common notecard
+                       PRIV_REQUIRES portal nvs_flash)

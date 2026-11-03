@@ -62,7 +62,8 @@ void wl_fmt_sleep(char *buf, size_t len, uint32_t s);
 void wl_fmt_wake(char *buf, size_t len, const char *cause);
 
 // L20: "time synced <local ISO 8601 time with offset>"
-void wl_fmt_time_synced(char *buf, size_t len, const char *iso);
+// L20 with " src=<src>" when src is not NULL (FR-33.12: "cell").
+void wl_fmt_time_synced(char *buf, size_t len, const char *iso, const char *src);
 
 // L22: "bme280 failed: <ERR>" (L21's text comes from the weather core)
 void wl_fmt_bme280_failed(char *buf, size_t len, const char *err);

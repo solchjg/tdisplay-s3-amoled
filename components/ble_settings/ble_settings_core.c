@@ -109,8 +109,8 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
 }
 
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *sel,
-                 const lp_settings_t *loop, const nf_settings_t *alerts, char *out,
-                 size_t cap)
+                 const lp_settings_t *loop, const nf_settings_t *alerts,
+                 const ul_settings_t *uplink, char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
@@ -164,11 +164,17 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
             field(&b, LIMITS[q][hi], lim);
         }
     }
+    field(&b, "uplink", uplink->cell ? "cell" : "wifi");  // FR-33.2
+    field(&b, "nh_product", uplink->product);
+    snprintf(num, sizeof num, "%u", (unsigned)uplink->cell_every);
+    field(&b, "cell_every", num);
+    field(&b, "cell_mail", uplink->mail_route ? "route" : "off");
+    field(&b, "gps", uplink->gps ? "on" : "off");
     return b.len;
 }
 
 // FR-26.19: each field's rules, the portal form's (§13.2, §25.2, §28.2,
-// §29.4, §31.2) labels, choices, units, sections and checks, in its order.
+// §29.4, §31.2, §33.3) labels, choices, units, sections and checks, in its order.
 // Pairs of name and value, NULL-terminated per field.
 #define MAIL "group", "mail"
 #define NEED "need", "1"
@@ -234,6 +240,15 @@ static const char *const RULES[][24] = {
      "%", NULL},
     LIMIT("alert_p_lo", "Pressure below", "0.01", "300", "1100", "mbar"),
     LIMIT("alert_p_hi", "Pressure above", "0.01", "300", "1100", "mbar"),
+    {"uplink", "section", "Cellular uplink (optional)", "intro",
+     "Without WiFi at the site, alerts and email go out as notes through a Blues Notecard.",
+     "label", "Uplink", "options", "wifi,cell", NULL},
+    {"nh_product", "label", "Notehub ProductUID", "maxlength", "64", "pattern",
+     "[A-Za-z0-9.:_\\-]+", "placeholder", "com.example.you:weather", NULL},
+    {"cell_every", "label", "Sync every", "type", "number", "min", "10", "max", "1440",
+     "placeholder", "60", "unit", "minutes", NULL},
+    {"cell_mail", "label", "Email over cellular", "options", "off,route", NULL},
+    {"gps", "label", "GPS fix in the setup check", "options", "off,on", NULL},
 };
 #undef LIMIT
 #undef MAIL

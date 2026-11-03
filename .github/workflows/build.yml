@@ -1,6 +1,6 @@
 name: Build Firmware
 
-# build    — every push to main, every v*.*.* tag, manual dispatch
+# build    — every push to main, every pull request, every v*.*.* tag, manual dispatch
 # verify   — tags only: flash THIS run's bytes to the testbench and run the
 #            journey (JRN-01) on the self-hosted runner in the devcontainer
 # release  — tags only, and only after verify is green: red journey = no release
@@ -12,6 +12,7 @@ on:
   push:
     branches: [main]
     tags: ['v*.*.*']
+  pull_request:
   workflow_dispatch:
     inputs:
       version:

@@ -17,6 +17,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_
                          ${ROOT}/shared/components/mail_tx ${ROOT}/components/notify ${ROOT}/shared/components/ntfy_tx
                          ${ROOT}/components/loop ${ROOT}/shared/components/loop420
                          ${ROOT}/shared/components/ads1115
+                         ${ROOT}/components/uplink ${ROOT}/shared/components/notecard
                          ${ROOT}/components/lcd
                          ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/text
                          ${ROOT}/shared/components/tdisplay_s3_amoled ${ROOT}/shared/components/esp_try)

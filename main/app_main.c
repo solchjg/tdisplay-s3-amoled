@@ -41,6 +41,7 @@
 #include "summary.h"
 #include "time_sync.h"
 #include "udp_log.h"
+#include "uplink.h"
 #include "weather.h"
 #include "web_log.h"
 #include "web_log_format.h"
@@ -115,16 +116,17 @@ static void page_extra(char *out, size_t len)
     }
 }
 
-// FR-25.1, FR-28.1, FR-29.11, FR-31.1: the portal form's mail section, its
-// setup section, its loop section, then its alerts section.
-static char form_html[6144];
+// FR-25.1, FR-28.1, FR-29.11, FR-31.1, FR-33.1: the portal form's mail section,
+// its setup section, its loop section, its alerts section, then its uplink section.
+static char form_html[8192];
 
 static const char *form_take(const char *body, size_t len)
 {
     const char *bad = summary_take(body, len);
     bad = bad ? bad : sampling_take(body, len);
     bad = bad ? bad : loop_take(body, len);
-    return bad ? bad : notify_take(body, len);
+    bad = bad ? bad : notify_take(body, len);
+    return bad ? bad : uplink_take(body, len);
 }
 
 static const portal_extra_t form_extra = {.html = form_html, .take = form_take};
@@ -132,8 +134,8 @@ static const portal_extra_t form_extra = {.html = form_html, .take = form_take};
 static const portal_extra_t *form_fields(void)
 {
     if (!form_html[0]) {
-        snprintf(form_html, sizeof form_html, "%s%s%s%s", summary_portal_fields()->html,
-                 SAMPLING_FORM_HTML, LOOP_FORM_HTML, notify_form_html());
+        snprintf(form_html, sizeof form_html, "%s%s%s%s%s", summary_portal_fields()->html,
+                 SAMPLING_FORM_HTML, LOOP_FORM_HTML, notify_form_html(), uplink_form_html());
     }
     return &form_extra;
 }
@@ -330,7 +332,7 @@ static size_t ble_read_settings(char *out, size_t cap)
     alerts = *notify_settings();
     strlcpy(alerts.topic, notify_topic(), sizeof alerts.topic);  // FR-31.3, as the portal shows it
     size_t n = bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(), &alerts,
-                         out, cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2
+                         uplink_settings(), out, cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2, FR-33.2
     memset(alerts.token, 0, sizeof alerts.token);
     return n;
 }
@@ -761,6 +763,8 @@ static void tests_over(void)
 static void run_task_and_sleep(void);
 static void send_alerts_awake(void);
 static void send_summary(bool net);
+static void send_summary_notes(void);
+static bool mail_note(int i, const char *subject, const char *text, uint32_t n);
 
 static void quick_tick(void)
 {
@@ -815,6 +819,13 @@ static void send_test_mail(bool online)
     sp_mail_body(run, weather_ext(), body, sizeof body);
     uint32_t n, m;
     sp_verdict(run, &n, &m);
+    ul_via_t via = ul_mail_via(uplink_settings());
+    if (via != UL_VIA_WIFI) {  // FR-33.6, FR-33.13: a note each, or no email at all
+        for (int i = 0; via == UL_VIA_CELL && summary_to(i); i++) {
+            mail_note(i, subject, body, n);
+        }
+        return;
+    }
     for (int i = 0; summary_to(i); i++) {
         mt_reason_t why = online ? summary_send_text(hostname, i, subject, body) : MT_OK;
         if (!online || why != MT_OK) {
@@ -843,6 +854,158 @@ static bool mail_wifi_up(void)
     return wifi_net_creds_load(stored.ssid, stored.password) &&
            wifi_net_sta_start(stored.ssid, stored.password) == ESP_OK &&
            xSemaphoreTake(got_ip, pdMS_TO_TICKS(MAIL_WIFI_MS)) == pdTRUE;
+}
+
+// ── Cellular uplink region (FSD §33) ─────────────────────────────────────
+
+static ul_time_t cell_time;  // FR-33.12: the clock from the Notecard
+static ul_gps_t gps;         // FR-33.15 – FR-33.18: the search in this hold
+
+static void cell_failed(const char *why, const char *req)
+{
+    if (why) {
+        web_log_cell_failed(why, req);  // L44
+    }
+}
+
+// FR-33.3, FR-33.4, FR-33.14: the Notecard set up once per boot, only with
+// cell; L44 once when it does not answer, and that boot's notes then fail.
+static bool cell_up(void)
+{
+    static bool logged;
+    if (!uplink_settings()->cell) {
+        return false;
+    }
+    const char *req = NULL;
+    const char *why = uplink_start(&req);
+    if (why && !logged) {
+        logged = true;
+        web_log_cell_failed(why, req);
+    }
+    return why == NULL;
+}
+
+// FR-33.12: one card.time; the clock set and L20 src=cell when it has a time.
+static void cell_time_ask(bool window)
+{
+    int64_t t;
+    unsigned a;
+    if (uplink_time(&t) && time_sync_set(t) == ESP_OK) {
+        web_log_time_synced("cell");  // L20
+        a = ul_time_step(&cell_time, UL_TE_TIME, window, uptime_s());
+    } else {
+        a = ul_time_step(&cell_time, UL_TE_NO_TIME, window, uptime_s());
+    }
+    if (a & UL_TA_SYNC) {
+        cell_failed(uplink_hub_sync(), "hub.sync");
+    }
+}
+
+// FR-33.4, FR-33.12: at boot with cell, the Notecard set up, then the clock
+// asked for when it was never set (in a window again every 5 s, FR-33.12).
+static void cell_boot(bool window)
+{
+    if (cell_up() && !time_sync_synced()) {
+        cell_time_ask(window);
+    }
+}
+
+// FR-33.6, FR-33.8 – FR-33.11: a note; L43 when the Notecard takes it, else L44.
+static bool cell_note(const char *file, const char *what, const char *body)
+{
+    const char *why = !cell_up() ? "timeout" : body ? uplink_note(file, body, true) : "err";
+    if (why) {
+        web_log_cell_failed(why, "note.add");  // L44
+        return false;
+    }
+    web_log_cell_note(what, 1);  // L43
+    return true;
+}
+
+// §33.4, FR-33.8: one alert as an alert.qo note, L39 when the Notecard takes it.
+static bool alert_note(const char *title, const char *body, bool good, const char *event)
+{
+    static char note[2048];
+    bool fits = ul_alert_body(note, sizeof note, notify_topic(), title, nf_priority(good),
+                              nf_tags(good), body) > 0;
+    if (!cell_note("alert.qo", "alert", fits ? note : NULL)) {
+        return false;
+    }
+    web_log_ntfy_sent(event);  // L39
+    return true;
+}
+
+// §33.4, FR-33.8: one email as a mail.qo note to recipient i, L25 when the
+// Notecard takes it.
+static bool mail_note(int i, const char *subject, const char *text, uint32_t n)
+{
+    static char note[SM_BODY_MAX + SM_BODY_MAX / 4 + 256];  // the text escaped, with the fields
+    bool fits = ul_mail_body(note, sizeof note, summary_to(i), subject, text) > 0;
+    if (!cell_note("mail.qo", "mail", fits ? note : NULL)) {
+        return false;
+    }
+    web_log_mail_sent(summary_to(i), n);  // L25
+    return true;
+}
+
+static void gps_act(unsigned a)
+{
+    if (a & UL_GA_CONTINUOUS) {
+        cell_failed(uplink_location_mode("continuous", NULL, NULL), "card.location.mode");
+    }
+    if (a & UL_GA_FIXED_NEW) {  // FR-33.17
+        esp_err_t err =
+            uplink_place_store(gps.lat, gps.lon, time_sync_synced() ? (int64_t)time(NULL) : 0);
+        if (err != ESP_OK) {
+            web_log_warn("place store", err);
+        }
+        cell_failed(uplink_location_mode("fixed", &gps.lat, &gps.lon), "card.location.mode");
+        web_log_gps(&gps.lat, &gps.lon);  // L45
+    }
+    if (a & UL_GA_FIXED_KEPT) {  // FR-33.18
+        double lat = 0, lon = 0;
+        int64_t at = 0;
+        if (uplink_place(&lat, &lon, &at)) {
+            cell_failed(uplink_location_mode("fixed", &lat, &lon), "card.location.mode");
+        }
+        web_log_gps(NULL, NULL);  // L45 none
+    }
+    if (a & UL_GA_OFF) {  // FR-33.18
+        cell_failed(uplink_location_mode("off", NULL, NULL), "card.location.mode");
+        web_log_gps(NULL, NULL);  // L45 none
+    }
+}
+
+// FR-33.15 – FR-33.18: the GPS search, only in the hold, only with cell and gps on.
+static void gps_event(ul_gps_ev_t ev)
+{
+    bool wanted = ul_gps_wanted(uplink_settings()) && (ev != UL_GE_START || cell_up());
+    double lat = 0, lon = 0;
+    int64_t at = 0;
+    bool place = ev == UL_GE_END && gps.on && !gps.fixed && uplink_place(&lat, &lon, &at);
+    unsigned a = ul_gps_step(&gps, ev, wanted, place, uptime_s(), 0, 0);
+    gps_act(a);
+    if (a & UL_GA_ASK) {
+        bool fix = uplink_location(&lat, &lon);
+        gps_act(ul_gps_step(&gps, fix ? UL_GE_FIX : UL_GE_NO_FIX, wanted, false, uptime_s(),
+                            fix ? lat : 0, fix ? lon : 0));
+    }
+}
+
+// Each tick of a window, before the draw: the clock's asks (FR-33.12), the GPS
+// search and its line 6 in the hold (FR-33.16, FR-33.19).
+static void cell_tick(void)
+{
+    if (!uplink_ready()) {
+        return;
+    }
+    if (ul_time_step(&cell_time, UL_TE_TICK, true, uptime_s()) & UL_TA_ASK) {
+        cell_time_ask(true);
+    }
+    if (hold == DL_HOLD_ON) {
+        gps_event(UL_GE_TICK);
+        ul_gps_shown(&gps, uptime_s(), addons_line, sizeof addons_line);
+    }
 }
 
 // ── Push alerts region (FSD §31) ─────────────────────────────────────────
@@ -897,12 +1060,17 @@ static void send_alerts(bool net)
         nf_title(hostname, c, end, &names, title);
         nf_event(c, end, event);
         alert_body(c, end, body);
-        nt_reason_t why = net ? notify_send(hostname, title, body, end) : NT_ERR_CONNECT;
-        bool ok = net && why == NT_OK;
-        if (ok) {
-            web_log_ntfy_sent(event);  // L39
+        bool ok;
+        if (ul_alert_via(uplink_settings()) == UL_VIA_CELL) {
+            ok = alert_note(title, body, end, event);  // FR-33.6, FR-33.10
         } else {
-            web_log_ntfy_failed(net ? nt_reason_name(why) : "wifi", event);  // L40
+            nt_reason_t why = net ? notify_send(hostname, title, body, end) : NT_ERR_CONNECT;
+            ok = net && why == NT_OK;
+            if (ok) {
+                web_log_ntfy_sent(event);  // L39
+            } else {
+                web_log_ntfy_failed(net ? nt_reason_name(why) : "wifi", event);  // L40
+            }
         }
         nf_result(st, c, ok);
     }
@@ -929,6 +1097,10 @@ static void send_test_alert(bool online)
     nf_test_title(hostname, pass, title);
     sp_mail_body(run, weather_ext(), body, sizeof body);
     const char *event = pass ? "test_pass" : "test_fail";
+    if (ul_alert_via(uplink_settings()) == UL_VIA_CELL) {
+        alert_note(title, body, pass, event);  // FR-33.6
+        return;
+    }
     notify_begin();
     nt_reason_t why = online ? notify_send(hostname, title, body, pass) : NT_ERR_CONNECT;
     if (online && why == NT_OK) {
@@ -948,16 +1120,39 @@ static void send_due_messages(void)
         return;
     }
     bool timer = wake == DL_WAKE_TIMER;
-    bool net = timer ? mail_wifi_up() : view.conn == DL_ONLINE;
+    ul_via_t mail_via = ul_mail_via(uplink_settings());
+    // FR-33.6: with cell a timer wake never starts WiFi; its sends are notes.
+    bool wifi = (alerts && ul_alert_via(uplink_settings()) == UL_VIA_WIFI) ||
+                (mail && mail_via == UL_VIA_WIFI);
+    bool net = wifi && (timer ? mail_wifi_up() : view.conn == DL_ONLINE);
     if (alerts) {
         send_alerts(net);
     }
-    if (mail) {
+    if (mail && mail_via == UL_VIA_CELL) {
+        send_summary_notes();
+    } else if (mail && mail_via == UL_VIA_NONE) {
+        summary_done();  // FR-33.13: the period advances as after a dropped send
+    } else if (mail) {
         send_summary(net);
     }
-    if (timer) {
+    if (timer && wifi) {
         wifi_net_stop();  // FR-21.7, FR-25.6, FR-31.10: WiFi only while they are sent
     }
+}
+
+// FR-33.6, FR-33.8: the due summary as a mail.qo note to each recipient.
+static void send_summary_notes(void)
+{
+    static char text[SM_BODY_MAX];
+    char subject[SM_SUBJECT_MAX];
+    uint32_t n = 0;
+    summary_compose(hostname, subject, text, sizeof text, &n);
+    for (int i = 0; summary_to(i); i++) {  // FR-25.12: each recipient its own email
+        if (mail_note(i, subject, text, n)) {
+            summary_noted();
+        }
+    }
+    summary_done();
 }
 
 // FR-25.12, FR-25.14: the due summary to each recipient, its own email.
@@ -1124,6 +1319,7 @@ static void execute_hold(unsigned a)
         }
         dl_hold_line(0, HOLD_TIMEOUT_S, prompt_line);
         show_live_reading();
+        gps_event(UL_GE_START);  // FR-33.16
     }
     if (a & DL_H_CLEAR_MARK) {
         esp_err_t err = setup_check_mark(false);
@@ -1137,7 +1333,8 @@ static void execute_hold(unsigned a)
         esp_timer_stop(led_timer);
         (void)lcd_led(dl_led_lit(DL_HOLD_NONE, 0));  // lit again with the panel
         prompt_line[0] = '\0';
-        show_newest();  // line 4 back to the kept reading
+        gps_event(UL_GE_END);  // FR-33.17, FR-33.18
+        show_newest();  // line 4 back to the kept reading, line 6 to the add-ons
     }
     if (a & DL_H_START_WINDOW) {
         window_start_s = now;
@@ -1217,6 +1414,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("loop store", err);
         }
+        err = uplink_store();  // FR-33.2
+        if (err != ESP_OK) {
+            web_log_warn("uplink store", err);
+        }
         web_log_provisioned(stored.ssid);
     }
     if (a & DL_C_STORE_SETTINGS) {  // T14 (FR-26.7)
@@ -1240,6 +1441,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         err = loop_store();  // FR-29.11
         if (err != ESP_OK) {
             web_log_warn("loop store", err);
+        }
+        err = uplink_store();  // FR-33.2
+        if (err != ESP_OK) {
+            web_log_warn("uplink store", err);
         }
         vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));  // FR-26.8: the result notification first
         ble_event(DL_BEV_WRITTEN);
@@ -1358,6 +1563,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         if (err != ESP_OK) {
             web_log_warn("loop erase", err);
         }
+        err = uplink_erase();  // FR-33.2, FR-33.18: back to wifi, the place erased
+        if (err != ESP_OK) {
+            web_log_warn("uplink erase", err);
+        }
         err = ble_setup_forget();  // FR-26.13
         if (err != ESP_OK) {
             web_log_warn("ble bonds erase", err);
@@ -1431,6 +1640,7 @@ void app_main(void)
     id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
     id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);  // the summary's sender name
     addons_setup();  // §29.2: before any reading or L33
+    cell_boot(wake != DL_WAKE_TIMER);  // FR-33.4, FR-33.12, FR-33.14: before the task's sends
     run = sampling_run();
     if (wake != DL_WAKE_TIMER) {
         int was = sampling_running();
@@ -1542,7 +1752,7 @@ void app_main(void)
             continue;
         }
         if (e.kind == APP_TIME_SYNCED) {
-            web_log_time_synced();  // L20 (FR-22.5)
+            web_log_time_synced(NULL);  // L20 (FR-22.5)
             continue;
         }
         if (e.kind == APP_KEY) {
@@ -1576,12 +1786,15 @@ void app_main(void)
                 sp_verdict_line(run, prompt_line);  // FR-28.11
             }
         }
-        if (test_mail && view.conn == DL_ONLINE) {
-            send_test_mail(true);  // FR-28.13
+        if (test_mail && (view.conn == DL_ONLINE ||
+                          ul_mail_via(uplink_settings()) != UL_VIA_WIFI)) {
+            send_test_mail(true);  // FR-28.13, FR-33.6
         }
-        if (test_alert && view.conn == DL_ONLINE) {
-            send_test_alert(true);  // FR-31.7
+        if (test_alert && (view.conn == DL_ONLINE ||
+                           ul_alert_via(uplink_settings()) == UL_VIA_CELL)) {
+            send_test_alert(true);  // FR-31.7, FR-33.6
         }
+        cell_tick();  // FR-33.12, FR-33.16, FR-33.19
         disp = disp_tick(disp);
         hold_event(DL_HEV_TICK, false);
         ble_event(DL_BEV_TICK);

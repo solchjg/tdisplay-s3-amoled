@@ -206,14 +206,14 @@ void web_log_wake(const char *cause)
     ESP_LOGI(TAG, "%s", line);
 }
 
-void web_log_time_synced(void)
+void web_log_time_synced(const char *src)
 {
     char iso[32], line[WL_LINE_MAX];
     time_t now = time(NULL);
     struct tm local;
     localtime_r(&now, &local);
     strftime(iso, sizeof iso, "%Y-%m-%dT%H:%M:%S%z", &local);
-    wl_fmt_time_synced(line, sizeof line, iso);
+    wl_fmt_time_synced(line, sizeof line, iso, src);
     ESP_LOGI(TAG, "%s", line);
 }
 
@@ -335,6 +335,27 @@ void web_log_ntfy_failed(const char *reason, const char *event)
     char line[WL_LINE_MAX];
     wl_fmt_ntfy_failed(line, sizeof line, reason, event);
     ESP_LOGW(TAG, "%s", line);
+}
+
+void web_log_cell_note(const char *what, int n)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_cell_note(line, sizeof line, what, n);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_cell_failed(const char *reason, const char *req)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_cell_failed(line, sizeof line, reason, req);
+    ESP_LOGW(TAG, "%s", line);
+}
+
+void web_log_gps(const double *lat, const double *lon)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_gps(line, sizeof line, lat, lon);
+    ESP_LOGI(TAG, "%s", line);
 }
 
 void web_log_test(const char *text, bool ok)
