@@ -65,6 +65,13 @@ int main(int argc, char **argv)
         wl_fmt_ntfy_sent(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "ntfy_failed") == 0) {
         wl_fmt_ntfy_failed(line, sizeof line, argv[2], argv[3]);
+    } else if (strcmp(argv[1], "cell_note") == 0) {
+        wl_fmt_cell_note(line, sizeof line, argv[2], atoi(argv[3]));
+    } else if (strcmp(argv[1], "cell_failed") == 0) {
+        wl_fmt_cell_failed(line, sizeof line, argv[2], argv[3]);
+    } else if (strcmp(argv[1], "gps") == 0) {
+        double lat = atof(argv[2]), lon = argc > 3 ? atof(argv[3]) : 0;
+        wl_fmt_gps(line, sizeof line, argc > 3 ? &lat : NULL, argc > 3 ? &lon : NULL);
     } else if (strcmp(argv[1], "time") == 0) {
         wl_fmt_time_synced(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "wake") == 0) {
@@ -191,3 +198,13 @@ def test_ntfy_lines(fmt):
     assert fmt("ntfy_sent", "t_high") == "ntfy sent t_high"
     assert fmt("ntfy_sent", "test_pass") == "ntfy sent test_pass"
     assert fmt("ntfy_failed", "connect", "sensor_ok") == "ntfy failed: connect sensor_ok"
+
+
+def test_cell_and_gps_lines(fmt):
+    """L43, L44, L45 (FR-33.11, FR-33.10, FR-33.17, FR-33.18)."""
+    assert fmt("cell_note", "tb", 100) == "cell note tb n=100"
+    assert fmt("cell_note", "alert", 1) == "cell note alert n=1"
+    assert fmt("cell_failed", "timeout", "card.version") == "cell failed: timeout card.version"
+    assert fmt("cell_failed", "full", "note.add") == "cell failed: full note.add"
+    assert fmt("gps", "40.712776", "-74.005974") == "gps fix lat=+40.71278 lon=-74.00597"
+    assert fmt("gps", "none") == "gps none"

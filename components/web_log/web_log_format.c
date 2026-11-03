@@ -164,6 +164,25 @@ void wl_fmt_ntfy_failed(char *buf, size_t len, const char *reason, const char *e
     snprintf(buf, len, "ntfy failed: %s %s", reason, event);
 }
 
+void wl_fmt_cell_note(char *buf, size_t len, const char *what, int n)
+{
+    snprintf(buf, len, "cell note %s n=%d", what, n);
+}
+
+void wl_fmt_cell_failed(char *buf, size_t len, const char *reason, const char *req)
+{
+    snprintf(buf, len, "cell failed: %s %s", reason, req);
+}
+
+void wl_fmt_gps(char *buf, size_t len, const double *lat, const double *lon)
+{
+    if (lat == NULL || lon == NULL) {
+        snprintf(buf, len, "gps none");
+    } else {
+        snprintf(buf, len, "gps fix lat=%+.5f lon=%+.5f", *lat, *lon);
+    }
+}
+
 void wl_fmt_history_erased_format(char *buf, size_t len)
 {
     snprintf(buf, len, "history erased reason=format");

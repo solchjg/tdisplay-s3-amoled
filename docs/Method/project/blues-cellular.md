@@ -183,17 +183,26 @@ in a note (FR-33.9).
 
 ## Bring-up
 
-The Phase 15 commissioning program (FSD §3.15), not written yet, talks to the Notecard
-on GPIO 43/44 beside the BME280. It:
+Run [`commissioning/notecard-probe`](../../../commissioning/notecard-probe/main/main.c)
+(FSD §3.15) before the first cellular bench test. It talks to the Notecard on GPIO 43/44
+beside the BME280 and, once after reset:
 
 - scans the bus (0x17, 0x76 and, with the water board fitted, 0x48 must answer);
-- reads `card.version`, `card.transport` and `card.wireless` (the signal bars);
-- adds one `tb.qo` note of 100 readings and prints how long `note.add` took, which must
-  fit in NFR-33.1's 10 s at 100 kHz, else the batch limit is 50 (FR-33.7);
-- with AE2 fitted, turns the GPS on after a sync and prints the `card.location` status
-  every 5 s until a fix, to time a cold fix at the bench window;
-- forces one sync and reads the session's data use from Notehub, to compute the monthly
-  figure for NFR-33.2 from a measurement.
+- reads `card.version`, `card.transport`, `hub.get`, `card.wireless` (the signal bars)
+  and `card.time`;
+- with a ProductUID set, sends `hub.set` and `card.transport` `cell` where the Notecard
+  differs (FR-33.4, FR-33.14);
+- adds one note of 100 readings and one of 50, shaped as `tb.qo` batches, to `probe.qo`
+  (no route takes that file), and prints each note's size and how long `note.add` took,
+  which must fit in NFR-33.1's 10 s at 100 kHz, else the batch limit is 50 (FR-33.7);
+- optionally forces one sync and prints `card.usage.get` before and after it, to compute
+  the monthly figure for NFR-33.2 from a measurement;
+- optionally, with AE2 fitted, turns the GPS on and prints the `card.location` status
+  every 5 s until a fix (up to 20 min), to time a cold fix at the bench window.
+
+Its options are under "Notecard probe" in `idf.py menuconfig`: the ProductUID, the
+forced sync and the GPS seek. Lines start with `notecardprobe:`; `CHECK` marks a result
+to look at.
 
 ## Installation
 

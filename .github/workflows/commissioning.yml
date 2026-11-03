@@ -7,6 +7,8 @@ on:
   push:
     branches: [main]
     paths: ['commissioning/**', 'shared', '.github/workflows/commissioning.yml']
+  pull_request:
+    paths: ['commissioning/**', 'shared', '.github/workflows/commissioning.yml']
   workflow_dispatch:
 
 permissions:
@@ -18,7 +20,7 @@ jobs:
     container: espressif/idf:v6.0.2
     strategy:
       matrix:
-        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe]
+        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe, notecard-probe]
     defaults:
       run:
         shell: bash
@@ -29,7 +31,7 @@ jobs:
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
         with:
-          submodules: true   # lcd-probe and loop-probe build shared components
+          submodules: true   # lcd-probe, loop-probe and notecard-probe build shared components
       # forward-path uses the product's own table (C-10.6), named relative to
       # the project directory; the others ignore the copy.
       - name: Use the shipped partition table

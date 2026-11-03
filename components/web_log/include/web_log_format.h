@@ -91,3 +91,10 @@ void wl_fmt_history_erased_format(char *buf, size_t len);
 // L39 "ntfy sent <event>" (FR-31.12); L40 "ntfy failed: <reason> <event>" (FR-31.11).
 void wl_fmt_ntfy_sent(char *buf, size_t len, const char *event);
 void wl_fmt_ntfy_failed(char *buf, size_t len, const char *reason, const char *event);
+// L43 "cell note <tb|tbattr|alert|mail> n=<readings, or 1>" (FR-33.11).
+void wl_fmt_cell_note(char *buf, size_t len, const char *what, int n);
+// L44 "cell failed: <timeout|err|full> <req>" (FR-33.4, FR-33.10).
+void wl_fmt_cell_failed(char *buf, size_t len, const char *reason, const char *req);
+// L45 "gps fix lat=<±d.ddddd> lon=<±d.ddddd>" (FR-33.17), or "gps none" when
+// lat and lon are NULL (FR-33.18).
+void wl_fmt_gps(char *buf, size_t len, const double *lat, const double *lon);

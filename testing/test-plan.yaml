@@ -3275,3 +3275,68 @@ tests:
     observable: "12x24 cell, 44 characters in 528 px; the 16x32 output unchanged through both calls"
     impl: shared/tests/host/test_text.py
     result: {status: not done}
+
+  - id: TC-CELL-01
+    title: "Cellular settings of the portal form and a BLE write"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.1, FR-33.2, FR-33.15]
+    needs: []
+    observable: "nothing stored: wifi, 60 min, cell_mail off, gps off; uplink=cell alone: 400 nh_product; uplink=lte: 400 uplink; nh_product with a space: 400 nh_product; cell_every 9 and 1441: 400 cell_every; gps=on with wifi, given or stored: 400 gps; absent or empty fields keep the stored values; the settings read reports uplink, cell_mail and gps"
+    impl: [tests/host/test_uplink.py::test_parse_new_device, tests/host/test_uplink.py::test_parse_over_stored]
+    result: {status: not done}
+
+  - id: TC-CELL-02
+    title: "ThingsBoard upload split into notes of at most 100 readings"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.7]
+    needs: []
+    observable: "250 readings after the mark: notes of 100, 100, 50 in order; none left: no note"
+    impl: tests/host/test_uplink.py::test_split
+    result: {status: not done}
+
+  - id: TC-CELL-03
+    title: "Line 6 during the setup check's GPS search"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.19]
+    needs: []
+    observable: "GPS searching 00:00, 01:15, 30:00, capped at 99:59; after a fix GPS 40.71278 -74.00597; never more than 44 characters"
+    impl: tests/host/test_uplink.py::test_gps_line
+    result: {status: not done}
+
+  - id: TC-CELL-04
+    title: "L43, L44 and L45 lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.10, FR-33.11, FR-33.17, FR-33.18]
+    needs: []
+    observable: "cell note tb n=100; cell failed: timeout card.version; gps fix lat=+40.71278 lon=-74.00597; gps none"
+    impl: tests/host/test_web_log.py::test_cell_and_gps_lines
+    result: {status: not done}
+
+  - id: TC-CELL-05
+    title: "Notecard requests and answers (shared notecard core)"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: host
+    verifies: [FR-33.4, FR-33.14]
+    needs: []
+    observable: "hub.set with product, mode periodic, outbound and inbound; no hub.set when hub.get already matches; card.transport cell unless the answer is cell; answer fields read by dotted path; err detected"
+    impl: shared/tests/host/test_notecard.py
+    result: {status: not done}
