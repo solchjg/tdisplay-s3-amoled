@@ -285,6 +285,13 @@ def build_parts(used):
     add(module_part("tds3a_lte_antenna", ["LTE antenna", "flexible, u.FL"], "specified",
                     left=["u.FL"], w=1000, color="#424242",
                     desc="Flexible LTE antenna with a u.FL lead, on the Notecard's MAIN port"))
+    add(module_part("tds3a_notecarrier_x_hdr", ["Notecarrier-X v1.3", "+ Notecard NOTE-MBGLW v2.5"],
+                    "specified", left=["GND", "ATTN", "SCL", "SDA", "GND "],
+                    right=["MAIN", "GPS", "VIO", "VBAT", "GND  "], w=1500, color="#0d47a1",
+                    notes=["16-pin header (left: GND ... SCL, SDA, GND)", "other header pins unused"],
+                    desc="Blues Notecarrier-X v1.3 with Notecard NOTE-MBGLW v2.5, wired at its "
+                         "16-pin header instead of Qwiic and JST-PH"))
+    add(lipo_part("tds3a_lipo_notecarrier_p", "Notecarrier LiPo", "L", top="+"))
     add(module_part("tds3a_gps_antenna", ["GPS antenna", "optional, gps on"], "specified",
                     left=["u.FL"], w=1000, color="#424242",
                     desc="GPS antenna with a u.FL lead, on the Notecard's GPS port (optional)"))
@@ -924,6 +931,32 @@ def sheet_blues(S):
     ])
 
 
+def sheet_blues_direct(S):
+    B = "Board"
+    S.place(B, BOARD, 500, 500)
+    S.place("U2", "tds3a_notecarrier_x_hdr", 3000, 1000)
+    S.place("AE1", "tds3a_lte_antenna", 5100, 300)
+    S.place("AE2", "tds3a_gps_antenna", 5100, 900)
+    S.place("BT2", "tds3a_lipo_notecarrier_p", 5100, 1650)
+    # three soldered wires: GND, SDA, SCL; VIO, ATTN and the rest stay open
+    S.wire((B, "GND R1"), ("U2", "GND"), "black", ("x", 2700))
+    S.wire((B, "IO44"), ("U2", "SCL"), "yellow", ("x", 2600))
+    S.wire((B, "IO43"), ("U2", "SDA"), "blue", ("x", 2500))
+    S.wire(("U2", "MAIN"), ("AE1", "u.FL"), "white", ("x", 4700))
+    S.wire(("U2", "GPS"), ("AE2", "u.FL"), "grey", ("x", 4850))
+    S.wire(("U2", "VBAT"), ("BT2", "+"), "red")
+    S.wire(("U2", "GND  "), ("BT2", "-"), "black")
+    S.note(300, 3800, 6400, [
+        "# Blues cellular uplink, direct wiring (FSD 33.2) - specified, not built",
+        "The alternative to sheet 5: no Qwiic cable. Three wires soldered from the carrier's",
+        "I2C fan-out (drawn from the header pins) to the Notecarrier-X header: GND, SDA GPIO 43,",
+        "SCL GPIO 44. VIO, ATTN and every other header pin stay unconnected.",
+        "The LiPo may be soldered to VBAT and GND instead of the JST-PH (or stay on the JST-PH).",
+        "LTE antenna on MAIN; the GPS antenna only with gps on. Checks in blues-cellular.md.",
+        LEGEND,
+    ])
+
+
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
@@ -935,6 +968,8 @@ SHEETS = [
      (9200, 6000), {"IO11", "IO12", "IO13", "GND"}, sheet_rs232),
     ("wiring-5-blues-cellular", "5  Blues cellular uplink (FSD 33)",
      (7700, 5200), set(), sheet_blues),
+    ("wiring-6-blues-cellular-direct", "6  Blues cellular uplink, direct wiring (FSD 33)",
+     (7000, 4900), {"IO43", "IO44", "GND"}, sheet_blues_direct),
 ]
 
 

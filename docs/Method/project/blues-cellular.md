@@ -4,10 +4,11 @@ The hardware for the cellular uplink of FSD §33: a Blues Notecard Cell+WiFi
 **NOTE-MBGLW**, hardware v2.5, on a **Notecarrier-X v1.3**, both parts the user owns.
 The device runs the Notecard on cellular only (FR-33.14), and, when `gps` is `on`,
 uses its GPS once per setup check to take a fix of the place (FR-33.15). The FSD specifies it, but
-neither the firmware nor the wiring is built yet. Nothing is soldered: the Notecarrier
-joins the I2C bus by a Qwiic cable, and the antenna and the LiPo plug into it. Fritzing
-[sheet 5](wiring/wiring-5-blues-cellular.png) shows the wiring, and sheet 1 shows the
-Notecarrier beside the BME280.
+neither the firmware nor the wiring is built yet. The Notecarrier joins the I2C bus in one
+of two ways (FSD §33.2, Wiring): by a Qwiic cable, with nothing soldered, or by three
+wires soldered to its 16-pin header. Fritzing [sheet 5](wiring/wiring-5-blues-cellular.png)
+shows the Qwiic wiring, [sheet 6](wiring/wiring-6-blues-cellular-direct.png) the direct
+wiring, and sheet 1 the Notecarrier beside the BME280.
 
 The Notecarrier is not an add-on board on a JST-XH socket. It plugs into the carrier's
 Qwiic socket, listed in [wiring.md](wiring/wiring.md#carrier-and-add-on-boards), and
@@ -26,7 +27,8 @@ Sources; check them against the current ones.
 | AE1 | LTE antenna | Flexible LTE antenna with a u.FL lead, such as Blues' flexible LTE antenna | On the Notecard's `MAIN` port. Required: the carrier has none |
 | AE2 | GPS antenna, optional | The GPS part of Blues' combined LTE + GPS flexible antenna, or a single passive GPS antenna, u.FL | On the Notecard's `GPS` port, only with `gps` `on`. Never cut the combined antenna |
 | BT2 | Notecard supply | LiPo cell, 3.7 V, at least 2000 mAh, JST-PH 2.0 mm, protected | Check the JST-PH polarity: makers wire it both ways |
-| W1 | Bus link | Qwiic (JST-SH 4-pin) cable, 100 – 200 mm | Its red 3.3 V wire is cut or pulled from the plug at the carrier end |
+| W1 | Bus link, Qwiic wiring | Qwiic (JST-SH 4-pin) cable, 100 – 200 mm | Its red 3.3 V wire is cut or pulled from the plug at the carrier end |
+| W2 | Bus link, direct wiring | Three wires, 24 – 26 AWG stranded, or a 0.1" pin header on the Notecarrier and Dupont leads | GND, SDA, SCL only; twist SDA and SCL with GND |
 
 ### Why this Notecard
 
@@ -58,6 +60,25 @@ unreliable access point.
 | Notecard `GPS` u.FL | AE2, only with `gps` `on` | GPS RF |
 | Notecarrier-X JST-PH | BT2 | LiPo, charged from USB-C |
 | Notecard `WIFI` u.FL; ESLOV; Notecarrier headers | nothing | Unused |
+
+### Direct wiring
+
+The alternative to the Qwiic cable (sheet 6). The Notecarrier-X's 16-pin header carries
+the same bus; its left column ends with `SCL`, `SDA` and `GND`.
+
+| From | To | Signal |
+|------|----|--------|
+| Carrier I2C fan-out GND | Notecarrier-X header `GND` | GND |
+| Carrier I2C fan-out SDA | Notecarrier-X header `SDA` | GPIO 43, SDA |
+| Carrier I2C fan-out SCL | Notecarrier-X header `SCL` | GPIO 44, SCL |
+| BT2 + and −, optional | Notecarrier-X header `VBAT` and `GND` | LiPo, instead of the JST-PH |
+| Header `VIO`, `ATTN`, `EN`, `NRST` and the rest | nothing | Unused |
+
+`VIO` is the Notecard's own 3.3 V output: tying it to the board's 3.3 V would join the
+two regulators, as the Qwiic cable's red wire would. Never connect `EN` or `NRST`: `EN`
+pulled to GND turns the Notecard off, and `NRST` is for development only. With BT2 on
+`VBAT`, the Notecarrier's charger still charges it from USB-C; use a protected cell, and
+leave the JST-PH empty.
 
 On the bench, sheet 5 takes the bus from the board's own Qwiic connector, which carries
 the same GPIO 43/44. In the build, the carrier's I2C fan-out feeds the BME280, the water
@@ -144,9 +165,11 @@ in a note (FR-33.9).
 ## To check before wiring
 
 1. **Carrier version.** Blues' datasheet covers the Notecarrier-X v1.2. Check the v1.3
-   board's Qwiic pin order, JST-PH polarity and charger against it.
-2. **The red wire.** With the cable plugged into the carrier only, check with a meter
-   that its 3.3 V pin reaches nothing at the Notecarrier end.
+   board's Qwiic pin order, header labels (`GND`, `SDA`, `SCL`, `VBAT`), header pitch,
+   JST-PH polarity and charger against it.
+2. **The red wire, or `VIO`.** With the Qwiic cable plugged into the carrier only,
+   check with a meter that its 3.3 V pin reaches nothing at the Notecarrier end. With
+   direct wiring, check that nothing touches the header's `VIO`, `EN` or `NRST`.
 3. **Pull-ups.** With every board fitted and nothing powered, measure SDA to 3V3 on the
    carrier: at least 2.2 kΩ.
 4. **An unpowered Notecarrier.** With BT2 unplugged and USB-C off, the Notecard's
@@ -185,7 +208,7 @@ so the fix is the place where it stands. Keep USB-C on the Notecarrier reachable
 ## Sources
 
 - [Blues: NOTE-MBGLW datasheet](https://dev.blues.io/datasheets/notecard-datasheet/note-mbglw/)
-- [Blues: Notecarrier X v1.2 datasheet](https://dev.blues.io/datasheets/notecarrier-datasheet/notecarrier-x-v1-2/)
+- [Blues: Notecarrier X v1.2 datasheet](https://dev.blues.io/datasheets/notecarrier-datasheet/notecarrier-x-v1-2/) ([16-pin headers](https://dev.blues.io/datasheets/notecarrier-datasheet/notecarrier-x-v1-2/#dual-16-pin-headers))
 - [Blues: Low-Power Firmware Design, power usage estimates](https://dev.blues.io/notecard/notecard-walkthrough/low-power-firmware-design/#power-usage-estimates)
 - [Blues: Notecard WiFi v2 deep sleep](https://dev.blues.io/notecard/notecard-walkthrough/low-power-firmware-design/#deep-sleep-mode-on-notecard-wifi-v2)
 - [Blues: Cell+WiFi, WiFi first with cellular fallback](https://dev.blues.io/blog/next-generation-of-notecards/#wifi-connectivity-with-a-fallback-to-cellular)
