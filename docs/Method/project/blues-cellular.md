@@ -91,7 +91,12 @@ socket and the Qwiic socket, so the board's Qwiic connector stays free.
 ### Shared bus
 
 The Notecard sits at 0x17 on the bus that also carries the BME280 (0x76) and the water
-ADS1115 (0x48), at 100 kHz (C-23.1). Its 10 kΩ pull-ups to VIO add to the breakouts'
+ADS1115 (0x48), at 100 kHz (C-23.1). The Notecarrier-X's LiPo charger, a TI BQ25628E,
+shares the Notecard's I2C lines at 0x6A, fixed in the chip, so it answers on this bus
+whenever the Notecarrier is fitted. The firmware never addresses it. The loop
+ADS1115 (0x49) has its own bus (I2C port 1). None of these addresses clash, and a part
+added to this bus must avoid 0x17, 0x48, 0x6A and 0x76 (0x77 is the BME280's other
+address). Its 10 kΩ pull-ups to VIO add to the breakouts'
 own, so keep the parallel total at or above about 2.2 kΩ, removing a breakout's
 pull-ups if needed. The device polls the Notecard: no ATTN line is wired.
 
@@ -195,9 +200,8 @@ Run [`commissioning/notecard-probe`](../../../commissioning/notecard-probe/main/
 (FSD §3.15) before the first cellular bench test. It talks to the Notecard on GPIO 43/44
 beside the BME280 and, once after reset:
 
-- scans the bus (0x17, 0x76 and, with the water board fitted, 0x48 must answer; a
-  device at 0x6a also answers whenever the Notecard and its Notecarrier-X are on the
-  bus, one of their parts that Blues does not document, so keep 0x6a free);
+- scans the bus (0x17, 0x76, the charger's 0x6A and, with the water board fitted,
+  0x48 must answer);
 - reads `card.version`, `card.transport`, `hub.get`, `card.wireless` (the signal bars)
   and `card.time`;
 - with a ProductUID set, sends `hub.set` and `card.transport` `cell` where the Notecard

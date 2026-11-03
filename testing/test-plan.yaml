@@ -369,10 +369,10 @@ capabilities:
       "test end id=gps fix=yes result=pass".
     consequence: >
       The 100-reading batch fits NFR-33.1's 10 s at 100 kHz, so FR-33.7 keeps
-      notes of 100 readings. The device at 0x6a answered only once the Notecard
-      and its Notecarrier-X were on the bus, so it is one of their parts (most
-      likely the carrier's LiPo charger, whose address is not in Blues'
-      datasheets); it clashes with nothing on the bus. The bench stands inside,
+      notes of 100 readings. The device at 0x6a is the Notecarrier-X's LiPo
+      charger, a TI BQ25628E at a fixed address on the Notecard's I2C lines
+      (Blues' answer to the user, 2026-11-03); it clashes with nothing on the
+      bus. The bench stands inside,
       near a window: the signal (1 bar) is marginal and a GPS fix may be slow or
       fail there, so sync timing and GPS results on the bench are read with
       that in mind; place AE1 per the User Manual 5g and AE2 on the glass. A GPS
