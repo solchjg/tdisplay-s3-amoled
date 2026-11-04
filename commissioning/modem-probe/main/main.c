@@ -44,6 +44,8 @@
 #include "freertos/task.h"
 #include "lwip/netif.h"
 #include "ntfy_tx.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "oled.h"
 #include "sdkconfig.h"
 
@@ -111,6 +113,44 @@ static RTC_DATA_ATTR double gps_lat, gps_lon;
 static RTC_DATA_ATTR uint32_t prev_tx, prev_rx;
 static RTC_DATA_ATTR uint64_t total_tx, total_rx;
 static esp_netif_t *ppp_netif;
+
+// The secrets: from namespace "probe" in NVS when the settings image is
+// flashed (kept off git, so builds of this public repo carry none), else the
+// build's own Kconfig values.
+static char tb_token[64] = CONFIG_PROBE_TB_TOKEN;
+static char ntfy_topic[96] = CONFIG_PROBE_NTFY_TOPIC;
+static char ntfy_token[96] = CONFIG_PROBE_NTFY_TOKEN;
+
+static void get_secret(nvs_handle_t h, const char *key, char *buf, size_t size)
+{
+    size_t n = size;
+    char tmp[96];
+    if (n > sizeof tmp) {
+        n = sizeof tmp;
+    }
+    if (nvs_get_str(h, key, tmp, &n) == ESP_OK) {
+        snprintf(buf, size, "%s", tmp);
+    }
+}
+
+static void load_secrets(void)
+{
+    esp_err_t err = nvs_flash_init();  // never erased: that would lose the settings
+    nvs_handle_t h;
+    if (err == ESP_OK) {
+        err = nvs_open("probe", NVS_READONLY, &h);
+    }
+    if (err != ESP_OK) {
+        printf("modemprobe: settings image none (%s), build values used\n", esp_err_to_name(err));
+        return;
+    }
+    get_secret(h, "tb_token", tb_token, sizeof tb_token);
+    get_secret(h, "ntfy_topic", ntfy_topic, sizeof ntfy_topic);
+    get_secret(h, "ntfy_token", ntfy_token, sizeof ntfy_token);
+    nvs_close(h);
+    printf("modemprobe: settings image tb_token=%s ntfy_topic=%s ntfy_token=%s\n",
+           tb_token[0] ? "set" : "none", ntfy_topic[0] ? "set" : "none", ntfy_token[0] ? "set" : "none");
+}
 static uint32_t mark_tx, mark_rx;
 
 static void link_bytes(uint32_t *tx, uint32_t *rx)
@@ -524,12 +564,12 @@ static int64_t now_ms(void)
 // run's own figures as probe_* keys.
 static void post_telemetry(long attach_ms, int rssi)
 {
-    if (CONFIG_PROBE_TB_URL[0] == '\0' || CONFIG_PROBE_TB_TOKEN[0] == '\0') {
+    if (CONFIG_PROBE_TB_URL[0] == '\0' || tb_token[0] == '\0') {
         printf("modemprobe: no ThingsBoard URL or token: telemetry skipped\n");
         return;
     }
     char url[256], vals[384], body[512], gps[96] = "";
-    snprintf(url, sizeof url, "%s/api/v1/%s/telemetry", CONFIG_PROBE_TB_URL, CONFIG_PROBE_TB_TOKEN);
+    snprintf(url, sizeof url, "%s/api/v1/%s/telemetry", CONFIG_PROBE_TB_URL, tb_token);
     int64_t ts = now_ms();
     if (gps_s >= 0) {
         snprintf(gps, sizeof gps, ",\"probe_gps_s\":%d,\"latitude\":%.6f,\"longitude\":%.6f", gps_s,
@@ -574,7 +614,7 @@ static void post_telemetry(long attach_ms, int rssi)
 
 static void send_alert(long attach_ms, int rssi)
 {
-    if (CONFIG_PROBE_NTFY_URL[0] == '\0' || CONFIG_PROBE_NTFY_TOPIC[0] == '\0') {
+    if (CONFIG_PROBE_NTFY_URL[0] == '\0' || ntfy_topic[0] == '\0') {
         printf("modemprobe: no ntfy URL or topic: alert skipped\n");
         return;
     }
@@ -583,8 +623,8 @@ static void send_alert(long attach_ms, int rssi)
              "signal %d (CSQ), battery %u mV.", attach_ms, rssi, vbat_mv());
     ntfy_tx_server_t server = {
         .url = CONFIG_PROBE_NTFY_URL,
-        .topic = CONFIG_PROBE_NTFY_TOPIC,
-        .token = CONFIG_PROBE_NTFY_TOKEN,
+        .topic = ntfy_topic,
+        .token = ntfy_token,
         .timeout_ms = HTTP_TIMEOUT_MS,
     };
     nt_msg_t msg = {.title = "modem-probe", .body = text, .priority = 3, .tags = "satellite"};
@@ -671,6 +711,7 @@ void app_main(void)
     printf("modemprobe: run %d wake_causes=0x%" PRIx32 " apn=%s\n", runs,
            esp_sleep_get_wakeup_causes(), CONFIG_PROBE_APN);
     pmu_start();
+    load_secrets();
     oled_start(CONFIG_PROBE_OLED_SDA, CONFIG_PROBE_OLED_SCL);
     title_line();
     oled_line(1, "modem starting");

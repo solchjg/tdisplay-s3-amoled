@@ -54,11 +54,23 @@ PSM is used as it is, logged `psm_resume`, instead of a full attach) and minutes
 runs once and then prints the signal every 30 s; above 0 it deep-sleeps between runs,
 the modem in PSM or, without PSM, powered down so each run is a cold attach.
 
+The repository is public, so no build carries a secret. The ThingsBoard token and the
+ntfy topic and token come from a settings image: NVS namespace `probe`, keys `tb_token`,
+`ntfy_topic` and `ntfy_token` (optional), read at boot and logged as `settings image
+tb_token=set|none …`; without one the menuconfig values are used, for a local build. Make
+it from a copy of [`settings.csv.example`](../../../commissioning/modem-probe/settings.csv.example)
+named `settings.csv` (ignored by git) with
+`python -m esp_idf_nvs_partition_gen generate settings.csv settings.bin 0x6000`
+(pip package `esp-idf-nvs-partition-gen`), keep it off the repository, and flash
+`settings.bin` at `0x9000` (the `nvs` partition) with the build.
+
 Without a local toolchain, run the "Commissioning aids" workflow by hand: `modem_apn`,
-`modem_tb_url`, `modem_ntfy` (`<base URL> <topic>`), `modem_tests` (`gps`, `psm`) and
-`modem_every` set the same options; the tokens come from the repository secrets
-`MODEM_PROBE_TB_TOKEN` and `MODEM_PROBE_NTFY_TOKEN`. The tokens are compiled into the
-`modem-probe` artefact, so use a ThingsBoard test device and a test topic.
+`modem_tb_url`, `modem_ntfy` (the base URL only), `modem_tests` (`gps`, `psm`) and
+`modem_every` set the same options. A hand-started run also replaces the one commit on
+the `firmware-drops` branch with its images (one folder per program, plus `BUILD.txt`
+naming the run, commit and inputs), so a session that reaches git but not artifact
+storage can fetch and flash them; the build fails if the `MODEM_PROBE_TB_TOKEN` secret
+turns up in the image.
 
 Lines start with `modemprobe:`; `CHECK` marks a result to look at. The run summary is
 `modemprobe: run=<n> awake_ms=… attach_ok=… attach_mean_ms=… thingsboard_ok=… ntfy_ok=… vbat_mv=…`.
@@ -68,7 +80,7 @@ Lines start with `modemprobe:`; `CHECK` marks a result to look at. The run summa
 1. **Smoke test.** Fit an IoT SIM (before power-up) and the LTE antenna. Flash the
    probe with no ThingsBoard or ntfy set: `AT+CPIN?` answers `READY`, `AT+CSQ` is not
    `99`, and `registered attach_ms=` appears.
-2. **Senders.** Set the ThingsBoard URL and token and the ntfy server: `thingsboard
+2. **Senders.** Set the ThingsBoard URL and the ntfy server, and flash the settings image: `thingsboard
    status=200` and `ntfy ESP_OK` appear, and the record and the alert arrive.
 3. **GPS.** Fit the GPS antenna and enable GPS: `gps fix lat= lon= after_s=` appears,
    outdoors or at a window.
