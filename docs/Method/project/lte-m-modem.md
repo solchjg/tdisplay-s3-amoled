@@ -118,6 +118,17 @@ each full attach, and `PROBE_PLMN` locks a test build to one network (310260 T-M
 310410 AT&T, 311480 Verizon). Which networks the SIM may use for LTE-M is set by the SIM
 provider, not by the modem.
 
+Measured with the Hologram SIM at the bench, one network locked per build, PSM on, runs every 10 minutes:
+
+| Network | Band | Full attach | PSM grant (active, TAU) | Network time at attach | PSM-resumed run awake |
+|---------|------|-------------|-------------------------|------------------------|-----------------------|
+| Verizon (311480) | 13 | 10.5–38 s | 300 s, 18600 s | yes | 8.7 s |
+| T-Mobile (310260) | 12 | 34.6 s | 10 s, 3600 s | no (SNTP) | 7.3 s |
+| AT&T (310410) | 12 | 16.9 s | 16 s, 3600 s | no (SNTP); set by the next run | 9.5 s |
+
+T-Mobile and AT&T grant about what the modem asks; Verizon keeps the modem awake 5 minutes after each run.
+A lock is refused (`+CME ERROR: SIM failure`) until the SIM is up after `AT+CFUN=1`, so the probe retries it.
+
 ## Antenna
 
 The SIM7080G has one LTE port (u.FL) with no DC on it; only the GPS port is powered, from
