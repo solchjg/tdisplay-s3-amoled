@@ -93,6 +93,53 @@ Proposed pass marks: attach within 60 s, at least 95% of records arrive, under 1
 a run, a GPS fix within 2 min. The bench's SLOT1 holds the T-Display; this board needs
 another slot or a short swap, after which SLOT1 gets the shipped build back.
 
+## Results
+
+Measured on the bench with a Hologram SIM (APN `hologram`), runs every 10 minutes with PSM:
+
+| Item | Value |
+|------|-------|
+| Network | Verizon (311480), roaming (`+CEREG` stat 5), LTE-M band 13, CSQ 21–24 |
+| Full attach | 38 s (after a GPS search); a PSM resume is registered at once (`attach_ms=5`) |
+| PSM grant | asked 10 s active time and 1 h TAU; granted 300 s active time and 18600 s TAU, so the modem stays awake 5 minutes after each run |
+| Wake from PSM | the modem answers 2–3 s after the PWRKEY pulse (measured at 1 s polling resolution); the whole wake took 5.1 s with 1 s asking and the 1.1 s pulse |
+| Time awake | 9–13 s for a PSM-resumed run; about 130 s for a first run with a GPS search |
+| Network time | Verizon supplies it (`AT+CCLK?`), so no SNTP runs |
+| Data | one ThingsBoard POST moves 1.4–1.8 kB up and 5.8–10.4 kB down, mostly the TLS handshake; a PSM-resumed run moves 7–12 kB in all, a first run with the ntfy alert 18–21 kB |
+| GPS | cold fix in 59–69 s at a window |
+| Battery | an 18650 alone carries the board; full at 4.2 V the charger reports `charger=off` with charging enabled (`charge_on=1`), which is the normal end of charge |
+
+## Carriers
+
+The modem only asks for its PSM timers; each network grants its own, and the grant can
+change between cells. Network time and attach time differ by network too. A roaming SIM
+such as Hologram's can attach to several US networks, so the probe logs the grant on
+each full attach, and `PROBE_PLMN` locks a test build to one network (310260 T-Mobile,
+310410 AT&T, 311480 Verizon). Which networks the SIM may use for LTE-M is set by the SIM
+provider, not by the modem.
+
+## Antenna
+
+The SIM7080G has one LTE port (u.FL) with no DC on it; only the GPS port is powered, from
+BLDO2. An amplified LTE antenna is a cellular signal booster, which must be an FCC-certified
+unit, so more range comes from a passive antenna and the cable: a single-port antenna
+rated for 698–960 MHz (bands 12 and 13 carry LTE-M on AT&T and Verizon), an omni on a
+pole where several towers or networks may serve, or a directional yagi or panel aimed at
+one tower for a far site. Datasheet gain is often quoted at 2.6 GHz and runs 3–5 dB lower
+at 700 MHz. The u.FL-to-SMA pigtail stays short, with long runs on LMR-400 to an N
+connector. LTE-M's coverage enhancement adds up to about 15 dB on top.
+
+## Inputs to `/define`
+
+Requirements the user has asked for, to be written into the FSD when it gains a cellular section:
+
+- `[user]` The device adapts to the network's PSM grant: on each full attach it reads the
+  granted active time and TAU, and when PSM is not granted or the active time is too long
+  (proposed: over 60 s) it powers the modem off between readings and attaches cold.
+- `[user]` A T-SIM7080G build drives an e-paper display above 40 °F and an OLED below it.
+- `[user]` An off-board button.
+- `[user]` Settings from a microSD card.
+
 ## Sources
 
 - [LilyGO T-SIM7080G-S3 wiki](https://wiki.lilygo.cc/products/t-sim-series/t-sim7080-s3/)
