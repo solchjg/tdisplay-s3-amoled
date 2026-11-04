@@ -102,8 +102,8 @@ Measured on the bench with a Hologram SIM (APN `hologram`), runs every 10 minute
 | Network | Verizon (311480), roaming (`+CEREG` stat 5), LTE-M band 13, CSQ 21–24 |
 | Full attach | 38 s (after a GPS search); a PSM resume is registered at once (`attach_ms=5`) |
 | PSM grant | asked 10 s active time and 1 h TAU; granted 300 s active time and 18600 s TAU, so the modem stays awake 5 minutes after each run |
-| Wake from PSM | the modem answers 2–3 s after the PWRKEY pulse (measured at 1 s polling resolution); the whole wake took 5.1 s with 1 s asking and the 1.1 s pulse |
-| Time awake | 9–13 s for a PSM-resumed run; about 130 s for a first run with a GPS search |
+| Wake from PSM | 3.0 s in all: 0.3 s asking, the 1.1 s pulse, and 1.6 s until the modem answers |
+| Time awake | 8.7 s for a PSM-resumed run (registered on the second `AT+CEREG?`, 0.5 s after waking); about 130 s for a first run with a GPS search |
 | Network time | Verizon supplies it (`AT+CCLK?`), so no SNTP runs |
 | Data | one ThingsBoard POST moves 1.4–1.8 kB up and 5.8–10.4 kB down, mostly the TLS handshake; a PSM-resumed run moves 7–12 kB in all, a first run with the ntfy alert 18–21 kB |
 | GPS | cold fix in 59–69 s at a window |
