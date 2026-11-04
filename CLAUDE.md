@@ -147,7 +147,10 @@ Other builds sharing the components:
   transport, note timing, optional sync and GPS);
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
   bench tests); `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
-  T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`). Never released.
+  T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`);
+  `commissioning/lora-survey/` — a LoRaWAN coverage survey on a Heltec WiFi LoRa 32 V3
+  (RadioLib, no FSD section, `docs/Method/project/lora-survey.md`); `commissioning/common/oled/`
+  is the probes' SSD1306 status screen. Never released.
 
 ## Testing
 
