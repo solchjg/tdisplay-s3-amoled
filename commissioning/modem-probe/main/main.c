@@ -16,6 +16,7 @@
 //      straight to ThingsBoard, and on the first run one alert through the
 //      shared ntfy_tx, the same sender the WiFi path uses;
 //   6. leaves PPP and prints the run's timings and the running totals.
+// An optional SSD1306 on GPIO 13/21 shows the run's progress and results.
 // With "Minutes between runs" 0 it then prints the signal every 30 s; above 0
 // it deep-sleeps until the next run (the 24 h soak), the modem in PSM or
 // powered down. Lines start with "modemprobe:"; CHECK marks a result to look at.
@@ -41,6 +42,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "ntfy_tx.h"
+#include "oled.h"
 #include "sdkconfig.h"
 
 // LilyGO T-SIM7080G-S3 (utilities.h of LilyGo-T-SIM7080G, examples/ATDebug).
@@ -100,6 +102,7 @@ static RTC_DATA_ATTR int runs, attach_ok, tb_tries, tb_ok, ntfy_tries, ntfy_ok;
 static RTC_DATA_ATTR int64_t attach_ms_sum;
 
 static i2c_master_dev_handle_t pmu;
+static char tb_result[12] = "-", ntfy_result[12] = "-";
 static esp_modem_dce_t *dce;
 static EventGroupHandle_t net_events;
 static char out[CONFIG_ESP_MODEM_C_API_STR_MAX];
@@ -321,6 +324,37 @@ static bool registered(void)
     return p != NULL && sscanf(p, "+CEREG: %d,%d", &n, &stat) == 2 && (stat == 1 || stat == 5);
 }
 
+// The CSQ signal value (0 - 31, 99 unknown) from a fresh AT+CSQ.
+static int csq_now(void)
+{
+    int rssi = 99, ber;
+    const char *p = at("AT+CSQ", AT_TIMEOUT_MS) ? strstr(out, "+CSQ:") : NULL;
+    if (p != NULL) {
+        sscanf(p, "+CSQ: %d,%d", &rssi, &ber);
+    }
+    return rssi;
+}
+
+// "Verizon M1 B13" from AT+COPS? ("<first word of the operator>") and AT+CPSI?
+// ("LTE CAT-M1,...,EUTRAN-BAND13,...").
+static void network_line(void)
+{
+    char op[16] = "?", band[8] = "?";
+    const char *rat = "?";
+    const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strchr(out, '"') : NULL;
+    if (p != NULL) {
+        sscanf(p + 1, "%15[^ \"]", op);
+    }
+    if (at("AT+CPSI?", AT_TIMEOUT_MS)) {
+        rat = strstr(out, "CAT-M1") ? "M1" : strstr(out, "NB-IOT") ? "NB" : "LTE";
+        p = strstr(out, "BAND");
+        if (p != NULL) {
+            sscanf(p + 4, "%7[0-9]", band);
+        }
+    }
+    oled_line(1, "%s %s B%s", op, rat, band);
+}
+
 // GNSS and LTE share the SIM7080G's RF: radio off, GNSS on, ask every 5 s.
 static void gps_fix(void)
 {
@@ -329,6 +363,7 @@ static void gps_fix(void)
     at("AT+CGNSPWR=1", AT_TIMEOUT_MS);
     int64_t t0 = esp_timer_get_time();
     bool fixed = false;
+    oled_line(1, "GPS: seeking fix");
     for (int s = 0; s <= GPS_LIMIT_S && !fixed; s += GPS_ASK_S) {
         vTaskDelay(pdMS_TO_TICKS(GPS_ASK_S * 1000));
         if (!at("AT+CGNSINF", AT_TIMEOUT_MS)) {
@@ -343,11 +378,13 @@ static void gps_fix(void)
             fix == 1) {
             printf("modemprobe: gps fix lat=%.5f lon=%.5f after_s=%ld\n", lat, lon,
                    ms_since(t0) / 1000);
+            oled_line(2, "%.4f %.4f", lat, lon);
             fixed = true;
         }
     }
     if (!fixed) {
         printf("modemprobe: gps no fix within %d s CHECK\n", GPS_LIMIT_S);
+        oled_line(2, "GPS no fix");
     }
     at("AT+CGNSPWR=0", AT_TIMEOUT_MS);
     gps_antenna(false);
@@ -366,18 +403,20 @@ static long attach(void)
     at("AT+CEREG=4", AT_TIMEOUT_MS);  // report the granted PSM timers too
     int64_t t0 = esp_timer_get_time();
     at("AT+CFUN=1", 10000);
+    oled_line(1, "registering...");
     while (ms_since(t0) < CONFIG_PROBE_ATTACH_S * 1000L) {
         if (registered()) {
             long ms = ms_since(t0);
             printf("modemprobe: registered attach_ms=%ld %s\n", ms, ms <= 60000 ? "ok" : "CHECK");
-            at("AT+COPS?", AT_TIMEOUT_MS);
-            at("AT+CPSI?", AT_TIMEOUT_MS);
-            at("AT+CSQ", AT_TIMEOUT_MS);
+            network_line();
+            oled_line(2, "attach %.1fs CSQ %d", ms / 1000.0, csq_now());
             return ms;
         }
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
     printf("modemprobe: not registered within %d s CHECK\n", CONFIG_PROBE_ATTACH_S);
+    oled_line(1, "NOT registered");
+    oled_line(2, "CSQ %d", csq_now());
     at("AT+CPSI?", AT_TIMEOUT_MS);
     return -1;
 }
@@ -439,6 +478,8 @@ static void post_telemetry(long attach_ms, int rssi)
     esp_http_client_cleanup(c);
     bool ok = status >= 200 && status < 300;
     tb_ok += ok;
+    snprintf(tb_result, sizeof tb_result, "%d", status);
+    oled_line(3, "TB %s  ntfy %s", tb_result, ntfy_result);
     printf("modemprobe: thingsboard status=%d err=%s bytes=%d ms=%ld %s\n", status,
            esp_err_to_name(err), n, ms_since(t0), ok ? "ok" : "CHECK");
 }
@@ -464,6 +505,8 @@ static void send_alert(long attach_ms, int rssi)
     int64_t t0 = esp_timer_get_time();
     esp_err_t err = ntfy_tx_send(&server, &msg, &why);
     ntfy_ok += err == ESP_OK;
+    snprintf(ntfy_result, sizeof ntfy_result, "%s", nt_reason_name(why));
+    oled_line(3, "TB %s  ntfy %s", tb_result, ntfy_result);
     printf("modemprobe: ntfy %s reason=%s ms=%ld %s\n", esp_err_to_name(err), nt_reason_name(why),
            ms_since(t0), err == ESP_OK ? "ok" : "CHECK");
 }
@@ -479,8 +522,10 @@ static void session(long attach_ms)
                                      : 0;
     if (!(bits & GOT_IP)) {
         printf("modemprobe: ppp no ip err=%s ms=%ld CHECK\n", esp_err_to_name(err), ms_since(t0));
+        oled_line(3, "PPP: no IP");
     } else {
         printf("modemprobe: ppp up ms=%ld\n", ms_since(t0));
+        oled_line(3, "PPP up, sending");
         set_clock();
         post_telemetry(attach_ms, rssi);
         if (runs == 1) {
@@ -497,6 +542,8 @@ static void report(int64_t t_boot)
            " thingsboard_ok=%d/%d ntfy_ok=%d/%d vbat_mv=%u\n",
            runs, ms_since(t_boot), attach_ok, runs, attach_ok ? attach_ms_sum / attach_ok : 0,
            tb_ok, tb_tries, ntfy_ok, ntfy_tries, vbat_mv());
+    oled_line(4, "awake %lds %u.%02uV", ms_since(t_boot) / 1000, vbat_mv() / 1000,
+              vbat_mv() % 1000 / 10);
 }
 
 static void sleep_until_next(int64_t t_boot)
@@ -512,6 +559,7 @@ static void sleep_until_next(int64_t t_boot)
         wait_us = 10 * 1000000;
     }
     printf("modemprobe: deep sleep s=%" PRId64 "\n", wait_us / 1000000);
+    oled_off();
     gpio_set_level(PIN_MODEM_PWRKEY, 0);
     gpio_hold_en(PIN_MODEM_PWRKEY);  // keep PWRKEY released through deep sleep
     esp_sleep_enable_timer_wakeup((uint64_t)wait_us);
@@ -525,7 +573,13 @@ void app_main(void)
     printf("modemprobe: run %d wake_causes=0x%" PRIx32 " apn=%s\n", runs,
            esp_sleep_get_wakeup_causes(), CONFIG_PROBE_APN);
     pmu_start();
+    oled_start(CONFIG_PROBE_OLED_SDA, CONFIG_PROBE_OLED_SCL);
+    oled_line(0, "modem-probe run %d", runs);
+    oled_line(1, "modem starting");
     bool up = modem_start();
+    if (!up) {
+        oled_line(1, "modem: no answer");
+    }
     if (up) {
         modem_info();
         if (PROBE_GPS && runs == 1) {
@@ -545,7 +599,7 @@ void app_main(void)
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(30000));
         if (up) {
-            at("AT+CSQ", AT_TIMEOUT_MS);
+            oled_line(2, "CSQ %d", csq_now());
         }
         printf("modemprobe: vbat_mv=%u\n", vbat_mv());
     }

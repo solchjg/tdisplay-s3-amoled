@@ -57,6 +57,16 @@ config PROBE_PSM
     bool "Ask the network for PSM (TAU 1 h, active time 10 s)"
     default n
 
+config PROBE_OLED_SDA
+    int "SSD1306 status screen SDA GPIO (-1: no screen)"
+    range -1 48
+    default 13
+
+config PROBE_OLED_SCL
+    int "SSD1306 status screen SCL GPIO"
+    range 0 48
+    default 21
+
 config PROBE_EVERY_MIN
     int "Minutes between runs (0: run once, then print the signal every 30 s)"
     range 0 1440
