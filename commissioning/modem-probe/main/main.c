@@ -85,10 +85,13 @@
 
 #if defined(CONFIG_PROBE_RAT_NB)
 #define RAT_CMD "AT+CMNB=2"
+#define COPS_ACT ",9"
 #elif defined(CONFIG_PROBE_RAT_BOTH)
 #define RAT_CMD "AT+CMNB=3"
+#define COPS_ACT ""
 #else
 #define RAT_CMD "AT+CMNB=1"
+#define COPS_ACT ",7"
 #endif
 #ifdef CONFIG_PROBE_GPS
 #define PROBE_GPS 1
@@ -449,10 +452,16 @@ static void carrier_select(void)
     char cmd[40];
     if (CONFIG_PROBE_PLMN[0] != '\0') {
         // Like CPSMS, the lock is refused until the SIM is up after CFUN=1.
-        snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"", CONFIG_PROBE_PLMN);
+        // A try that runs to the timeout means the modem stopped answering,
+        // so it is not repeated.
+        snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"" COPS_ACT, CONFIG_PROBE_PLMN);
         for (int i = 0; i < 15; i++) {
+            int64_t t = esp_timer_get_time();
             if (at(cmd, 120000)) {
                 return;
+            }
+            if (ms_since(t) > 60000) {
+                break;
             }
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
@@ -594,6 +603,7 @@ static long attach(void)
         printf("%s\n", resume_line);
     }
     at("AT+CFUN=0", 10000);
+    at("AT+CMEE=2", AT_TIMEOUT_MS);   // errors as text, so a refusal says why
     at("AT+CNMP=38", AT_TIMEOUT_MS);  // LTE only
     at(RAT_CMD, AT_TIMEOUT_MS);
     snprintf(cmd, sizeof cmd, "AT+CGDCONT=1,\"IP\",\"%s\"", CONFIG_PROBE_APN);
@@ -602,6 +612,7 @@ static long attach(void)
     at("AT+CLTS=1", AT_TIMEOUT_MS);   // keep the modem clock set from the network
     int64_t t0 = esp_timer_get_time();
     at("AT+CFUN=1", 10000);
+    carrier_select();
     // The modem answers CPSMS with ERROR until the SIM is up again after
     // CFUN=1, so retry for a few seconds.
     // TAU 1 h (unit 1 h, value 1), active time 10 s (unit 2 s, value 5).
@@ -612,7 +623,6 @@ static long attach(void)
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
-    carrier_select();
     oled_line(1, "registering...");
     while (ms_since(t0) < CONFIG_PROBE_ATTACH_S * 1000L) {
         if (registered()) {
