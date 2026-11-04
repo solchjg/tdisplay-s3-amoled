@@ -325,14 +325,19 @@ static bool at(const char *cmd, int timeout_ms)
     return at_until(cmd, "OK", timeout_ms);
 }
 
-static bool modem_answers(int tries)
+// Plain AT with a short reply timeout, repeated until the modem answers or
+// window_ms has passed: a 100 ms step finds the moment it wakes, where
+// esp_modem_sync's own timeout and a 500 ms pause found it only to a second.
+static bool modem_answers(int window_ms, int *tries)
 {
-    for (int i = 0; i < tries; i++) {
-        if (esp_modem_sync(dce) == ESP_OK) {
+    int64_t t0 = esp_timer_get_time();
+    *tries = 0;
+    do {
+        ++*tries;
+        if (esp_modem_at_raw(dce, "AT\r", out, "OK", "ERROR", 100) == ESP_OK) {
             return true;
         }
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
+    } while (ms_since(t0) < window_ms);
     return false;
 }
 
@@ -352,22 +357,25 @@ static bool modem_wake(void)
 {
     int64_t t0 = esp_timer_get_time();
     long ask_ms = 0, pulse_ms = 0;
+    int ask_tries, after_tries = 0;
     bool pulsed = false;
-    // A modem left in PSM never answers before the pulse, so one try is enough
-    // then; otherwise three, as a modem that is already on must not be pulsed.
-    if (!modem_answers(PROBE_PSM && runs > 1 ? 1 : 3)) {
+    // A modem left in PSM never answers before the pulse, so 200 ms of asking is
+    // enough then; otherwise 1.5 s, as a modem that is already on must not be pulsed.
+    if (!modem_answers(PROBE_PSM && runs > 1 ? 200 : 1500, &ask_tries)) {
         ask_ms = ms_since(t0);
         pwrkey_pulse();
         pulse_ms = ms_since(t0) - ask_ms;
         pulsed = true;
-        if (!modem_answers(30)) {
+        if (!modem_answers(30000, &after_tries)) {
             printf("modemprobe: modem no answer after PWRKEY ms=%ld CHECK\n", ms_since(t0));
             return false;
         }
     }
     long ms = ms_since(t0);
-    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld\n",
-           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0);
+    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld "
+           "tries=%d+%d\n",
+           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0,
+           ask_tries, after_tries);
     return true;
 }
 
