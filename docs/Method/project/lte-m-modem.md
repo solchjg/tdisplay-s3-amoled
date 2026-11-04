@@ -46,7 +46,8 @@ is woken and GNSS switched on again, up to three times, before the search is aba
 
 Options are under "Modem probe" in `idf.py menuconfig`: APN (default `iot.1nce.net`),
 radio access (LTE-M, NB-IoT or both), ThingsBoard URL and token, ntfy URL, topic and
-token, GPS, PSM (TAU 1 h, active time 10 s) and minutes between runs. With 0 minutes it
+token, GPS, PSM (TAU 1 h, active time 10 s; on later runs a modem still registered after
+PSM is used as it is, logged `psm_resume`, instead of a full attach) and minutes between runs. With 0 minutes it
 runs once and then prints the signal every 30 s; above 0 it deep-sleeps between runs,
 the modem in PSM or, without PSM, powered down so each run is a cold attach.
 
