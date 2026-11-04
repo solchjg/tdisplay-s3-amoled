@@ -473,11 +473,24 @@ static void carrier_select(void)
         printf("modemprobe: network lock %s refused CHECK\n", CONFIG_PROBE_PLMN);
         return;
     }
-    int mode;
-    const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
-    if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1 && (mode == 1 || mode == 4)) {
-        at("AT+COPS=0", 120000);
+    // The modem keeps a lock through power-off. Right after CFUN=1 it reports
+    // mode 2 and refuses AT+COPS=0 until the SIM is up, so ask again until it
+    // shows the stored mode.
+    for (int i = 0; i < 15; i++) {
+        int mode;
+        const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
+        if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1) {
+            if (mode == 0) {
+                return;
+            }
+            if ((mode == 1 || mode == 4) && at("AT+COPS=0", 120000)) {
+                printf("modemprobe: network lock undone\n");
+                return;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
+    printf("modemprobe: network lock state unknown CHECK\n");
 }
 
 // "+CEREG: <n>,<stat>[,...]": registered at home (1) or roaming (5).
