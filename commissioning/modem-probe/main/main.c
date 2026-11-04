@@ -448,8 +448,15 @@ static void carrier_select(void)
 {
     char cmd[40];
     if (CONFIG_PROBE_PLMN[0] != '\0') {
+        // Like CPSMS, the lock is refused until the SIM is up after CFUN=1.
         snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"", CONFIG_PROBE_PLMN);
-        at(cmd, 120000);
+        for (int i = 0; i < 15; i++) {
+            if (at(cmd, 120000)) {
+                return;
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        printf("modemprobe: network lock %s refused CHECK\n", CONFIG_PROBE_PLMN);
         return;
     }
     int mode;
