@@ -325,14 +325,19 @@ static bool at(const char *cmd, int timeout_ms)
     return at_until(cmd, "OK", timeout_ms);
 }
 
-static bool modem_answers(int tries)
+// Plain AT with a short reply timeout, repeated until the modem answers or
+// window_ms has passed: a 100 ms step finds the moment it wakes, where
+// esp_modem_sync's own timeout and a 500 ms pause found it only to a second.
+static bool modem_answers(int window_ms, int *tries)
 {
-    for (int i = 0; i < tries; i++) {
-        if (esp_modem_sync(dce) == ESP_OK) {
+    int64_t t0 = esp_timer_get_time();
+    *tries = 0;
+    do {
+        ++*tries;
+        if (esp_modem_at_raw(dce, "AT\r", out, "OK", "ERROR", 100) == ESP_OK) {
             return true;
         }
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
+    } while (ms_since(t0) < window_ms);
     return false;
 }
 
@@ -352,22 +357,25 @@ static bool modem_wake(void)
 {
     int64_t t0 = esp_timer_get_time();
     long ask_ms = 0, pulse_ms = 0;
+    int ask_tries, after_tries = 0;
     bool pulsed = false;
-    // A modem left in PSM never answers before the pulse, so one try is enough
-    // then; otherwise three, as a modem that is already on must not be pulsed.
-    if (!modem_answers(PROBE_PSM && runs > 1 ? 1 : 3)) {
+    // A modem left in PSM never answers before the pulse, so 200 ms of asking is
+    // enough then; otherwise 1.5 s, as a modem that is already on must not be pulsed.
+    if (!modem_answers(PROBE_PSM && runs > 1 ? 200 : 1500, &ask_tries)) {
         ask_ms = ms_since(t0);
         pwrkey_pulse();
         pulse_ms = ms_since(t0) - ask_ms;
         pulsed = true;
-        if (!modem_answers(30)) {
+        if (!modem_answers(30000, &after_tries)) {
             printf("modemprobe: modem no answer after PWRKEY ms=%ld CHECK\n", ms_since(t0));
             return false;
         }
     }
     long ms = ms_since(t0);
-    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld\n",
-           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0);
+    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld "
+           "tries=%d+%d\n",
+           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0,
+           ask_tries, after_tries);
     return true;
 }
 
@@ -424,6 +432,24 @@ static void modem_info(void)
     at("AT+CPIN?", AT_TIMEOUT_MS);
     at("AT+CCID", AT_TIMEOUT_MS);
     at("AT+CSQ", AT_TIMEOUT_MS);
+}
+
+// With PROBE_PLMN set, lock the modem to that network (manual selection,
+// no fallback, so a refused roam shows as no registration). Without it, undo
+// a lock an earlier build left: the modem keeps the selection mode.
+static void carrier_select(void)
+{
+    char cmd[40];
+    if (CONFIG_PROBE_PLMN[0] != '\0') {
+        snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"", CONFIG_PROBE_PLMN);
+        at(cmd, 120000);
+        return;
+    }
+    int mode;
+    const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
+    if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1 && mode != 0) {
+        at("AT+COPS=0", 120000);
+    }
 }
 
 // "+CEREG: <n>,<stat>[,...]": registered at home (1) or roaming (5).
@@ -559,6 +585,7 @@ static long attach(void)
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+    carrier_select();
     oled_line(1, "registering...");
     while (ms_since(t0) < CONFIG_PROBE_ATTACH_S * 1000L) {
         if (registered()) {
@@ -760,10 +787,54 @@ static void report(int64_t t_boot)
               vbat_mv() % 1000 / 10);
 }
 
+// 3GPP 24.008 timer octets as "+CEREG: 4,..." quotes them: bits 8..6 the unit,
+// bits 5..1 the count. Active time (T3324) and periodic TAU (T3412 extended) use
+// different unit tables; -1 means deactivated or unreadable.
+static long gprs_timer_s(const char *bits, bool tau)
+{
+    static const long t3324[8] = {2, 60, 360, 360, 360, 360, 360, -1};
+    static const long t3412[8] = {600, 3600, 36000, 2, 30, 60, 1152000, -1};
+    int v = 0;
+    for (int i = 0; i < 8; i++) {
+        if (bits[i] != '0' && bits[i] != '1') {
+            return -1;
+        }
+        v = v << 1 | (bits[i] - '0');
+    }
+    long unit = (tau ? t3412 : t3324)[v >> 5];
+    return unit < 0 ? -1 : unit * (v & 0x1F);
+}
+
+// The network's grant from the last full "+CEREG: 4,..." in out: its last two
+// quoted fields. After a PSM resume the modem reports n=0 and no timers.
+static void psm_grant(void)
+{
+    const char *p = NULL;
+    for (const char *q = out; (q = strstr(q, "+CEREG: 4,")) != NULL; q++) {
+        p = q;
+    }
+    if (p == NULL) {
+        return;
+    }
+    const char *quote[2] = {NULL, NULL};
+    for (const char *q = p + 8; *q && *q != ' '; q++) {
+        if (*q == '"' && strlen(q) > 9 && q[9] == '"') {
+            quote[0] = quote[1];
+            quote[1] = q + 1;
+            q += 9;
+        }
+    }
+    if (quote[0] != NULL) {
+        printf("modemprobe: psm grant active_s=%ld tau_s=%ld\n", gprs_timer_s(quote[0], false),
+               gprs_timer_s(quote[1], true));
+    }
+}
+
 static void sleep_until_next(int64_t t_boot)
 {
     if (PROBE_PSM) {
         at("AT+CEREG?", AT_TIMEOUT_MS);  // the granted active time and TAU
+        psm_grant();
     } else {
         at_until("AT+CPOWD=1", "POWER DOWN", 5000);  // cold attach next run
     }
