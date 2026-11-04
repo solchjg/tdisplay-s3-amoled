@@ -353,6 +353,10 @@ static void pwrkey_pulse(void)
     gpio_set_level(PIN_MODEM_PWRKEY, 0);
 }
 
+// The wake and PSM-resume lines come before USB connects after a timer wake,
+// so report() prints them again.
+static char wake_line[160], resume_line[96];
+
 static bool modem_wake(void)
 {
     int64_t t0 = esp_timer_get_time();
@@ -372,10 +376,12 @@ static bool modem_wake(void)
         }
     }
     long ms = ms_since(t0);
-    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld "
-           "tries=%d+%d\n",
-           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0,
-           ask_tries, after_tries);
+    snprintf(wake_line, sizeof wake_line,
+             "modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld "
+             "tries=%d+%d",
+             pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0,
+             ask_tries, after_tries);
+    printf("%s\n", wake_line);
     return true;
 }
 
@@ -436,7 +442,8 @@ static void modem_info(void)
 
 // With PROBE_PLMN set, lock the modem to that network (manual selection,
 // no fallback, so a refused roam shows as no registration). Without it, undo
-// a lock an earlier build left: the modem keeps the selection mode.
+// a lock an earlier build left (mode 1 or 4): the modem keeps the selection
+// mode. Mode 2 shows while the radio comes up and is left alone.
 static void carrier_select(void)
 {
     char cmd[40];
@@ -447,7 +454,7 @@ static void carrier_select(void)
     }
     int mode;
     const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
-    if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1 && mode != 0) {
+    if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1 && (mode == 1 || mode == 4)) {
         at("AT+COPS=0", 120000);
     }
 }
@@ -555,16 +562,29 @@ static long attach(void)
     char cmd[96];
     // A modem woken from PSM keeps its registration: use it rather than
     // cycling the radio, which forces a full attach and spends the saving.
+    // The modem answers AT a moment before it reports its kept registration,
+    // so ask for a few seconds before falling back to a full attach.
     if (PROBE_PSM && runs > 1) {
         int64_t t = esp_timer_get_time();
-        if (registered()) {
-            long ms = ms_since(t);
-            printf("modemprobe: registered attach_ms=%ld psm_resume ok\n", ms);
-            network_line();
-            oled_line(2, "PSM resume CSQ %d", csq_now());
-            return ms;
-        }
-        printf("modemprobe: not registered after PSM, full attach\n");
+        int tries = 0;
+        do {
+            if (++tries > 1) {
+                vTaskDelay(pdMS_TO_TICKS(500));
+            }
+            if (registered()) {
+                long ms = ms_since(t);
+                snprintf(resume_line, sizeof resume_line,
+                         "modemprobe: registered attach_ms=%ld psm_resume ok tries=%d", ms, tries);
+                printf("%s\n", resume_line);
+                network_line();
+                oled_line(2, "PSM resume CSQ %d", csq_now());
+                return ms;
+            }
+        } while (ms_since(t) < 5000);
+        snprintf(resume_line, sizeof resume_line,
+                 "modemprobe: not registered after PSM ms=%ld tries=%d, full attach CHECK",
+                 ms_since(t), tries);
+        printf("%s\n", resume_line);
     }
     at("AT+CFUN=0", 10000);
     at("AT+CNMP=38", AT_TIMEOUT_MS);  // LTE only
@@ -783,6 +803,12 @@ static void report(int64_t t_boot)
            runs, ms_since(t_boot), attach_ok, runs, attach_ok ? attach_ms_sum / attach_ok : 0,
            tb_ok, tb_tries, ntfy_ok, ntfy_tries, vbat_mv());
     battery_status();  // again here: after a timer wake USB connects too late for the boot line
+    if (wake_line[0] != '\0') {
+        printf("%s\n", wake_line);
+    }
+    if (resume_line[0] != '\0') {
+        printf("%s\n", resume_line);
+    }
     oled_line(4, "awake %lds %u.%02uV", ms_since(t_boot) / 1000, vbat_mv() / 1000,
               vbat_mv() % 1000 / 10);
 }
