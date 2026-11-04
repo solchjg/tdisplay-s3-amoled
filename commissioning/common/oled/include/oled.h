@@ -5,6 +5,10 @@
 
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define OLED_LINES 5
 #define OLED_COLS 21
 
@@ -17,3 +21,7 @@ void oled_line(int n, const char *fmt, ...) __attribute__((format(printf, 2, 3))
 
 // Blanks the panel (before deep sleep).
 void oled_off(void);
+
+#ifdef __cplusplus
+}
+#endif
