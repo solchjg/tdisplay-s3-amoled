@@ -91,7 +91,12 @@ socket and the Qwiic socket, so the board's Qwiic connector stays free.
 ### Shared bus
 
 The Notecard sits at 0x17 on the bus that also carries the BME280 (0x76) and the water
-ADS1115 (0x48), at 100 kHz (C-23.1). Its 10 kΩ pull-ups to VIO add to the breakouts'
+ADS1115 (0x48), at 100 kHz (C-23.1). The Notecarrier-X's LiPo charger, a TI BQ25628E,
+shares the Notecard's I2C lines at 0x6A, fixed in the chip, so it answers on this bus
+whenever the Notecarrier is fitted. The firmware never addresses it. The loop
+ADS1115 (0x49) has its own bus (I2C port 1). None of these addresses clash, and a part
+added to this bus must avoid 0x17, 0x48, 0x6A and 0x76 (0x77 is the BME280's other
+address). Its 10 kΩ pull-ups to VIO add to the breakouts'
 own, so keep the parallel total at or above about 2.2 kΩ, removing a breakout's
 pull-ups if needed. The device polls the Notecard: no ATTN line is wired.
 
@@ -113,6 +118,14 @@ setup check's time step, keeps it for the hold, and, on a fix, sends
 events with it. A cold first fix takes 1 – 2 minutes with a view of the sky; the
 Notecard gives a seek up after about 17 minutes, or after 90 s with no signal at all
 (R-35).
+
+`card.location` answers with the last location the Notecard holds: an earlier GPS
+fix, the cell tower location of its last session, or the place given with `fixed`,
+each with its own `time` and often with `{gps}` in the status. Right after
+`continuous` it still answers with that held location. So the search counts a fix
+only when it is a GPS fix taken after the search began (FR-33.16), else it would end
+at once on the held place. The `gps` test (FR-33.20, `setup=<id>,gps` over BLE or
+the portal) runs the same search without a factory reset.
 
 ### Always powered
 
@@ -187,7 +200,8 @@ Run [`commissioning/notecard-probe`](../../../commissioning/notecard-probe/main/
 (FSD §3.15) before the first cellular bench test. It talks to the Notecard on GPIO 43/44
 beside the BME280 and, once after reset:
 
-- scans the bus (0x17, 0x76 and, with the water board fitted, 0x48 must answer);
+- scans the bus (0x17, 0x76, the charger's 0x6A and, with the water board fitted,
+  0x48 must answer);
 - reads `card.version`, `card.transport`, `hub.get`, `card.wireless` (the signal bars)
   and `card.time`;
 - with a ProductUID set, sends `hub.set` and `card.transport` `cell` where the Notecard
@@ -209,7 +223,13 @@ to look at.
 Without a ProductUID the Notecard refuses every `note.add` (`{product-noexist}`), so
 the batch timing needs one. On the bench Notecard (capability `dut-notecard` in
 [`test-plan.yaml`](../../../testing/test-plan.yaml)) a note of 100 readings takes about
-6.9 s and one of 50 about 3.4 s, so notes keep 100 readings (FR-33.7).
+6.9 s and one of 50 about 3.4 s, so notes keep 100 readings (FR-33.7). At the bench
+window the Notecard gets LTE at 1 bar and a GPS fix within about a minute of the
+search starting.
+
+A timer wake is too short for the board's USB port to come up, so the bench sees no
+log from it. Check timer wakes by their readings in `/api/history` after a key wake,
+or with the sleep test builds.
 
 ## Installation
 
