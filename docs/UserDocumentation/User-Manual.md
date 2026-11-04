@@ -461,6 +461,34 @@ kept) or after 20 minutes (`Test FAIL 0/1`, the old place kept); a press of
 the user key stops it. It needs the uplink on `cell` and GPS on, and fails at
 once otherwise. The serial log shows `test end id=gps fix=yes result=pass`.
 
+## 5i. Running without WiFi
+
+The device can run with WiFi switched off and Bluetooth exactly as before. Use
+it where no WiFi reaches the device, or when it should not be on a network.
+
+- **Turning WiFi off.** At first setup, choose **WiFi: Off** at the top of the
+  portal form or the Bluetooth page. The network name and password are then
+  optional. Later, hold the user key 3 s to open a Bluetooth window and save
+  **WiFi: Off** there. A WiFi network you already saved is kept, so turning
+  WiFi back on needs no retyping.
+- **What it does.** The device keeps taking readings, keeping its history and
+  sleeping between readings. The display shows `WiFi off` and
+  `Hold key 3 s for BLE`. It never joins a network or opens its setup network
+  again until a factory reset.
+- **Reading it.** Hold the user key 3 s and use the Bluetooth page (section 5c)
+  to change settings or download the history.
+- **Reporting.** With the cellular uplink set to `cell` (section 5h), alerts,
+  email and the clock come over the Notecard as before. With the uplink left
+  on `wifi`, nothing is sent: no email and no alerts. Without a Notecard, the
+  clock is not set again after the power is lost, so readings after that show
+  no time.
+- **What you lose.** The status page, the JSON pages, firmware updates over
+  the network and the network log. To update the firmware, use USB (section
+  4), or turn WiFi back on over Bluetooth first.
+- **Turning WiFi back on.** Hold the user key 3 s, choose **WiFi: On** on the
+  Bluetooth page with the network name (and password if it changed), and save.
+  The device restarts and connects.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |

@@ -2,7 +2,8 @@
 // on the board's bus before the Phase 15 firmware relies on it. Once after
 // reset it
 //   1. scans the main bus (GPIO 43/44): the Notecard (0x17) and the BME280
-//      (0x76) must answer, the water ADS1115 (0x48) when its board is fitted;
+//      (0x76) must answer, the Notecarrier-X's charger (TI BQ25628E, 0x6A)
+//      with the carrier fitted, the water ADS1115 (0x48) when its board is;
 //   2. reads card.version, card.transport, hub.get, card.wireless (signal
 //      bars) and card.time, printing each answer;
 //   3. with a ProductUID set (menuconfig, "Notecard probe"), sends hub.set and
@@ -31,6 +32,7 @@
 #define PIN_SCL 44
 #define ADDR_BME280 0x76
 #define ADDR_WATER 0x48
+#define ADDR_CHARGER 0x6A  // the Notecarrier-X's TI BQ25628E, fixed
 #define CELL_EVERY_MIN 60
 #define INBOUND_MIN 1440
 #define GPS_ASK_S 5
@@ -69,8 +71,9 @@ static void scan(void)
     }
     printf("%s\n", n ? "" : " none");
     bool nc = present(NOTECARD_I2C_ADDR), bme = present(ADDR_BME280);
-    printf("notecardprobe: notecard=%s bme280=%s water=%s %s\n", nc ? "yes" : "no",
-           bme ? "yes" : "no", present(ADDR_WATER) ? "yes" : "no", nc && bme ? "ok" : "CHECK");
+    printf("notecardprobe: notecard=%s bme280=%s charger=%s water=%s %s\n", nc ? "yes" : "no",
+           bme ? "yes" : "no", present(ADDR_CHARGER) ? "yes" : "no",
+           present(ADDR_WATER) ? "yes" : "no", nc && bme ? "ok" : "CHECK");
 }
 
 // Sends one request line, prints the answer and how long it took; true when

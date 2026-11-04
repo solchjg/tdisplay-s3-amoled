@@ -15,6 +15,14 @@ choice PROBE_RAT
         bool "LTE-M and NB-IoT (AT+CMNB=3)"
 endchoice
 
+config PROBE_PLMN
+    string "Network to lock to, as MCC and MNC (empty: automatic)"
+    default ""
+    help
+        E.g. 310260 T-Mobile, 310410 AT&T, 311480 Verizon. Sent as
+        AT+COPS=1,2,"<PLMN>" on a full attach; with it empty a previous lock
+        is undone with AT+COPS=0.
+
 config PROBE_ATTACH_S
     int "Seconds to wait for network registration"
     range 30 600
@@ -30,6 +38,9 @@ config PROBE_TB_URL
 config PROBE_TB_TOKEN
     string "ThingsBoard device access token"
     default ""
+    help
+        For a local build only; CI leaves it empty. A settings image flashed
+        at 0x9000 (namespace "probe", key "tb_token") overrides it.
 
 config PROBE_NTFY_URL
     string "ntfy server base URL (empty: no alert)"
@@ -38,10 +49,16 @@ config PROBE_NTFY_URL
 config PROBE_NTFY_TOPIC
     string "ntfy topic"
     default ""
+    help
+        For a local build only; CI leaves it empty. A settings image flashed
+        at 0x9000 (namespace "probe", key "ntfy_topic") overrides it.
 
 config PROBE_NTFY_TOKEN
     string "ntfy access token (empty: none)"
     default ""
+    help
+        For a local build only; CI leaves it empty. A settings image flashed
+        at 0x9000 (namespace "probe", key "ntfy_token") overrides it.
 
 config PROBE_GPS
     bool "Seek one GPS fix on the first run (LTE off meanwhile; needs the GPS antenna)"

@@ -19,6 +19,11 @@ const char *uplink_form_html(void);
 // settings; NULL when valid (held until uplink_store), else the invalid field.
 const char *uplink_take(const char *body, size_t len);
 
+// FR-34.1: the stored WiFi switch (on if none), and the one the last accepted
+// uplink_take read (stored with the rest by uplink_store).
+bool uplink_wifi_on(void);
+bool uplink_taken_wifi_on(void);
+
 // The stored settings (wifi if none). Initialises NVS if nothing else has.
 const ul_settings_t *uplink_settings(void);
 

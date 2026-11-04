@@ -2247,7 +2247,8 @@ The setup page:
   description read through `settings` after `control` `form=<offset>`: a
   form body with one `<name>=<rules>` per field (a secret by its name), where
   `<rules>` is itself a form body of `label`, `required`, `group` and `need`
-  (required once any field of the group is filled), `type`, `minlength`,
+  (required once any field of the group is filled), `required_if`
+  (`<name>=<value>`: required while that field holds that value, FR-34.3), `type`, `minlength`,
   `maxlength`, `min`, `max`, `step`, `pattern`, `options` (a leading empty item
   allows none) with their `labels`, `extras` (checkboxes added to a choice) with
   `extra_labels` and `extras_intro`, `placeholder`, `inputmode`, `unit`,
@@ -3182,7 +3183,7 @@ holds, the composition root performs it.
 |------|-------|--------|
 | Modem | Blues Notecard Cell+WiFi NOTE-MBGLW, hardware v2.5 (M.2 key E), the card the user owns; run on cellular only (FR-33.14) | [user] |
 | Carrier | Blues Notecarrier-X v1.3, the carrier the user owns: M.2 socket, USB-C, JST-PH LiPo connector and charger, a Qwiic and an ESLOV I2C connector (ESLOV also carries ATTN); no onboard antennas | [user] |
-| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) from the carrier's I2C fan-out (§2.2), wired as the Wiring row says, which also feeds the BME280 and the water probe board; no address clash with 0x76 or the water ADS1115's 0x48. The Notecard's own 10 kΩ pull-ups to its VIO join the bus, so the bus's pull-ups in parallel stay at or above about 2.2 kΩ | [proposed] |
+| Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) from the carrier's I2C fan-out (§2.2), wired as the Wiring row says, which also feeds the BME280 and the water probe board; no address clash with 0x76, the water ADS1115's 0x48 or the Notecarrier-X's LiPo charger (TI BQ25628E) at its fixed 0x6A, which shares the Notecard's I2C lines and which the firmware never addresses. The Notecard's own 10 kΩ pull-ups to its VIO join the bus, so the bus's pull-ups in parallel stay at or above about 2.2 kΩ | [proposed] |
 | Wiring | One of two, chosen when building [user]: **Qwiic**, a Qwiic cable from the fan-out's Qwiic socket to the Notecarrier-X's Qwiic connector, its red 3.3 V wire unconnected; or **direct**, three wires soldered from the fan-out to the Notecarrier-X's 16-pin header pins `GND`, `SDA` and `SCL`, with `VIO` and every other header pin unconnected. With direct wiring the LiPo may also be soldered to the header's `VBAT` and `GND` instead of the JST-PH connector [proposed]. The firmware is the same for both | [user]; pins [proposed] |
 | Power | The Notecarrier-X's own LiPo (or its USB-C) supplies the Notecard and its modem peaks (up to about 2 A), a LiPo of at least **2000 mAh** [proposed]: at hourly syncs (`cell_every` 60) the Notecard uses about **10 mAh a day** (Blues' published sync and idle figures; real use depends on signal, and each `sync:true` alert or email adds a session), so 2000 mAh lasts about 6 months between charges; either wiring joins GND, SDA and SCL only, the Qwiic cable's 3.3 V wire and the header's `VIO` left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
 | ATTN | Not connected in the first build (the Qwiic cable carries no ATTN; the ESLOV connector and the header's `ATTN` pin would); the device polls the Notecard | [proposed] |
@@ -3416,7 +3417,7 @@ Settings:
 - **FR-34.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
   write (§26) shall carry `wifi`; a submission with any other value shall be
   answered 400 naming `wifi` (portal) or `invalid=wifi` (BLE), NVS unchanged.
-- **FR-34.2** [Must] [proposed] With `wifi` `off` in a submission, `ssid`
+- **FR-34.2** [Must] [user] With `wifi` `off` in a submission, `ssid`
   and `password` shall be optional: given, they are checked by FR-13.4 and
   stored; absent in PROVISIONING, no credentials are stored; absent in a key
   window, the stored ones are kept (FR-26.7). Stored credentials are never
@@ -3458,13 +3459,13 @@ Behaviour with WiFi off:
 - **FR-34.10** [Must] [user] With `wifi` `off` and `uplink` `cell`, the
   summary, alerts and ThingsBoard uploads shall be sent as notes as §33
   describes, unchanged.
-- **FR-34.11** [Must] [proposed] With `wifi` `off` and `uplink` `wifi`,
+- **FR-34.11** [Must] [user] With `wifi` `off` and `uplink` `wifi`,
   nothing shall be sent: no summary, test result email, alert or upload is
   due; the summary period advances as after a dropped send (as FR-33.13),
   alert conditions are still tracked (§31.3) but not sent, and the
   ThingsBoard mark (FR-32.8) stays, so the readings since it are uploaded once
-  WiFi or cellular is back. The portal and BLE form say so in the WiFi
-  section's hint.
+  WiFi or cellular is back. The cellular uplink section's intro (§33.3) says
+  so, in the portal and on the BLE page alike.
 - **FR-34.12** [Must] [derived from FR-22.1] In WIFI_OFF the clock shall be
   set only from the Notecard (FR-33.12); with `uplink` `wifi`, readings after
   a power loss carry no time (FR-22.3, FR-22.6) until the clock is set.
@@ -3705,7 +3706,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.32.1
+fsd_version: 0.33.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3770,14 +3771,12 @@ change_history:
   - "0.31.0 2026-11-03 from the user's request for an option to wire the Blues cellular without the connector: §33.2 gains a Wiring row, Qwiic or three wires soldered to the Notecarrier-X's header (GND, SDA, SCL; VIO unconnected), the LiPo optionally soldered to VBAT and GND (proposed); §2.2, the Bus, Power and ATTN rows reworded"
   - "0.32.0 2026-11-03 from the user's request for a way to keep the GPS running longer for a test, and their choice of a test in the setup box: the `gps` test (§28.1, FR-33.20, user; 20 min proposed), FR-33.15 allows the search in the test, L32 and L33 name `gps`"
   - "0.32.1 2026-11-03 from the user's bench run of the gps test, which passed 1 s after its start on the location the Notecard already held: FR-33.16 counts only a GPS fix taken after the search began (derived)"
+  - "0.32.2 2026-11-03 from Blues' answer to the user: the §33.2 Bus row names the Notecarrier-X's LiPo charger (TI BQ25628E) at its fixed I2C address 0x6A"
+  - "0.33.0 2026-11-04 the user approved §34 WiFi Off with its proposals (FR-34.2 credentials kept, FR-34.11 nothing sent without an uplink, the §5.4 WIFI_OFF screen) and asked for the build; FR-34.11 names the uplink section's intro instead of a WiFi hint; FR-26.19 rules gain `required_if`, so the BLE page requires the network name only with WiFi on (FR-34.3)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
   - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"
-  - "§34 WiFi Off as a whole, drafted for the user's approval"
-  - "FR-34.2: with `wifi` `off`, WiFi credentials optional, and stored ones kept so WiFi can be turned back on without retyping"
-  - "FR-34.11: with `wifi` `off` and `uplink` `wifi`, the setting is accepted and nothing is sent (summary period advances, ThingsBoard mark stays)"
-  - "§5.4: WIFI_OFF screen `WiFi off` / `Hold key 3 s for BLE`"
   - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"
   - "FR-26.23: line 5 `BLE setup on` in the provisioning window"
   - "FR-26.22: a static random BLE address, replaced whenever no bond is held (phones keep a stale entry for the old one)"

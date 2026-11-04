@@ -71,6 +71,17 @@ typedef enum {
     UL_VIA_NONE,  // not sent at all (FR-33.13: email with cell_mail off)
 } ul_via_t;
 
+// FR-34.1: `wifi` of a body over the stored switch: `on` or `off`; absent or
+// empty keeps the stored value. NULL when valid, else "wifi".
+const char *ul_parse_wifi(const char *body, size_t len, bool stored_on, bool *on);
+
+// FR-34.10, FR-34.11: with WiFi off, a send that would go over WiFi is not
+// sent at all; a note still goes over cellular.
+static inline ul_via_t ul_gate(ul_via_t via, bool wifi_on)
+{
+    return via == UL_VIA_WIFI && !wifi_on ? UL_VIA_NONE : via;
+}
+
 // FR-33.3, FR-33.6: an alert: a note with cell, else WiFi.
 static inline ul_via_t ul_alert_via(const ul_settings_t *s)
 {

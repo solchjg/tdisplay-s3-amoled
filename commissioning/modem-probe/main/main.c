@@ -34,6 +34,7 @@
 #include "esp_http_client.h"
 #include "esp_modem_api.h"
 #include "esp_netif.h"
+#include "esp_netif_net_stack.h"
 #include "esp_netif_ppp.h"
 #include "esp_netif_sntp.h"
 #include "esp_sleep.h"
@@ -41,7 +42,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
+#include "lwip/netif.h"
 #include "ntfy_tx.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "oled.h"
 #include "sdkconfig.h"
 
@@ -56,7 +60,11 @@
 // AXP2101 (XPowersLib AXP2101Constants.h).
 #define AXP_ADDR 0x34
 #define AXP_CHIP_ID 0x4A
+#define AXP_REG_STATUS1 0x00
+#define AXP_REG_STATUS2 0x01
 #define AXP_REG_ID 0x03
+#define AXP_REG_CHG_CTRL 0x18
+#define AXP_REG_BAT_DET 0x68
 #define AXP_REG_ADC_CTRL 0x30
 #define AXP_REG_VBAT_H 0x34
 #define AXP_REG_DC_ONOFF 0x80
@@ -100,6 +108,80 @@
 // Running totals over the soak, kept through deep sleep.
 static RTC_DATA_ATTR int runs, attach_ok, tb_tries, tb_ok, ntfy_tries, ntfy_ok;
 static RTC_DATA_ATTR int64_t attach_ms_sum;
+// The run-1 GPS result, kept so every later run shows and sends it too.
+// gps_s: -1 not tried, -2 no fix, else seconds to the fix.
+static RTC_DATA_ATTR int gps_s = -1;
+static RTC_DATA_ATTR double gps_lat, gps_lon;
+// Bytes over PPP (IP packets plus PPP's own control traffic): the last run's
+// and the running total, sent to ThingsBoard on the run after.
+static RTC_DATA_ATTR uint32_t prev_tx, prev_rx;
+static RTC_DATA_ATTR uint64_t total_tx, total_rx;
+static esp_netif_t *ppp_netif;
+
+// The secrets: from namespace "probe" in NVS when the settings image is
+// flashed (kept off git, so builds of this public repo carry none), else the
+// build's own Kconfig values.
+static char tb_token[64] = CONFIG_PROBE_TB_TOKEN;
+static char ntfy_topic[96] = CONFIG_PROBE_NTFY_TOPIC;
+static char ntfy_token[96] = CONFIG_PROBE_NTFY_TOKEN;
+
+static void get_secret(nvs_handle_t h, const char *key, char *buf, size_t size)
+{
+    size_t n = size;
+    char tmp[96];
+    if (n > sizeof tmp) {
+        n = sizeof tmp;
+    }
+    if (nvs_get_str(h, key, tmp, &n) == ESP_OK) {
+        snprintf(buf, size, "%s", tmp);
+    }
+}
+
+static void load_secrets(void)
+{
+    esp_err_t err = nvs_flash_init();  // never erased: that would lose the settings
+    nvs_handle_t h;
+    if (err == ESP_OK) {
+        err = nvs_open("probe", NVS_READONLY, &h);
+    }
+    if (err != ESP_OK) {
+        printf("modemprobe: settings image none (%s), build values used\n", esp_err_to_name(err));
+        return;
+    }
+    get_secret(h, "tb_token", tb_token, sizeof tb_token);
+    get_secret(h, "ntfy_topic", ntfy_topic, sizeof ntfy_topic);
+    get_secret(h, "ntfy_token", ntfy_token, sizeof ntfy_token);
+    nvs_close(h);
+    printf("modemprobe: settings image tb_token=%s ntfy_topic=%s ntfy_token=%s\n",
+           tb_token[0] ? "set" : "none", ntfy_topic[0] ? "set" : "none", ntfy_token[0] ? "set" : "none");
+}
+static uint32_t mark_tx, mark_rx;
+
+static void link_bytes(uint32_t *tx, uint32_t *rx)
+{
+    struct netif *n = ppp_netif ? esp_netif_get_netif_impl(ppp_netif) : NULL;
+    *tx = n ? n->mib2_counters.ifoutoctets : 0;
+    *rx = n ? n->mib2_counters.ifinoctets : 0;
+}
+
+// Prints the bytes moved since the previous mark, labelled with the phase.
+static void bytes_mark(const char *phase)
+{
+    uint32_t tx, rx;
+    link_bytes(&tx, &rx);
+    printf("modemprobe: bytes %s tx=%" PRIu32 " rx=%" PRIu32 "\n", phase, tx - mark_tx, rx - mark_rx);
+    mark_tx = tx;
+    mark_rx = rx;
+}
+
+static void title_line(void)
+{
+    char g[12];
+    if (gps_s >= 0) {
+        snprintf(g, sizeof g, "%ds", gps_s);
+    }
+    oled_line(0, "run %d GPS %s", runs, gps_s >= 0 ? g : gps_s == -2 ? "none" : "-");
+}
 
 static i2c_master_dev_handle_t pmu;
 static char tb_result[12] = "-", ntfy_result[12] = "-";
@@ -157,6 +239,27 @@ static unsigned vbat_mv(void)
     return ((unsigned)(h & 0x1F) << 8) | l;
 }
 
+// Why a fitted 18650 might not carry the board: status 1 bit 5 VBUS good, bit 3
+// battery present; status 2 bits 6..5 battery current (0 idle, 1 charging,
+// 2 discharging), bits 2..0 charger state; charge control bit 1 charging on.
+// The raw registers are printed too, to be read against the datasheet.
+static void battery_status(void)
+{
+    static const char *const chg[] = {"trickle", "pre", "cc", "cv", "done", "off", "?", "?"};
+    static const char *const dir[] = {"idle", "charging", "discharging", "?"};
+    uint8_t s1, s2, cc, det;
+    if (!pmu_read(AXP_REG_STATUS1, &s1) || !pmu_read(AXP_REG_STATUS2, &s2) ||
+        !pmu_read(AXP_REG_CHG_CTRL, &cc) || !pmu_read(AXP_REG_BAT_DET, &det)) {
+        printf("modemprobe: battery status unreadable CHECK\n");
+        return;
+    }
+    bool bat = s1 & 0x08;
+    printf("modemprobe: battery present=%d vbus=%d current=%s charger=%s charge_on=%d "
+           "raw s1=0x%02x s2=0x%02x chg=0x%02x det=0x%02x%s\n",
+           bat, (s1 >> 5) & 1, dir[(s2 >> 5) & 3], chg[s2 & 7], (cc >> 1) & 1, s1, s2, cc, det,
+           bat ? "" : " CHECK");
+}
+
 static bool pmu_start(void)
 {
     i2c_master_bus_handle_t bus;
@@ -190,8 +293,10 @@ static bool pmu_start(void)
     if (!PROBE_GPS || runs > 1) {
         gps_antenna(false);
     }
+    pmu_bit(AXP_REG_BAT_DET, 0, true);  // battery detection on, so status 1 bit 3 means something
     vTaskDelay(pdMS_TO_TICKS(50));
     printf("modemprobe: vbat_mv=%u\n", vbat_mv());
+    battery_status();
     return ok;
 }
 
@@ -220,14 +325,19 @@ static bool at(const char *cmd, int timeout_ms)
     return at_until(cmd, "OK", timeout_ms);
 }
 
-static bool modem_answers(int tries)
+// Plain AT with a short reply timeout, repeated until the modem answers or
+// window_ms has passed: a 100 ms step finds the moment it wakes, where
+// esp_modem_sync's own timeout and a 500 ms pause found it only to a second.
+static bool modem_answers(int window_ms, int *tries)
 {
-    for (int i = 0; i < tries; i++) {
-        if (esp_modem_sync(dce) == ESP_OK) {
+    int64_t t0 = esp_timer_get_time();
+    *tries = 0;
+    do {
+        ++*tries;
+        if (esp_modem_at_raw(dce, "AT\r", out, "OK", "ERROR", 100) == ESP_OK) {
             return true;
         }
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
+    } while (ms_since(t0) < window_ms);
     return false;
 }
 
@@ -246,16 +356,26 @@ static void pwrkey_pulse(void)
 static bool modem_wake(void)
 {
     int64_t t0 = esp_timer_get_time();
+    long ask_ms = 0, pulse_ms = 0;
+    int ask_tries, after_tries = 0;
     bool pulsed = false;
-    if (!modem_answers(3)) {
+    // A modem left in PSM never answers before the pulse, so 200 ms of asking is
+    // enough then; otherwise 1.5 s, as a modem that is already on must not be pulsed.
+    if (!modem_answers(PROBE_PSM && runs > 1 ? 200 : 1500, &ask_tries)) {
+        ask_ms = ms_since(t0);
         pwrkey_pulse();
+        pulse_ms = ms_since(t0) - ask_ms;
         pulsed = true;
-        if (!modem_answers(30)) {
+        if (!modem_answers(30000, &after_tries)) {
             printf("modemprobe: modem no answer after PWRKEY ms=%ld CHECK\n", ms_since(t0));
             return false;
         }
     }
-    printf("modemprobe: modem answers pwrkey=%s ms=%ld\n", pulsed ? "pulsed" : "no", ms_since(t0));
+    long ms = ms_since(t0);
+    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld "
+           "tries=%d+%d\n",
+           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0,
+           ask_tries, after_tries);
     return true;
 }
 
@@ -279,6 +399,7 @@ static bool modem_start(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, on_ip, NULL));
     esp_netif_config_t nc = ESP_NETIF_DEFAULT_PPP();
     esp_netif_t *netif = esp_netif_new(&nc);
+    ppp_netif = netif;
 
     gpio_config_t io = {
         .pin_bit_mask = (1ULL << PIN_MODEM_PWRKEY) | (1ULL << PIN_MODEM_DTR),
@@ -311,6 +432,24 @@ static void modem_info(void)
     at("AT+CPIN?", AT_TIMEOUT_MS);
     at("AT+CCID", AT_TIMEOUT_MS);
     at("AT+CSQ", AT_TIMEOUT_MS);
+}
+
+// With PROBE_PLMN set, lock the modem to that network (manual selection,
+// no fallback, so a refused roam shows as no registration). Without it, undo
+// a lock an earlier build left: the modem keeps the selection mode.
+static void carrier_select(void)
+{
+    char cmd[40];
+    if (CONFIG_PROBE_PLMN[0] != '\0') {
+        snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"", CONFIG_PROBE_PLMN);
+        at(cmd, 120000);
+        return;
+    }
+    int mode;
+    const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
+    if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1 && mode != 0) {
+        at("AT+COPS=0", 120000);
+    }
 }
 
 // "+CEREG: <n>,<stat>[,...]": registered at home (1) or roaming (5).
@@ -356,19 +495,38 @@ static void network_line(void)
 }
 
 // GNSS and LTE share the SIM7080G's RF: radio off, GNSS on, ask every 5 s.
+// When the modem stops answering, it is woken and GNSS switched on again, at
+// most GPS_RECOVERIES times, rather than asked in vain until the limit.
+#define GPS_RECOVERIES 3
 static void gps_fix(void)
 {
     at("AT+CFUN=0", 10000);
     gps_antenna(true);
     at("AT+CGNSPWR=1", AT_TIMEOUT_MS);
     int64_t t0 = esp_timer_get_time();
-    bool fixed = false;
+    int misses = 0, recoveries = 0;
+    gps_s = -2;
     oled_line(1, "GPS: seeking fix");
-    for (int s = 0; s <= GPS_LIMIT_S && !fixed; s += GPS_ASK_S) {
+    while (ms_since(t0) < GPS_LIMIT_S * 1000L && gps_s < 0) {
         vTaskDelay(pdMS_TO_TICKS(GPS_ASK_S * 1000));
-        if (!at("AT+CGNSINF", AT_TIMEOUT_MS)) {
+        oled_line(2, "GPS %lds", ms_since(t0) / 1000);
+        if (!at("AT+CGNSINF", 2000)) {
+            if (++misses < 3) {
+                continue;
+            }
+            if (recoveries++ == GPS_RECOVERIES) {
+                printf("modemprobe: gps modem silent, search abandoned CHECK\n");
+                break;
+            }
+            printf("modemprobe: gps modem silent, recovery %d\n", recoveries);
+            if (modem_wake()) {
+                at("AT+CFUN=0", 10000);
+                at("AT+CGNSPWR=1", AT_TIMEOUT_MS);
+            }
+            misses = 0;
             continue;
         }
+        misses = 0;
         // "+CGNSINF: <run>,<fix>,<utc>,<lat>,<lon>,..."
         const char *p = strstr(out, "+CGNSINF:");
         int run, fix;
@@ -376,16 +534,18 @@ static void gps_fix(void)
         double lat, lon;
         if (p != NULL && sscanf(p, "+CGNSINF: %d,%d,%23[^,],%lf,%lf", &run, &fix, utc, &lat, &lon) == 5 &&
             fix == 1) {
-            printf("modemprobe: gps fix lat=%.5f lon=%.5f after_s=%ld\n", lat, lon,
-                   ms_since(t0) / 1000);
+            gps_s = (int)(ms_since(t0) / 1000);
+            gps_lat = lat;
+            gps_lon = lon;
+            printf("modemprobe: gps fix lat=%.5f lon=%.5f after_s=%d\n", lat, lon, gps_s);
             oled_line(2, "%.4f %.4f", lat, lon);
-            fixed = true;
         }
     }
-    if (!fixed) {
+    if (gps_s < 0) {
         printf("modemprobe: gps no fix within %d s CHECK\n", GPS_LIMIT_S);
         oled_line(2, "GPS no fix");
     }
+    title_line();
     at("AT+CGNSPWR=0", AT_TIMEOUT_MS);
     gps_antenna(false);
 }
@@ -393,12 +553,26 @@ static void gps_fix(void)
 static long attach(void)
 {
     char cmd[96];
+    // A modem woken from PSM keeps its registration: use it rather than
+    // cycling the radio, which forces a full attach and spends the saving.
+    if (PROBE_PSM && runs > 1) {
+        int64_t t = esp_timer_get_time();
+        if (registered()) {
+            long ms = ms_since(t);
+            printf("modemprobe: registered attach_ms=%ld psm_resume ok\n", ms);
+            network_line();
+            oled_line(2, "PSM resume CSQ %d", csq_now());
+            return ms;
+        }
+        printf("modemprobe: not registered after PSM, full attach\n");
+    }
     at("AT+CFUN=0", 10000);
     at("AT+CNMP=38", AT_TIMEOUT_MS);  // LTE only
     at(RAT_CMD, AT_TIMEOUT_MS);
     snprintf(cmd, sizeof cmd, "AT+CGDCONT=1,\"IP\",\"%s\"", CONFIG_PROBE_APN);
     at(cmd, AT_TIMEOUT_MS);
     at("AT+CEREG=4", AT_TIMEOUT_MS);  // report the granted PSM timers too
+    at("AT+CLTS=1", AT_TIMEOUT_MS);   // keep the modem clock set from the network
     int64_t t0 = esp_timer_get_time();
     at("AT+CFUN=1", 10000);
     // The modem answers CPSMS with ERROR until the SIM is up again after
@@ -411,6 +585,7 @@ static long attach(void)
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+    carrier_select();
     oled_line(1, "registering...");
     while (ms_since(t0) < CONFIG_PROBE_ATTACH_S * 1000L) {
         if (registered()) {
@@ -430,6 +605,43 @@ static long attach(void)
 }
 
 // ---- senders over PPP ----
+
+// Days from 1970-01-01 to y-m-d in the proleptic Gregorian calendar.
+static int64_t days_from_civil(int y, int m, int d)
+{
+    y -= m <= 2;
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    int yoe = y - (int)(era * 400);
+    int doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+// Sets the system clock from the modem's network time, AT+CCLK? answering
+// "yy/MM/dd,hh:mm:ss+zz": local time, zz in quarter hours east of UTC. The
+// modem keeps that clock through PSM, so it costs no airtime. False when the
+// modem has no network time yet (its default year is 1980), so SNTP is tried.
+static bool clock_from_network(void)
+{
+    int yy, mo, dd, hh, mi, ss, zz;
+    char sign;
+    const char *p = at("AT+CCLK?", AT_TIMEOUT_MS) ? strstr(out, "+CCLK: \"") : NULL;
+    if (p == NULL || sscanf(p + 8, "%2d/%2d/%2d,%2d:%2d:%2d%c%2d", &yy, &mo, &dd, &hh, &mi, &ss,
+                            &sign, &zz) != 8 ||
+        yy < 24 || (sign != '+' && sign != '-')) {
+        printf("modemprobe: network time none, sntp next\n");
+        return false;
+    }
+    int64_t t = days_from_civil(2000 + yy, mo, dd) * 86400 + hh * 3600 + mi * 60 + ss;
+    t -= (sign == '-' ? -zz : zz) * 15 * 60;
+    struct timeval tv = {.tv_sec = (time_t)t};
+    settimeofday(&tv, NULL);
+    struct tm u;
+    gmtime_r(&tv.tv_sec, &u);
+    printf("modemprobe: network time utc=%04d-%02d-%02dT%02d:%02d:%02dZ ok\n", u.tm_year + 1900,
+           u.tm_mon + 1, u.tm_mday, u.tm_hour, u.tm_min, u.tm_sec);
+    return true;
+}
 
 static void set_clock(void)
 {
@@ -451,17 +663,24 @@ static int64_t now_ms(void)
 // run's own figures as probe_* keys.
 static void post_telemetry(long attach_ms, int rssi)
 {
-    if (CONFIG_PROBE_TB_URL[0] == '\0' || CONFIG_PROBE_TB_TOKEN[0] == '\0') {
+    if (CONFIG_PROBE_TB_URL[0] == '\0' || tb_token[0] == '\0') {
         printf("modemprobe: no ThingsBoard URL or token: telemetry skipped\n");
         return;
     }
-    char url[256], vals[256], body[384];
-    snprintf(url, sizeof url, "%s/api/v1/%s/telemetry", CONFIG_PROBE_TB_URL, CONFIG_PROBE_TB_TOKEN);
+    char url[256], vals[384], body[512], gps[96] = "";
+    snprintf(url, sizeof url, "%s/api/v1/%s/telemetry", CONFIG_PROBE_TB_URL, tb_token);
     int64_t ts = now_ms();
+    if (gps_s >= 0) {
+        snprintf(gps, sizeof gps, ",\"probe_gps_s\":%d,\"latitude\":%.6f,\"longitude\":%.6f", gps_s,
+                 gps_lat, gps_lon);
+    } else if (gps_s == -2) {
+        snprintf(gps, sizeof gps, ",\"probe_gps_s\":-1");
+    }
     snprintf(vals, sizeof vals,
              "{\"temp_f\":70.00,\"rh_pct\":50.0,\"p_mbar\":1013.25,\"synced\":%s,"
-             "\"probe_run\":%d,\"probe_attach_ms\":%ld,\"probe_rssi\":%d,\"probe_vbat_mv\":%u}",
-             ts ? "true" : "false", runs, attach_ms, rssi, vbat_mv());
+             "\"probe_run\":%d,\"probe_attach_ms\":%ld,\"probe_rssi\":%d,\"probe_vbat_mv\":%u,"
+             "\"probe_prev_tx\":%" PRIu32 ",\"probe_prev_rx\":%" PRIu32 "%s}",
+             ts ? "true" : "false", runs, attach_ms, rssi, vbat_mv(), prev_tx, prev_rx, gps);
     // With a clock the record carries its own time, as in §32.3; without one
     // ThingsBoard stamps it on arrival.
     int n = ts ? snprintf(body, sizeof body, "[{\"ts\":%" PRId64 ",\"values\":%s}]", ts, vals)
@@ -494,7 +713,7 @@ static void post_telemetry(long attach_ms, int rssi)
 
 static void send_alert(long attach_ms, int rssi)
 {
-    if (CONFIG_PROBE_NTFY_URL[0] == '\0' || CONFIG_PROBE_NTFY_TOPIC[0] == '\0') {
+    if (CONFIG_PROBE_NTFY_URL[0] == '\0' || ntfy_topic[0] == '\0') {
         printf("modemprobe: no ntfy URL or topic: alert skipped\n");
         return;
     }
@@ -503,8 +722,8 @@ static void send_alert(long attach_ms, int rssi)
              "signal %d (CSQ), battery %u mV.", attach_ms, rssi, vbat_mv());
     ntfy_tx_server_t server = {
         .url = CONFIG_PROBE_NTFY_URL,
-        .topic = CONFIG_PROBE_NTFY_TOPIC,
-        .token = CONFIG_PROBE_NTFY_TOKEN,
+        .topic = ntfy_topic,
+        .token = ntfy_token,
         .timeout_ms = HTTP_TIMEOUT_MS,
     };
     nt_msg_t msg = {.title = "modem-probe", .body = text, .priority = 3, .tags = "satellite"};
@@ -523,6 +742,7 @@ static void session(long attach_ms)
 {
     int rssi = 99, ber = 99;
     esp_modem_get_signal_quality(dce, &rssi, &ber);
+    bool clock_set = clock_from_network();
     int64_t t0 = esp_timer_get_time();
     esp_err_t err = esp_modem_set_mode(dce, ESP_MODEM_MODE_DATA);
     EventBits_t bits = err == ESP_OK ? xEventGroupWaitBits(net_events, GOT_IP, pdFALSE, pdTRUE,
@@ -534,13 +754,25 @@ static void session(long attach_ms)
     } else {
         printf("modemprobe: ppp up ms=%ld\n", ms_since(t0));
         oled_line(3, "PPP up, sending");
-        set_clock();
+        bytes_mark("ppp_setup");
+        if (!clock_set) {
+            set_clock();
+            bytes_mark("sntp");
+        }
         post_telemetry(attach_ms, rssi);
+        bytes_mark("thingsboard");
         if (runs == 1) {
             send_alert(attach_ms, rssi);
+            bytes_mark("ntfy");
         }
     }
     esp_modem_set_mode(dce, ESP_MODEM_MODE_COMMAND);
+    bytes_mark("ppp_close");
+    link_bytes(&prev_tx, &prev_rx);
+    total_tx += prev_tx;
+    total_rx += prev_rx;
+    printf("modemprobe: bytes run tx=%" PRIu32 " rx=%" PRIu32 " total=%" PRIu64 "\n", prev_tx, prev_rx,
+           total_tx + total_rx);
     printf("modemprobe: ppp session ms=%ld\n", ms_since(t0));
 }
 
@@ -550,14 +782,59 @@ static void report(int64_t t_boot)
            " thingsboard_ok=%d/%d ntfy_ok=%d/%d vbat_mv=%u\n",
            runs, ms_since(t_boot), attach_ok, runs, attach_ok ? attach_ms_sum / attach_ok : 0,
            tb_ok, tb_tries, ntfy_ok, ntfy_tries, vbat_mv());
+    battery_status();  // again here: after a timer wake USB connects too late for the boot line
     oled_line(4, "awake %lds %u.%02uV", ms_since(t_boot) / 1000, vbat_mv() / 1000,
               vbat_mv() % 1000 / 10);
+}
+
+// 3GPP 24.008 timer octets as "+CEREG: 4,..." quotes them: bits 8..6 the unit,
+// bits 5..1 the count. Active time (T3324) and periodic TAU (T3412 extended) use
+// different unit tables; -1 means deactivated or unreadable.
+static long gprs_timer_s(const char *bits, bool tau)
+{
+    static const long t3324[8] = {2, 60, 360, 360, 360, 360, 360, -1};
+    static const long t3412[8] = {600, 3600, 36000, 2, 30, 60, 1152000, -1};
+    int v = 0;
+    for (int i = 0; i < 8; i++) {
+        if (bits[i] != '0' && bits[i] != '1') {
+            return -1;
+        }
+        v = v << 1 | (bits[i] - '0');
+    }
+    long unit = (tau ? t3412 : t3324)[v >> 5];
+    return unit < 0 ? -1 : unit * (v & 0x1F);
+}
+
+// The network's grant from the last full "+CEREG: 4,..." in out: its last two
+// quoted fields. After a PSM resume the modem reports n=0 and no timers.
+static void psm_grant(void)
+{
+    const char *p = NULL;
+    for (const char *q = out; (q = strstr(q, "+CEREG: 4,")) != NULL; q++) {
+        p = q;
+    }
+    if (p == NULL) {
+        return;
+    }
+    const char *quote[2] = {NULL, NULL};
+    for (const char *q = p + 8; *q && *q != ' '; q++) {
+        if (*q == '"' && strlen(q) > 9 && q[9] == '"') {
+            quote[0] = quote[1];
+            quote[1] = q + 1;
+            q += 9;
+        }
+    }
+    if (quote[0] != NULL) {
+        printf("modemprobe: psm grant active_s=%ld tau_s=%ld\n", gprs_timer_s(quote[0], false),
+               gprs_timer_s(quote[1], true));
+    }
 }
 
 static void sleep_until_next(int64_t t_boot)
 {
     if (PROBE_PSM) {
         at("AT+CEREG?", AT_TIMEOUT_MS);  // the granted active time and TAU
+        psm_grant();
     } else {
         at_until("AT+CPOWD=1", "POWER DOWN", 5000);  // cold attach next run
     }
@@ -581,8 +858,9 @@ void app_main(void)
     printf("modemprobe: run %d wake_causes=0x%" PRIx32 " apn=%s\n", runs,
            esp_sleep_get_wakeup_causes(), CONFIG_PROBE_APN);
     pmu_start();
+    load_secrets();
     oled_start(CONFIG_PROBE_OLED_SDA, CONFIG_PROBE_OLED_SCL);
-    oled_line(0, "modem-probe run %d", runs);
+    title_line();
     oled_line(1, "modem starting");
     bool up = modem_start();
     if (!up) {

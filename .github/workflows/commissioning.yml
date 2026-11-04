@@ -28,11 +28,11 @@ on:
         required: false
         default: 'iot.1nce.net'
       modem_tb_url:
-        description: 'modem-probe only: ThingsBoard base URL (token from secret MODEM_PROBE_TB_TOKEN); empty skips'
+        description: 'modem-probe only: ThingsBoard base URL (the token comes from the settings image); empty skips'
         required: false
         default: ''
       modem_ntfy:
-        description: 'modem-probe only: ntfy <base URL> <topic> (token from secret MODEM_PROBE_NTFY_TOKEN); empty skips'
+        description: 'modem-probe only: ntfy base URL (topic and token come from the settings image); empty skips'
         required: false
         default: ''
       modem_tests:
@@ -43,6 +43,10 @@ on:
         description: 'modem-probe only: minutes between runs, 0 runs once (PROBE_EVERY_MIN)'
         required: false
         default: '0'
+      modem_plmn:
+        description: 'modem-probe only: network to lock to, MCC+MNC such as 310260 (PROBE_PLMN); empty is automatic'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -90,33 +94,41 @@ jobs:
           NTFY: ${{ inputs.modem_ntfy }}
           TESTS: ${{ inputs.modem_tests }}
           EVERY: ${{ inputs.modem_every }}
-          TB_TOKEN: ${{ secrets.MODEM_PROBE_TB_TOKEN }}
-          NTFY_TOKEN: ${{ secrets.MODEM_PROBE_NTFY_TOKEN }}
+          PLMN: ${{ inputs.modem_plmn }}
+        # The repo is public, so builds carry no secrets: the ThingsBoard token
+        # and the ntfy topic and token come from a settings image flashed at
+        # 0x9000 (commissioning/modem-probe/settings.csv.example), kept off git.
         run: |
           plain() { case "$1" in *[!A-Za-z0-9.:/_-]*) echo "FATAL: $2 has unexpected characters"; exit 1;; esac; }
-          read -r NTFY_URL NTFY_TOPIC <<< "$NTFY"
+          read -r NTFY_URL NTFY_EXTRA <<< "$NTFY"
+          if [ -n "$NTFY_EXTRA" ]; then echo "FATAL: modem_ntfy takes only the base URL; the topic belongs in the settings image"; exit 1; fi
           plain "$APN" APN; plain "$TB_URL" modem_tb_url; plain "$NTFY_URL" ntfy_url
-          plain "$NTFY_TOPIC" ntfy_topic; plain "$TB_TOKEN" MODEM_PROBE_TB_TOKEN
-          plain "$NTFY_TOKEN" MODEM_PROBE_NTFY_TOKEN
           case "$EVERY" in ''|*[!0-9]*) echo "FATAL: modem_every is not a number"; exit 1;; esac
+          case "$PLMN" in ''|[0-9][0-9][0-9][0-9][0-9]|[0-9][0-9][0-9][0-9][0-9][0-9]) ;; *) echo "FATAL: modem_plmn is not 5 or 6 digits"; exit 1;; esac
           { echo "CONFIG_PROBE_APN=\"$APN\""
             echo "CONFIG_PROBE_TB_URL=\"$TB_URL\""
-            echo "CONFIG_PROBE_TB_TOKEN=\"$TB_TOKEN\""
             echo "CONFIG_PROBE_NTFY_URL=\"$NTFY_URL\""
-            echo "CONFIG_PROBE_NTFY_TOPIC=\"$NTFY_TOPIC\""
-            echo "CONFIG_PROBE_NTFY_TOKEN=\"$NTFY_TOKEN\""
             echo "CONFIG_PROBE_EVERY_MIN=$EVERY"
+            echo "CONFIG_PROBE_PLMN=\"$PLMN\""
             for t in $TESTS; do
               case "$t" in gps) echo "CONFIG_PROBE_GPS=y";; psm) echo "CONFIG_PROBE_PSM=y";;
                 *) echo "FATAL: unknown modem test $t" >&2; exit 1;; esac
             done; } >> sdkconfig.defaults
-          grep -v TOKEN sdkconfig.defaults
+          cat sdkconfig.defaults
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null
           ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig"
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
+      - name: No secret in the image
+        if: matrix.program == 'modem-probe'
+        env:
+          TB_TOKEN: ${{ secrets.MODEM_PROBE_TB_TOKEN }}
+        run: |
+          if [ -n "$TB_TOKEN" ] && grep -qaF "$TB_TOKEN" build/*.bin; then
+            echo "FATAL: the ThingsBoard token is in the image"; exit 1
+          fi
       - name: Collect flash set from flash_args
         run: |
           mkdir -p out
@@ -129,3 +141,32 @@ jobs:
         with:
           name: ${{ matrix.program }}
           path: commissioning/${{ matrix.program }}/out/
+
+  # Hand-started builds go to the firmware-drops branch as one commit that
+  # replaces the last, so a session that can fetch git but not artifact
+  # storage can flash them. Only safe because the images carry no secrets.
+  drop:
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: drops
+      - name: Push to firmware-drops
+        env:
+          INPUTS: ${{ toJSON(inputs) }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd drops
+          { echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "commit: $GITHUB_SHA"
+            echo "inputs: $INPUTS"; } > BUILD.txt
+          git init -q -b firmware-drops
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Probe builds of $GITHUB_SHA (run $GITHUB_RUN_ID)"
+          git push -f "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY" firmware-drops

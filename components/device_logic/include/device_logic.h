@@ -12,7 +12,8 @@
 #define DL_SSID_SHOWN 20  // FR-5.29
 
 // Connectivity states (FSD §5.3).
-typedef enum { DL_BOOT, DL_PROVISIONING, DL_CONNECTING, DL_ONLINE, DL_WIFI_LOST } dl_conn_t;
+typedef enum { DL_BOOT, DL_PROVISIONING, DL_CONNECTING, DL_ONLINE, DL_WIFI_LOST,
+               DL_WIFI_OFF } dl_conn_t;
 
 // What the screen of a state is computed from.
 typedef struct {
@@ -76,6 +77,8 @@ typedef enum {
     DL_EV_OTA_FAILED,
     DL_EV_CONFIRM_DEADLINE,  // 60 s since reset; guard: image pending verify
     DL_EV_BLE_SETTINGS,      // BS: settings accepted in a BLE key window (FR-26.7)
+    DL_EV_READ_WIFI_OFF,     // CR with `wifi` `off` stored (T15, FR-34.4)
+    DL_EV_SUBMITTED_WIFI_OFF,  // CS, valid, with `wifi` `off` (T16, FR-34.5)
 } dl_conn_event_t;
 
 // Connectivity actions, executed by the composition root in this bit order.
@@ -103,7 +106,7 @@ typedef struct {
     uint32_t n;  // consecutive failed attempts since the last ONLINE
 } dl_conn_step_t;
 
-// FSD §5.3 connectivity table, T1 – T14. Pairs the table does not list leave the
+// FSD §5.3 connectivity table, T1 – T16. Pairs the table does not list leave the
 // state and n unchanged and return no action.
 dl_conn_step_t dl_conn_step(dl_conn_t state, dl_conn_event_t event, bool guard, uint32_t n);
 

@@ -294,7 +294,10 @@ static void on_tap(bool twice)
 
 static void on_submit(const pc_creds_t *c)
 {
-    app_event_t e = {.kind = APP_CONN, .ev = DL_EV_CREDS_SUBMITTED, .guard = true, .creds = *c};
+    // T3, or T16 with WiFi off (FR-34.5); uplink_take read the switch just before.
+    app_event_t e = {.kind = APP_CONN, .guard = true, .creds = *c,
+                     .ev = uplink_taken_wifi_on() ? DL_EV_CREDS_SUBMITTED
+                                                  : DL_EV_SUBMITTED_WIFI_OFF};
     post(&e);
 }
 
@@ -332,7 +335,8 @@ static size_t ble_read_settings(char *out, size_t cap)
     alerts = *notify_settings();
     strlcpy(alerts.topic, notify_topic(), sizeof alerts.topic);  // FR-31.3, as the portal shows it
     size_t n = bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(), &alerts,
-                         uplink_settings(), out, cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2, FR-33.2
+                         uplink_settings(), uplink_wifi_on(), out,
+                         cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2, FR-33.2, FR-34.3
     memset(alerts.token, 0, sizeof alerts.token);
     return n;
 }
@@ -351,8 +355,12 @@ static void ble_apply(const char *body, size_t len, char *result, size_t cap)
     if (!bad) {
         bad = form_take(merged, n);  // FR-25.16, FR-28.1
     }
-    if (!bad && pc_parse_form(merged, n, &e.creds) != PC_OK) {
+    bool wifi_on = true;
+    if (!bad && pc_parse_wifi(merged, n, &e.creds, &wifi_on) != PC_OK) {
         bad = "ssid";  // bset_prepare already passed the same check
+    }
+    if (provisioning && !wifi_on) {
+        e.ev = DL_EV_SUBMITTED_WIFI_OFF;  // T16 (FR-34.5)
     }
     memset(merged, 0, sizeof merged);  // held the passwords
     if (bad) {
@@ -820,6 +828,18 @@ static void tap(bool twice)
 
 // FR-28.13: the result email, once ONLINE in the window after the tests, or
 // dropped (L26 wifi) when the window ends first.
+// FR-34.10, FR-34.11: the path of an alert and of an email; with WiFi off,
+// what would go over WiFi is not sent at all.
+static ul_via_t alert_via(void)
+{
+    return ul_gate(ul_alert_via(uplink_settings()), uplink_wifi_on());
+}
+
+static ul_via_t mail_via(void)
+{
+    return ul_gate(ul_mail_via(uplink_settings()), uplink_wifi_on());
+}
+
 static void send_test_mail(bool online)
 {
     test_mail = false;
@@ -829,7 +849,7 @@ static void send_test_mail(bool online)
     sp_mail_body(run, weather_ext(), body, sizeof body);
     uint32_t n, m;
     sp_verdict(run, &n, &m);
-    ul_via_t via = ul_mail_via(uplink_settings());
+    ul_via_t via = mail_via();
     if (via != UL_VIA_WIFI) {  // FR-33.6, FR-33.13: a note each, or no email at all
         for (int i = 0; via == UL_VIA_CELL && summary_to(i); i++) {
             mail_note(i, subject, body, n);
@@ -1105,7 +1125,12 @@ static void send_alerts(bool net)
         nf_event(c, end, event);
         alert_body(c, end, body);
         bool ok;
-        if (ul_alert_via(uplink_settings()) == UL_VIA_CELL) {
+        ul_via_t via = alert_via();
+        if (via == UL_VIA_NONE) {
+            nf_result(st, c, true);  // FR-34.11: tracked, not sent
+            continue;
+        }
+        if (via == UL_VIA_CELL) {
             ok = alert_note(title, body, end, event);  // FR-33.6, FR-33.10
         } else {
             nt_reason_t why = net ? notify_send(hostname, title, body, end) : NT_ERR_CONNECT;
@@ -1141,7 +1166,10 @@ static void send_test_alert(bool online)
     nf_test_title(hostname, pass, title);
     sp_mail_body(run, weather_ext(), body, sizeof body);
     const char *event = pass ? "test_pass" : "test_fail";
-    if (ul_alert_via(uplink_settings()) == UL_VIA_CELL) {
+    if (alert_via() == UL_VIA_NONE) {
+        return;  // FR-34.11
+    }
+    if (alert_via() == UL_VIA_CELL) {
         alert_note(title, body, pass, event);  // FR-33.6
         return;
     }
@@ -1164,17 +1192,16 @@ static void send_due_messages(void)
         return;
     }
     bool timer = wake == DL_WAKE_TIMER;
-    ul_via_t mail_via = ul_mail_via(uplink_settings());
-    // FR-33.6: with cell a timer wake never starts WiFi; its sends are notes.
-    bool wifi = (alerts && ul_alert_via(uplink_settings()) == UL_VIA_WIFI) ||
-                (mail && mail_via == UL_VIA_WIFI);
+    ul_via_t mvia = mail_via();
+    // FR-33.6, FR-34.9: with cell or with WiFi off a timer wake never starts WiFi.
+    bool wifi = (alerts && alert_via() == UL_VIA_WIFI) || (mail && mvia == UL_VIA_WIFI);
     bool net = wifi && (timer ? mail_wifi_up() : view.conn == DL_ONLINE);
     if (alerts) {
         send_alerts(net);
     }
-    if (mail && mail_via == UL_VIA_CELL) {
+    if (mail && mvia == UL_VIA_CELL) {
         send_summary_notes();
-    } else if (mail && mail_via == UL_VIA_NONE) {
+    } else if (mail && mvia == UL_VIA_NONE) {
         summary_done();  // FR-33.13: the period advances as after a dropped send
     } else if (mail) {
         send_summary(net);
@@ -1443,8 +1470,11 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
 {
     unsigned a = step.actions;
     if (a & DL_C_STORE_CREDS) {
-        stored = e->creds;
-        esp_err_t err = wifi_net_creds_store(stored.ssid, stored.password);
+        esp_err_t err = ESP_OK;
+        if (e->creds.ssid[0]) {  // FR-34.2: with WiFi off and none given, none stored
+            stored = e->creds;
+            err = wifi_net_creds_store(stored.ssid, stored.password);
+        }
         if (err != ESP_OK) {
             web_log_warn("credentials store", err);
         }
@@ -1471,8 +1501,11 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         web_log_provisioned(stored.ssid);
     }
     if (a & DL_C_STORE_SETTINGS) {  // T14 (FR-26.7)
-        stored = e->creds;
-        esp_err_t err = wifi_net_creds_store(stored.ssid, stored.password);
+        esp_err_t err = ESP_OK;
+        if (e->creds.ssid[0]) {  // FR-34.2: turning WiFi off never erases the credentials
+            stored = e->creds;
+            err = wifi_net_creds_store(stored.ssid, stored.password);
+        }
         if (err != ESP_OK) {
             web_log_warn("credentials store", err);
         }
@@ -1508,6 +1541,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     if (a & DL_C_STOP_SOFTAP) {
         vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));
         portal_stop();  // the SoftAP itself goes down with the station start below
+        if (!(a & DL_C_START_ATTEMPT)) {
+            wifi_net_stop();  // T16: no station follows, the radio goes off (FR-34.8)
+        }
     }
     if (a & DL_C_START_SOFTAP) {
         web_log_portal(softap_ssid);
@@ -1782,8 +1818,11 @@ void app_main(void)
     esp_task_wdt_add(NULL);
     ESP_LOGI(TAG, "Init complete, running event-driven");
 
-    // T1/T2: credentials read.
+    // T1/T2: credentials read; T15: WiFi off stored (FR-34.4).
     app_event_t cr = {.kind = APP_CONN, .ev = DL_EV_CREDS_READ, .guard = wifi_net_creds_load(stored.ssid, stored.password)};
+    if (!uplink_wifi_on()) {
+        cr.ev = DL_EV_READ_WIFI_OFF;
+    }
     conn_event(&cr);
     err = button_start(web_log_button_held, on_button_reset);  // sampled only after BOOT exits (§18.1)
     if (err != ESP_OK) {
@@ -1841,13 +1880,11 @@ void app_main(void)
                 sp_verdict_line(run, prompt_line);  // FR-28.11
             }
         }
-        if (test_mail && (view.conn == DL_ONLINE ||
-                          ul_mail_via(uplink_settings()) != UL_VIA_WIFI)) {
-            send_test_mail(true);  // FR-28.13, FR-33.6
+        if (test_mail && (view.conn == DL_ONLINE || mail_via() != UL_VIA_WIFI)) {
+            send_test_mail(true);  // FR-28.13, FR-33.6, FR-34.11
         }
-        if (test_alert && (view.conn == DL_ONLINE ||
-                           ul_alert_via(uplink_settings()) == UL_VIA_CELL)) {
-            send_test_alert(true);  // FR-31.7, FR-33.6
+        if (test_alert && (view.conn == DL_ONLINE || alert_via() != UL_VIA_WIFI)) {
+            send_test_alert(true);  // FR-31.7, FR-33.6, FR-34.11
         }
         cell_tick();  // FR-33.12, FR-33.16, FR-33.19
         disp = disp_tick(disp);
