@@ -60,7 +60,11 @@
 // AXP2101 (XPowersLib AXP2101Constants.h).
 #define AXP_ADDR 0x34
 #define AXP_CHIP_ID 0x4A
+#define AXP_REG_STATUS1 0x00
+#define AXP_REG_STATUS2 0x01
 #define AXP_REG_ID 0x03
+#define AXP_REG_CHG_CTRL 0x18
+#define AXP_REG_BAT_DET 0x68
 #define AXP_REG_ADC_CTRL 0x30
 #define AXP_REG_VBAT_H 0x34
 #define AXP_REG_DC_ONOFF 0x80
@@ -235,6 +239,27 @@ static unsigned vbat_mv(void)
     return ((unsigned)(h & 0x1F) << 8) | l;
 }
 
+// Why a fitted 18650 might not carry the board: status 1 bit 5 VBUS good, bit 3
+// battery present; status 2 bits 6..5 battery current (0 idle, 1 charging,
+// 2 discharging), bits 2..0 charger state; charge control bit 1 charging on.
+// The raw registers are printed too, to be read against the datasheet.
+static void battery_status(void)
+{
+    static const char *const chg[] = {"trickle", "pre", "cc", "cv", "done", "off", "?", "?"};
+    static const char *const dir[] = {"idle", "charging", "discharging", "?"};
+    uint8_t s1, s2, cc, det;
+    if (!pmu_read(AXP_REG_STATUS1, &s1) || !pmu_read(AXP_REG_STATUS2, &s2) ||
+        !pmu_read(AXP_REG_CHG_CTRL, &cc) || !pmu_read(AXP_REG_BAT_DET, &det)) {
+        printf("modemprobe: battery status unreadable CHECK\n");
+        return;
+    }
+    bool bat = s1 & 0x08;
+    printf("modemprobe: battery present=%d vbus=%d current=%s charger=%s charge_on=%d "
+           "raw s1=0x%02x s2=0x%02x chg=0x%02x det=0x%02x%s\n",
+           bat, (s1 >> 5) & 1, dir[(s2 >> 5) & 3], chg[s2 & 7], (cc >> 1) & 1, s1, s2, cc, det,
+           bat ? "" : " CHECK");
+}
+
 static bool pmu_start(void)
 {
     i2c_master_bus_handle_t bus;
@@ -268,8 +293,10 @@ static bool pmu_start(void)
     if (!PROBE_GPS || runs > 1) {
         gps_antenna(false);
     }
+    pmu_bit(AXP_REG_BAT_DET, 0, true);  // battery detection on, so status 1 bit 3 means something
     vTaskDelay(pdMS_TO_TICKS(50));
     printf("modemprobe: vbat_mv=%u\n", vbat_mv());
+    battery_status();
     return ok;
 }
 
@@ -324,16 +351,23 @@ static void pwrkey_pulse(void)
 static bool modem_wake(void)
 {
     int64_t t0 = esp_timer_get_time();
+    long ask_ms = 0, pulse_ms = 0;
     bool pulsed = false;
-    if (!modem_answers(3)) {
+    // A modem left in PSM never answers before the pulse, so one try is enough
+    // then; otherwise three, as a modem that is already on must not be pulsed.
+    if (!modem_answers(PROBE_PSM && runs > 1 ? 1 : 3)) {
+        ask_ms = ms_since(t0);
         pwrkey_pulse();
+        pulse_ms = ms_since(t0) - ask_ms;
         pulsed = true;
         if (!modem_answers(30)) {
             printf("modemprobe: modem no answer after PWRKEY ms=%ld CHECK\n", ms_since(t0));
             return false;
         }
     }
-    printf("modemprobe: modem answers pwrkey=%s ms=%ld\n", pulsed ? "pulsed" : "no", ms_since(t0));
+    long ms = ms_since(t0);
+    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld\n",
+           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0);
     return true;
 }
 

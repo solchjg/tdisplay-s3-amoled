@@ -28,7 +28,7 @@ From LilyGO's `utilities.h` and `ATDebug.ino` (repo `Xinyuan-LilyGO/LilyGo-T-SIM
 ## Probe
 
 [`commissioning/modem-probe`](../../../commissioning/modem-probe/main/main.c) is the
-evaluation program (never released). Each run sets the rails, wakes the modem, prints
+evaluation program (never released). Each run sets the rails, prints the battery state (`battery present= vbus= current= charger= charge_on=`, with the raw AXP2101 status registers), wakes the modem (one AT try before the PWRKEY pulse when it is expected in PSM, three otherwise; `ask_ms`, `pulse_ms` and `after_ms` split the wake), prints
 its firmware, SIM, ICCID and signal, optionally seeks one GPS fix with LTE off (first
 run only), registers on LTE-M and times the attach, then brings up PPP through
 `esp_modem`, sets the clock from the modem's network time (`AT+CCLK?`, kept through PSM; `network time utc=…`, or SNTP when the modem has none) and POSTs one telemetry record straight to
