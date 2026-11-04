@@ -512,6 +512,7 @@ static long attach(void)
     snprintf(cmd, sizeof cmd, "AT+CGDCONT=1,\"IP\",\"%s\"", CONFIG_PROBE_APN);
     at(cmd, AT_TIMEOUT_MS);
     at("AT+CEREG=4", AT_TIMEOUT_MS);  // report the granted PSM timers too
+    at("AT+CLTS=1", AT_TIMEOUT_MS);   // keep the modem clock set from the network
     int64_t t0 = esp_timer_get_time();
     at("AT+CFUN=1", 10000);
     // The modem answers CPSMS with ERROR until the SIM is up again after
@@ -543,6 +544,43 @@ static long attach(void)
 }
 
 // ---- senders over PPP ----
+
+// Days from 1970-01-01 to y-m-d in the proleptic Gregorian calendar.
+static int64_t days_from_civil(int y, int m, int d)
+{
+    y -= m <= 2;
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    int yoe = y - (int)(era * 400);
+    int doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+// Sets the system clock from the modem's network time, AT+CCLK? answering
+// "yy/MM/dd,hh:mm:ss+zz": local time, zz in quarter hours east of UTC. The
+// modem keeps that clock through PSM, so it costs no airtime. False when the
+// modem has no network time yet (its default year is 1980), so SNTP is tried.
+static bool clock_from_network(void)
+{
+    int yy, mo, dd, hh, mi, ss, zz;
+    char sign;
+    const char *p = at("AT+CCLK?", AT_TIMEOUT_MS) ? strstr(out, "+CCLK: \"") : NULL;
+    if (p == NULL || sscanf(p + 8, "%2d/%2d/%2d,%2d:%2d:%2d%c%2d", &yy, &mo, &dd, &hh, &mi, &ss,
+                            &sign, &zz) != 8 ||
+        yy < 24 || (sign != '+' && sign != '-')) {
+        printf("modemprobe: network time none, sntp next\n");
+        return false;
+    }
+    int64_t t = days_from_civil(2000 + yy, mo, dd) * 86400 + hh * 3600 + mi * 60 + ss;
+    t -= (sign == '-' ? -zz : zz) * 15 * 60;
+    struct timeval tv = {.tv_sec = (time_t)t};
+    settimeofday(&tv, NULL);
+    struct tm u;
+    gmtime_r(&tv.tv_sec, &u);
+    printf("modemprobe: network time utc=%04d-%02d-%02dT%02d:%02d:%02dZ ok\n", u.tm_year + 1900,
+           u.tm_mon + 1, u.tm_mday, u.tm_hour, u.tm_min, u.tm_sec);
+    return true;
+}
 
 static void set_clock(void)
 {
@@ -643,6 +681,7 @@ static void session(long attach_ms)
 {
     int rssi = 99, ber = 99;
     esp_modem_get_signal_quality(dce, &rssi, &ber);
+    bool clock_set = clock_from_network();
     int64_t t0 = esp_timer_get_time();
     esp_err_t err = esp_modem_set_mode(dce, ESP_MODEM_MODE_DATA);
     EventBits_t bits = err == ESP_OK ? xEventGroupWaitBits(net_events, GOT_IP, pdFALSE, pdTRUE,
@@ -655,8 +694,10 @@ static void session(long attach_ms)
         printf("modemprobe: ppp up ms=%ld\n", ms_since(t0));
         oled_line(3, "PPP up, sending");
         bytes_mark("ppp_setup");
-        set_clock();
-        bytes_mark("sntp");
+        if (!clock_set) {
+            set_clock();
+            bytes_mark("sntp");
+        }
         post_telemetry(attach_ms, rssi);
         bytes_mark("thingsboard");
         if (runs == 1) {
