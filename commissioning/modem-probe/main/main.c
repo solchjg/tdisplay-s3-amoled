@@ -100,6 +100,19 @@
 // Running totals over the soak, kept through deep sleep.
 static RTC_DATA_ATTR int runs, attach_ok, tb_tries, tb_ok, ntfy_tries, ntfy_ok;
 static RTC_DATA_ATTR int64_t attach_ms_sum;
+// The run-1 GPS result, kept so every later run shows and sends it too.
+// gps_s: -1 not tried, -2 no fix, else seconds to the fix.
+static RTC_DATA_ATTR int gps_s = -1;
+static RTC_DATA_ATTR double gps_lat, gps_lon;
+
+static void title_line(void)
+{
+    char g[12];
+    if (gps_s >= 0) {
+        snprintf(g, sizeof g, "%ds", gps_s);
+    }
+    oled_line(0, "run %d GPS %s", runs, gps_s >= 0 ? g : gps_s == -2 ? "none" : "-");
+}
 
 static i2c_master_dev_handle_t pmu;
 static char tb_result[12] = "-", ntfy_result[12] = "-";
@@ -356,19 +369,38 @@ static void network_line(void)
 }
 
 // GNSS and LTE share the SIM7080G's RF: radio off, GNSS on, ask every 5 s.
+// When the modem stops answering, it is woken and GNSS switched on again, at
+// most GPS_RECOVERIES times, rather than asked in vain until the limit.
+#define GPS_RECOVERIES 3
 static void gps_fix(void)
 {
     at("AT+CFUN=0", 10000);
     gps_antenna(true);
     at("AT+CGNSPWR=1", AT_TIMEOUT_MS);
     int64_t t0 = esp_timer_get_time();
-    bool fixed = false;
+    int misses = 0, recoveries = 0;
+    gps_s = -2;
     oled_line(1, "GPS: seeking fix");
-    for (int s = 0; s <= GPS_LIMIT_S && !fixed; s += GPS_ASK_S) {
+    while (ms_since(t0) < GPS_LIMIT_S * 1000L && gps_s < 0) {
         vTaskDelay(pdMS_TO_TICKS(GPS_ASK_S * 1000));
-        if (!at("AT+CGNSINF", AT_TIMEOUT_MS)) {
+        oled_line(2, "GPS %lds", ms_since(t0) / 1000);
+        if (!at("AT+CGNSINF", 2000)) {
+            if (++misses < 3) {
+                continue;
+            }
+            if (recoveries++ == GPS_RECOVERIES) {
+                printf("modemprobe: gps modem silent, search abandoned CHECK\n");
+                break;
+            }
+            printf("modemprobe: gps modem silent, recovery %d\n", recoveries);
+            if (modem_wake()) {
+                at("AT+CFUN=0", 10000);
+                at("AT+CGNSPWR=1", AT_TIMEOUT_MS);
+            }
+            misses = 0;
             continue;
         }
+        misses = 0;
         // "+CGNSINF: <run>,<fix>,<utc>,<lat>,<lon>,..."
         const char *p = strstr(out, "+CGNSINF:");
         int run, fix;
@@ -376,16 +408,18 @@ static void gps_fix(void)
         double lat, lon;
         if (p != NULL && sscanf(p, "+CGNSINF: %d,%d,%23[^,],%lf,%lf", &run, &fix, utc, &lat, &lon) == 5 &&
             fix == 1) {
-            printf("modemprobe: gps fix lat=%.5f lon=%.5f after_s=%ld\n", lat, lon,
-                   ms_since(t0) / 1000);
+            gps_s = (int)(ms_since(t0) / 1000);
+            gps_lat = lat;
+            gps_lon = lon;
+            printf("modemprobe: gps fix lat=%.5f lon=%.5f after_s=%d\n", lat, lon, gps_s);
             oled_line(2, "%.4f %.4f", lat, lon);
-            fixed = true;
         }
     }
-    if (!fixed) {
+    if (gps_s < 0) {
         printf("modemprobe: gps no fix within %d s CHECK\n", GPS_LIMIT_S);
         oled_line(2, "GPS no fix");
     }
+    title_line();
     at("AT+CGNSPWR=0", AT_TIMEOUT_MS);
     gps_antenna(false);
 }
@@ -455,13 +489,19 @@ static void post_telemetry(long attach_ms, int rssi)
         printf("modemprobe: no ThingsBoard URL or token: telemetry skipped\n");
         return;
     }
-    char url[256], vals[256], body[384];
+    char url[256], vals[384], body[512], gps[96] = "";
     snprintf(url, sizeof url, "%s/api/v1/%s/telemetry", CONFIG_PROBE_TB_URL, CONFIG_PROBE_TB_TOKEN);
     int64_t ts = now_ms();
+    if (gps_s >= 0) {
+        snprintf(gps, sizeof gps, ",\"probe_gps_s\":%d,\"latitude\":%.6f,\"longitude\":%.6f", gps_s,
+                 gps_lat, gps_lon);
+    } else if (gps_s == -2) {
+        snprintf(gps, sizeof gps, ",\"probe_gps_s\":-1");
+    }
     snprintf(vals, sizeof vals,
              "{\"temp_f\":70.00,\"rh_pct\":50.0,\"p_mbar\":1013.25,\"synced\":%s,"
-             "\"probe_run\":%d,\"probe_attach_ms\":%ld,\"probe_rssi\":%d,\"probe_vbat_mv\":%u}",
-             ts ? "true" : "false", runs, attach_ms, rssi, vbat_mv());
+             "\"probe_run\":%d,\"probe_attach_ms\":%ld,\"probe_rssi\":%d,\"probe_vbat_mv\":%u%s}",
+             ts ? "true" : "false", runs, attach_ms, rssi, vbat_mv(), gps);
     // With a clock the record carries its own time, as in §32.3; without one
     // ThingsBoard stamps it on arrival.
     int n = ts ? snprintf(body, sizeof body, "[{\"ts\":%" PRId64 ",\"values\":%s}]", ts, vals)
@@ -582,7 +622,7 @@ void app_main(void)
            esp_sleep_get_wakeup_causes(), CONFIG_PROBE_APN);
     pmu_start();
     oled_start(CONFIG_PROBE_OLED_SDA, CONFIG_PROBE_OLED_SCL);
-    oled_line(0, "modem-probe run %d", runs);
+    title_line();
     oled_line(1, "modem starting");
     bool up = modem_start();
     if (!up) {
