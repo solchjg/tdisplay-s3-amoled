@@ -755,6 +755,7 @@ static void report(int64_t t_boot)
            " thingsboard_ok=%d/%d ntfy_ok=%d/%d vbat_mv=%u\n",
            runs, ms_since(t_boot), attach_ok, runs, attach_ok ? attach_ms_sum / attach_ok : 0,
            tb_ok, tb_tries, ntfy_ok, ntfy_tries, vbat_mv());
+    battery_status();  // again here: after a timer wake USB connects too late for the boot line
     oled_line(4, "awake %lds %u.%02uV", ms_since(t_boot) / 1000, vbat_mv() / 1000,
               vbat_mv() % 1000 / 10);
 }
