@@ -1,4 +1,4 @@
-// The modem probe's status screen: a 128x64 SSD1306 on its own I2C bus, five
+// A status screen for the commissioning probes: a 128x64 SSD1306 on its own I2C bus, five
 // lines of 21 characters (Terminus 6x12). Optional: without a panel every call
 // does nothing.
 #pragma once
