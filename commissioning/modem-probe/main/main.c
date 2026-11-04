@@ -427,6 +427,19 @@ static void gps_fix(void)
 static long attach(void)
 {
     char cmd[96];
+    // A modem woken from PSM keeps its registration: use it rather than
+    // cycling the radio, which forces a full attach and spends the saving.
+    if (PROBE_PSM && runs > 1) {
+        int64_t t = esp_timer_get_time();
+        if (registered()) {
+            long ms = ms_since(t);
+            printf("modemprobe: registered attach_ms=%ld psm_resume ok\n", ms);
+            network_line();
+            oled_line(2, "PSM resume CSQ %d", csq_now());
+            return ms;
+        }
+        printf("modemprobe: not registered after PSM, full attach\n");
+    }
     at("AT+CFUN=0", 10000);
     at("AT+CNMP=38", AT_TIMEOUT_MS);  // LTE only
     at(RAT_CMD, AT_TIMEOUT_MS);
