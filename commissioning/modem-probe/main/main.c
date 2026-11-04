@@ -34,6 +34,7 @@
 #include "esp_http_client.h"
 #include "esp_modem_api.h"
 #include "esp_netif.h"
+#include "esp_netif_net_stack.h"
 #include "esp_netif_ppp.h"
 #include "esp_netif_sntp.h"
 #include "esp_sleep.h"
@@ -41,6 +42,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
+#include "lwip/netif.h"
 #include "ntfy_tx.h"
 #include "oled.h"
 #include "sdkconfig.h"
@@ -104,6 +106,29 @@ static RTC_DATA_ATTR int64_t attach_ms_sum;
 // gps_s: -1 not tried, -2 no fix, else seconds to the fix.
 static RTC_DATA_ATTR int gps_s = -1;
 static RTC_DATA_ATTR double gps_lat, gps_lon;
+// Bytes over PPP (IP packets plus PPP's own control traffic): the last run's
+// and the running total, sent to ThingsBoard on the run after.
+static RTC_DATA_ATTR uint32_t prev_tx, prev_rx;
+static RTC_DATA_ATTR uint64_t total_tx, total_rx;
+static esp_netif_t *ppp_netif;
+static uint32_t mark_tx, mark_rx;
+
+static void link_bytes(uint32_t *tx, uint32_t *rx)
+{
+    struct netif *n = ppp_netif ? esp_netif_get_netif_impl(ppp_netif) : NULL;
+    *tx = n ? n->mib2_counters.ifoutoctets : 0;
+    *rx = n ? n->mib2_counters.ifinoctets : 0;
+}
+
+// Prints the bytes moved since the previous mark, labelled with the phase.
+static void bytes_mark(const char *phase)
+{
+    uint32_t tx, rx;
+    link_bytes(&tx, &rx);
+    printf("modemprobe: bytes %s tx=%" PRIu32 " rx=%" PRIu32 "\n", phase, tx - mark_tx, rx - mark_rx);
+    mark_tx = tx;
+    mark_rx = rx;
+}
 
 static void title_line(void)
 {
@@ -292,6 +317,7 @@ static bool modem_start(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, on_ip, NULL));
     esp_netif_config_t nc = ESP_NETIF_DEFAULT_PPP();
     esp_netif_t *netif = esp_netif_new(&nc);
+    ppp_netif = netif;
 
     gpio_config_t io = {
         .pin_bit_mask = (1ULL << PIN_MODEM_PWRKEY) | (1ULL << PIN_MODEM_DTR),
@@ -513,8 +539,9 @@ static void post_telemetry(long attach_ms, int rssi)
     }
     snprintf(vals, sizeof vals,
              "{\"temp_f\":70.00,\"rh_pct\":50.0,\"p_mbar\":1013.25,\"synced\":%s,"
-             "\"probe_run\":%d,\"probe_attach_ms\":%ld,\"probe_rssi\":%d,\"probe_vbat_mv\":%u%s}",
-             ts ? "true" : "false", runs, attach_ms, rssi, vbat_mv(), gps);
+             "\"probe_run\":%d,\"probe_attach_ms\":%ld,\"probe_rssi\":%d,\"probe_vbat_mv\":%u,"
+             "\"probe_prev_tx\":%" PRIu32 ",\"probe_prev_rx\":%" PRIu32 "%s}",
+             ts ? "true" : "false", runs, attach_ms, rssi, vbat_mv(), prev_tx, prev_rx, gps);
     // With a clock the record carries its own time, as in §32.3; without one
     // ThingsBoard stamps it on arrival.
     int n = ts ? snprintf(body, sizeof body, "[{\"ts\":%" PRId64 ",\"values\":%s}]", ts, vals)
@@ -587,13 +614,23 @@ static void session(long attach_ms)
     } else {
         printf("modemprobe: ppp up ms=%ld\n", ms_since(t0));
         oled_line(3, "PPP up, sending");
+        bytes_mark("ppp_setup");
         set_clock();
+        bytes_mark("sntp");
         post_telemetry(attach_ms, rssi);
+        bytes_mark("thingsboard");
         if (runs == 1) {
             send_alert(attach_ms, rssi);
+            bytes_mark("ntfy");
         }
     }
     esp_modem_set_mode(dce, ESP_MODEM_MODE_COMMAND);
+    bytes_mark("ppp_close");
+    link_bytes(&prev_tx, &prev_rx);
+    total_tx += prev_tx;
+    total_rx += prev_rx;
+    printf("modemprobe: bytes run tx=%" PRIu32 " rx=%" PRIu32 " total=%" PRIu64 "\n", prev_tx, prev_rx,
+           total_tx + total_rx);
     printf("modemprobe: ppp session ms=%ld\n", ms_since(t0));
 }
 
