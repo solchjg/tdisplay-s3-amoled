@@ -1,0 +1,4 @@
+key,type,encoding,value
+probe,namespace,,
+tb_token,data,string,YOUR_THINGSBOARD_DEVICE_TOKEN
+ntfy_topic,data,string,your-ntfy-topic
