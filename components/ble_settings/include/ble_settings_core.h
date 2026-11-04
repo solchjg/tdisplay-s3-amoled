@@ -26,20 +26,21 @@ typedef enum {
 // terminated, *out_len its length). In BSET_CHANGE: no `ssid` field appends the
 // stored SSID and password; `ssid` without `password` appends the stored
 // password; mail fields without `mail_password` append the stored mail password.
-// Then the portal's rules run (FR-13.4, FR-25.1, FR-28.1, FR-29.11). NULL when valid,
+// Then the portal's rules run (FR-13.4 with the WiFi switch of FR-34.2, FR-25.1,
+// FR-28.1, FR-29.11). NULL when valid,
 // else the name of the first invalid field ("length" when out is too small).
 const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
                          const pc_creds_t *cur, const char *cur_mail_password, char *out,
                          size_t cap, size_t *out_len);
 
-// FR-26.9: the stored settings that are not secret, then password_set and
+// FR-26.9: the WiFi switch (FR-34.3), the stored settings that are not secret, then password_set and
 // mail_password_set, the setup with its minutes (FR-28.3), the loop settings
 // (FR-29.11), the alert settings with ntfy_token_set (FR-31.2), and the
 // cellular uplink's (FR-33.2). Returns the length written (cut to fit cap,
 // terminated).
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *mail, const sp_sel_t *sel,
                  const lp_settings_t *loop, const nf_settings_t *alerts,
-                 const ul_settings_t *uplink, char *out, size_t cap);
+                 const ul_settings_t *uplink, bool wifi_on, char *out, size_t cap);
 
 // FR-26.19: the rules of every field bset_dump shows, for the page to check
 // before it writes (ble_setup.h read_form). Returns the length (cut to fit cap,

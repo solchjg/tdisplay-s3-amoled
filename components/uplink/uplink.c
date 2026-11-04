@@ -10,6 +10,7 @@
 #define NVS_NS "uplink"
 #define KEY_SETTINGS "settings"
 #define KEY_PLACE "place"
+#define KEY_WIFI_OFF "wifi_off"  // FR-34.1: its own key, so the settings blob keeps its size
 
 // FSD §33.2: the Notecard on the BME280's bus (C-23.1).
 #define NC_I2C_PORT 0
@@ -29,6 +30,7 @@ typedef struct {
 
 static ul_settings_t taken;     // from the accepted submission, until it is stored
 static ul_settings_t settings;  // as stored
+static bool taken_wifi_on = true, wifi_on = true;  // FR-34.1: as taken, as stored
 static bool loaded;
 static char form[1536];
 
@@ -48,6 +50,8 @@ static void load(void)
     if (nvs_get_blob(h, KEY_SETTINGS, &settings, &len) != ESP_OK || len != sizeof settings) {
         ul_defaults(&settings);
     }
+    uint8_t off = 0;
+    wifi_on = nvs_get_u8(h, KEY_WIFI_OFF, &off) != ESP_OK || !off;
     nvs_close(h);
 }
 
@@ -57,10 +61,22 @@ const ul_settings_t *uplink_settings(void)
     return &settings;
 }
 
+bool uplink_wifi_on(void)
+{
+    load();
+    return wifi_on;
+}
+
+bool uplink_taken_wifi_on(void)
+{
+    return taken_wifi_on;
+}
+
 const char *uplink_take(const char *body, size_t len)
 {
     load();
-    return ul_parse(body, len, &settings, &taken);
+    const char *bad = ul_parse_wifi(body, len, wifi_on, &taken_wifi_on);
+    return bad ? bad : ul_parse(body, len, &settings, &taken);
 }
 
 const char *uplink_form_html(void)
@@ -106,6 +122,9 @@ static esp_err_t store_settings(const ul_settings_t *s, bool erase_place)
     if (err == ESP_OK && s) {
         err = nvs_set_blob(h, KEY_SETTINGS, s, sizeof *s);
     }
+    if (err == ESP_OK && s) {
+        err = nvs_set_u8(h, KEY_WIFI_OFF, taken_wifi_on ? 0 : 1);
+    }
     if (err == ESP_OK) {
         err = nvs_commit(h);
     }
@@ -117,6 +136,7 @@ esp_err_t uplink_store(void)
 {
     esp_err_t err = store_settings(&taken, false);
     settings = taken;
+    wifi_on = taken_wifi_on;
     loaded = err == ESP_OK;
     form[0] = '\0';
     return err;
@@ -125,6 +145,7 @@ esp_err_t uplink_store(void)
 esp_err_t uplink_erase(void)
 {
     ul_defaults(&settings);
+    wifi_on = taken_wifi_on = true;  // FR-34.1: a factory reset turns WiFi back on
     loaded = true;
     form[0] = '\0';
     return store_settings(NULL, true);

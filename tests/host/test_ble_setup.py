@@ -140,7 +140,7 @@ int main(int argc, char **argv)
 {
     pc_creds_t cur = {"home net", "pw-secret1"};
     char out[2048 + BSET_MERGE_EXTRA];  // CONFIG_BLE_SETUP_BODY_MAX
-    static char form[4096];             // CONFIG_BLE_SETUP_FORM_MAX
+    static char form[6144];             // CONFIG_BLE_SETUP_FORM_MAX
     if (!strcmp(argv[1], "prepare")) {
         size_t n = 0;
         const char *bad = bset_prepare(argv[3], strlen(argv[3]),
@@ -183,7 +183,7 @@ int main(int argc, char **argv)
             strcpy(u.product, "com.example.joe:weather");
             u.cell_every = 120;
         }
-        bset_dump(&cur, &s, &sel, &loop, &a, &u, out, sizeof out);
+        bset_dump(&cur, &s, &sel, &loop, &a, &u, argv[2][0] != '2', out, sizeof out);
         printf("%s", out);
     } else if (!strcmp(argv[1], "form")) {
         printf("%zu|", bset_form(form, sizeof form));
@@ -259,7 +259,7 @@ def test_dump_has_no_secret(bset):
     on = bset("dump", "1")
     assert "secret" not in on
     # each secret's flag follows the field it belongs to, so the page shows it there
-    assert on == ("ssid=home%20net&password_set=1&mail_host=smtp.example.com&mail_port=465"
+    assert on == ("wifi=on&ssid=home%20net&password_set=1&mail_host=smtp.example.com&mail_port=465"
                   "&mail_user=me%40x.org&mail_password_set=1&mail_from=&mail_to=you%40x.org"
                   "&mail_to2=&mail_time=07%3A05&mail_every=6&setup=custom&sample_min=5"
                   "&average_min=30&loop=in&loop_name=tank&loop_unit=m%20WC&loop_lo=-1.5"
@@ -302,15 +302,16 @@ def test_key_window_write_checks_the_loop(bset, body, expected):
 def test_form_rules_cover_every_field(bset):
     import urllib.parse as up
     n, body = bset("form").split("|", 1)
-    assert int(n) == len(body.encode()) < 4096                         # BLE_SETUP_FORM_MAX
+    assert int(n) == len(body.encode()) < 6144                         # BLE_SETUP_FORM_MAX
     rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
              for k, v in up.parse_qsl(body, keep_blank_values=True)}
     shown = [k[:-4] if k.endswith("_set") else k
              for k, _ in up.parse_qsl(bset("dump", "1"), keep_blank_values=True)]
     assert list(rules) == shown
     assert all(r.get("label") for r in rules.values())
-    assert rules["ssid"] == {"section": "WiFi", "label": "Network name", "required": "1",
-                            "maxlength": "32"}                      # FR-13.4
+    assert rules["ssid"] == {"label": "Network name", "required_if": "wifi=on",
+                            "maxlength": "32"}                      # FR-13.4, FR-34.2
+    assert rules["wifi"]["section"] == "WiFi" and rules["wifi"]["options"] == "on,off"  # FR-34.3
     assert (rules["password"]["minlength"], rules["password"]["maxlength"]) == ("8", "63")
     mail = [k for k in rules if k.startswith("mail_")]
     assert all(rules[k]["group"] == "mail" for k in mail)                  # FR-25.1
@@ -414,7 +415,7 @@ def test_log_lines(compile_harness):
 
 # The portal form (§13.2, §25.2, §28.2, §29.4, §31.2, §33.3) as the C sources state it.
 PORTAL_PARTS = [  # file, first and last text of its form HTML
-    ("shared/components/portal/portal.c", "<body><h1>", "</label></p>\";"),
+    ("shared/components/portal/portal.c", "<body><h1>", "</script>\""),
     ("components/summary/summary.c", "<h2>Email summary", "hours</label></p>\";"),
     ("components/sampling/sampling.c", "<h2>Readings", "GPS on)</label></p>\";"),
     ("components/loop/loop.c", "<h2>4-20 mA", "ms</label></p>\";"),
@@ -523,7 +524,7 @@ def test_form_rules_match_the_portal_form(bset):
             assert f["label"] == INLINE_LABELS[name]
         else:
             assert r["label"] == f["label"], name
-        if f["section"] or name != "ssid":  # the portal's WiFi fields sit under its h1
+        if f["section"] or name != "wifi":  # the portal's WiFi fields sit under its h1
             assert r.get("section") == f["section"], name
         assert r.get("intro") == f["intro"], name
         for a in ATTR_CHECKS:
@@ -540,3 +541,21 @@ def test_form_rules_match_the_portal_form(bset):
             assert f["unit"] == " ".join(filter(None, [r.get("unit"), r.get("hint") and
                                                        f"({r['hint'][0].lower()}{r['hint'][1:-1]})"])), name
     assert [(n, v) for n, v in extras] == [("setup", v) for v in rules["setup"]["extras"].split(",")]
+
+
+# TC-WOFF-05 · FR-34.2 (core): with WiFi off the credentials are optional; given, checked
+@pytest.mark.parametrize("mode,body,expected", [
+    ("prov", "wifi=off", "ok ||||10"),
+    ("prov", "wifi=off&ssid=&password=", "ok ||||10"),
+    ("prov", "wifi=off&ssid=" + "S" * 33 + "&password=", "bad ssid"),
+    ("prov", "wifi=on&ssid=&password=", "bad ssid"),
+    ("prov", "wifi=maybe&ssid=a&password=", "bad wifi"),
+    ("change", "wifi=off", "ok home net|pw-secret1|||10"),   # stored credentials kept
+])
+def test_wifi_off_makes_the_credentials_optional(bset, mode, body, expected):
+    assert bset("prepare", mode, body) == expected
+
+
+# TC-WOFF-06 · FR-34.3 (core): a settings read reports the WiFi switch first
+def test_dump_reports_the_wifi_switch(bset):
+    assert bset("dump", "2").startswith("wifi=off&ssid=home%20net&")
