@@ -3492,3 +3492,134 @@ tests:
     observable: "BLE write setup=std,gps with uplink cell and gps on: L32 id=gps, line 6 GPS searching mm:ss, then L45 with the place and L33 fix=yes result=pass within 20 min, or L45 none and L33 fix=no result=fail; no web: sleep during the test"
     impl: []
     result: {status: not done}
+
+  # ── WiFi off (FSD §34, Phase 16) ───────────────────────────────────────
+  - id: TC-WOFF-01
+    title: "T15: WiFi off at boot starts neither the station nor the SoftAP"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 16
+    tier: host
+    verifies: [FR-34.4]
+    needs: []
+    observable: "BOOT x CR with wifi off stored -> WIFI_OFF with no action; every other state ignores it"
+    impl: tests/host/test_device_logic.py::test_t15_wifi_off_at_boot
+    result: {status: not done}
+
+  - id: TC-WOFF-02
+    title: "T16: a WiFi-off submission stores and enters WIFI_OFF without a restart"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 16
+    tier: host
+    verifies: [FR-34.5]
+    needs: []
+    observable: "PROVISIONING x CS (wifi off, valid) -> WIFI_OFF with store, SoftAP stop and the setup mark; no attempt, no restart; invalid stays (T4)"
+    impl: tests/host/test_device_logic.py::test_t16_wifi_off_submission
+    result: {status: not done}
+
+  - id: TC-WOFF-03
+    title: "WIFI_OFF is left only by a restart (T10, T14)"
+    shape: atomic
+    kind: negative
+    wave: 1
+    fsd_phase: 16
+    tier: host
+    verifies: [FR-34.6]
+    needs: []
+    observable: "factory reset and a BLE settings write restart; every network event is ignored"
+    impl: tests/host/test_device_logic.py::test_wifi_off_is_left_only_by_a_restart
+    result: {status: not done}
+
+  - id: TC-WOFF-04
+    title: "The WIFI_OFF screen"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 16
+    tier: host
+    verifies: [FR-34.7]
+    needs: []
+    observable: "lines 1 - 3: WiFi off / Hold key 3 s for BLE / empty"
+    impl: tests/host/test_device_logic.py::test_wifi_off_screen
+    result: {status: not done}
+
+  - id: TC-WOFF-05
+    title: "With WiFi off the credentials are optional, and checked when given"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 16
+    tier: host
+    verifies: [FR-34.1, FR-34.2]
+    needs: []
+    observable: "wifi=off alone accepted with no credentials; a 33-byte ssid refused; wifi=on without ssid refused; wifi=maybe refused as wifi; a key-window wifi=off keeps the stored credentials"
+    impl: [tests/host/test_ble_setup.py::test_wifi_off_makes_the_credentials_optional, shared/tests/host/test_portal.py::test_wifi_switch]
+    result: {status: not done}
+
+  - id: TC-WOFF-06
+    title: "The settings read and the page's rules carry the WiFi switch"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 16
+    tier: host
+    verifies: [FR-34.3]
+    needs: []
+    observable: "the read starts wifi=<on|off>; the rules give wifi on,off under WiFi and the network name required_if wifi=on, as the portal form; the page requires the name only with WiFi on"
+    impl: [tests/host/test_ble_setup.py::test_dump_reports_the_wifi_switch, tests/host/test_ble_setup.py::test_form_rules_cover_every_field, tests/host/test_ble_setup.py::test_form_rules_match_the_portal_form, shared/tests/host/test_ble_page.py::test_page_requires_a_field_only_while_another_holds_a_value]
+    result: {status: not done}
+
+  - id: TC-WOFF-07
+    title: "With WiFi off nothing goes over WiFi; notes still go over cellular"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 16
+    tier: host
+    verifies: [FR-34.10, FR-34.11]
+    needs: []
+    observable: "alert and email paths: none with wifi off and uplink wifi; cell (and none or cell for email by cell_mail) with uplink cell"
+    impl: tests/host/test_uplink.py::test_via_with_wifi_off
+    result: {status: not done}
+
+  - id: TC-WOFF-08
+    title: "The portal turns WiFi off: WIFI_OFF without a restart, the SoftAP gone"
+    shape: atomic
+    kind: standard
+    wave: 2
+    fsd_phase: 16
+    tier: bench
+    verifies: [FR-34.1, FR-34.5, FR-34.7]
+    needs: [bench-flash, bench-flash-erase, bench-jtag-reset, bench-wifi-sta, bench-http-relay, bench-wifi-scan, bench-serial-monitor, bench-enter-portal, dut-amoled-slot1, dut-wifi-slot1]
+    observable: "the form has the wifi switch; POST wifi=off&ssid=&password= answers 200 WiFi is off; web: state=WIFI_OFF with no reset line and no CONNECTING; the SoftAP gone from a scan"
+    impl: tests/bench/test_wifi_off.py::test_portal_submission_turns_wifi_off
+    result: {status: not done}
+
+  - id: TC-WOFF-09
+    title: "After a reset WiFi stays off"
+    shape: atomic
+    kind: negative
+    wave: 2
+    fsd_phase: 16
+    tier: bench
+    verifies: [FR-34.4, FR-34.8]
+    needs: [bench-jtag-reset, bench-wifi-scan, bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1]
+    observable: "the first L2 of the boot is WIFI_OFF; no CONNECTING, PROVISIONING or web: online in 20 s; no SoftAP in a scan"
+    impl: tests/bench/test_wifi_off.py::test_reset_keeps_wifi_off
+    result: {status: not done}
+
+  - id: TC-WOFF-10
+    title: "A key-window BLE write of wifi=on brings the device ONLINE"
+    shape: journey
+    kind: standard
+    wave: 3
+    fsd_phase: 16
+    tier: bench
+    verifies: [FR-34.6, FR-34.3]
+    needs: [bench-ble-pair-passkey, bench-wifi-ap, operator-at-bench, dut-amoled-slot1]
+    observable: "the settings read holds wifi=off; result ok; a restart; web: state=CONNECTING then web: online on the bench AP"
+    impl: tests/bench/test_wifi_off.py::test_ble_write_turns_wifi_back_on
+    result: {status: not done}

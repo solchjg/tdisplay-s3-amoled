@@ -33,6 +33,12 @@ static bool choice(const char *body, size_t len, const char *name, const char *y
     return true;
 }
 
+const char *ul_parse_wifi(const char *body, size_t len, bool stored_on, bool *on)
+{
+    *on = stored_on;
+    return choice(body, len, "wifi", "on", "off", on) ? NULL : "wifi";
+}
+
 const char *ul_parse(const char *body, size_t len, const ul_settings_t *stored,
                      ul_settings_t *out)
 {

@@ -48,6 +48,10 @@ void dl_screen(const dl_view_t *v, char out[DL_LINES][DL_LINE_MAX])
         put(out[0], "WiFi lost");
         put(out[1], "Retrying");
         break;
+    case DL_WIFI_OFF:
+        put(out[0], "WiFi off");
+        put(out[1], "Hold key 3 s for BLE");
+        break;
     }
     put(out[3], v->reading);
     put(out[4], v->prompt);
@@ -119,6 +123,19 @@ dl_conn_step_t dl_conn_step(dl_conn_t state, dl_conn_event_t event, bool guard, 
             return (dl_conn_step_t){DL_ONLINE, DL_C_LOG_ONLINE, n};                  // T9
         }
         break;
+    case DL_EV_READ_WIFI_OFF:
+        if (state == DL_BOOT) {
+            return (dl_conn_step_t){DL_WIFI_OFF, 0, n};                              // T15
+        }
+        break;
+    case DL_EV_SUBMITTED_WIFI_OFF:
+        if (state == DL_PROVISIONING) {
+            return guard ? (dl_conn_step_t){DL_WIFI_OFF,                              // T16
+                                            DL_C_STORE_CREDS | DL_C_STOP_SOFTAP |
+                                                DL_C_MARK_SETUP, n}
+                         : (dl_conn_step_t){DL_PROVISIONING, 0, n};                  // T4
+        }
+        break;
     case DL_EV_FACTORY_RESET:
         if (state != DL_BOOT) {
             return (dl_conn_step_t){DL_BOOT,                                         // T10
@@ -141,7 +158,8 @@ dl_conn_step_t dl_conn_step(dl_conn_t state, dl_conn_event_t event, bool guard, 
         }
         break;
     case DL_EV_BLE_SETTINGS:
-        if (state == DL_CONNECTING || state == DL_ONLINE || state == DL_WIFI_LOST) {
+        if (state == DL_CONNECTING || state == DL_ONLINE || state == DL_WIFI_LOST ||
+            state == DL_WIFI_OFF) {
             return (dl_conn_step_t){DL_BOOT, DL_C_STORE_SETTINGS | DL_C_RESTART, n}; // T14
         }
         break;
@@ -159,7 +177,8 @@ uint32_t dl_retry_delay_s(uint32_t n)
 
 const char *dl_conn_name(dl_conn_t state)
 {
-    static const char *names[] = {"BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"};
+    static const char *names[] = {"BOOT",   "PROVISIONING", "CONNECTING",
+                                  "ONLINE", "WIFI_LOST",    "WIFI_OFF"};
     return names[state];
 }
 

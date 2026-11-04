@@ -88,10 +88,11 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
         return "length";
     }
     pc_creds_t c;
-    pc_result_t r = pc_parse_form(out, b.len, &c);
+    bool wifi_on;
+    pc_result_t r = pc_parse_wifi(out, b.len, &c, &wifi_on);  // FR-34.2
     memset(&c, 0, sizeof c);
     if (r != PC_OK) {
-        return r == PC_BAD_SSID ? "ssid" : "password";
+        return r == PC_BAD_SSID ? "ssid" : r == PC_BAD_WIFI ? "wifi" : "password";
     }
     sm_settings_t s;
     const char *bad = sm_parse(out, b.len, &s);
@@ -110,12 +111,13 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
 
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *sel,
                  const lp_settings_t *loop, const nf_settings_t *alerts,
-                 const ul_settings_t *uplink, char *out, size_t cap)
+                 const ul_settings_t *uplink, bool wifi_on, char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
     bool on = m->host[0] != '\0';
     char num[8], hhmm[6];
+    field(&b, "wifi", wifi_on ? "on" : "off");  // FR-34.3
     field(&b, "ssid", cur->ssid);
     field(&b, "password_set", cur->ssid[0] && cur->password[0] ? "1" : "0");
     field(&b, "mail_host", on ? m->host : "");
@@ -181,7 +183,9 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
 #define LIMIT(name, label, step, lo, hi, unit) \
     {name, "label", label, "type", "number", "step", step, "min", lo, "max", hi, "unit", unit, NULL}
 static const char *const RULES[][24] = {
-    {"ssid", "section", "WiFi", "label", "Network name", "required", "1", "maxlength", "32", NULL},
+    {"wifi", "section", "WiFi", "label", "WiFi", "options", "on,off", "labels",
+     "On|Off: no network, set up and read over Bluetooth", NULL},
+    {"ssid", "label", "Network name", "required_if", "wifi=on", "maxlength", "32", NULL},
     {"password", "label", "Password (empty for an open network, else 8 – 63 characters)",
      "minlength", "8", "maxlength", "63", NULL},
     {"mail_host", "section", "Email summary (optional)", "intro",
