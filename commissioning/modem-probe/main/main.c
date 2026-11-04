@@ -768,10 +768,54 @@ static void report(int64_t t_boot)
               vbat_mv() % 1000 / 10);
 }
 
+// 3GPP 24.008 timer octets as "+CEREG: 4,..." quotes them: bits 8..6 the unit,
+// bits 5..1 the count. Active time (T3324) and periodic TAU (T3412 extended) use
+// different unit tables; -1 means deactivated or unreadable.
+static long gprs_timer_s(const char *bits, bool tau)
+{
+    static const long t3324[8] = {2, 60, 360, 360, 360, 360, 360, -1};
+    static const long t3412[8] = {600, 3600, 36000, 2, 30, 60, 1152000, -1};
+    int v = 0;
+    for (int i = 0; i < 8; i++) {
+        if (bits[i] != '0' && bits[i] != '1') {
+            return -1;
+        }
+        v = v << 1 | (bits[i] - '0');
+    }
+    long unit = (tau ? t3412 : t3324)[v >> 5];
+    return unit < 0 ? -1 : unit * (v & 0x1F);
+}
+
+// The network's grant from the last full "+CEREG: 4,..." in out: its last two
+// quoted fields. After a PSM resume the modem reports n=0 and no timers.
+static void psm_grant(void)
+{
+    const char *p = NULL;
+    for (const char *q = out; (q = strstr(q, "+CEREG: 4,")) != NULL; q++) {
+        p = q;
+    }
+    if (p == NULL) {
+        return;
+    }
+    const char *quote[2] = {NULL, NULL};
+    for (const char *q = p + 8; *q && *q != ' '; q++) {
+        if (*q == '"' && strlen(q) > 9 && q[9] == '"') {
+            quote[0] = quote[1];
+            quote[1] = q + 1;
+            q += 9;
+        }
+    }
+    if (quote[0] != NULL) {
+        printf("modemprobe: psm grant active_s=%ld tau_s=%ld\n", gprs_timer_s(quote[0], false),
+               gprs_timer_s(quote[1], true));
+    }
+}
+
 static void sleep_until_next(int64_t t_boot)
 {
     if (PROBE_PSM) {
         at("AT+CEREG?", AT_TIMEOUT_MS);  // the granted active time and TAU
+        psm_grant();
     } else {
         at_until("AT+CPOWD=1", "POWER DOWN", 5000);  // cold attach next run
     }
