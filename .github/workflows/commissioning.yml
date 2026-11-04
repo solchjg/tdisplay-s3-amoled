@@ -36,7 +36,7 @@ on:
         required: false
         default: ''
       modem_tests:
-        description: 'modem-probe only: any of gps, psm (space separated)'
+        description: 'modem-probe only: any of gps, psm, sh1106 (space separated)'
         required: false
         default: ''
       modem_every:
@@ -112,6 +112,7 @@ jobs:
             echo "CONFIG_PROBE_PLMN=\"$PLMN\""
             for t in $TESTS; do
               case "$t" in gps) echo "CONFIG_PROBE_GPS=y";; psm) echo "CONFIG_PROBE_PSM=y";;
+                sh1106) echo "CONFIG_PROBE_OLED_SH1106=y";;
                 *) echo "FATAL: unknown modem test $t" >&2; exit 1;; esac
             done; } >> sdkconfig.defaults
           cat sdkconfig.defaults

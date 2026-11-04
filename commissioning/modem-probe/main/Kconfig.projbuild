@@ -74,13 +74,17 @@ config PROBE_PSM
     bool "Ask the network for PSM (TAU 1 h, active time 10 s)"
     default n
 
+config PROBE_OLED_SH1106
+    bool "The status screen is an SH1106 (most 1.3 inch modules) rather than an SSD1306"
+    default n
+
 config PROBE_OLED_SDA
-    int "SSD1306 status screen SDA GPIO (-1: no screen)"
+    int "Status screen SDA GPIO (-1: no screen)"
     range -1 48
     default 13
 
 config PROBE_OLED_SCL
-    int "SSD1306 status screen SCL GPIO"
+    int "Status screen SCL GPIO"
     range 0 48
     default 21
 

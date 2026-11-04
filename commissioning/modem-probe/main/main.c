@@ -657,7 +657,8 @@ static int64_t days_from_civil(int y, int m, int d)
 // Sets the system clock from the modem's network time, AT+CCLK? answering
 // "yy/MM/dd,hh:mm:ss+zz": local time, zz in quarter hours east of UTC. The
 // modem keeps that clock through PSM, so it costs no airtime. False when the
-// modem has no network time yet (its default year is 1980), so SNTP is tried.
+// modem has no network time yet (its default year is 1980, read as "80"), so
+// SNTP is tried.
 static bool clock_from_network(void)
 {
     int yy, mo, dd, hh, mi, ss, zz;
@@ -665,7 +666,7 @@ static bool clock_from_network(void)
     const char *p = at("AT+CCLK?", AT_TIMEOUT_MS) ? strstr(out, "+CCLK: \"") : NULL;
     if (p == NULL || sscanf(p + 8, "%2d/%2d/%2d,%2d:%2d:%2d%c%2d", &yy, &mo, &dd, &hh, &mi, &ss,
                             &sign, &zz) != 8 ||
-        yy < 24 || (sign != '+' && sign != '-')) {
+        yy < 24 || yy >= 80 || (sign != '+' && sign != '-')) {
         printf("modemprobe: network time none, sntp next\n");
         return false;
     }
