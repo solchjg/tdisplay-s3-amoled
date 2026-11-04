@@ -23,6 +23,14 @@ config PROBE_PLMN
         AT+COPS=1,2,"<PLMN>" on a full attach; with it empty a previous lock
         is undone with AT+COPS=0.
 
+config PROBE_PLMN_FALLBACK
+    bool "Prefer that network, falling back to automatic choice"
+    depends on PROBE_PLMN != ""
+    default n
+    help
+        Sends AT+COPS=4 instead of AT+COPS=1: the modem tries the named
+        network first and chooses another itself when it cannot register.
+
 config PROBE_ATTACH_S
     int "Seconds to wait for network registration"
     range 30 600

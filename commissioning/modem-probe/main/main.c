@@ -454,7 +454,12 @@ static void carrier_select(void)
         // Like CPSMS, the lock is refused until the SIM is up after CFUN=1.
         // A try that runs to the timeout means the modem stopped answering,
         // so it is not repeated.
-        snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"" COPS_ACT, CONFIG_PROBE_PLMN);
+#ifdef CONFIG_PROBE_PLMN_FALLBACK
+        const int cops_mode = 4;  // the named network first, then automatic
+#else
+        const int cops_mode = 1;  // the named network only
+#endif
+        snprintf(cmd, sizeof cmd, "AT+COPS=%d,2,\"%s\"" COPS_ACT, cops_mode, CONFIG_PROBE_PLMN);
         for (int i = 0; i < 15; i++) {
             int64_t t = esp_timer_get_time();
             if (at(cmd, 120000)) {
