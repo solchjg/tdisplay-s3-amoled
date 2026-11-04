@@ -398,11 +398,19 @@ static long attach(void)
     at(RAT_CMD, AT_TIMEOUT_MS);
     snprintf(cmd, sizeof cmd, "AT+CGDCONT=1,\"IP\",\"%s\"", CONFIG_PROBE_APN);
     at(cmd, AT_TIMEOUT_MS);
-    // TAU 1 h (unit 1 h, value 1), active time 10 s (unit 2 s, value 5).
-    at(PROBE_PSM ? "AT+CPSMS=1,,,\"00100001\",\"00000101\"" : "AT+CPSMS=0", AT_TIMEOUT_MS);
     at("AT+CEREG=4", AT_TIMEOUT_MS);  // report the granted PSM timers too
     int64_t t0 = esp_timer_get_time();
     at("AT+CFUN=1", 10000);
+    // The modem answers CPSMS with ERROR until the SIM is up again after
+    // CFUN=1, so retry for a few seconds.
+    // TAU 1 h (unit 1 h, value 1), active time 10 s (unit 2 s, value 5).
+    for (int i = 0; i < 10; i++) {
+        if (at(PROBE_PSM ? "AT+CPSMS=1,,,\"00100001\",\"00000101\"" : "AT+CPSMS=0",
+               AT_TIMEOUT_MS)) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
     oled_line(1, "registering...");
     while (ms_since(t0) < CONFIG_PROBE_ATTACH_S * 1000L) {
         if (registered()) {
