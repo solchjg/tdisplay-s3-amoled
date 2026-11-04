@@ -43,6 +43,10 @@ on:
         description: 'modem-probe only: minutes between runs, 0 runs once (PROBE_EVERY_MIN)'
         required: false
         default: '0'
+      modem_plmn:
+        description: 'modem-probe only: network to lock to, MCC+MNC such as 310260 (PROBE_PLMN); empty is automatic'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -90,6 +94,7 @@ jobs:
           NTFY: ${{ inputs.modem_ntfy }}
           TESTS: ${{ inputs.modem_tests }}
           EVERY: ${{ inputs.modem_every }}
+          PLMN: ${{ inputs.modem_plmn }}
         # The repo is public, so builds carry no secrets: the ThingsBoard token
         # and the ntfy topic and token come from a settings image flashed at
         # 0x9000 (commissioning/modem-probe/settings.csv.example), kept off git.
@@ -99,10 +104,12 @@ jobs:
           if [ -n "$NTFY_EXTRA" ]; then echo "FATAL: modem_ntfy takes only the base URL; the topic belongs in the settings image"; exit 1; fi
           plain "$APN" APN; plain "$TB_URL" modem_tb_url; plain "$NTFY_URL" ntfy_url
           case "$EVERY" in ''|*[!0-9]*) echo "FATAL: modem_every is not a number"; exit 1;; esac
+          case "$PLMN" in ''|[0-9][0-9][0-9][0-9][0-9]|[0-9][0-9][0-9][0-9][0-9][0-9]) ;; *) echo "FATAL: modem_plmn is not 5 or 6 digits"; exit 1;; esac
           { echo "CONFIG_PROBE_APN=\"$APN\""
             echo "CONFIG_PROBE_TB_URL=\"$TB_URL\""
             echo "CONFIG_PROBE_NTFY_URL=\"$NTFY_URL\""
             echo "CONFIG_PROBE_EVERY_MIN=$EVERY"
+            echo "CONFIG_PROBE_PLMN=\"$PLMN\""
             for t in $TESTS; do
               case "$t" in gps) echo "CONFIG_PROBE_GPS=y";; psm) echo "CONFIG_PROBE_PSM=y";;
                 *) echo "FATAL: unknown modem test $t" >&2; exit 1;; esac

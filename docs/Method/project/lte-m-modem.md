@@ -48,7 +48,7 @@ panel is blanked before deep sleep. When the modem stops answering during the se
 is woken and GNSS switched on again, up to three times, before the search is abandoned.
 
 Options are under "Modem probe" in `idf.py menuconfig`: APN (default `iot.1nce.net`),
-radio access (LTE-M, NB-IoT or both), ThingsBoard URL and token, ntfy URL, topic and
+radio access (LTE-M, NB-IoT or both), a network to lock to (`PROBE_PLMN`, MCC+MNC such as 310260 T-Mobile, 310410 AT&T, 311480 Verizon; `AT+COPS=1,2` on a full attach with no fallback, so a refused roam shows as no registration; empty undoes an earlier lock), ThingsBoard URL and token, ntfy URL, topic and
 token, GPS, PSM (TAU 1 h, active time 10 s; on later runs a modem still registered after
 PSM is used as it is, logged `psm_resume`, instead of a full attach) and minutes between runs. With 0 minutes it
 runs once and then prints the signal every 30 s; above 0 it deep-sleeps between runs,
@@ -65,8 +65,8 @@ named `settings.csv` (ignored by git) with
 `settings.bin` at `0x9000` (the `nvs` partition) with the build.
 
 Without a local toolchain, run the "Commissioning aids" workflow by hand: `modem_apn`,
-`modem_tb_url`, `modem_ntfy` (the base URL only), `modem_tests` (`gps`, `psm`) and
-`modem_every` set the same options. A hand-started run also replaces the one commit on
+`modem_tb_url`, `modem_ntfy` (the base URL only), `modem_tests` (`gps`, `psm`),
+`modem_every` and `modem_plmn` set the same options. A hand-started run also replaces the one commit on
 the `firmware-drops` branch with its images (one folder per program, plus `BUILD.txt`
 naming the run, commit and inputs), so a session that reaches git but not artifact
 storage can fetch and flash them; the build fails if the `MODEM_PROBE_TB_TOKEN` secret

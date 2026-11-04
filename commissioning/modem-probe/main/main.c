@@ -434,6 +434,24 @@ static void modem_info(void)
     at("AT+CSQ", AT_TIMEOUT_MS);
 }
 
+// With PROBE_PLMN set, lock the modem to that network (manual selection,
+// no fallback, so a refused roam shows as no registration). Without it, undo
+// a lock an earlier build left: the modem keeps the selection mode.
+static void carrier_select(void)
+{
+    char cmd[40];
+    if (CONFIG_PROBE_PLMN[0] != '\0') {
+        snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"", CONFIG_PROBE_PLMN);
+        at(cmd, 120000);
+        return;
+    }
+    int mode;
+    const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
+    if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1 && mode != 0) {
+        at("AT+COPS=0", 120000);
+    }
+}
+
 // "+CEREG: <n>,<stat>[,...]": registered at home (1) or roaming (5).
 static bool registered(void)
 {
@@ -567,6 +585,7 @@ static long attach(void)
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+    carrier_select();
     oled_line(1, "registering...");
     while (ms_since(t0) < CONFIG_PROBE_ATTACH_S * 1000L) {
         if (registered()) {
