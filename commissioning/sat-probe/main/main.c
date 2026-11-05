@@ -166,11 +166,21 @@ static void sync_and_wait(void)
     int64_t t0 = esp_timer_get_time();
     ask_name("hub.sync");
     bool ended = false;
+    // Ended once the answer reports a sync completed since this one was asked
+    // ("completed": seconds since the last sync ended, no "sync":true pending),
+    // or says {sync-end}. The Notecard drops "status" once the modem is off.
     for (int s = 0; s < SYNC_LIMIT_S && !ended; s += 10) {
         vTaskDelay(pdMS_TO_TICKS(10000));
+        if (!ask_name("hub.sync.status")) {
+            continue;
+        }
         char status[96];
-        ended = ask_name("hub.sync.status") && nc_str(rsp, "status", status, sizeof status) &&
-                strstr(status, "{sync-end}") != NULL;
+        double completed;
+        long elapsed = (long)((esp_timer_get_time() - t0) / 1000000);
+        bool pending = strstr(rsp, "\"sync\":true") != NULL;
+        ended = (nc_str(rsp, "status", status, sizeof status) &&
+                 strstr(status, "{sync-end}") != NULL) ||
+                (!pending && nc_num(rsp, "completed", &completed) && completed <= elapsed);
     }
     printf("satprobe: sync %s after_s=%lld %s\n", ended ? "ended" : "did not end",
            (long long)((esp_timer_get_time() - t0) / 1000000), ended ? "ok" : "CHECK");
