@@ -57,6 +57,7 @@ reused.
 | 32 | ThingsBoard Telemetry | L1 |
 | 33 | Cellular Uplink | L1 |
 | 34 | WiFi Off | cross-cutting |
+| 35 | Direct LTE-M Modem (draft) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -3481,6 +3482,37 @@ Behaviour with WiFi off:
 | FR-34.4, FR-34.8 | Provisioned with `wifi=off` and the bench AP's credentials; USB reset; observe 120 s with the bench AP up | `web: state=WIFI_OFF` ≤ 3000 ms after reset; the bench AP's station list never shows the device; no FR-13.1 SSID in scans | An association with the bench AP; `web: online`; the SoftAP seen | bench |
 | FR-34.9 | As FR-34.4, sleep test build, a summary due on the next timer wake | The window without WiFi, `web: sleep`, `web: wake cause=timer`, L21, `web: sleep`; no WiFi start | A WiFi start on any wake; the panel lit on the timer wake | target |
 | FR-34.6, FR-34.3 | WIFI_OFF; a key window; the bench BLE central reads `settings`, then writes `wifi=on` and applies | The read holds `wifi=off`; `result` `ok`; a restart; `web: state=CONNECTING`, then `web: online` | ONLINE without a restart; PROVISIONING | bench |
+
+---
+
+## 35. Direct LTE-M Modem (draft)
+
+### 35.1 Purpose & peer
+
+A build for the LilyGO T-SIM7080G-S3 (ESP32-S3 with a SIMCom SIM7080G LTE-M /
+NB-IoT modem and an AXP2101 PMU) [user] sends its traffic over an ordinary IP
+link on cellular, PPP through the modem, so the WiFi senders (§25, §31, §32)
+run unchanged with no vendor cloud between the device and its peers. Peers:
+the modem on UART 1; the cellular network, which grants the PSM timers; the
+senders' servers, reached over the internet. The evaluation that measured
+the networks' grants is `docs/Method/project/lte-m-modem.md`.
+
+This section is a draft: its numbers and the 60 s limit wait for the user's
+approval, and it has no verification contracts yet.
+
+### 35.2 Requirements
+
+- **FR-35.1** [Must] [user] The device shall adapt to the network's PSM
+  grant. On each full attach it shall read the granted active time (T3324)
+  and periodic TAU (T3412 extended). When PSM is not granted, or the active
+  time is over 60 s [proposed], it shall power the modem off between readings
+  and attach cold at the next one. Otherwise it shall leave the modem in PSM
+  and resume without a new attach.
+- **FR-35.2** [Must] [user] The build shall drive an e-paper display above
+  40 °F and an OLED below it.
+- **FR-35.3** [Must] [user] The build shall take an off-board button.
+- **FR-35.4** [Must] [user] The build shall read its settings from a microSD
+  card.
 
 ---
 
