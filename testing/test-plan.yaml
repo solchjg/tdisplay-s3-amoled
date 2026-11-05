@@ -3706,3 +3706,14 @@ tests:
     observable: "61 raw bytes with vmin and vmax; the template adds both as float16; a value past 65504 clamps to 65504 and is flagged"
     impl: tests/host/test_sat_day.py::test_minmax_variant
     result: {status: not done}
+
+  - id: TC-SAT-05
+    title: "sat-probe's compiled-in sample days pack as the reference"
+    shape: atomic
+    kind: standard
+    tier: host
+    verifies: []
+    needs: []
+    observable: "main/sample_days.h equals sat_ref.py's output; its 4 days pack to the reference averages and miss masks (the 8 Nov outage, the edge day's missing and too-big hours) and the route gives the reference telemetry"
+    impl: [tests/host/test_sat_day.py::test_sample_days_header_is_the_generator_output, tests/host/test_sat_day.py::test_sample_days_pack_as_the_reference]
+    result: {status: not done}

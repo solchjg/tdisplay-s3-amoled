@@ -1,0 +1,34 @@
+menu "Satellite probe"
+
+config PROBE_PRODUCT
+    string "Notehub ProductUID (empty: leave hub.set as it is)"
+    default ""
+    help
+        With a ProductUID the probe sends hub.set (mode periodic, outbound 60,
+        inbound 1440) when the Notecard differs, as notecard-probe does.
+
+choice PROBE_TRANSPORT
+    prompt "Transport for the trial"
+    default PROBE_CELL
+    help
+        Stage 2 sends the day notes over cellular; stage 3 over Skylo only.
+        The templates must have reached Notehub over cellular once before a
+        run with ntn: run cell first on the same Notecard.
+
+config PROBE_CELL
+    bool "cell (stage 2: any cellular Notecard)"
+
+config PROBE_NTN
+    bool "ntn (stage 3: Notecard for Skylo, satellite only)"
+
+endchoice
+
+config PROBE_MINMAX
+    bool "Send the 61-byte variant with the day's minimum and maximum"
+    default n
+
+config PROBE_OVERSIZE
+    bool "Also send one 280-byte note to big.qo (Skylo should drop it)"
+    default n
+
+endmenu

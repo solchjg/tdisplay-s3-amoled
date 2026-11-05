@@ -151,8 +151,9 @@ Other builds sharing the components:
   transport, note timing, optional sync and GPS);
   `commissioning/sat-probe/` — the satellite trial (no FSD section yet): the pure `sat_day`
   packer of the compact `day.qo` note (24 hourly loop averages, 57 bytes), the Notehub route's
-  `route.jsonata` and `tools/sat_ref.py` (reference decoder and sample-data generator), held
-  together by `tests/host/test_sat_day.py`;
+  `route.jsonata`, `tools/sat_ref.py` (reference decoder and sample-data generator, which also
+  writes `main/sample_days.h`) and the program that sends those days through the Notecard over
+  `cell` or `ntn` (Skylo), held together by `tests/host/test_sat_day.py`;
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
   bench tests); `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
   T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`); `commissioning/epaper-probe/` —
