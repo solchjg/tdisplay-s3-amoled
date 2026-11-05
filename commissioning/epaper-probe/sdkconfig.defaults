@@ -1,0 +1,5 @@
+# The CrowPanel ESP32 E-Paper 4.2" carries an ESP32-S3-WROOM-1-N8R8: 8 MB
+# flash. The console stays on the default UART0 with USB-Serial/JTAG as the
+# secondary, so it prints on whichever the board's USB-C port is wired to.
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP=y

@@ -1,0 +1,33 @@
+menu "E-paper probe"
+
+config PROBE_SDA
+    int "Qwiic bus SDA GPIO (a header pin)"
+    default 8
+    range 0 48
+
+config PROBE_SCL
+    int "Qwiic bus SCL GPIO (a header pin)"
+    default 9
+    range 0 48
+
+config PROBE_SPI_HZ
+    int "Panel SPI clock in Hz"
+    default 4000000
+    range 1000000 20000000
+
+config PROBE_PARTIALS
+    int "Partial refreshes to time after the full one"
+    default 5
+    range 0 50
+
+config PROBE_SLEEP_S
+    int "Deep sleep between runs in seconds (0: stay awake)"
+    default 60
+    range 0 86400
+    help
+        Before sleeping the probe puts the panel in deep sleep and cuts its
+        supply (GPIO 7 low, held), so the last screen stays visible at zero
+        panel power. Measure the board's sleep current from the battery
+        connector with USB unplugged.
+
+endmenu
