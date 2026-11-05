@@ -5,13 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project state
 
 ESP-IDF v6.0.2 firmware for the LilyGO T-Display-S3 AMOLED 1.91" (ESP32-S3,
-RM67162 AMOLED over QSPI), verified on the Embedded AI Harness testbench. It is
-cloned from `tdisplay-s3-webserver` with the display layer moved to the AMOLED. The repo is cloned from the `tdisplay-s3-hello`
-base: the firmware still runs the "hello" display (two text lines, uptime
-counter). **The webserver is not yet specified** — the FSD is a stub
-(`document_status: stub`), so no webserver code should be written until `/define`
-has produced approved requirements. Leftover `hello_*` names, FSD section
-references (§5–§10) and test IDs come from the base project.
+RM67162 AMOLED over QSPI), verified on the Embedded AI Harness testbench: a
+weather station with a WiFi portal and web status, BLE setup,
+summary email, push alerts, a 4-20 mA input, a reading history in flash and an
+optional cellular uplink. The FSD (`document_status: draft`) defines it; work
+follows its requirements. FSD section numbers below 13 and some test IDs come
+from the `tdisplay-s3-hello` base and keep their meaning.
 
 ## Commands
 
@@ -27,7 +26,7 @@ idf.py -B build -DSDKCONFIG=$PWD/build/sdkconfig build
 # Lint + host tests (what ci.yml runs)
 ruff check .
 pytest tests/host -q
-pytest tests/host/test_hello_logic.py -k <name>        # single test
+pytest tests/host/test_device_logic.py -k <name>       # single test
 
 # Inspect a build against FSD constraints (skips without BUILD_OUTPUT)
 BUILD_OUTPUT=build pytest tests/host/test_build.py -v -rs
@@ -64,9 +63,9 @@ closed-loop skills `/define` (Phase 0), `/harness` (1), `/commission` (2),
 Layered components; dependencies point one way (lower layers never include
 higher ones — use callbacks registered in `app_main` if the need seems to invert):
 
-- `components/hello_logic/` (L2) — pure C, no ESP-IDF headers. A transition
-  function `hello_step(state, event, guard) → {next, actions}`; it decides, it
-  never performs I/O.
+- `components/device_logic/` (L2) — pure C, no ESP-IDF headers. The connectivity
+  states (FSD §5.3, BOOT … WIFI_OFF), the screen lines and the transition steps
+  (`dl_*_step`); it decides and returns actions, it never performs I/O.
 - `components/lcd/` (L1) — this app's text display, composed from the L0
   parts below. Every call returns `esp_err_t`; it never retries or aborts
   (policy belongs to the logic layer). The layout (`lcd_layout.c`) is a pure core.
@@ -79,7 +78,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/setup_check/` (L1) — the setup check (FSD §24): the pending mark
   in NVS and the keys that end the hold (user key GPIO 21, BOOT GPIO 0); `setup_check_core.c` is the pure debouncer.
   When to hold is `device_logic`'s `dl_hold_step`.
-- `components/hello_log/` (L1) — serial log lines; `hello_log_format.c` is the pure core.
+- `components/web_log/` (L1) — the `web:` serial log lines (FSD §7); `web_log_format.c` is the pure core.
 - `components/weather/` (L1) — the BME280 task's readings and period averages (FSD §23): kept in RTC
   memory, shown on line 4, logged (L21/L22), served at `/api/readings`;
   `weather_core.c` is the pure core. The sensor driver is `shared/components/bme280/`.
@@ -144,6 +143,9 @@ Other builds sharing the components:
   `SLEEP_S` (10 or 300) seconds twice per power-on (FSD §21.3); test artefact only.
 - `tests/target/mail_fast/` — shipped `main/` with one `mail_every` unit worth 5
   minutes instead of an hour (FSD §25); test artefact only.
+- `tests/target/hang/` — shipped `main/` with a test-only hang (`app` task or `http`
+  handler) for the watchdog tests; `tests/target/no_network/` — shipped `main/` that
+  never starts a station attempt (FR-5.24 rollback); test artefacts only.
 - `commissioning/{forward-path,lcd-probe,wifi-probe,button-probe}/` — Phase 2 bring-up programs;
   `commissioning/notecard-probe/` — the Notecard bring-up (FSD §33, Phase 15: bus, version,
   transport, note timing, optional sync and GPS);
@@ -177,12 +179,17 @@ Other builds sharing the components:
   chip) — use the testbench's serial monitor. Use unanchored monitor patterns.
 - Flash via `/api/flash` with the build's `flash_args` plus the images it names
   (see `flash_coldflash` in `tests/bench/conftest.py`). Leave the rig with the
-  shipped build flashed.
+  shipped build flashed and the DUT ONLINE on the bench AP (`tds3-bench`); the
+  bench pytest session's teardown starts the AP for that.
+- The bench runs `solchjg/Embedded-AI-Harness` `main`, which also provides the
+  pytest `TestbenchDriver`. After a harness merge, on the Pi:
+  `sudo bash pi/update-bench.sh --pin SLOT1=48:27:E2:EA:48:3C`.
 
 ## CI
 
 - `ci.yml` — ruff + host tests; builds the devcontainer and checks IDF v6.0.2.
-- `build.yml` — firmware + lcd_fault builds on push and on pull requests; on `v*.*.*` tags, flashes the
+- `build.yml` — the firmware and the test builds (lcd-fault, no-network, hang, sleep,
+  mail-fast) on push and on pull requests; on `v*.*.*` tags, flashes the
   built bytes and runs the journey on the self-hosted `testbench` runner (from
   `.devcontainer/`), and releases only if that passes.
 - `commissioning.yml` — builds the commissioning programs.
