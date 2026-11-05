@@ -215,3 +215,50 @@ def test_dst_fall_back_day_still_24_hours(run, tmp_path):
     body, *_ = pack(run, tmp_path, rows, t0 + DAY + 5)
     assert body["t0"] == t0 and body["miss"] == 0
     assert [p["ts"] // 1000 - t0 for p in route(body, "tank")] == [h * 3600 for h in range(24)]
+
+
+def test_sample_days_header_is_the_generator_output(tmp_path):
+    """sat-probe's compiled-in days are what sat_ref.py generates."""
+    out = tmp_path / "sample_days.h"
+    ref.write_header(out)
+    assert (PROBE / "main" / "sample_days.h").read_text() == out.read_text()
+
+
+PROBE_HARNESS = r"""
+#include <stdio.h>
+#include "sample_days.h"
+#include "sat_day.h"
+
+int main(void)
+{
+    static char buf[2048];
+    for (size_t k = 0; k < sizeof sp_days / sizeof sp_days[0]; k++) {
+        sd_day_t d;
+        sd_begin(&d, sd_window_start(sp_days[k].now));
+        for (uint16_t i = 0; i < sp_days[k].n; i++) {
+            sd_add(&d, sp_days[k].rows[i].t, sp_days[k].rows[i].v);
+        }
+        sd_note_t n;
+        sd_finish(&d, &n);
+        sd_body_json(&n, false, buf, sizeof buf);
+        printf("%s\n", buf);
+    }
+    return 0;
+}
+"""
+
+
+def test_sample_days_pack_as_the_reference(compile_harness):
+    """What sat-probe sends for each sample day is what the route expects."""
+    run = compile_harness("sat_probe_days", PROBE_HARNESS, [f"{CORE}/sat_day.c"],
+                          [f"{CORE}/include", "../commissioning/sat-probe/main"])
+    bodies = [json.loads(line) for line in run().splitlines()]
+    days = ref.sample_days()
+    assert len(bodies) == len(days) == 4
+    for body, (name, now, rows) in zip(bodies, days):
+        t0, avgs = ref.hourly(rows, now)
+        assert body["t0"] == t0, name
+        assert [body[f"v{i + 1}"] for i in range(24)] == [0 if a is None else a for a in avgs]
+        assert route(body, "tank") == ref.telemetry(rows, now, "tank"), name
+    assert bodies[2]["miss"] == 0b11 << 10                    # 2026-11-08's outage
+    assert bodies[3]["miss"] == 1 << 8 | 1 << 12               # edge: missing, too big

@@ -23,6 +23,19 @@ on:
         description: 'notecard-probe only: seek one GPS fix (PROBE_GPS)'
         type: boolean
         default: false
+      sat_product:
+        description: 'sat-probe only: Notehub ProductUID (PROBE_PRODUCT); empty leaves hub.set alone'
+        required: false
+        default: ''
+      sat_transport:
+        description: 'sat-probe only: cell (stage 2) or ntn (stage 3, Notecard for Skylo)'
+        type: choice
+        options: [cell, ntn]
+        default: cell
+      sat_variant:
+        description: 'sat-probe only: any of minmax, oversize (space separated)'
+        required: false
+        default: ''
       modem_apn:
         description: 'modem-probe only: APN of the SIM (PROBE_APN)'
         required: false
@@ -57,7 +70,7 @@ jobs:
     container: espressif/idf:v6.0.2
     strategy:
       matrix:
-        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe, notecard-probe, epaper-probe, modem-probe]
+        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe, notecard-probe, epaper-probe, modem-probe, sat-probe]
     defaults:
       run:
         shell: bash
@@ -68,7 +81,7 @@ jobs:
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
         with:
-          submodules: true   # lcd-probe, loop-probe, notecard-probe, epaper-probe and modem-probe build shared components
+          submodules: true   # lcd-probe, loop-probe, notecard-probe, epaper-probe, modem-probe and sat-probe build shared components
       # forward-path uses the product's own table (C-10.6), named relative to
       # the project directory; the others ignore the copy.
       - name: Use the shipped partition table
@@ -85,6 +98,21 @@ jobs:
             [ "$SYNC" = true ] && echo "CONFIG_PROBE_SYNC=y"
             [ "$GPS" = true ] && echo "CONFIG_PROBE_GPS=y"
             true; } >> sdkconfig.defaults
+          cat sdkconfig.defaults
+      - name: Probe options (workflow_dispatch)
+        if: matrix.program == 'sat-probe' && github.event_name == 'workflow_dispatch'
+        env:
+          PRODUCT: ${{ inputs.sat_product }}
+          TRANSPORT: ${{ inputs.sat_transport }}
+          VARIANT: ${{ inputs.sat_variant }}
+        run: |
+          case "$PRODUCT" in *[!A-Za-z0-9.:_-]*) echo "FATAL: ProductUID has characters outside FSD 33.3"; exit 1;; esac
+          { echo "CONFIG_PROBE_PRODUCT=\"$PRODUCT\""
+            case "$TRANSPORT" in ntn) echo "CONFIG_PROBE_NTN=y";; *) echo "CONFIG_PROBE_CELL=y";; esac
+            for v in $VARIANT; do
+              case "$v" in minmax) echo "CONFIG_PROBE_MINMAX=y";; oversize) echo "CONFIG_PROBE_OVERSIZE=y";;
+                *) echo "FATAL: unknown sat variant $v" >&2; exit 1;; esac
+            done; } >> sdkconfig.defaults
           cat sdkconfig.defaults
       - name: Probe options (workflow_dispatch)
         if: matrix.program == 'modem-probe' && github.event_name == 'workflow_dispatch'
