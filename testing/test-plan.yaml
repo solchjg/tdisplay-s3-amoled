@@ -3622,7 +3622,7 @@ tests:
     needs: [bench-ble-pair-passkey, bench-wifi-ap, operator-at-bench, dut-amoled-slot1]
     observable: "the settings read holds wifi=off; result ok; a restart; web: state=CONNECTING then web: online on the bench AP"
     impl: tests/bench/test_wifi_off.py::test_ble_write_turns_wifi_back_on
-    result: {status: not done}
+    result: {status: successful, commit: aca5c7e, firmware: "shipped build aca5c7e (WiFi off, PR #67)", date: 2026-11-05, evidence: "operator run by the owner from a phone with the Web Bluetooth page: key window, wifi=off saved (screen WiFi off), key window, wifi=on saved, restart, ONLINE on tds3-bench; owner reported the pass in the project thread"}
 
   - id: TC-WOFF-11
     title: "With WiFi off the window runs without WiFi and timer wakes start none"
