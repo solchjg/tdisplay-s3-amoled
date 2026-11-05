@@ -91,6 +91,7 @@ def test_timer_wakes_start_no_wifi(bench, dut, wifi_off):
     assert res.get("ok"), res
     assert bench.serial_monitor(dut, pattern="state=PROVISIONING", timeout=30).get("matched")
     stop_bench_ap(bench)
+    mark = time.time()
     bench.sta_join(SOFTAP_SSID, timeout=30)
     try:
         body = f"wifi=off&ssid={BENCH_SSID}&password={BENCH_PASS}".encode()
@@ -99,7 +100,6 @@ def test_timer_wakes_start_no_wifi(bench, dut, wifi_off):
     finally:
         bench.sta_leave()
     assert code == 200, code
-    mark = time.time()
     bench.ap_start(BENCH_SSID, BENCH_PASS)
     joined = []
     # The window, 10 s asleep, a lean wake, 10 s asleep, a lean wake, then awake.
