@@ -167,6 +167,12 @@ shipped build's so the bench can tell the two apart in the boot line.
 `app` blocks the application task 20 s after startup, `http` adds a `GET /hang`
 handler that never returns.
 
+### Fast mail build (FSD §25)
+
+`tests/target/mail_fast/`: the shipped `main/` with `SM_EVERY_UNIT_S` set to 300,
+so one `mail_every` unit is 5 minutes instead of an hour. It keeps the stored
+settings, so a flash without an erase needs no new provisioning.
+
 ## Wiring
 
 Fritzing sketches of every wired subsystem (board and BME280, the 4-20 mA loop, the
@@ -211,3 +217,8 @@ power and data figures, are in [`blues-cellular.md`](blues-cellular.md).
   up about a second), the bench re-attaches and the chip takes a USB reset, which clears RTC
   memory; the serial ring also loses about the first second after each restart. Evidence that
   must outlive a restart goes to NVS (the sleep build's `sleeptest:` boot history).
+- A wake that sends a summary stays up long enough for that re-attach, so on the bench
+  USB each summary covers only its boot's readings and has no table. A test of summaries
+  across wakes runs with the board off the bench USB, its emails as the evidence.
+- The DUT's station MAC is in eFuse and survives flashes and factory resets. The router
+  reserves `192.168.40.150` for it on the `IOTID` network.

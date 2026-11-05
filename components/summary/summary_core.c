@@ -9,6 +9,9 @@
 #include "portal_core.h"
 
 #define DAY_S 86400
+#ifndef SM_EVERY_UNIT_S
+#define SM_EVERY_UNIT_S 3600  // tests/target/mail_fast shortens it
+#endif
 
 // ── Settings (FR-25.1, §25.2) ────────────────────────────────────────────
 
@@ -210,7 +213,7 @@ int64_t sm_local_seconds(int year, int month, int day, int hour, int min, int se
 
 int64_t sm_slot(const sm_settings_t *s, int64_t local)
 {
-    int64_t mt = (int64_t)s->time_min * 60, step = (int64_t)s->every_h * 3600;
+    int64_t mt = (int64_t)s->time_min * 60, step = (int64_t)s->every_h * SM_EVERY_UNIT_S;
     int64_t since = ((local - mt) % DAY_S + DAY_S) % DAY_S;  // since the last mail_time
     return local - since + since / step * step;
 }
