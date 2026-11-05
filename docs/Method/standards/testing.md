@@ -46,7 +46,8 @@ Anything else needs a profile change in the FSD first.
 - **Prefer the instrument's own API** (testbench serial monitor, reset, operator
   prompt) to raw access.
 - **Verify the precondition; if it fails record `not done`, never `failed`.**
-- **Leave the rig as you found it** — shipped build flashed, DUT reset.
+- **Leave the rig as you found it** — shipped build flashed, DUT reset and ONLINE on
+  the bench AP. The bench pytest session ends by starting a fresh bench AP for that.
 
 ## P-RESET — USB reset of SLOT1
 

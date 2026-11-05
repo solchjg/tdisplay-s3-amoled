@@ -71,10 +71,9 @@ capabilities:
   bench-jtag-reset:
     what: Reset SLOT1 through its built-in USB-JTAG in a debug session, keeping the serial proxy up (Harness debug + serial reset)
     available: yes
-    # Usage note (2026-10-23, a1e1600 run 1): once, right after a flash, the
-    # JTAG reset did not reset the chip (capture held no `rst:` line; device
-    # uptime continued from the flash). The immediate re-run was clean. One
-    # occurrence; file with the bench owner if it recurs.
+    # Usage note: now and then a capture holds no `rst:` line (seen 2026-10-23
+    # right after a flash, and twice on 2026-11-05); an immediate re-run is
+    # clean. conftest.reset_and_follow resets once more when that happens.
     # One boot, lines live in the ring with bench timestamps; the 5 s capture
     # is re-pushed as a block sharing one timestamp (conftest.reset_and_follow).
   bench-operator-prompt:
