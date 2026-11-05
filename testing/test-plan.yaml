@@ -3623,3 +3623,16 @@ tests:
     observable: "the settings read holds wifi=off; result ok; a restart; web: state=CONNECTING then web: online on the bench AP"
     impl: tests/bench/test_wifi_off.py::test_ble_write_turns_wifi_back_on
     result: {status: not done}
+
+  - id: TC-WOFF-11
+    title: "With WiFi off the window runs without WiFi and timer wakes start none"
+    shape: journey
+    kind: negative
+    wave: 2
+    fsd_phase: 16
+    tier: target
+    verifies: [FR-34.9, FR-21.12]
+    needs: [seam-sleep-build, bench-flash, bench-wifi-ap, bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1]
+    observable: "the sleep build provisioned with wifi=off and the bench network stored: L2 WIFI_OFF, L18 sleep s=10 after the window, two timer wakes in the boot history; the bench AP, up with the stored network's name, never lists the device; no CONNECTING, web: online or station mode in the log"
+    impl: tests/bench/test_wifi_off.py::test_timer_wakes_start_no_wifi
+    result: {status: not done}
