@@ -127,7 +127,7 @@ Measured with the Hologram SIM at the bench, one network locked per build, PSM o
 | AT&T (310410) | 12 | 16.9 s | 16 s, 3600 s | no (SNTP); set by the next run | 9.5 s |
 
 T-Mobile and AT&T grant about what the modem asks; Verizon keeps the modem awake 5 minutes after each run.
-A lock is refused (`+CME ERROR: SIM failure`) until the SIM is up after `AT+CFUN=1`, so the probe retries it.
+A lock is refused (`+CME ERROR: SIM failure`) until the SIM is up after `AT+CFUN=1`, so the probe retries it. The modem keeps a lock through power-off; a build with no network set undoes it (`network lock undone`), and on automatic choice this SIM now picks AT&T at the bench.
 
 ## Antenna
 
