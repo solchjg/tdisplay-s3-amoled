@@ -85,10 +85,13 @@
 
 #if defined(CONFIG_PROBE_RAT_NB)
 #define RAT_CMD "AT+CMNB=2"
+#define COPS_ACT ",9"
 #elif defined(CONFIG_PROBE_RAT_BOTH)
 #define RAT_CMD "AT+CMNB=3"
+#define COPS_ACT ""
 #else
 #define RAT_CMD "AT+CMNB=1"
+#define COPS_ACT ",7"
 #endif
 #ifdef CONFIG_PROBE_GPS
 #define PROBE_GPS 1
@@ -353,6 +356,10 @@ static void pwrkey_pulse(void)
     gpio_set_level(PIN_MODEM_PWRKEY, 0);
 }
 
+// The wake and PSM-resume lines come before USB connects after a timer wake,
+// so report() prints them again.
+static char wake_line[160], resume_line[96];
+
 static bool modem_wake(void)
 {
     int64_t t0 = esp_timer_get_time();
@@ -372,10 +379,12 @@ static bool modem_wake(void)
         }
     }
     long ms = ms_since(t0);
-    printf("modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld "
-           "tries=%d+%d\n",
-           pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0,
-           ask_tries, after_tries);
+    snprintf(wake_line, sizeof wake_line,
+             "modemprobe: modem answers pwrkey=%s ms=%ld ask_ms=%ld pulse_ms=%ld after_ms=%ld "
+             "tries=%d+%d",
+             pulsed ? "pulsed" : "no", ms, ask_ms, pulse_ms, pulsed ? ms - ask_ms - pulse_ms : 0,
+             ask_tries, after_tries);
+    printf("%s\n", wake_line);
     return true;
 }
 
@@ -436,20 +445,52 @@ static void modem_info(void)
 
 // With PROBE_PLMN set, lock the modem to that network (manual selection,
 // no fallback, so a refused roam shows as no registration). Without it, undo
-// a lock an earlier build left: the modem keeps the selection mode.
+// a lock an earlier build left (mode 1 or 4): the modem keeps the selection
+// mode. Mode 2 shows while the radio comes up and is left alone.
 static void carrier_select(void)
 {
     char cmd[40];
     if (CONFIG_PROBE_PLMN[0] != '\0') {
-        snprintf(cmd, sizeof cmd, "AT+COPS=1,2,\"%s\"", CONFIG_PROBE_PLMN);
-        at(cmd, 120000);
+        // Like CPSMS, the lock is refused until the SIM is up after CFUN=1.
+        // A try that runs to the timeout means the modem stopped answering,
+        // so it is not repeated.
+#ifdef CONFIG_PROBE_PLMN_FALLBACK
+        const int cops_mode = 4;  // the named network first, then automatic
+#else
+        const int cops_mode = 1;  // the named network only
+#endif
+        snprintf(cmd, sizeof cmd, "AT+COPS=%d,2,\"%s\"" COPS_ACT, cops_mode, CONFIG_PROBE_PLMN);
+        for (int i = 0; i < 15; i++) {
+            int64_t t = esp_timer_get_time();
+            if (at(cmd, 120000)) {
+                return;
+            }
+            if (ms_since(t) > 60000) {
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        printf("modemprobe: network lock %s refused CHECK\n", CONFIG_PROBE_PLMN);
         return;
     }
-    int mode;
-    const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
-    if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1 && mode != 0) {
-        at("AT+COPS=0", 120000);
+    // The modem keeps a lock through power-off. Right after CFUN=1 it reports
+    // mode 2 and refuses AT+COPS=0 until the SIM is up, so ask again until it
+    // shows the stored mode.
+    for (int i = 0; i < 15; i++) {
+        int mode;
+        const char *p = at("AT+COPS?", AT_TIMEOUT_MS) ? strstr(out, "+COPS: ") : NULL;
+        if (p != NULL && sscanf(p, "+COPS: %d", &mode) == 1) {
+            if (mode == 0) {
+                return;
+            }
+            if ((mode == 1 || mode == 4) && at("AT+COPS=0", 120000)) {
+                printf("modemprobe: network lock undone\n");
+                return;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
+    printf("modemprobe: network lock state unknown CHECK\n");
 }
 
 // "+CEREG: <n>,<stat>[,...]": registered at home (1) or roaming (5).
@@ -555,18 +596,32 @@ static long attach(void)
     char cmd[96];
     // A modem woken from PSM keeps its registration: use it rather than
     // cycling the radio, which forces a full attach and spends the saving.
+    // The modem answers AT a moment before it reports its kept registration,
+    // so ask for a few seconds before falling back to a full attach.
     if (PROBE_PSM && runs > 1) {
         int64_t t = esp_timer_get_time();
-        if (registered()) {
-            long ms = ms_since(t);
-            printf("modemprobe: registered attach_ms=%ld psm_resume ok\n", ms);
-            network_line();
-            oled_line(2, "PSM resume CSQ %d", csq_now());
-            return ms;
-        }
-        printf("modemprobe: not registered after PSM, full attach\n");
+        int tries = 0;
+        do {
+            if (++tries > 1) {
+                vTaskDelay(pdMS_TO_TICKS(500));
+            }
+            if (registered()) {
+                long ms = ms_since(t);
+                snprintf(resume_line, sizeof resume_line,
+                         "modemprobe: registered attach_ms=%ld psm_resume ok tries=%d", ms, tries);
+                printf("%s\n", resume_line);
+                network_line();
+                oled_line(2, "PSM resume CSQ %d", csq_now());
+                return ms;
+            }
+        } while (ms_since(t) < 5000);
+        snprintf(resume_line, sizeof resume_line,
+                 "modemprobe: not registered after PSM ms=%ld tries=%d, full attach CHECK",
+                 ms_since(t), tries);
+        printf("%s\n", resume_line);
     }
     at("AT+CFUN=0", 10000);
+    at("AT+CMEE=2", AT_TIMEOUT_MS);   // errors as text, so a refusal says why
     at("AT+CNMP=38", AT_TIMEOUT_MS);  // LTE only
     at(RAT_CMD, AT_TIMEOUT_MS);
     snprintf(cmd, sizeof cmd, "AT+CGDCONT=1,\"IP\",\"%s\"", CONFIG_PROBE_APN);
@@ -575,6 +630,7 @@ static long attach(void)
     at("AT+CLTS=1", AT_TIMEOUT_MS);   // keep the modem clock set from the network
     int64_t t0 = esp_timer_get_time();
     at("AT+CFUN=1", 10000);
+    carrier_select();
     // The modem answers CPSMS with ERROR until the SIM is up again after
     // CFUN=1, so retry for a few seconds.
     // TAU 1 h (unit 1 h, value 1), active time 10 s (unit 2 s, value 5).
@@ -585,7 +641,6 @@ static long attach(void)
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
-    carrier_select();
     oled_line(1, "registering...");
     while (ms_since(t0) < CONFIG_PROBE_ATTACH_S * 1000L) {
         if (registered()) {
@@ -620,7 +675,8 @@ static int64_t days_from_civil(int y, int m, int d)
 // Sets the system clock from the modem's network time, AT+CCLK? answering
 // "yy/MM/dd,hh:mm:ss+zz": local time, zz in quarter hours east of UTC. The
 // modem keeps that clock through PSM, so it costs no airtime. False when the
-// modem has no network time yet (its default year is 1980), so SNTP is tried.
+// modem has no network time yet (its default year is 1980, read as "80"), so
+// SNTP is tried.
 static bool clock_from_network(void)
 {
     int yy, mo, dd, hh, mi, ss, zz;
@@ -628,7 +684,7 @@ static bool clock_from_network(void)
     const char *p = at("AT+CCLK?", AT_TIMEOUT_MS) ? strstr(out, "+CCLK: \"") : NULL;
     if (p == NULL || sscanf(p + 8, "%2d/%2d/%2d,%2d:%2d:%2d%c%2d", &yy, &mo, &dd, &hh, &mi, &ss,
                             &sign, &zz) != 8 ||
-        yy < 24 || (sign != '+' && sign != '-')) {
+        yy < 24 || yy >= 80 || (sign != '+' && sign != '-')) {
         printf("modemprobe: network time none, sntp next\n");
         return false;
     }
@@ -783,6 +839,12 @@ static void report(int64_t t_boot)
            runs, ms_since(t_boot), attach_ok, runs, attach_ok ? attach_ms_sum / attach_ok : 0,
            tb_ok, tb_tries, ntfy_ok, ntfy_tries, vbat_mv());
     battery_status();  // again here: after a timer wake USB connects too late for the boot line
+    if (wake_line[0] != '\0') {
+        printf("%s\n", wake_line);
+    }
+    if (resume_line[0] != '\0') {
+        printf("%s\n", resume_line);
+    }
     oled_line(4, "awake %lds %u.%02uV", ms_since(t_boot) / 1000, vbat_mv() / 1000,
               vbat_mv() % 1000 / 10);
 }
