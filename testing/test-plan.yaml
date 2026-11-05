@@ -3660,3 +3660,49 @@ tests:
     observable: "the sleep build provisioned with wifi=off and the bench network stored: L2 WIFI_OFF, L18 sleep s=10 after the window, two timer wakes in the boot history; the bench AP, up with the stored network's name, never lists the device; no CONNECTING, web: online or station mode in the log"
     impl: tests/bench/test_wifi_off.py::test_timer_wakes_start_no_wifi
     result: {status: successful, commit: 4eae517, firmware: "shipped build aca5c7e; sleep-10 build aca5c7e for TC-WOFF-11", date: 2026-11-05, evidence: "same run; no join to the bench AP over the polling window, sleep s=10, at least 2 timer wakes in the NVS history; evidence-83/wifi-off-timer.log on the bench PC"}
+
+  # Satellite trial (stage 1 of the "Satellite data trial plan"): no FSD rule
+  # yet, so these verify no requirement until /define writes the section.
+  - id: TC-SAT-01
+    title: "day.qo float16 matches IEEE round to nearest even"
+    shape: atomic
+    kind: standard
+    tier: host
+    verifies: []
+    needs: []
+    observable: "600 random values and the edges (65504, 65520, subnormals, 0) give the same float16 bits as Python's struct 'e'; past 65504 is infinity"
+    impl: tests/host/test_sat_day.py::test_f16_matches_ieee_round_to_nearest_even
+    result: {status: not done}
+
+  - id: TC-SAT-02
+    title: "Synthetic loop days round-trip through the packer and the Notehub route"
+    shape: atomic
+    kind: standard
+    tier: host
+    verifies: []
+    needs: []
+    observable: "each of 6 synthetic days: 57 raw bytes that decode to the note body; the body's hourly float16 averages and miss mask equal the Python reference; the route JSONata gives the reference ThingsBoard telemetry; the outage hours are gaps"
+    impl: [tests/host/test_sat_day.py::test_synthetic_set_is_the_generator_output, tests/host/test_sat_day.py::test_synthetic_days_round_trip, tests/host/test_sat_day.py::test_synthetic_outage_hours_are_gaps]
+    result: {status: not done}
+
+  - id: TC-SAT-03
+    title: "Edge days: gaps, range ends and the float16 limit"
+    shape: atomic
+    kind: negative
+    tier: host
+    verifies: []
+    needs: []
+    observable: "no readings, failed readings, missing hours and readings outside the window set exactly the expected miss bits; 0, negatives and out-of-range loop values pack within 0.05 %; an average past 65504 is reported and missing, never infinity; a DST day still has 24 UTC slots"
+    impl: [tests/host/test_sat_day.py::test_edge_gaps, tests/host/test_sat_day.py::test_edge_values, tests/host/test_sat_day.py::test_dst_fall_back_day_still_24_hours]
+    result: {status: not done}
+
+  - id: TC-SAT-04
+    title: "day.qo with the day's minimum and maximum is 61 bytes"
+    shape: atomic
+    kind: standard
+    tier: host
+    verifies: []
+    needs: []
+    observable: "61 raw bytes with vmin and vmax; the template adds both as float16; a value past 65504 clamps to 65504 and is flagged"
+    impl: tests/host/test_sat_day.py::test_minmax_variant
+    result: {status: not done}

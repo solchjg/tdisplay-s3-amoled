@@ -1,0 +1,16 @@
+(
+  /* Notehub route transform for day.qo (Satellite data trial plan):
+     the 24 hourly loop averages back into ThingsBoard telemetry, oldest first,
+     skipping the hours whose miss bit is set. Set $name to the loop_name. */
+  $name := "loop";
+  $b := body;
+  [$map(
+    $filter([1..24], function($i) { $floor($b.miss / $power(2, $i - 1)) % 2 = 0 }),
+    function($i) {
+      {
+        "ts": ($b.t0 + ($i - 1) * $b.step) * 1000,
+        "values": { $name: $round($lookup($b, "v" & $i), 3) }
+      }
+    }
+  )]
+)
