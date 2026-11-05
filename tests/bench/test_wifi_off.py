@@ -38,6 +38,19 @@ def _ssids(bench):
     return {n.get("ssid") for n in bench.scan().get("networks", [])}
 
 
+def _gone(bench, ssid, timeout=45):
+    """True once a scan no longer lists ssid. The bench's scan can report a
+    network for some seconds after its last beacon, so one early scan that
+    still lists it does not show the network is up."""
+    end = time.time() + timeout
+    while True:
+        if ssid not in _ssids(bench):
+            return True
+        if time.time() >= end:
+            return False
+        time.sleep(5)
+
+
 # TC-WOFF-08 · FR-34.5, FR-34.7, FR-34.1: the portal takes WiFi off without a
 # network name; the device enters WIFI_OFF without restarting and drops its SoftAP
 def test_portal_submission_turns_wifi_off(bench, dut, wifi_off):
@@ -57,7 +70,9 @@ def test_portal_submission_turns_wifi_off(bench, dut, wifi_off):
     assert any("web: state=WIFI_OFF" in ln for ln in ring), "no L2 WIFI_OFF (FR-34.7)"
     assert not any(ln.startswith("rst:") for ln in ring), "the device restarted (FR-34.5)"
     assert not any("state=CONNECTING" in ln for ln in ring), "a station attempt started"
-    assert SOFTAP_SSID not in _ssids(bench), "the SoftAP stayed up (FR-34.5)"
+    # esp_wifi_stop logs this as the radio stops: the SoftAP is down on the device.
+    assert any("wifi:lmac stop hw txq" in ln for ln in ring), "the WiFi driver did not stop"
+    assert _gone(bench, SOFTAP_SSID), "the SoftAP stayed up (FR-34.5)"
 
 
 # TC-WOFF-09 · FR-34.4, FR-34.8: after a reset WiFi stays off: WIFI_OFF within
