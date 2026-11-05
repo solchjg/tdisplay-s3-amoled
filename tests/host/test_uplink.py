@@ -87,7 +87,12 @@ int main(int argc, char **argv)
         if (ul_parse(argv[2], strlen(argv[2]), &none, &s)) {
             printf("bad");
         } else {
-            printf("%s %s", via(ul_alert_via(&s)), via(ul_mail_via(&s)));
+            bool on;
+            if (ul_parse_wifi(argv[2], strlen(argv[2]), true, &on)) {
+                printf("bad wifi");
+                return 0;
+            }
+            printf("%s %s", via(ul_gate(ul_alert_via(&s), on)), via(ul_gate(ul_mail_via(&s), on)));
         }
     } else if (!strcmp(argv[1], "alert")) {
         size_t n = ul_alert_body(buf, argc > 7 ? (size_t)atoi(argv[7]) : sizeof buf, argv[2],
@@ -314,3 +319,18 @@ def test_gps_none_held_then_a_fix(ul):
 def test_gps_a_cell_tower_location_is_not_a_fix(ul):
     tower = _loc(1762141000, status="GPS search (19 sec) {gps-active} {gps-signal}")
     assert ul("answers", 1762140500, tower) == "N after=1762140500"
+
+
+# TC-WOFF-07 · FR-34.1, FR-34.10, FR-34.11 (core): with WiFi off nothing goes over
+# WiFi; notes still go over cellular
+@pytest.mark.parametrize("body,want", [
+    ("wifi=on", "wifi wifi"),
+    ("wifi=", "wifi wifi"),                               # empty keeps the stored (on)
+    ("wifi=off", "none none"),                            # FR-34.11: nothing is sent
+    ("wifi=off&cell_mail=route", "none none"),
+    (f"wifi=off&uplink=cell&nh_product={P}", "cell none"),             # FR-34.10
+    (f"wifi=off&uplink=cell&nh_product={P}&cell_mail=route", "cell cell"),
+    ("wifi=no", "bad wifi"),
+])
+def test_via_with_wifi_off(ul, body, want):
+    assert ul("via", body) == want

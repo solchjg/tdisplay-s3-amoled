@@ -92,7 +92,7 @@ bool oled_start(int sda, int scl)
                : i2c_master_probe(bus, 0x3D, 50) == ESP_OK ? 0x3D
                                                             : 0;
     if (addr == 0) {
-        printf("modemprobe: oled none at 0x3c or 0x3d (SDA %d, SCL %d)\n", sda, scl);
+        printf("oled: none at 0x3c or 0x3d (SDA %d, SCL %d)\n", sda, scl);
         return false;
     }
     esp_lcd_panel_io_handle_t io;
@@ -108,7 +108,7 @@ bool oled_start(int sda, int scl)
     bool ok = esp_lcd_new_panel_io_i2c(bus, &ioc, &io) == ESP_OK;
     sh_io = io;
     ok = ok && sh1106_init();
-    printf("modemprobe: oled sh1106 at 0x%02x %s\n", addr, ok ? "ok" : "CHECK");
+    printf("oled: sh1106 at 0x%02x %s\n", addr, ok ? "ok" : "CHECK");
     if (ok) {
         panel = (esp_lcd_panel_handle_t)io;  // marks the screen present
     }
@@ -124,7 +124,7 @@ bool oled_start(int sda, int scl)
               esp_lcd_new_panel_ssd1306(io, &pc, &panel) == ESP_OK &&
               esp_lcd_panel_reset(panel) == ESP_OK && esp_lcd_panel_init(panel) == ESP_OK &&
               esp_lcd_panel_disp_on_off(panel, true) == ESP_OK;
-    printf("modemprobe: oled ssd1306 at 0x%02x %s\n", addr, ok ? "ok" : "CHECK");
+    printf("oled: ssd1306 at 0x%02x %s\n", addr, ok ? "ok" : "CHECK");
     if (!ok) {
         panel = NULL;
     }

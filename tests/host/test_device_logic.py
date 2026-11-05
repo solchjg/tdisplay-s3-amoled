@@ -26,7 +26,8 @@ static dl_conn_t conn(const char *s)
     return strcmp(s, "BOOT") == 0 ? DL_BOOT
          : strcmp(s, "PROVISIONING") == 0 ? DL_PROVISIONING
          : strcmp(s, "CONNECTING") == 0 ? DL_CONNECTING
-         : strcmp(s, "ONLINE") == 0 ? DL_ONLINE : DL_WIFI_LOST;
+         : strcmp(s, "ONLINE") == 0 ? DL_ONLINE
+         : strcmp(s, "WIFI_OFF") == 0 ? DL_WIFI_OFF : DL_WIFI_LOST;
 }
 
 static dl_wake_t wake(const char *s)
@@ -65,7 +66,7 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "conn") == 0) {
         // conn <state> <event> <guard> <n>
         static const char *ev[] = {"CR", "CS", "IP", "AF", "DC", "RT", "IC", "FR", "OS",
-                                   "OF", "60", "BS"};
+                                   "OF", "60", "BS", "CRO", "CSO"};
         int e = 0;
         while (strcmp(ev[e], argv[3]) != 0) {
             e++;
@@ -73,7 +74,7 @@ int main(int argc, char **argv)
         uint32_t n = (uint32_t)strtoul(argv[5], NULL, 10);
         dl_conn_step_t r = dl_conn_step(conn(argv[2]), (dl_conn_event_t)e, atoi(argv[4]) != 0, n);
         static const char *names[] = {"BOOT", "PROVISIONING", "CONNECTING", "ONLINE",
-                                      "WIFI_LOST"};
+                                      "WIFI_LOST", "WIFI_OFF"};
         printf("%s %u %u", names[r.next], r.actions, r.n);
     } else if (strcmp(argv[1], "sleep") == 0) {
         // sleep <none|timer|key> <s in window> <pending> <provisioned> <ran> <hold 0..3>
@@ -199,7 +200,8 @@ def test_connecting_screen_sanitises_the_ssid(run):
 
 
 # TC-DL-03 · FR-5.31 (core)
-@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
+@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST",
+                                   "WIFI_OFF"])
 def test_no_hello_and_no_uptime_on_any_screen(run, state):
     for line in screen(run, state):
         assert line != "Hello, world!"
@@ -369,7 +371,8 @@ def test_no_task_before_provisioning_is_complete(run):
 
 # TC-WX-03 · FR-23.12, FR-24.13 (core): line 4 is the reading and line 5 the prompt in
 # every state, each empty when none is given
-@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
+@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST",
+                                   "WIFI_OFF"])
 def test_lines_four_and_five_in_every_state(run, state):
     reading = "75.7F Hum 47% 996.62 mbar"
     prompt = "Press flashing LED to start 30:00"
@@ -504,7 +507,8 @@ def test_t14_ble_settings_store_and_restart(run):
 
 # TC-DL-12 · FR-29.8, FR-6.14 (core): line 6 holds the add-on values in every
 # state, cut at 44 characters; lines 1 - 5 stay cut at 33
-@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST"])
+@pytest.mark.parametrize("state", ["BOOT", "PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST",
+                                   "WIFI_OFF"])
 def test_line_six_in_every_state(run, state):
     lines = run("screen", state, *ONLINE[1:], "r", "p", "Tank 12.346 psi").split("\n")
     assert lines[5] == "Tank 12.346 psi"
@@ -516,3 +520,40 @@ def test_line_six_is_cut_at_44_and_line_four_at_33(run):
     lines = run("screen", "ONLINE", *ONLINE[1:], "R" * 40, "", "L" * 50).split("\n")
     assert lines[3] == "R" * 33
     assert lines[5] == "L" * 44
+
+
+# ── WiFi off (FSD §34) ───────────────────────────────────────────────────
+# CRO: credentials read with `wifi` `off` stored; CSO: a submission with `wifi` `off`.
+
+# TC-WOFF-01 · T15 (FR-34.4): WiFi off at boot starts neither the station nor the SoftAP
+def test_t15_wifi_off_at_boot(run):
+    assert conn(run, "BOOT", "CRO") == ("WIFI_OFF", 0, 0)
+    for state in ("PROVISIONING", "CONNECTING", "ONLINE", "WIFI_LOST", "WIFI_OFF"):
+        assert conn(run, state, "CRO") == (state, 0, 0), f"{state} x CR is impossible"
+
+
+# TC-WOFF-02 · T16 (FR-34.5): a valid WiFi-off submission stores, stops the SoftAP
+# and enters WIFI_OFF without restarting or starting the station
+def test_t16_wifi_off_submission(run):
+    nxt, acts, _ = conn(run, "PROVISIONING", "CSO", guard=1)
+    assert nxt == "WIFI_OFF"
+    assert acts == cacts(run, "STORE_CREDS", "STOP_SOFTAP", "MARK_SETUP")
+    assert conn(run, "PROVISIONING", "CSO", guard=0) == ("PROVISIONING", 0, 0), "T4"
+    for state in ("BOOT", "CONNECTING", "ONLINE", "WIFI_LOST", "WIFI_OFF"):
+        assert conn(run, state, "CSO", guard=1) == (state, 0, 0), f"{state} x CS is impossible"
+
+
+# TC-WOFF-03 · FR-34.6, T10, T14: WIFI_OFF is left only by a restart
+def test_wifi_off_is_left_only_by_a_restart(run):
+    assert conn(run, "WIFI_OFF", "FR") == \
+        ("BOOT", cacts(run, "ABORT_OTA", "ERASE_CREDS", "RESTART"), 0), "T10"
+    assert conn(run, "WIFI_OFF", "BS", guard=1) == \
+        ("BOOT", cacts(run, "STORE_SETTINGS", "RESTART"), 0), "T14"
+    for ev in ("CR", "CS", "IP", "AF", "DC", "RT", "IC", "OS", "OF"):
+        for guard in (0, 1):
+            assert conn(run, "WIFI_OFF", ev, guard=guard) == ("WIFI_OFF", 0, 0), ev
+
+
+# TC-WOFF-04 · FR-34.7, §5.4: the WIFI_OFF screen and its L2 name
+def test_wifi_off_screen(run):
+    assert screen(run, "WIFI_OFF") == ["WiFi off", "Hold key 3 s for BLE", ""]

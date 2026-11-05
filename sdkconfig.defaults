@@ -30,6 +30,7 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
 
 # FSD §25.2: the WiFi and nine mail fields, percent-encoded, fit.
 CONFIG_PORTAL_BODY_MAX=2048
+CONFIG_PORTAL_WIFI_SWITCH=y
 # BLE setup (FSD §26): NimBLE, one central, at most 3 bonds kept in NVS (FR-26.13).
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
@@ -44,4 +45,4 @@ CONFIG_BT_NIMBLE_MAX_BONDS=3
 CONFIG_BLE_SETUP_BOND=y
 CONFIG_BLE_SETUP_BODY_MAX=2048
 # FR-26.19: the field rules with the loop (§29) and alert (§31.2) fields outgrow the 2048 default
-CONFIG_BLE_SETUP_FORM_MAX=4096
+CONFIG_BLE_SETUP_FORM_MAX=6144
