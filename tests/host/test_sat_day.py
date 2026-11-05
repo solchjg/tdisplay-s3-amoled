@@ -91,9 +91,11 @@ def pack(run, tmp_path, rows, now, minmax=False):
 
 
 def route(body, name):
-    """The Notehub route's JSONata, run on the event as Notehub hands it over."""
+    """The Notehub route's JSONata, run on the event as Notehub hands it over:
+    a field whose value is 0 is left out of the body."""
     jsonata = pytest.importorskip("jsonata")
     expr = (PROBE / "route.jsonata").read_text().replace('$name := "loop"', f'$name := "{name}"')
+    body = {k: v for k, v in body.items() if v != 0}
     out = jsonata.Jsonata(expr).evaluate({"file": "day.qo", "body": body})
     return out or []
 

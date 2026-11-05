@@ -1,16 +1,17 @@
 (
-  /* Notehub route transform for day.qo (Satellite data trial plan):
-     the 24 hourly loop averages back into ThingsBoard telemetry, oldest first,
-     skipping the hours whose miss bit is set. Set $name to the loop_name. */
   $name := "loop";
   $b := body;
+  /* Notehub leaves out a field whose value is 0, so a day with no missing
+     hour has no "miss" and an hour averaging 0 has no "v<i>". */
+  $miss := $exists($b.miss) ? $b.miss : 0;
   [$map(
-    $filter([1..24], function($i) { $floor($b.miss / $power(2, $i - 1)) % 2 = 0 }),
-    function($i) {
+    $filter([1..24], function($i) { $floor($miss / $power(2, $i - 1)) % 2 = 0 }),
+    function($i) { (
+      $v := $lookup($b, "v" & $i);
       {
         "ts": ($b.t0 + ($i - 1) * $b.step) * 1000,
-        "values": { $name: $round($lookup($b, "v" & $i), 3) }
+        "values": { $name: $exists($v) ? $round($v, 3) : 0 }
       }
-    }
+    ) }
   )]
 )
