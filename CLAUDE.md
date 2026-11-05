@@ -147,12 +147,11 @@ Other builds sharing the components:
   transport, note timing, optional sync and GPS);
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
   bench tests); `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
-  T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`);
-  `commissioning/lora-survey/` — a LoRaWAN coverage survey on a Heltec WiFi LoRa 32 V3
-  (RadioLib, no FSD section, `docs/Method/project/lora-survey.md`); `commissioning/epaper-probe/` —
+  T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`); `commissioning/epaper-probe/` —
   the e-paper bring-up on an Elecrow CrowPanel ESP32 E-Paper 4.2" (SSD1683 panel, Qwiic bus,
   sleep current; no FSD section yet, `docs/Method/project/crowpanel-epaper.md`); `commissioning/common/oled/`
-  is the probes' SSD1306 status screen. Never released.
+  is the modem probe's SSD1306 status screen. The LoRaWAN site survey for the Heltec
+  lives in `solchjg/lora`. Never released.
 
 ## Testing
 
