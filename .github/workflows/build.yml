@@ -257,6 +257,41 @@ jobs:
           name: sleep-${{ matrix.period }}
           path: tests/target/sleep/out/
 
+  mail-fast:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    defaults:
+      run:
+        shell: bash
+        working-directory: tests/target/mail_fast
+    steps:
+      - name: Trust the workspace
+        working-directory: /
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Use the shipped partition table
+        run: cp "$GITHUB_WORKSPACE/partitions.csv" .
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig \
+                -DSDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/sdkconfig.defaults"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+      - name: Collect flash set from flash_args
+        run: |
+          mkdir -p out
+          cp build/flash_args out/
+          awk '$1 ~ /^0x/ {print $2}' build/flash_args | while read -r f; do
+            cp "build/$f" out/ || { echo "FATAL: missing build/$f"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mail-fast
+          path: tests/target/mail_fast/out/
+
   verify:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
