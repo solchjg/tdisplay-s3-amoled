@@ -32,9 +32,7 @@
 | — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces, and wires each interface's callbacks to `web_log` | all of the above |
 | host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler; `test_lcd_text.py` uses the `compile_harness` fixture in `conftest.py` | the pure cores only |
 
-The `hello_logic` and `hello_log` components are the base project's; `/build`
-replaces them with `device_logic` and `web_log` and moves their tests to the new
-FSD IDs. A component and its `REQUIRES` are added in the phase (FSD §3) whose
+A component and its `REQUIRES` are added in the phase (FSD §3) whose
 requirements first need them, never earlier.
 
 - `device_logic` exposes one transition function per region: (state, event,
