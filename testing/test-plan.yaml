@@ -3594,7 +3594,7 @@ tests:
     tier: bench
     verifies: [FR-34.1, FR-34.5, FR-34.7]
     needs: [bench-flash, bench-flash-erase, bench-jtag-reset, bench-wifi-sta, bench-http-relay, bench-wifi-scan, bench-serial-monitor, bench-enter-portal, dut-amoled-slot1, dut-wifi-slot1]
-    observable: "the form has the wifi switch; POST wifi=off&ssid=&password= answers 200 WiFi is off; web: state=WIFI_OFF with no reset line and no CONNECTING; the SoftAP gone from a scan"
+    observable: "the form has the wifi switch; POST wifi=off&ssid=&password= answers 200 WiFi is off; web: state=WIFI_OFF with no reset line and no CONNECTING; the WiFi driver stops (wifi:lmac stop hw txq); a scan within 45 s no longer lists the SoftAP"
     impl: tests/bench/test_wifi_off.py::test_portal_submission_turns_wifi_off
     result: {status: not done}
 
