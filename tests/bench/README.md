@@ -8,6 +8,9 @@ against SLOT1 through `TestbenchDriver`. Each is declared in
 PYTHONPATH=<harness>/pytest FIRMWARE_DIR=<artefact>/coldflash pytest tests/bench -v
 ```
 
-`FIRMWARE_DIR` is a CI artefact's `coldflash/` directory (it holds
-`flash_args`). Without it, or without the recorded unit in SLOT1, the tests
+`<harness>` is a checkout of `solchjg/Embedded-AI-Harness` at `main`. `FIRMWARE_DIR`
+is a CI artefact's `coldflash/` directory (it holds `flash_args`); the WiFi-off
+suite's TC-WOFF-11 also needs `SLEEP_10_DIR`, the sleep (period 10) build's.
+`EVIDENCE_DIR` keeps raw captures. A session ends with the bench AP running, so
+the DUT is left ONLINE on it. Without `FIRMWARE_DIR`, or without the recorded unit in SLOT1, the tests
 skip: `not done`, never `failed`.

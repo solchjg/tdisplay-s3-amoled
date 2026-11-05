@@ -201,6 +201,12 @@ power and data figures, are in [`blues-cellular.md`](blues-cellular.md).
   any run.
 - Native USB part: never open the port with DTR/RTS asserted (see
   [`../standards/testing.md`](../standards/testing.md)).
+- The bench runs `solchjg/Embedded-AI-Harness` `main`. After a harness merge, or after
+  changing a hub or cable, update it on the Pi from its clone with
+  `sudo bash pi/update-bench.sh --pin SLOT1=48:27:E2:EA:48:3C`; the pytest `TestbenchDriver`
+  comes from the same branch.
+- A bench pytest session leaves a fresh bench AP running, so a DUT provisioned for it ends
+  ONLINE. `reset_and_follow` resets once more when its capture holds no `rst:` line.
 - When the USB-Serial/JTAG port comes back (after a flash, or a deep-sleep wake that stays
   up about a second), the bench re-attaches and the chip takes a USB reset, which clears RTC
   memory; the serial ring also loses about the first second after each restart. Evidence that
