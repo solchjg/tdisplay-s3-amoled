@@ -1542,7 +1542,10 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
         vTaskDelay(pdMS_TO_TICKS(ANSWER_FLUSH_MS));
         portal_stop();  // the SoftAP itself goes down with the station start below
         if (!(a & DL_C_START_ATTEMPT)) {
-            wifi_net_stop();  // T16: no station follows, the radio goes off (FR-34.8)
+            esp_err_t err = wifi_net_stop();  // T16: no station follows, the radio goes off (FR-34.8)
+            if (err != ESP_OK) {
+                web_log_warn("wifi stop", err);
+            }
         }
     }
     if (a & DL_C_START_SOFTAP) {

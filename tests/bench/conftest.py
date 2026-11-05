@@ -36,7 +36,14 @@ def bench():
         pytest.skip(f"testbench unreachable: {e}")
     stop_bench_ap(drv)   # a previous session's AP blocks scans (bench: one radio)
     yield drv
-    stop_bench_ap(drv)   # leave the rig as found
+    # Leave the rig as CLAUDE.md wants it: the DUT ONLINE on the bench AP. A
+    # stopped AP would leave a provisioned DUT retrying in WIFI_LOST; the next
+    # session stops this AP before its first scan.
+    stop_bench_ap(drv)   # a fresh AP: a stale station is not re-admitted (harness #54)
+    try:
+        drv.ap_start(BENCH_SSID, BENCH_PASS)
+    except TestbenchError:
+        pass
 
 
 def stop_bench_ap(drv):
@@ -122,6 +129,19 @@ def this_boot(output):
 def reset_and_follow(bench, slot, seconds):
     """One reset, then `seconds` of the same boot, from the bench ring buffer.
 
+    A capture with no reset-reason line at all (the bench's ring sometimes
+    starts just after the ROM's `rst:` line) is retried once with a new reset;
+    a capture with two is a second boot and fails in this_boot().
+    """
+    lines = _reset_once(bench, slot, seconds)
+    if not any(ln.startswith("rst:") for ln in lines):
+        lines = _reset_once(bench, slot, seconds)
+    return this_boot(lines)
+
+
+def _reset_once(bench, slot, seconds):
+    """One JTAG reset and the ring's lines for the following `seconds`.
+
     Uses the JTAG reset (a debug session on the slot's built-in USB-JTAG): the
     DTR/RTS reset of /api/serial/reset resets a native-USB part a second time
     when the bench reopens the port (test-plan bench-usb-reset note), which
@@ -153,7 +173,7 @@ def reset_and_follow(bench, slot, seconds):
             continue
         lines.append(ring[i]["text"])
         i += 1
-    return this_boot(lines)
+    return lines
 
 
 def save_evidence(name, lines):

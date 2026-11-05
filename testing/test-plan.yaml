@@ -3505,7 +3505,7 @@ tests:
     needs: []
     observable: "BOOT x CR with wifi off stored -> WIFI_OFF with no action; every other state ignores it"
     impl: tests/host/test_device_logic.py::test_t15_wifi_off_at_boot
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, date: 2026-11-05, evidence: "pytest tests/host: 643 passed, 8 skipped (bench PC and cloud session); shared/tests/host portal and BLE page tests passed"}
 
   - id: TC-WOFF-02
     title: "T16: a WiFi-off submission stores and enters WIFI_OFF without a restart"
@@ -3518,7 +3518,7 @@ tests:
     needs: []
     observable: "PROVISIONING x CS (wifi off, valid) -> WIFI_OFF with store, SoftAP stop and the setup mark; no attempt, no restart; invalid stays (T4)"
     impl: tests/host/test_device_logic.py::test_t16_wifi_off_submission
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, date: 2026-11-05, evidence: "pytest tests/host: 643 passed, 8 skipped (bench PC and cloud session); shared/tests/host portal and BLE page tests passed"}
 
   - id: TC-WOFF-03
     title: "WIFI_OFF is left only by a restart (T10, T14)"
@@ -3531,7 +3531,7 @@ tests:
     needs: []
     observable: "factory reset and a BLE settings write restart; every network event is ignored"
     impl: tests/host/test_device_logic.py::test_wifi_off_is_left_only_by_a_restart
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, date: 2026-11-05, evidence: "pytest tests/host: 643 passed, 8 skipped (bench PC and cloud session); shared/tests/host portal and BLE page tests passed"}
 
   - id: TC-WOFF-04
     title: "The WIFI_OFF screen"
@@ -3544,7 +3544,7 @@ tests:
     needs: []
     observable: "lines 1 - 3: WiFi off / Hold key 3 s for BLE / empty"
     impl: tests/host/test_device_logic.py::test_wifi_off_screen
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, date: 2026-11-05, evidence: "pytest tests/host: 643 passed, 8 skipped (bench PC and cloud session); shared/tests/host portal and BLE page tests passed"}
 
   - id: TC-WOFF-05
     title: "With WiFi off the credentials are optional, and checked when given"
@@ -3557,7 +3557,7 @@ tests:
     needs: []
     observable: "wifi=off alone accepted with no credentials; a 33-byte ssid refused; wifi=on without ssid refused; wifi=maybe refused as wifi; a key-window wifi=off keeps the stored credentials"
     impl: [tests/host/test_ble_setup.py::test_wifi_off_makes_the_credentials_optional, shared/tests/host/test_portal.py::test_wifi_switch]
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, date: 2026-11-05, evidence: "pytest tests/host: 643 passed, 8 skipped (bench PC and cloud session); shared/tests/host portal and BLE page tests passed"}
 
   - id: TC-WOFF-06
     title: "The settings read and the page's rules carry the WiFi switch"
@@ -3570,7 +3570,7 @@ tests:
     needs: []
     observable: "the read starts wifi=<on|off>; the rules give wifi on,off under WiFi and the network name required_if wifi=on, as the portal form; the page requires the name only with WiFi on"
     impl: [tests/host/test_ble_setup.py::test_dump_reports_the_wifi_switch, tests/host/test_ble_setup.py::test_form_rules_cover_every_field, tests/host/test_ble_setup.py::test_form_rules_match_the_portal_form, shared/tests/host/test_ble_page.py::test_page_requires_a_field_only_while_another_holds_a_value]
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, date: 2026-11-05, evidence: "pytest tests/host: 643 passed, 8 skipped (bench PC and cloud session); shared/tests/host portal and BLE page tests passed"}
 
   - id: TC-WOFF-07
     title: "With WiFi off nothing goes over WiFi; notes still go over cellular"
@@ -3583,7 +3583,7 @@ tests:
     needs: []
     observable: "alert and email paths: none with wifi off and uplink wifi; cell (and none or cell for email by cell_mail) with uplink cell"
     impl: tests/host/test_uplink.py::test_via_with_wifi_off
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, date: 2026-11-05, evidence: "pytest tests/host: 643 passed, 8 skipped (bench PC and cloud session); shared/tests/host portal and BLE page tests passed"}
 
   - id: TC-WOFF-08
     title: "The portal turns WiFi off: WIFI_OFF without a restart, the SoftAP gone"
@@ -3596,7 +3596,7 @@ tests:
     needs: [bench-flash, bench-flash-erase, bench-jtag-reset, bench-wifi-sta, bench-http-relay, bench-wifi-scan, bench-serial-monitor, bench-enter-portal, dut-amoled-slot1, dut-wifi-slot1]
     observable: "the form has the wifi switch; POST wifi=off&ssid=&password= answers 200 WiFi is off; web: state=WIFI_OFF with no reset line and no CONNECTING; the WiFi driver stops (wifi:lmac stop hw txq); a scan within 45 s no longer lists the SoftAP"
     impl: tests/bench/test_wifi_off.py::test_portal_submission_turns_wifi_off
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, firmware: "shipped build aca5c7e; sleep-10 build aca5c7e for TC-WOFF-11", date: 2026-11-05, evidence: "pytest tests/bench/test_wifi_off.py on SLOT1 (MAC 48:27:e2:ea:48:3c), 404.7 s run, harness fix/probe-once-per-board e8a2967; L2 WIFI_OFF, no restart, driver stop, SoftAP gone from the scan; woff-83.log on the bench PC"}
 
   - id: TC-WOFF-09
     title: "After a reset WiFi stays off"
@@ -3609,7 +3609,7 @@ tests:
     needs: [bench-jtag-reset, bench-wifi-scan, bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1]
     observable: "the first L2 of the boot is WIFI_OFF; no CONNECTING, PROVISIONING or web: online in 20 s; no SoftAP in a scan"
     impl: tests/bench/test_wifi_off.py::test_reset_keeps_wifi_off
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, firmware: "shipped build aca5c7e; sleep-10 build aca5c7e for TC-WOFF-11", date: 2026-11-05, evidence: "same run; WIFI_OFF after reset, no station attempt, no SoftAP; woff-83.log on the bench PC"}
 
   - id: TC-WOFF-10
     title: "A key-window BLE write of wifi=on brings the device ONLINE"
@@ -3622,7 +3622,7 @@ tests:
     needs: [bench-ble-pair-passkey, bench-wifi-ap, operator-at-bench, dut-amoled-slot1]
     observable: "the settings read holds wifi=off; result ok; a restart; web: state=CONNECTING then web: online on the bench AP"
     impl: tests/bench/test_wifi_off.py::test_ble_write_turns_wifi_back_on
-    result: {status: not done}
+    result: {status: successful, commit: aca5c7e, firmware: "shipped build aca5c7e (WiFi off, PR #67)", date: 2026-11-05, evidence: "operator run by the owner from a phone with the Web Bluetooth page: key window, wifi=off saved (screen WiFi off), key window, wifi=on saved, restart, ONLINE on tds3-bench; owner reported the pass in the project thread"}
 
   - id: TC-WOFF-11
     title: "With WiFi off the window runs without WiFi and timer wakes start none"
@@ -3635,4 +3635,4 @@ tests:
     needs: [seam-sleep-build, bench-flash, bench-wifi-ap, bench-serial-monitor, dut-amoled-slot1, dut-wifi-slot1]
     observable: "the sleep build provisioned with wifi=off and the bench network stored: L2 WIFI_OFF, L18 sleep s=10 after the window, two timer wakes in the boot history; the bench AP, up with the stored network's name, never lists the device; no CONNECTING, web: online or station mode in the log"
     impl: tests/bench/test_wifi_off.py::test_timer_wakes_start_no_wifi
-    result: {status: not done}
+    result: {status: successful, commit: 4eae517, firmware: "shipped build aca5c7e; sleep-10 build aca5c7e for TC-WOFF-11", date: 2026-11-05, evidence: "same run; no join to the bench AP over the polling window, sleep s=10, at least 2 timer wakes in the NVS history; evidence-83/wifi-off-timer.log on the bench PC"}
