@@ -155,6 +155,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW v2.5 on a Notecarrier-X v1.3, I2C 0x17 on GPIO 43/44 through Qwiic or wires soldered to its header, its own LiPo for the modem, run on cellular only (§33) | [user]; bus and power [proposed] |
 | Add-on boards | The loop (§29) and the RS232 circuit (§30), and later the water probe, are each built on a separate board that plugs into a carrier holding the T-Display-S3 and the BME280; the Notecarrier-X (§33) is a board of its own. Each analog add-on carries its own ADS1115, so the board pins carry only power, switch lines and digital buses, and any add-on can be fitted or left off without changing the others | [user] |
 | Add-on connectors | One keyed through-hole JST-XH (2.5 mm) socket on the carrier for each add-on, each with a different pin count so a board fits only its own socket, pin 1 GND: loop 5 pins (GND, VSYS, GPIO 3, GPIO 15, GPIO 16), water probe 6 pins (GND, VSYS, 3V3, GPIO 43, GPIO 44, GPIO 2), RS232 4 pins (GND, GPIO 13, GPIO 11, GPIO 12); each add-on's pull-down on its switch line sits on the add-on; the Notecarrier-X on a Qwiic (JST-SH) socket of the carrier's I2C fan-out; boards are fitted or removed only with USB and battery disconnected | [proposed] |
+| Qwiic | Qwiic wherever a part needs only 3.3 V, GND and the I2C lines [user]: the carrier's I2C fan-out is a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort) on the BME280's bus (GPIO 43/44), into which the BME280, on a Qwiic breakout, and the Notecarrier-X (its red 3.3 V wire unconnected, §33.2) plug. The loop (its own bus and switched supply), the water probe (VSYS and its switch line) and RS232 (not I2C) keep their JST-XH sockets. One board's pull-ups stay in and the others' are cut, so the bus's pull-ups stay at or above about 2.2 kΩ [proposed] | [user]; parts [proposed] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
@@ -3562,6 +3563,7 @@ no verification contracts yet.
 | Water probe | Switch line GPIO 2, as on the T-Display | [proposed] |
 | E-paper (optional, §36) | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), on SPI2: SCK GPIO 9, MOSI GPIO 10, CS GPIO 8, DC GPIO 14, RST GPIO 1, BUSY GPIO 48; always powered, put in its deep sleep after each drawing | [proposed] |
 | OLED | A 3.12" 256 × 64 SSD1322 module (16 grey levels, e.g. Newhaven NHD-3.12-25664), 4-wire SPI on SPI2 shared with the optional e-paper: SCK GPIO 9, MOSI GPIO 10, DC GPIO 14 and RST GPIO 1 shared, its own CS on GPIO 43 | [user] module; pins [proposed] |
+| Qwiic | Qwiic wherever a part needs only 3.3 V, GND and the I2C lines [user]: the sensor bus (GPIO 15/7, 3.3 V, GND from the header) goes to a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort), into which the BME280, on a Qwiic breakout, plugs. The PMU's own pull-ups are on this bus, so every Qwiic board's pull-ups are cut [proposed], and commissioning checks the result. The loop (its own bus and switched supply, 5 pins: GND, VSYS, GPIO 18, 16, 17), the water probe (VSYS and its switch line, 6 pins: GND, VSYS, 3V3, GPIO 15, 7, 2) and RS232 (4 pins: GND, GPIO 13, 11, 12) keep JST-XH sockets as in §2.2; the OLED, the e-paper and the off-board key are not I2C and have their own connectors | [user]; parts and pins [proposed] |
 | Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 21 (an RTC GPIO, the T-Display's user-key number), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 47 through a resistor | [user] key; parts and pins [proposed] |
 | BOOT key | GPIO 0 on the board, as §18 | [derived from the board] |
 | microSD | The board's slot, SDMMC 1-bit, CMD GPIO 39, CLK GPIO 38, D0 GPIO 40; FAT32 | [derived from the board]; FAT32 [proposed] |
@@ -4008,7 +4010,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.35.1
+fsd_version: 0.36.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4079,8 +4081,10 @@ change_history:
   - "0.34.1 2026-11-05 the user approved the §35 numbers: FR-35.1 the 60 s active-time limit, FR-35.2 the 2 °F hysteresis (back to the e-paper at 42 °F), FR-35.9 registration within 60 s, NFR-35.1 asleep within 25 s after a PSM resume and 100 s after a cold attach, NFR-35.2 under 10 MB a month; the rest of §35 stays open"
   - "0.35.0 2026-11-05 from the user's request that the e-ink screen be optional in both builds and come at the end of development: §36 E-paper Display (optional, draft) with FR-36.1 and FR-36.2 (user) and the `epaper` setting (proposed, default off); FR-35.2 and FR-35.15 apply only with the e-paper fitted, the OLED otherwise; Phase 17 (T-SIM7080G build without the e-paper) and Phase 18 (e-paper, last)"
   - "0.35.1 2026-11-05 from the user's choice of OLED: §35.2 the OLED is a 3.12\" 256 x 64 SSD1322 on SPI (user) instead of the 1.3\" SH1106 on I2C, sharing the e-paper's SPI lines with its own CS on GPIO 43 (proposed); FR-35.16 42 characters a line; R-36 names GPIO 43"
+  - "0.36.0 2026-11-05 from the user's plan to use Qwiic connectors where possible with a star adapter: §2.2 and §35.2 gain a Qwiic row (user): a Qwiic star adapter on each build's sensor bus for the BME280 (and the Notecarrier-X on the T-Display build); the loop, water probe and RS232 keep JST-XH; pull-ups (proposed)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
+  - "§2.2, §35.2 Qwiic rows: the star adapter part, which pull-ups stay in (on the T-SIM7080G build every Qwiic board's cut, the PMU's kept), the JST-XH pinouts on the T-SIM7080G build"
   - "§36: `epaper` setting, default off; the T-Display build's e-paper rules defined when Phase 18 starts"
   - "§35 (whole section, draft): the T-SIM7080G build, its pin map, displays, off-board key, settings card and modem behaviour"
   - "FR-35.2: the OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, line 6 cut at 42; §35.2 OLED pins, CS on GPIO 43"
