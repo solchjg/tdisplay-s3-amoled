@@ -59,6 +59,7 @@ reused.
 | 34 | WiFi Off | cross-cutting |
 | 35 | T-SIM7080G Build | cross-cutting |
 | 36 | E-paper Display (optional) | L1 |
+| 37 | Packed Messages | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -518,6 +519,7 @@ testbench.
 | R-37 | Each network grants its own PSM timers (Verizon 300 s active time at the bench, T-Mobile and AT&T about what is asked), so one SIM gives different power use by site | Certain | Medium | FR-35.1 powers the modem off when the grant is over the limit; `cell_plmn` locks a site to one network |
 | R-38 | A microSD card in its slot may draw 100 µA or more in deep sleep if the slot's supply is not switched | Possible | Medium | Commissioning measures the sleep current with and without a card; if it is high, the card is removed after setup, as the User Manual will say |
 | R-39 | E-paper panels are rated for refreshes above about 0 °C; near 40 °F the panel is within its rating but slower | Likely | Low | FR-35.2 switches to the OLED below 40 °F with 2 °F hysteresis |
+| R-40 | Notehub's routes offer JSONata only, so a `raw` message reaching Notehub could not be decoded there, and Notehub leaves zero fields out of a body | Certain | Medium | Notecard links use the template encoding (§37.2), which Notehub decodes; every decoder reads an absent field as 0 (§37.2, FR-37.4 contract) |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
@@ -3818,6 +3820,183 @@ built; optional, so a submission without it leaves the e-paper as it was.
 
 ---
 
+## 37. Packed Messages
+
+### 37.1 Purpose & peer
+
+Links that carry only a few hundred bytes or less per message, a satellite
+link (Blues Notecard in NTN mode over Skylo, at most 256 bytes a packet, a
+larger one dropped without notice) and LoRa (LoRaWAN US915 carries 11 bytes
+at SF10 and 53 at SF9), send the readings, alerts and attributes as **packed
+messages**: one family of small binary messages that every such link uses
+alike [proposed]. Each message is turned back into JSON where it leaves the
+radio link (a Notehub route, or a LoRaWAN network server's payload
+formatter), and from there into the very requests of §32.3 and the alert of
+§31.3, so ThingsBoard and ntfy see the same keys and values whichever link a
+reading came over. A new small-payload link then needs only its own
+transport; the messages, their packer and their decoder are shared.
+
+IP links keep their JSON: WiFi (§25, §31, §32) and the T-SIM7080G's PPP link
+(§35) send §32.3 unchanged, where TLS, not the body, is most of the data
+(`docs/Method/project/lte-m-modem.md`: 7 – 12 kB a run against about 100
+bytes a reading), and the Notecard's cellular notes (§33.4) stay as they
+are [proposed].
+
+This section defines the messages only. Which link sends which message, and
+when, belongs to the section that adds the link; until one is added, neither
+build sends a packed message. The satellite trial (`commissioning/sat-probe`)
+keeps its own 57-byte `day.qo` until it is moved to the `day` message of
+§37.3.
+
+Peers: the transport of the link (the Notecard on I2C, a LoRa radio); the
+edge decoder (a Notehub route's JSONata, a LoRaWAN payload formatter in
+JavaScript); ThingsBoard and ntfy behind it. Built on a shared pure `pack`
+component in esp-idf-components (no ESP-IDF headers, so the host tier
+compiles it) with a reference decoder in Python, `tools/pack_ref.py`, against
+which the packer and every edge decoder are tested [proposed].
+
+### 37.2 Encodings
+
+A message is a list of named fields, each with a fixed binary type (§37.3).
+It is sent in one of two encodings, which decode to the same JSON **body**:
+
+| Encoding | Used on | What goes over the radio | Decoded at the edge by |
+|----------|---------|--------------------------|------------------------|
+| Template | Notecard links (NTN, and cellular where a link section chooses it) | A Notefile with a `compact` `note.template` whose body names each field with its Notecard type hint (§37.3, last column) and a fixed `port`; the Notecard packs the body itself | Notehub, which hands the route the body as JSON |
+| Raw | Links with no Notecard (LoRa) | The fields' bytes in table order, little-endian, no padding; a field that is an array is its elements in order; the records of `rd` one after another | The payload formatter, which returns the body as JSON |
+
+Notehub leaves a field whose value is 0 out of the body, so every decoder
+reads an absent field as 0.
+
+### 37.3 Messages
+
+Every message starts with `v`, one byte: the format version in the top 3 bits
+(1 for this section) and the message type in the low 5 bits. Times are UTC
+seconds since 1970. Values use the units §32.3 shows, scaled to integers, so
+a decoded value is the one the history CSV (§27.1) and ThingsBoard show:
+
+| Quantity | Field type | Unit | Decoded as |
+|----------|------------|------|------------|
+| Temperature | int16 | 0.01 °F | `temp_f`, 2 decimals |
+| Humidity | uint16 | 0.1 % | `rh_pct`, 1 decimal |
+| Pressure | uint16 | 0.01 mbar above 500 mbar (500.00 – 1155.35) | `p_mbar`, 2 decimals |
+| Add-on (§29.2) | float32 | the add-on's own unit | `<rs_name>` or `<loop_name>`, its decimals |
+
+**`rd`, readings** (type 1; Notefile `prd.qo`, port 101) [proposed]: a batch
+of readings, oldest first, as many as fit the link's message size.
+
+| Field | Type | Holds | Hint |
+|-------|------|-------|------|
+| `v` | uint8 | version 1, type 1 | 21 |
+| `t0` | uint32 | time of the first reading | 24 |
+| `add` | uint8 | bit 0: slot 1 present in every record; bit 1: slot 2 | 21 |
+| `n` | uint8 | records, 1 – 255 | 21 |
+| per record: `dt` | uint16 | seconds after `t0` (so a batch spans at most 18 h) | [22] |
+| `tf` | int16 | temperature | [12] |
+| `rh` | uint16 | humidity | [22] |
+| `p` | uint16 | pressure | [22] |
+| `st` | uint8 | bit 0: synced (FR-22.3); bit 1: the BME280 reading failed, `tf`, `rh` and `p` 0 and not shown | [21] |
+| `a1`, `a2` | float32 | slot 1 and slot 2 values, only when `add` says so; NaN for no value | [14.1] |
+
+Size: 7 bytes plus 9 a record, plus 4 a record per add-on present, so 256
+bytes hold 27 records with no add-on, 19 with one and 15 with two; 53 bytes
+hold 5, 3 and 2. A reading taken with the clock never set (FR-22.6) is not
+packed, as in §32.
+
+**`day`, day averages** (type 2; Notefile `pday.qo`, port 102) [proposed]:
+one quantity's 24 hourly averages over the 24 whole UTC hours before the
+send, as the trial's `day.qo` with the quantity named.
+
+| Field | Type | Holds | Hint |
+|-------|------|-------|------|
+| `v` | uint8 | version 1, type 2 | 21 |
+| `t0` | uint32 | start of hour 1 | 24 |
+| `step` | uint16 | 3600 | 22 |
+| `q` | uint8 | 0 temperature, 1 humidity, 2 pressure, 3 slot 1, 4 slot 2 | 21 |
+| `miss` | uint24 | bit i−1 set: hour i has no value | 23 |
+| `a` | 24 × uint16 | each hour's average in the unit of the quantity (§37.3 table) for `q` 0 – 2, as float16 bits for `q` 3 – 4; 0 where missing | [22] |
+
+Size: 59 bytes. Decoded into 24 §32.3 telemetry entries named for `q`, the
+missing hours left out.
+
+**`al`, alert** (type 3; Notefile `pal.qo`, port 103, sent at once) [proposed]:
+
+| Field | Type | Holds | Hint |
+|-------|------|-------|------|
+| `v` | uint8 | version 1, type 3 | 21 |
+| `t` | uint32 | time of the reading that started or ended it | 24 |
+| `ev` | uint8 | 1 `t_high`, 2 `t_low`, 3 `rh_high`, 4 `rh_low`, 5 `p_high`, 6 `p_low`, 7 `sensor`, 8 `rs232`, 9 `loop`, 10 `history`, 11 `test` (§31.3) | 21 |
+| `end` | uint8 | 0 the condition starts (or `test FAIL`), 1 it ends (or `test pass`) | 21 |
+| `val` | uint16 | for events 1 – 6 the reading's value, in the quantity's unit and type (two's complement for temperature); else 0 | 22 |
+| `lim` | uint16 | for events 1 – 6 the limit crossed, likewise; else 0 | 22 |
+
+Size: 11 bytes, so an alert fits LoRaWAN's smallest payload. Decoded into
+the ntfy JSON of §31.3 with its title, priority and tags; the body of a limit
+alert is §31.3's, while a failure says `<what> failed` or `<what> ok` and a
+test only `test pass` or `test FAIL`, the log lines they come from not being
+sent.
+
+**`st`, status** (type 4; Notefile `pst.qo`, port 104) [proposed]: the
+§32.3 attributes that are not known at the edge.
+
+| Field | Type | Holds | Hint |
+|-------|------|-------|------|
+| `v` | uint8 | version 1, type 4 | 21 |
+| `fw` | 3 × uint8 | firmware major, minor, patch | [21] |
+| `set` | uint8 | the normal setup in use, its row in §28.1 counted from 0 | 21 |
+| `sig` | int8 | signal: RSSI in dBm, or the Notecard's bars | 11 |
+| `mv` | uint16 | battery mV, 0 where the board does not measure it | 22 |
+
+Size: 9 bytes. The host name is the device's name at the edge (the Notehub
+device name, the LoRaWAN device ID), set to the FR-20.1 name when the device
+is added there; `ip` is not sent.
+
+No email goes over a packed link: the §25 message is kilobytes. A route may
+turn a `day` message into a short email.
+
+### 37.4 Requirements
+
+- **FR-37.1** [Must] [proposed] Every message a small-payload link sends
+  shall be one of §37.3, in the encoding of §37.2 the link names; no other
+  layout is sent over such a link.
+- **FR-37.2** [Must] [proposed] Every message shall start with `v`; a decoder
+  given a version or type it does not know shall pass nothing on and log the
+  message as unknown, never guess at its fields.
+- **FR-37.3** [Must] [proposed] A change to any message's fields shall be a
+  new version; decoders keep decoding every earlier version still on a device.
+- **FR-37.4** [Must] [proposed] Decoded, a message shall give the keys and
+  values of §32.3 (and §31.3 for `al`) that the same reading or alert gives
+  over WiFi, within the decimals of §32.3.
+- **FR-37.5** [Must] [proposed] The pure `pack` packer shall be told the
+  link's largest message and shall put into one `rd` the oldest unsent
+  readings that fit, never more bytes than that; a reading is marked sent
+  only when the link's transport accepts the message, as FR-32.8.
+- **FR-37.6** [Must] [proposed] A value outside its field's range shall be
+  clamped to the range and its record still sent; an add-on value with no
+  value is NaN; a failed BME280 reading is sent with `st` bit 1.
+- **FR-37.7** [Must] [proposed] No secret and no text the edge can build
+  shall be in a message: tokens, URLs, host name, titles and bodies stay at
+  the edge (as §33.4).
+- **C-37.1** [Must] [proposed] No message shall exceed 256 bytes in either
+  encoding (the Skylo limit), whatever the link.
+- **NFR-37.1** [Must] [proposed] `tools/pack_ref.py` shall define the
+  decoding; the C packer and each edge decoder (Notehub JSONata, LoRaWAN
+  formatter) are held to it on the same test vectors in the host tier.
+
+### 37.5 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-37.1, C-37.1 (core) | Pack each type at its largest: `rd` at 256 and 53 bytes with 0, 1 and 2 add-ons; `day`; `al`; `st` | Sizes 7 + n × (9 + 4k) with n 27/19/15 and 5/3/2; 59; 11; 9 | A message over its limit | host |
+| FR-37.4, NFR-37.1 (core) | Readings at the sensor's limits, synced and unsynced, a failed BME280, NaN add-ons; packed raw and as a template body; decoded by `pack_ref.py`, the route's JSONata and the formatter | The §32.3 telemetry the WiFi path builds for the same readings, key for key | A value differing in its shown decimals | host |
+| FR-37.4 (core) | A body with every zero field left out, as Notehub delivers it | The same decoding as with the zeros | A missing key or an error | host |
+| FR-37.2, FR-37.3 (core) | Messages with version 0, 2, 7 and type 0, 5, 31 | Nothing passed on; logged as unknown | A decoded value | host |
+| FR-37.5 (core) | 250 unsent readings, a 256-byte link, one add-on; the transport refuses the second message | Batches of 19, oldest first; the mark at 19 after the refusal | A reading skipped or sent out of order | host |
+| FR-37.6 (core) | 400 °F, −400 °F, 1200 mbar, 450 mbar, 105 % | Clamped to each field's limits; the record sent | A wrapped value | host |
+| FR-37.7 (core) | Every message type packed with tokens and URLs stored | None of them in the bytes | A secret in a message | host |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -4040,7 +4219,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.40.0
+fsd_version: 0.41.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4048,7 +4227,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-02
+last_updated: 2026-11-06
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -4116,8 +4295,10 @@ change_history:
   - "0.38.0 2026-11-05 from the user's go-ahead for Phase 17: §35.6 verification contracts for FR-35.1 – FR-35.19 and NFR-35.1 – NFR-35.2 (host cores, SLOT3 bench and operator rows)"
   - "0.39.0 2026-11-06 from the user's note that the T-SIM7080G's battery-side connector is not the T-Display's Qwiic: §35.2 the sensor bus moves from the PMU's GPIO 15/7 (not on a header) to P4, GPIO 43/44 (proposed), with a caution that P4's pin order is the Qwiic order reversed; the OLED's CS moves to GPIO 46; the PMU and the loop bus share I2C controller 1; one Qwiic board keeps its pull-ups; R-36 updated"
   - "0.40.0 2026-11-06 the user's choice for `cell_plmn` (§35.4): an empty field clears the network lock, an absent field keeps the stored one"
+  - "0.41.0 2026-11-06 draft for the user's review, from the user's question whether one packed format should serve every link: §37 Packed Messages (all proposed) defines the rd, day, al and st messages shared by small-payload links (satellite, LoRa), in a template encoding for Notecard links and a raw one otherwise, decoded at the edge into the §32.3 and §31.3 JSON; IP links and the §33 notes keep JSON; R-40"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
+  - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
   - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"
   - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"
