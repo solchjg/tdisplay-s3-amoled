@@ -1,3 +1,9 @@
+// Sampling setups (FSD §28), the ESP-IDF side: the selection and the test
+// still running, kept in NVS (namespace `sampling`, one blob) so a test
+// survives a restart; the progress of a run of tests in RTC memory so it
+// survives deep sleep; and the portal form section. The rules are the pure
+// sampling_core.c.
+
 #include "sampling.h"
 
 #include <string.h>
@@ -37,7 +43,8 @@ const char SAMPLING_FORM_HTML[] =
     "<label><input type=\"checkbox\" name=\"setup\" value=\"gps\"> GPS check "
     "(a fix within 20 min, awake; needs cellular and GPS on)</label></p>";
 
-static stored_t taken;
+static stored_t taken;  // from the accepted submission, until sampling_store
+// As stored, or the defaults.
 static stored_t cur = {.sel = {SP_STD, 0, {SM_SAMPLE_DEFAULT, SM_AVERAGE_DEFAULT}}, .running = -1};
 static bool loaded;
 static RTC_DATA_ATTR sp_run_t run;

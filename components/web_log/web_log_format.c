@@ -1,3 +1,7 @@
+// The text of each `web:` serial log line (FSD §7.2). Pure: every function
+// only formats into the caller's buffer, so tests/host can check the exact
+// wording the bench tests match on; web_log.c emits the lines.
+
 #include "web_log_format.h"
 
 #include <inttypes.h>

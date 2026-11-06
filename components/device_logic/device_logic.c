@@ -1,3 +1,9 @@
+// Device Logic (FSD §5): the pure decision layer. Each `dl_*_step` takes a
+// region's state and one event and returns the next state plus a bitmask of
+// actions; app_main.c performs the actions and feeds the results back as
+// events. Nothing here touches hardware or ESP-IDF, so tests/host drives it
+// directly. The comments T1 – T16, D1 – D6 name the rows of the §5.3 tables.
+
 #include "device_logic.h"
 
 #include <inttypes.h>
@@ -6,11 +12,14 @@
 
 #define PORTAL_IP "192.168.4.1"
 
+// Copies text into a screen line, cut to the line width; NULL gives an empty line.
 static void put(char *line, const char *text)
 {
     snprintf(line, DL_LINE_CHARS + 1, "%s", text ? text : "");
 }
 
+// The stored SSID as line 2 shows it: at most DL_SSID_SHOWN characters, each
+// byte outside printable ASCII (which the font cannot draw) shown as '?'.
 void dl_sanitize_ssid(const char *ssid, char out[DL_LINE_MAX])
 {
     size_t n = 0;
@@ -21,6 +30,9 @@ void dl_sanitize_ssid(const char *ssid, char out[DL_LINE_MAX])
     out[n] = '\0';
 }
 
+// The six screen lines for a view: lines 1 – 3 belong to the connectivity
+// state (§5.4), line 4 is the reading, line 5 the prompt (setup check or BLE)
+// and line 6, in the smaller font, the add-ons.
 void dl_screen(const dl_view_t *v, char out[DL_LINES][DL_LINE_MAX])
 {
     for (int i = 0; i < DL_LINES; i++) {
@@ -182,6 +194,8 @@ const char *dl_conn_name(dl_conn_t state)
     return names[state];
 }
 
+// A timer wake is "lean": no setup check, no window, just the task and back
+// to sleep (FR-21.2 – FR-21.4).
 bool dl_lean_boot(dl_wake_t wake)
 {
     return wake == DL_WAKE_TIMER;
@@ -233,6 +247,8 @@ bool dl_led_lit(dl_hold_t hold, uint32_t held_ms)
 #define BLE_PROMPT "BLE setup "
 #define BLE_CODE "BLE code "
 
+// Whether a changed screen line is logged (L7). Line 5's countdowns would log
+// every second, so for those only a new minute, or the final 00:00, is logged.
 bool dl_line_logged(int i, const char *was, const char *now)
 {
     if (i == 4 && strncmp(now, BLE_CODE, strlen(BLE_CODE)) == 0) {
@@ -248,6 +264,10 @@ bool dl_line_logged(int i, const char *was, const char *now)
     return strncmp(was + p, now + p, 2) != 0 || strcmp(now + p, "00:00") == 0;
 }
 
+// Whether the task (a reading, then sleep) runs now. Once per boot and only
+// once provisioned. A timer wake runs it at once. Otherwise it waits while the
+// setup check holds, and while a new OTA image is unconfirmed, until the setup
+// check timed out or the awake window has passed.
 bool dl_task_due(dl_wake_t wake, uint32_t s_in_window, bool pending_verify,
                  bool provisioned, bool ran, dl_hold_t hold)
 {
@@ -263,6 +283,9 @@ bool dl_task_due(dl_wake_t wake, uint32_t s_in_window, bool pending_verify,
     return !pending_verify && (hold == DL_HOLD_TIMEOUT || s_in_window >= DL_AWAKE_WINDOW_S);
 }
 
+// BLE region (§26.3). States: OFF; PROV, the window opened by provisioning;
+// KEY, the window opened by a 3 s user-key hold; PAUSED, after too many failed
+// pairings, which reopens the provisioning window after DL_BLE_PAUSE_S.
 static dl_ble_step_t ble_open(dl_ble_ctx_t *c, dl_ble_t state, uint32_t now_s, const char *why)
 {
     *c = (dl_ble_ctx_t){.state = state, .since_s = now_s};
