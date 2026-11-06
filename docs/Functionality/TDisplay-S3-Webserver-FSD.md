@@ -60,6 +60,7 @@ reused.
 | 35 | T-SIM7080G Build | cross-cutting |
 | 36 | E-paper Display (optional) | L1 |
 | 37 | Packed Messages | L1 |
+| 39 | Hardware Clock (optional) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -474,6 +475,19 @@ testbench.
   its lines on the e-paper as its rules say; with `epaper` `off` both builds
   behave exactly as before this phase.
 - **Dependencies.** Every other phase of both builds (FR-36.2).
+
+### 3.20 Phase 20: Hardware clock (optional)
+
+- **Scope.** The optional battery-backed RTC of §39 on both builds, and the
+  phone's clock over BLE.
+- **Deliverables.** §39, L55, L56, L20's `rtc` and `phone` sources; the
+  shared `rv8803` component; a commissioning probe that measures the RTC's
+  rate against the bench clock.
+- **Exit criteria.** With an RTC fitted and set, a power cycle with no
+  network gives readings with their time, marked synced; with none fitted,
+  both builds behave exactly as before this phase.
+- **Dependencies.** §22 (time), §26 (BLE setup), §33 and §35 (the cellular
+  times). It waits for neither Phase 18 nor Phase 19.
 
 ---
 
@@ -1058,7 +1072,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L16 | T13 | `web: ota not confirmed, restarting` | E |
 | L18 | Entering deep sleep (FR-21.8) | `web: sleep s=<N>` | I |
 | L19 | Boot that is a deep-sleep wake (FR-21.8) | `web: wake cause=<timer\|button>` | I |
-| L20 | Clock synced (FR-22.5, FR-33.12) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>[ src=cell]` (local time; `src=cell` when set from the Notecard) | I |
+| L20 | Clock synced (FR-22.5, FR-33.12, FR-39.2, FR-39.5) | `web: time synced <YYYY-MM-DD>T<hh:mm:ss><±hhmm>[ src=<cell\|rtc\|phone>]` (local time; `src=cell` when set from the Notecard or the modem, `rtc` from the hardware clock, `phone` from the BLE page) | I |
 | L21 | Reading taken (FR-23.5) | `web: reading t=<°F, 2 decimals> rh=<%, 1 decimal> p=<mbar, 2 decimals> at=<YYYY-MM-DD>T<hh:mm:ss><±hhmm>, or none (FR-22.6)> synced=<0\|1>` | I |
 | L22 | Sensor failed (FR-23.4) | `web: bme280 failed: <ERR>` | E |
 | L23 | Setup check hold entered (FR-24.8) | `web: setup check pending` | I |
@@ -1088,6 +1102,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L47 | Modem failed (FR-35.9) | `web: modem failed: <power\|sim\|register\|ppp> ms=<n>` | W |
 | L48 | Display chosen for the window (FR-35.2) | `web: display <epaper\|oled> t=<°F, 2 decimals, or none>` | I |
 | L49 | Settings card (FR-35.4, FR-35.19, FR-35.20) | `web: card settings <ok\|invalid=<field>\|none\|failed>` | I |
+| L55 | Hardware clock checked at a network sync (FR-39.8) | `web: rtc drift ms=<±n> days=<d.d> trim=<±n>[ was=<±n>]` (`was` when the trim changed; trim in 0.2384 ppm steps) | I |
+| L56 | Hardware clock lost or failing (FR-39.9) | `web: rtc lost` or `web: rtc failed: <esp_err name>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -2174,7 +2190,7 @@ connecting).
 | `info` | `6e0a0002-…` | read | none | `fw=<V>&host=<hostname>&state=<S>` |
 | `settings` | `6e0a0003-…` | read, write | encrypted, authenticated (MITM) | Read: a page of the stored settings of Appendix A that are not secret, then `password_set=<0\|1>&mail_password_set=<0\|1>&tb_token_set=<0\|1>`; after `control` `form=<offset>`, a page of the form description of FR-26.19 instead. Write: appended to the staged body |
 | `result` | `6e0a0004-…` | read, notify | encrypted, authenticated (MITM) | `none` after connecting; after each `apply`, `ok` or `invalid=<field>` naming the first invalid field |
-| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `form=<offset>` sets the read page of the form description (FR-26.19); `forget` erases every bond (FR-26.13); any other value is answered with the ATT error *Value Not Allowed* |
+| `control` | `6e0a0005-…` | write | encrypted, authenticated (MITM) | `apply` submits the staged body (FR-26.6, FR-26.7); `done` closes a key window; `read=<offset>` sets the read page; `form=<offset>` sets the read page of the form description (FR-26.19); `forget` erases every bond (FR-26.13); `time=<ms since 1970 UTC>` carries the phone's clock (FR-39.5); any other value is answered with the ATT error *Value Not Allowed* |
 
 (`…` is the rest of the service UUID.)
 
@@ -3997,6 +4013,103 @@ turn a `day` message into a short email.
 
 ---
 
+## 39. Hardware Clock (optional)
+
+### 39.1 Purpose & peer
+
+Both builds can carry a battery-backed real-time clock (RTC), so readings
+keep their date and time where no network ever reaches, such as a mine shaft,
+and after a power loss [user]. The RTC only carries a time forward: it holds
+one after a network sync (§22, §33, §35) or the phone's clock (FR-39.5) set
+it, and the network sources correct it whenever they are up. It counts in
+UTC; the time zone stays FR-22.2. Peer: a Micro Crystal RV-8803-C7,
+temperature compensated (±1.5 ppm from 0 to 50 °C, ±3 ppm from −40 to 85 °C,
+about a minute a year), with a coin cell that runs it while the board is
+unpowered.
+
+### 39.2 Hardware
+
+| Item | Value | Provenance |
+|------|-------|------------|
+| Part | The Adafruit RV-8803 breakout (product 6538, STEMMA QT / Qwiic); any RV-8803-C7 board on the bus works the same | [user] |
+| Bus | Each build's sensor bus (I2C controller 0, GPIO 43/44, 100 kHz), at the chip's fixed address 0x32, plugged into the Qwiic star (§2.2, §35.2); no other device on either build uses 0x32 | [user] |
+| Backup | A CR1220 coin cell in the breakout's holder; 240 nA at 3 V | [derived from the board] |
+| Pull-ups and LED | The breakout's I2C pull-ups cut as the Qwiic rows of §2.2 and §35.2 say; a power LED, if the board has one, cut by its jumper | [proposed] |
+
+### 39.3 Requirements
+
+- **FR-39.1** [Must] [user] The RTC shall be optional on both builds: with
+  nothing answering at 0x32, every other requirement is met as without this
+  section, and nothing is logged for it.
+- **FR-39.2** [Must] [user] On every boot, before the first reading and before
+  the time steps of FR-33.12 and FR-35.13, the device shall read the RTC and,
+  when it holds a valid time (its V2F flag clear, a valid date, at or after
+  2024-01-01), set the clock from it to 1/100 s. That counts as a sync for
+  FR-22.3 and FR-22.4: readings taken after it are marked synced. L20 with
+  `src=rtc` is logged when the clock was not synced before (a power-on or a
+  reset), not on a timer wake.
+- **FR-39.3** [Must] [user] With the clock set by FR-39.2, the time steps
+  that wait for a clock never set do not run: no `hub.sync` and no 60 s of
+  `card.time` asks (FR-33.12), and no attach for the time alone (FR-35.13).
+- **FR-39.4** [Must] [derived] After each network sync (SNTP, FR-22.1; the
+  Notecard, FR-33.12 and FR-39.6; the modem, FR-35.13 and FR-39.7) and each
+  phone time taken (FR-39.5), the device shall write the clock's time into the
+  RTC at the start of a second, which clears its flags. On a boot whose clock
+  is synced while the RTC holds no valid time (a new RTC, or a cell changed
+  with the board powered), it shall write it then.
+- **FR-39.5** [Must] [user] The BLE setup page shall send the phone's clock
+  (`control` `time=<ms since 1970 UTC>`, §26) right after pairing, in any
+  window. The device shall take it when its clock is not synced, or differs
+  from the phone's by more than **2 s** [proposed]: it sets the clock, marks it synced,
+  writes the RTC if one is fitted and logs L20 with `src=phone`. A time before 2024 is
+  ignored.
+- **FR-39.6** [Must] [proposed] On the T-Display build with `uplink` `cell` and the clock
+  set by FR-39.2, in each window, after the Notecard setup, the device shall
+  ask `hub.sync.status` and `card.time` once each, without a `hub.sync` or a
+  wait. When the Notecard's last completed sync is at most **3600 s** old
+  (`completed`), its time counts as a network sync: the clock set, L20 with
+  `src=cell`, the RTC written (FR-39.4). An older time is not taken, because
+  the Notecard's own clock has drifted since.
+- **FR-39.7** [Must] [derived from FR-39.4] On the T-SIM7080G build with an RTC, each attach
+  that registers shall also take the network time (`AT+CCLK?`) and, when the
+  network supplies one, count it as a network sync as FR-35.13 does.
+- **FR-39.8** [Should] [proposed] At each network sync with a valid RTC,
+  before writing it, the device shall measure the RTC's error against the
+  network time and log L55 with the days since the RTC was last set from a
+  network. When that measurement is precise to half a trim step, its
+  source's resolution over the elapsed time at most **0.12 ppm** (SNTP: 50 ms, about
+  5 days; the Notecard and the modem: 1 s, about 97 days), and at least
+  **7 days** have passed, it shall add the trim that takes out the measured rate
+  (0.2384 ppm steps, within −32 … +31) and log the old one as `was`. A phone
+  time sets the RTC but starts no measurement: the next network sync after
+  it logs no L55.
+- **FR-39.9** [Must] [derived] L56 `rtc lost` shall be logged when the RTC
+  answers with no valid time (its cell ran out with the board unpowered, or
+  a new RTC) on each boot that is not a timer wake; L56 `rtc failed` when it
+  answered at 0x32 but a transfer then failed.
+- **FR-39.10** [Must] [derived] The RTC shall be used only from the
+  application task, which owns the sensor bus's other traffic.
+- **NFR-39.1** [Must] [proposed] The fitted RTC shall run within **±3 ppm** of
+  the bench clock at bench temperature over 24 h (the commissioning probe).
+
+### 39.4 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-39.2 (core) | `rv8803` core: registers for 2000-01-01, a leap day, 2099-12-31, with 1/100 s; 30 February; a second 60; BCD out of range | The times, to 10 ms; no time for the invalid ones | A 30 February taken as a time | host |
+| FR-39.2, FR-39.3 (core) | Boot choice: RTC valid on a power-on; valid on a timer wake; lost; absent; valid before 2024 | Clock set, L20 `rtc`; clock set, no L20; L56 `lost` (not on a timer wake), clock unset; nothing; L56 `lost` | L20 on a timer wake; a time before 2024 taken | host |
+| FR-39.5 (core) | Phone time with the clock unsynced; synced and 1.5 s apart; synced and 3 s apart; a time before 2024 | Taken; ignored; taken; ignored | A phone time taken within 2 s of a synced clock | host |
+| FR-39.6 (core) | `hub.sync.status` `completed` 120 s; 3600 s; 3601 s; absent | Taken; taken; not taken; not taken | A time from a Notecard that last synced over an hour ago | host |
+| FR-39.8 (core) | Network sync: 2 s fast after 30 days by SNTP; 1 s fast after 30 days by the Notecard; 100 ms after 3 days by SNTP; after a phone time; trim at +31 and still fast | L55 and the trim lowered by 3; L55, trim kept; L55, trim kept; no L55; trim kept at the limit | A trim from a measurement coarser than half a step | host |
+| FR-39.5 (page) | The BLE page connecting to a simulated device | One `control` `time=<now in ms>` after the first reads | No time sent; a second | host |
+| FR-39.2, FR-39.3 | Shipped build, RTC fitted and set by an SNTP sync; bench AP stopped; a reset (a power cycle where the bench has one) | L20 `src=rtc`; L21 readings with `at=` a time, `synced=1` | `at=none`; a `hub.sync` or 60 s wait | target |
+| FR-39.1 | Shipped build with no RTC | Every log as before the phase; no L55, L56 | An `rtc` line | target |
+| FR-39.4, FR-39.8 | RTC fitted; ONLINE; SNTP syncs | L55 at each sync after the first (no trim under 7 days) | L55 before any network sync | bench |
+| FR-39.5 | Phone with the BLE page, clock unsynced (bench AP down, RTC lost) | L20 `src=phone`; readings with a time | No L20 | bench (operator) |
+| NFR-39.1 | Commissioning probe over 24 h against the bench capture clock | Rate within ±3 ppm | A rate outside | bench (operator) |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -4219,7 +4332,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.41.0
+fsd_version: 0.44.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4296,9 +4409,11 @@ change_history:
   - "0.39.0 2026-11-06 from the user's note that the T-SIM7080G's battery-side connector is not the T-Display's Qwiic: §35.2 the sensor bus moves from the PMU's GPIO 15/7 (not on a header) to P4, GPIO 43/44 (proposed), with a caution that P4's pin order is the Qwiic order reversed; the OLED's CS moves to GPIO 46; the PMU and the loop bus share I2C controller 1; one Qwiic board keeps its pull-ups; R-36 updated"
   - "0.40.0 2026-11-06 the user's choice for `cell_plmn` (§35.4): an empty field clears the network lock, an absent field keeps the stored one"
   - "0.41.0 2026-11-06 draft for the user's review, from the user's question whether one packed format should serve every link: §37 Packed Messages (all proposed) defines the rd, day, al and st messages shared by small-payload links (satellite, LoRa), in a template encoding for Notecard links and a raw one otherwise, decoded at the edge into the §32.3 and §31.3 JSON; IP links and the §33 notes keep JSON; R-40"
+  - "0.44.0 2026-11-06 from the user's request for timekeeping with no wireless connection (a mine shaft) and their choices on the RTC assessment: §39 Hardware Clock (optional): an RV-8803 on both builds' sensor bus (user), a valid RTC time counts as synced (user), the phone's clock over BLE (user), the RTC skips the waits of FR-33.12 and FR-35.13 (user); FR-39.6 – FR-39.9 and NFR-39.1 (proposed); L55, L56, L20 sources `rtc` and `phone`; Phase 20"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
+  - "§39: the breakout's pull-ups and LED cut; FR-39.5 a phone time taken more than 2 s from a synced clock; FR-39.6 a Notecard time only within 3600 s of its last sync; FR-39.8 a trim only from a measurement within 0.12 ppm and after 7 days; NFR-39.1 ±3 ppm over 24 h"
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
   - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"
   - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"

@@ -354,6 +354,11 @@ bool uplink_time(int64_t *epoch_s)
     return true;
 }
 
+bool uplink_sync_age(double *completed_s)
+{
+    return ready && !ask_name("hub.sync.status") && nc_num(rsp, "completed", completed_s);
+}
+
 const char *uplink_hub_sync(void)
 {
     return ready ? ask_name("hub.sync") : "timeout";

@@ -390,6 +390,12 @@ capabilities:
       fix at the window comes within about a minute, so the gps test (TC-CELL-14)
       can run on the bench. card.location answers with the held location, which
       is why FR-33.16 counts only a fix newer than the search.
+  dut-rtc:
+    what: An Adafruit RV-8803 breakout (0x32) with a CR1220 on the sensor bus (GPIO 43/44) of the board in SLOT1, through the Qwiic star (FSD §39.2)
+    available: unproven
+    consequence: >
+      Not yet fitted. commissioning/rtc-probe is its first run (NFR-39.1 and
+      the trim's direction); TC-RTC-10 and later need it.
   seam-sensor-fault-build:
     what: "Test build that reads the sensor at 0x77, where nothing answers (FSD §23.4)"
     available: no
@@ -3768,6 +3774,149 @@ tests:
     needs: []
     observable: "registered at 59 s: up; at 60 s or never: register; PPP 9 s after registering: up; at 10 s or never: ppp"
     impl: tests/host/test_uplink.py::test_modem_link_verdict
+    result: {status: not done}
+
+  - id: TC-RTC-01
+    title: "Boot choice with the RTC"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.1, FR-39.2, FR-39.4, FR-39.9]
+    needs: []
+    observable: "valid on a power-on: clock set, L20 rtc; on a timer wake: set, no L20; lost: L56 lost but not on a timer wake, written when the clock is synced; absent: nothing; before 2024: lost; a failed transfer: L56 failed"
+    impl: tests/host/test_rtc_clock.py::test_boot
+    result: {status: not done}
+
+  - id: TC-RTC-02
+    title: "The phone's clock"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.5]
+    needs: []
+    observable: "unsynced: taken; synced within 2 s: ignored; 2.001 s or 3 s off: taken; before 2024: ignored"
+    impl: tests/host/test_rtc_clock.py::test_phone_time
+    result: {status: not done}
+
+  - id: TC-RTC-03
+    title: "The Notecard's time only after a recent sync"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.6]
+    needs: []
+    observable: "completed 120 s and 3600 s: taken; 3601 s, absent or negative: not taken"
+    impl: tests/host/test_rtc_clock.py::test_notecard_time_only_after_a_recent_sync
+    result: {status: not done}
+
+  - id: TC-RTC-04
+    title: "Drift and trim at a network sync"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.8]
+    needs: []
+    observable: "2 s fast after 30 days by SNTP: L55, trim -3; 1 s after 30 days by the Notecard: no trim; under 7 days: no trim; after a phone time: no L55; at +31 and fast: kept; 10 s slow after 100 days by the modem: +5"
+    impl: tests/host/test_rtc_clock.py::test_drift
+    result: {status: not done}
+
+  - id: TC-RTC-05
+    title: "RV-8803 registers and trim"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.2, FR-39.8]
+    needs: []
+    observable: "2000-01-01, a leap day, 2099-12-31 to registers with the weekday bit; round trip to 10 ms; 30 February, second 60, hour 24, non-BCD: no time; offset register to steps and back, clamped; trim from a measured rate"
+    impl: [shared/tests/host/test_rv8803.py]
+    result: {status: not done}
+
+  - id: TC-RTC-06
+    title: "L55 and L56 lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.8, FR-39.9]
+    needs: []
+    observable: "rtc drift ms=+1840 days=30.2 trim=-3; rtc drift ms=-250 days=7.5 trim=+4 was=+1; rtc lost; rtc failed: ESP_ERR_TIMEOUT"
+    impl: tests/host/test_web_log.py::test_rtc_lines
+    result: {status: not done}
+
+  - id: TC-RTC-07
+    title: "L20 with src=rtc and src=phone"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.2, FR-39.5]
+    needs: []
+    observable: "time synced 2026-11-06T07:08:35-0500 src=rtc; ... src=phone"
+    impl: tests/host/test_web_log.py::test_time_synced_line_from_rtc_and_phone
+    result: {status: not done}
+
+  - id: TC-RTC-08
+    title: "The BLE page sends the phone's clock"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: host
+    verifies: [FR-39.5]
+    needs: []
+    observable: "one control write time=<now in ms> after connecting; control time=<1-15 digits> parsed, anything else refused"
+    impl: [shared/tests/host/test_ble_page.py::test_page_sends_the_phones_clock_on_connecting, shared/tests/host/test_ble_setup.py::test_control_commands, shared/tests/host/test_ble_setup.py::test_time_value]
+    result: {status: not done}
+
+  - id: TC-RTC-10
+    title: "Readings keep their time after a power cycle with no network"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: target
+    verifies: [FR-39.1, FR-39.2, FR-39.3]
+    needs: [bench-flash, bench-usb-reset, bench-serial-monitor, bench-wifi-ap, dut-amoled-slot1, dut-rtc]
+    observable: "RTC set by an SNTP sync while ONLINE; bench AP stopped; USB power cycle: L20 src=rtc, then L21 with at= a time, marked synced; no hub.sync and no 60 s wait"
+    impl: tests/bench/test_rtc.py::test_power_cycle_keeps_the_time
+    result: {status: not done}
+
+  - id: TC-RTC-11
+    title: "No RTC fitted"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: target
+    verifies: [FR-39.1]
+    needs: [bench-flash, bench-usb-reset, bench-serial-monitor, dut-amoled-slot1]
+    observable: "shipped build with no RTC on the bus: no rtc line and no src=rtc after a reset"
+    impl: tests/bench/test_rtc.py::test_no_rtc_no_lines
+    result: {status: not done}
+
+  - id: TC-RTC-12
+    title: "RTC rate and trim direction"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 20
+    tier: bench
+    verifies: [NFR-39.1, FR-39.8]
+    needs: [bench-flash, bench-serial-monitor, dut-rtc, operator-at-bench]
+    observable: "commissioning/rtc-probe over 24 h: rate within ±3 ppm of the bench capture clock; phase trim=+31 faster than trim=+0, trim=-32 slower"
+    impl: commissioning/rtc-probe (operator run, recorded here)
     result: {status: not done}
 
   - id: TC-TSIM-05

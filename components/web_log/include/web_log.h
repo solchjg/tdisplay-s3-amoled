@@ -111,6 +111,10 @@ void web_log_modem_attach(long ms, const char *net, int csq, long active_s, long
                           bool psm);                         // L46
 void web_log_modem_failed(const char *why, long ms);         // L47
 void web_log_gps(const double *lat, const double *lon);
+// L55 (FR-39.8; was < -99: the trim did not change) and L56 (FR-39.9,
+// warning; err ESP_OK for "rtc lost").
+void web_log_rtc_drift(long long err_ms, int days_x10, int trim, int was);
+void web_log_rtc(esp_err_t err);
 
 // L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning
 // level when the test failed (ok false).
