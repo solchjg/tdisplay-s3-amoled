@@ -12,6 +12,7 @@
 #define KEY_SETTINGS "settings"
 #define KEY_PLACE "place"
 #define KEY_WIFI_OFF "wifi_off"  // FR-34.1: its own key, so the settings blob keeps its size
+#define KEY_MODEM "modem"        // §35.4: the modem's fields, likewise their own key
 
 // FSD §33.2: the Notecard on the BME280's bus (C-23.1).
 #define NC_I2C_PORT 0
@@ -33,9 +34,19 @@ typedef struct {
 
 static ul_settings_t taken;     // from the accepted submission, until it is stored
 static ul_settings_t settings;  // as stored
+static ul_modem_t taken_m, modem;  // §35.4, the T-SIM7080G build: as taken, as stored
 static bool taken_wifi_on = true, wifi_on = true;  // FR-34.1: as taken, as stored
 static bool loaded;
 static char form[1536];
+
+static void defaults(void)
+{
+#if BOARD_HAS_NOTECARD
+    ul_defaults(&settings);
+#else
+    ul_modem_defaults(&settings, &modem);
+#endif
+}
 
 static void load(void)
 {
@@ -43,7 +54,7 @@ static void load(void)
         return;
     }
     loaded = true;
-    ul_defaults(&settings);
+    defaults();
     nvs_flash_init();  // a timer wake reaches the task before anything else does
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) {
@@ -51,8 +62,15 @@ static void load(void)
     }
     size_t len = sizeof settings;
     if (nvs_get_blob(h, KEY_SETTINGS, &settings, &len) != ESP_OK || len != sizeof settings) {
-        ul_defaults(&settings);
+        defaults();
     }
+#if !BOARD_HAS_NOTECARD
+    len = sizeof modem;
+    if (nvs_get_blob(h, KEY_MODEM, &modem, &len) != ESP_OK || len != sizeof modem) {
+        memset(&modem, 0, sizeof modem);
+    }
+    modem.apn[UL_APN_MAX] = modem.plmn[UL_PLMN_MAX] = '\0';
+#endif
     uint8_t off = 0;
     wifi_on = nvs_get_u8(h, KEY_WIFI_OFF, &off) != ESP_OK || !off;
     nvs_close(h);
@@ -62,6 +80,12 @@ const ul_settings_t *uplink_settings(void)
 {
     load();
     return &settings;
+}
+
+const ul_modem_t *uplink_modem(void)
+{
+    load();
+    return &modem;
 }
 
 bool uplink_wifi_on(void)
@@ -79,7 +103,11 @@ const char *uplink_take(const char *body, size_t len)
 {
     load();
     const char *bad = ul_parse_wifi(body, len, wifi_on, &taken_wifi_on);
+#if BOARD_HAS_NOTECARD
     return bad ? bad : ul_parse(body, len, &settings, &taken);
+#else
+    return bad ? bad : ul_parse_modem(body, len, &settings, &modem, &taken, &taken_m);
+#endif
 }
 
 const char *uplink_form_html(void)
@@ -89,6 +117,7 @@ const char *uplink_form_html(void)
     }
     load();
     const ul_settings_t *s = &settings;
+#if BOARD_HAS_NOTECARD
     char every[8];
     snprintf(every, sizeof every, "%u", (unsigned)s->cell_every);
     snprintf(form, sizeof form,
@@ -110,9 +139,32 @@ const char *uplink_form_html(void)
              s->mail_route ? "" : " selected", s->mail_route ? " selected" : "",
              s->gps ? "" : " selected", s->gps ? " selected" : "");
     return form;
+#else
+    // §35.4: the board's modem; no Notehub fields.
+    snprintf(form, sizeof form,
+             "<h2>Cellular uplink (optional)</h2>"
+             "<p>Without WiFi at the site, alerts and email go out through the board's LTE-M "
+             "modem.</p>"
+             "<p><label>Uplink <select name=\"uplink\"><option%s>wifi</option>"
+             "<option%s>cell</option></select></label></p>"
+             "<p><label>APN (from the SIM's provider) <input name=\"apn\" maxlength=\"63\" "
+             "pattern=\"[A-Za-z0-9.\\-]+\" placeholder=\"hologram\" value=\"%s\"" NO_ASSIST
+             "></label></p>"
+             "<p><label>Network (MCC+MNC, empty for automatic) <input name=\"cell_plmn\" "
+             "maxlength=\"6\" pattern=\"[0-9]{5,6}\" placeholder=\"310410\" value=\"%s\""
+             NO_ASSIST "></label></p>"
+             "<p><label>Email over cellular <select name=\"cell_mail\"><option%s>on</option>"
+             "<option%s>off</option></select></label></p>"
+             "<p><label>GPS fix in the setup check <select name=\"gps\"><option%s>off</option>"
+             "<option%s>on</option></select></label></p>",
+             s->cell ? "" : " selected", s->cell ? " selected" : "", modem.apn, modem.plmn,
+             s->mail_route ? " selected" : "", s->mail_route ? "" : " selected",
+             s->gps ? "" : " selected", s->gps ? " selected" : "");
+    return form;
+#endif
 }
 
-static esp_err_t store_settings(const ul_settings_t *s, bool erase_place)
+static esp_err_t store_settings(const ul_settings_t *s, const ul_modem_t *m, bool erase_place)
 {
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
@@ -128,6 +180,13 @@ static esp_err_t store_settings(const ul_settings_t *s, bool erase_place)
     if (err == ESP_OK && s) {
         err = nvs_set_u8(h, KEY_WIFI_OFF, taken_wifi_on ? 0 : 1);
     }
+#if !BOARD_HAS_NOTECARD
+    if (err == ESP_OK && m) {
+        err = nvs_set_blob(h, KEY_MODEM, m, sizeof *m);
+    }
+#else
+    (void)m;
+#endif
     if (err == ESP_OK) {
         err = nvs_commit(h);
     }
@@ -137,8 +196,9 @@ static esp_err_t store_settings(const ul_settings_t *s, bool erase_place)
 
 esp_err_t uplink_store(void)
 {
-    esp_err_t err = store_settings(&taken, false);
+    esp_err_t err = store_settings(&taken, &taken_m, false);
     settings = taken;
+    modem = taken_m;
     wifi_on = taken_wifi_on;
     loaded = err == ESP_OK;
     form[0] = '\0';
@@ -147,11 +207,11 @@ esp_err_t uplink_store(void)
 
 esp_err_t uplink_erase(void)
 {
-    ul_defaults(&settings);
+    defaults();
     wifi_on = taken_wifi_on = true;  // FR-34.1: a factory reset turns WiFi back on
     loaded = true;
     form[0] = '\0';
-    return store_settings(NULL, true);
+    return store_settings(NULL, NULL, true);
 }
 
 bool uplink_place(double *lat, double *lon, int64_t *at)

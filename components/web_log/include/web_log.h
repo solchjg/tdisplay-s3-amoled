@@ -107,6 +107,9 @@ void web_log_ntfy_failed(const char *reason, const char *event);
 // lat and lon NULL for "gps none").
 void web_log_cell_note(const char *what, int n);
 void web_log_cell_failed(const char *reason, const char *req);
+void web_log_modem_attach(long ms, const char *net, int csq, long active_s, long tau_s,
+                          bool psm);                         // L46
+void web_log_modem_failed(const char *why, long ms);         // L47
 void web_log_gps(const double *lat, const double *lon);
 
 // L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning

@@ -94,6 +94,111 @@ void ul_report(const ul_settings_t *s, char *out, size_t cap)
              s->mail_route ? "route" : "off", s->gps ? "on" : "off");
 }
 
+// ── The T-SIM7080G build's modem (FSD §35) ─────────────────────────────
+
+void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m)
+{
+    ul_defaults(s);
+    s->mail_route = true;  // §35.4: `cell_mail` `on` when none is stored
+    memset(m, 0, sizeof *m);
+}
+
+static bool apn_ok(const char *v, int n)
+{
+    if (n < 1 || n > UL_APN_MAX) {
+        return false;
+    }
+    for (int i = 0; i < n; i++) {
+        char c = v[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+              c == '.' || c == '-')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool plmn_ok(const char *v, int n)
+{
+    if (n < 5 || n > UL_PLMN_MAX) {
+        return false;
+    }
+    for (int i = 0; i < n; i++) {
+        if (v[i] < '0' || v[i] > '9') {
+            return false;
+        }
+    }
+    return true;
+}
+
+const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *stored,
+                           const ul_modem_t *stored_m, ul_settings_t *out, ul_modem_t *out_m)
+{
+    *out = *stored;
+    *out_m = *stored_m;
+    char v[UL_APN_MAX + 2];
+    static const char *const NOT_OFFERED[] = {"nh_product", "cell_every"};
+    for (size_t i = 0; i < 2; i++) {
+        if (pc_field(body, len, NOT_OFFERED[i], v, sizeof v - 1) != PC_FIELD_ABSENT) {
+            return NOT_OFFERED[i];
+        }
+    }
+    if (!choice(body, len, "uplink", "cell", "wifi", &out->cell)) {
+        return "uplink";
+    }
+    int n = pc_field(body, len, "apn", v, sizeof v - 1);
+    if (n == PC_FIELD_BAD || (n > 0 && !apn_ok(v, n))) {
+        return "apn";
+    }
+    if (n > 0) {
+        memcpy(out_m->apn, v, (size_t)n + 1);
+    }
+    n = pc_field(body, len, "cell_plmn", v, sizeof v - 1);
+    if (n == PC_FIELD_BAD || (n > 0 && !plmn_ok(v, n))) {
+        return "cell_plmn";
+    }
+    if (n >= 0) {  // §35.4: an empty `cell_plmn` clears the lock, an absent one keeps it
+        memcpy(out_m->plmn, v, (size_t)n + 1);
+    }
+    if (!choice(body, len, "gps", "on", "off", &out->gps)) {
+        return "gps";
+    }
+    if (!choice(body, len, "cell_mail", "on", "off", &out->mail_route)) {
+        return "cell_mail";
+    }
+    if (out->cell && out_m->apn[0] == '\0') {
+        return "apn";
+    }
+    if (out->gps && !out->cell) {
+        return "gps";
+    }
+    return NULL;
+}
+
+void ul_report_modem(const ul_settings_t *s, const ul_modem_t *m, char *out, size_t cap)
+{
+    snprintf(out, cap, "uplink=%s&apn=%s&cell_plmn=%s&cell_mail=%s&gps=%s",
+             s->cell ? "cell" : "wifi", m->apn, m->plmn, s->mail_route ? "on" : "off",
+             s->gps ? "on" : "off");
+}
+
+bool ul_modem_wanted(const ul_settings_t *s, bool upload, bool alert, bool mail, bool time_step,
+                     bool gps_search)
+{
+    return s->cell && (upload || alert || mail || time_step || gps_search);
+}
+
+ul_link_t ul_modem_link(long register_ms, long ppp_ms)
+{
+    if (register_ms < 0 || register_ms >= UL_REGISTER_MS) {
+        return UL_LINK_REGISTER;
+    }
+    if (ppp_ms < 0 || ppp_ms >= UL_PPP_MS) {
+        return UL_LINK_PPP;
+    }
+    return UL_LINK_UP;
+}
+
 int ul_next_note(int left, int per_note)
 {
     if (left <= 0 || per_note <= 0) {
