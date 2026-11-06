@@ -1,3 +1,12 @@
+// Push alerts (FSD §31), the ESP-IDF side: the settings in NVS (namespace
+// `ntfy`, one blob), the portal form section, the condition state in RTC
+// memory so it survives deep sleep, and the send. Which alerts are due and
+// their text is the pure notify_core.c.
+//
+// Settings follow the portal's two-step pattern: notify_take parses a
+// submission into `taken`, notify_store writes it once the whole form is
+// accepted.
+
 #include "notify.h"
 
 #include <stdio.h>
@@ -57,7 +66,7 @@ const char *notify_take(const char *body, size_t len)
     return nf_parse(body, len, &settings, &taken);
 }
 
-static char form[2048];
+static char form[2048];  // the form section, rendered once and cleared when the settings change
 
 const char *notify_topic(void)
 {
@@ -119,6 +128,7 @@ const char *notify_form_html(void)
     return form;
 }
 
+// Replaces the namespace with one settings blob, or empties it when s is NULL.
 static esp_err_t store_blob(const nf_settings_t *s)
 {
     nvs_handle_t h;
@@ -162,11 +172,17 @@ nf_state_t *notify_state(void)
     return &state;
 }
 
+// Starts a run of sends: the next notify_send sets the shared FR-31.11 deadline.
 void notify_begin(void)
 {
     deadline_us = 0;
 }
 
+// One send runs in a helper task with its own stack (an HTTPS handshake needs
+// about 8 KB), while the caller waits in 1 s steps and feeds its watchdog. If
+// the deadline passes first, the caller gives up but the helper may still be
+// using `job` and the buffers, so they are static and the next call frees the
+// semaphore only once the helper has finished.
 typedef struct {
     ntfy_tx_server_t server;
     nt_msg_t msg;

@@ -1,6 +1,24 @@
 // Composition root: turns ESP-IDF and interface events into Device Logic events
 // (FSD §5), executes the actions the logic returns, and keeps the screen and the
 // log in step with the state. The logic decides; this file performs.
+//
+// How it runs. app_main() does the boot work in order (wake cause, Notecard,
+// tests a reset cut short, the task of a timer wake, the history, the first
+// reading, the panel, WiFi), then loops on one event queue. Callbacks from
+// other tasks and timers (WiFi, OTA, keys, BLE, SNTP, the 1 s tick) only post
+// an app_event_t; every decision and every interface call happens in this
+// loop, on the watched application task. Each tick runs the regions below,
+// draws the screen, and runs the task (a reading, the due sends, then deep
+// sleep) once the window allows it.
+//
+// File map, one "──" section per Device Logic region:
+//   events and callbacks · BLE setup (§26) · sleep (§21) · weather (§23) ·
+//   add-on values (§29.2) · sampling setups (§28) · summary email (§25) ·
+//   cellular uplink (§33) · push alerts (§31) · display (§6) ·
+//   setup check (§24) · connectivity (§5.3) · app_main.
+//
+// TDS3_TEST_* macros select the test builds under tests/target/; the shipped
+// build defines none of them.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -120,6 +138,9 @@ static void page_extra(char *out, size_t len)
 // its setup section, its loop section, its alerts section, then its uplink section.
 static char form_html[8192];
 
+// The portal's extra fields: each component parses its own part of the body
+// into a staged copy; the first error stops the submission and is shown to the
+// user. The staged settings are stored only once the whole form is accepted.
 static const char *form_take(const char *body, size_t len)
 {
     const char *bad = summary_take(body, len);
@@ -131,6 +152,7 @@ static const char *form_take(const char *body, size_t len)
 
 static const portal_extra_t form_extra = {.html = form_html, .take = form_take};
 
+// The form sections, concatenated once on first use.
 static const portal_extra_t *form_fields(void)
 {
     if (!form_html[0]) {
@@ -170,6 +192,12 @@ static dl_disp_t disp = DL_LCD_START;
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
 
+// ── Events and callbacks ─────────────────────────────────────────────────
+//
+// The callbacks below run in other tasks (WiFi, httpd, esp_timer, NimBLE) and
+// only post an event; the main loop in app_main() handles it. The queue never
+// blocks a sender: an event that finds it full is dropped.
+
 static void post(const app_event_t *e)
 {
     xQueueSend(queue, e, 0);
@@ -205,6 +233,8 @@ static void on_attempt_timeout(void *arg)
     post_conn(DL_EV_ATTEMPT_FAILED);
 }
 
+// True while the running image came from an OTA and is not yet confirmed: it
+// must reach ONLINE before CONFIRM_DEADLINE_US or it is rolled back (T5, T13).
 static bool image_pending_verify(void)
 {
     esp_ota_img_states_t st;
@@ -212,6 +242,8 @@ static bool image_pending_verify(void)
            st == ESP_OTA_IMG_PENDING_VERIFY;
 }
 
+// From wifi_net: an address (T5, or T9 when already ONLINE) or a lost link.
+// `got_ip` also wakes a timer-wake send that waits for WiFi without the queue.
 static void on_net(wifi_net_event_t ev, const char *addr)
 {
     if (ev == WIFI_NET_EV_GOT_IP && got_ip) {
@@ -238,6 +270,8 @@ static void on_confirm_deadline(void *arg)
     post(&e);
 }
 
+// From ota_rx when a download ends: log it, remember the slot it wrote, and
+// let the connectivity region decide (T11 restarts into it, T12 stays).
 static void on_ota(const ota_rx_result_t *r)
 {
     if (r->ok) {
@@ -1184,6 +1218,9 @@ static void send_test_alert(bool online)
 
 // FR-25.3 – FR-25.9, FR-31.10: due alerts and a due summary are sent once, or
 // dropped and logged; on a timer wake one WiFi start serves both.
+// After a reading: sends the due alerts and the due summary, each by its own
+// path (WiFi, a Notecard note, or nothing). On a timer wake WiFi is started
+// only if one of them goes over WiFi, and stopped again afterwards.
 static void send_due_messages(void)
 {
     bool mail = summary_due();
@@ -1289,6 +1326,8 @@ static uint32_t run_task(void)
 #endif
 }
 
+// Runs the task once per boot and, if it asked for a sleep, sleeps. Returns
+// only when the task asked to stay awake or the sleep failed.
 static void run_task_and_sleep(void)
 {
     task_ran = true;
@@ -1340,6 +1379,7 @@ static esp_err_t draw_changed(char want[DL_LINES][DL_LINE_MAX])
     return ESP_OK;
 }
 
+// Performs the display actions of one dl_disp_step (D1 – D5).
 static void execute_disp(unsigned actions, esp_err_t err)
 {
     if (actions & DL_ACT_BACKLIGHT_ON) {
@@ -1360,6 +1400,8 @@ static void execute_disp(unsigned actions, esp_err_t err)
     }
 }
 
+// Once a second: build the screen from the view, draw what changed while the
+// panel is OK, and step the display region (D3 – D6). Returns the new state.
 static dl_disp_t disp_tick(dl_disp_t disp)
 {
     view.requests = status_http_requests();
@@ -1382,6 +1424,9 @@ static uint32_t uptime_s(void)
     return (uint32_t)(esp_timer_get_time() / 1000000);
 }
 
+// Performs the actions of one dl_hold_step: entering the hold starts the LED
+// blink, the key sampler, the countdown and the GPS search; leaving it stops
+// them and puts the kept reading back on the screen.
 static void execute_hold(unsigned a)
 {
     uint32_t now = uptime_s();
@@ -1444,6 +1489,8 @@ static void hold_tick(void)
 
 // ── Connectivity region ──────────────────────────────────────────────────
 
+// One station attempt (T2, T3, T8): start the station and arm the 15 s timer
+// that turns a missing address into DL_EV_ATTEMPT_FAILED (T6).
 static void start_attempt(void)
 {
     web_log_sta_mode(stored.ssid);
@@ -1466,6 +1513,8 @@ static void feed_watchdog(void)
     esp_task_wdt_reset();
 }
 
+// Performs the action bitmask of one dl_conn_step, in the order the bits are
+// tested below; DL_C_RESTART is last and does not return.
 static void execute_conn(const app_event_t *e, dl_conn_step_t step)
 {
     unsigned a = step.actions;
@@ -1678,6 +1727,9 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     }
 }
 
+// One connectivity event: stop the attempt timer where it no longer applies,
+// step the region (FSD §5.3), log a state change, perform the actions, and
+// pass their consequences to the BLE and setup-check regions.
 static void conn_event(const app_event_t *e)
 {
     if (e->ev == DL_EV_IP || e->ev == DL_EV_IP_CHANGED || e->ev == DL_EV_DISCONNECTED) {
@@ -1711,6 +1763,8 @@ static void conn_event(const app_event_t *e)
         hold_event(DL_HEV_MARKED, true);
     }
 }
+
+// ── app_main ─────────────────────────────────────────────────────────────
 
 void app_main(void)
 {
@@ -1837,6 +1891,10 @@ void app_main(void)
         web_log_warn("user key start", err);
     }
 
+    // The event loop. Every event but the tick is handled at once; the tick
+    // runs the regions in a fixed order: the countdowns and tests that set the
+    // screen lines, the owed sends, the draw, then the hold and BLE timeouts
+    // and finally the task, which may not return (deep sleep).
     esp_timer_start_periodic(tick_timer, TICK_US);
     for (uint32_t tick = 0, alive = 0;;) {
         app_event_t e;

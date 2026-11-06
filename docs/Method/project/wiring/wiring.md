@@ -26,12 +26,12 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 
 | Sheet | Status | Board pins |
 |---|---|---|
-| [1 Board, battery, BME280, Notecard](wiring-1-board-bme280-notecard.png) ([.fzz](wiring-1-board-bme280-notecard.fzz)) | BME280 on main (FSD §23); Notecarrier-X v1.3 specified (§33) | GPIO 43 SDA, GPIO 44 SCL, 3V3, GND, BAT JST, Qwiic |
+| [1 Board, battery, BME280, Notecard](wiring-1-board-bme280-notecard.png) ([.fzz](wiring-1-board-bme280-notecard.fzz)) | BME280 (FSD §23) and Notecarrier-X v1.3 (§33) on main | GPIO 43 SDA, GPIO 44 SCL, 3V3, GND, BAT JST, Qwiic |
 | [2 4-20 mA loop input](wiring-2-loop-4-20ma.png) ([.fzz](wiring-2-loop-4-20ma.fzz)) | On main (FSD §29), circuit in [loop-circuit.md](../loop-circuit.md) | GPIO 3 supply enable and isolator power, VSYS, GPIO 15/16 loop bus, GND |
 | [3 Water pressure probe](wiring-3-water-probe.png) ([.fzz](wiring-3-water-probe.fzz)) | Proposed ([water-probe-circuit.md](../water-probe-circuit.md)) | GPIO 2 boost enable, VSYS, GPIO 43/44, 3V3, GND |
 | [4 RS232 instrument](wiring-4-rs232.png) ([.fzz](wiring-4-rs232.fzz)) | Specified (FSD §30), circuit in [rs232-circuit.md](../rs232-circuit.md) | GPIO 11 TX, GPIO 12 RX, GPIO 13 transceiver supply, GND |
-| [5 Blues cellular uplink](wiring-5-blues-cellular.png) ([.fzz](wiring-5-blues-cellular.fzz)) | Specified (FSD §33), hardware in [blues-cellular.md](../blues-cellular.md) | Qwiic GND, GPIO 43 SDA, GPIO 44 SCL (3V3 not connected) |
-| [6 Blues cellular, direct wiring](wiring-6-blues-cellular-direct.png) ([.fzz](wiring-6-blues-cellular-direct.fzz)) | Specified (FSD §33.2, the alternative to sheet 5) | GND, GPIO 43 SDA, GPIO 44 SCL soldered to the Notecarrier-X header (VIO not connected) |
+| [5 Blues cellular uplink](wiring-5-blues-cellular.png) ([.fzz](wiring-5-blues-cellular.fzz)) | On main (FSD §33), hardware in [blues-cellular.md](../blues-cellular.md) | Qwiic GND, GPIO 43 SDA, GPIO 44 SCL (3V3 not connected) |
+| [6 Blues cellular, direct wiring](wiring-6-blues-cellular-direct.png) ([.fzz](wiring-6-blues-cellular-direct.fzz)) | On main (FSD §33.2, the alternative to sheet 5) | GND, GPIO 43 SDA, GPIO 44 SCL soldered to the Notecarrier-X header (VIO not connected) |
 
 The I2C devices on the board's bus share GPIO 43/44: the BME280 at 0x76, the
 water ADS1115 at 0x48 and the Notecard at 0x17. The loop ADS1115 (0x49) has its

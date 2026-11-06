@@ -1,7 +1,7 @@
-# T-Display-S3 Webserver — User Manual
+# T-Display-S3 AMOLED Webserver — User Manual
 
 How to connect, flash, provision, use, update and recover the webserver firmware
-on a LilyGO T-Display-S3.
+on a LilyGO T-Display-S3 AMOLED 1.91".
 
 **Status: built and verified on the bench; not yet released.** Every chapter below
 describes the firmware as built. The parts the test bench cannot exercise are
@@ -304,8 +304,8 @@ Leave `bluetoothctl` connected and press **Connect to device** on the page.
 
 ## 5d. ThingsBoard
 
-The device can upload its readings to your own ThingsBoard server, in a batch
-every hour by default, for dashboards and server-side alarms. Setting up the
+Uploading readings to your own ThingsBoard server (FSD §32) is specified but
+not in this firmware yet; the server can be prepared ahead of it. Setting up the
 server, the device's settings, the checks and the move to `https://` are in
 the [ThingsBoard Setup](ThingsBoard-Setup.md) guide. Building the production
 server on a cloud VM (ThingsBoard and ntfy behind `https://`, backups, moving

@@ -1,3 +1,12 @@
+// Setup check (FSD §24), the hardware side: the pending mark in NVS and two
+// esp_timer samplers of the keys, both active low with the internal pull-up.
+//   - setup_check_key_start: while the check holds, samples the user key and
+//     BOOT every 10 ms; a debounced press of either ends the hold.
+//   - setup_check_hold_start: runs for the whole boot, samples the user key
+//     every 20 ms for the long hold that opens a BLE window (FR-26.2) and for
+//     single and double presses (FR-28.4).
+// The debouncing, hold and tap rules are the pure setup_check_core.c.
+
 #include "setup_check.h"
 
 #include "driver/gpio.h"
@@ -51,6 +60,7 @@ esp_err_t setup_check_mark(bool pending)
     return err;
 }
 
+// 10 ms timer callback: one debounced sample of each key; a press ends the hold.
 static void sample(void *arg)
 {
     uint32_t now = now_ms();
@@ -98,6 +108,7 @@ void setup_check_key_stop(void)
     }
 }
 
+// The user-key sampler for the long hold and the taps (setup_check_hold_start).
 static sk_hold_t long_hold;
 static uint32_t long_hold_ms;
 static setup_check_held_cb_t held_cb;
@@ -106,6 +117,8 @@ static esp_timer_handle_t hold_timer;
 static sk_taps_t taps;
 static setup_check_tap_cb_t tap_cb;
 
+// 20 ms timer callback: reports a hold that reached hold_ms, and each single
+// or double press.
 static void sample_hold(void *arg)
 {
     bool low = gpio_get_level(PIN_KEY) == 0;

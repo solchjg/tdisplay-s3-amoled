@@ -5,7 +5,7 @@
 | Layer | Component | Location | Depends on |
 |-------|-----------|----------|------------|
 | L2 | Device Logic (FSD §5) | `components/device_logic/` — pure C, no ESP-IDF headers: both transition functions, retry delay, screen content, SSID sanitising | nothing |
-| L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the three-line display; layout core (`lcd_layout.c`) pure | `rm67162`, `text`, `tdisplay_s3_amoled` |
+| L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the six-line text display; layout core (`lcd_layout.c`) pure | `rm67162`, `text`, `tdisplay_s3_amoled` |
 | L0 | RM67162 panel driver | `shared/components/rm67162/` — board-agnostic QSPI bring-up, DMA canvas, rectangle writes, brightness; configured by `rm67162_config_t` | esp_lcd, SPI and GPIO drivers, `esp_try` |
 | L0 | Text renderer | `shared/components/text/` — 16 × 32 and 12 × 24 fonts, `text_render`/`text_width` and the font-taking `text_font_render`, pure C | nothing |
 | L0 | Board support | `shared/components/tdisplay_s3_amoled/` — header-only pin and panel constants, pure | nothing |
@@ -28,6 +28,8 @@
 | L1 | Setup Check (FSD §24) | `components/setup_check/` (key debounce core pure); the pending mark in NVS (`CONFIG_SETUP_CHECK_NVS_NAMESPACE`) and the keys that end the hold (`CONFIG_SETUP_CHECK_KEY_GPIO` 21, the user key; `CONFIG_SETUP_CHECK_KEY2_GPIO` 0, BOOT) sampled every 10 ms, each press through a callback; when to hold is `device_logic`'s | nvs_flash, GPIO driver, esp_timer |
 | L1 | Summary Email (FSD §25) | `components/summary/` (settings check, due rule and message core pure); adds the mail and reading-time fields to the portal (`portal_start_extra`), keeps the settings, the sample and average minutes and the last due slot in NVS (namespace `mail`), sends through `mail_tx` in a helper task while feeding the caller's watchdog; on a timer wake the composition root brings the station up only for a due summary | `mail_tx`, `portal`, `weather`, nvs_flash, esp_timer |
 | L1 | Push Alerts (FSD §31) | `components/notify/` (settings check, condition state with hysteresis, titles and bodies core pure); adds the alert fields to the portal form, keeps the settings in NVS (namespace `ntfy`) and the condition state in RTC memory, sends through `ntfy_tx` in a helper task while feeding the caller's watchdog; the composition root observes each reading and, on a timer wake, starts the station once for due alerts and a due summary | `ntfy_tx`, `weather`, `portal`, nvs_flash, esp_timer |
+| L1 | Cellular Uplink (FSD §33) | `components/uplink/` (settings, send path, `alert.qo`/`mail.qo` bodies, clock and GPS steps core pure); keeps the settings and the GPS place in NVS, adds its section to the portal form, and sends the Notecard requests through `notecard` on the BME280's bus | `notecard`, `portal`, nvs_flash |
+| L1 | BLE Settings (FSD §26) | `components/ble_settings/` (pure): what a `settings` write means in each window, the read without secrets, the page's field rules, `info`; the transport is `shared/components/ble_setup/` | nothing |
 | L1 | Device Identity (FSD §20) | `shared/components/identity/` (name formatting core pure, prefixes passed in) | nothing |
 | — | Composition root | `main/app_main.c` — event queue, 1 s tick, runs the logic, executes the returned actions against the interfaces, and wires each interface's callbacks to `web_log` | all of the above |
 | host tests | | `tests/host/` — builds `device_logic` and the pure cores with the host compiler; `test_lcd_text.py` uses the `compile_harness` fixture in `conftest.py` | the pure cores only |
@@ -98,9 +100,10 @@ IDF Component Manager git dependency pinned to a tag, or as a submodule.
   `id_softap_ssid` / `id_hostname`, so the `identity` core stays free of
   ESP-IDF headers.
 - `lcd`, `device_logic`, `web_log`, `weather`, `history`, `setup_check`,
-  `summary`, `loop` and `ble_settings` stay in `components/`: they are this app's
-  screen, state machine, log vocabulary, sensor, reading history, setup check,
-  summary email, loop input and the meaning of its BLE settings body.
+  `summary`, `sampling`, `loop`, `notify`, `uplink` and `ble_settings` stay in
+  `components/`: they are this app's screen, state machine, log vocabulary,
+  sensor, reading history, setup check, summary email, sampling setups, loop
+  input, push alerts, cellular uplink and the meaning of its BLE settings body.
 
 ## BLE setup (FSD §26)
 
@@ -188,9 +191,10 @@ power and data figures, are in [`blues-cellular.md`](blues-cellular.md).
   table `partitions.csv` at the repo root (FSD C-10.6), app rollback in the
   bootloader (C-10.8), the task watchdog with the timeout of FSD §19, the
   USB-Serial/JTAG console, and leaves SPIRAM disabled (C-10.1, C-10.3, C-10.5).
-- Managed components are declared in `main/idf_component.yml` with an exact
-  version; commit `dependencies.lock`, never `managed_components/`. The only one
-  is `espressif/mdns` (FSD §17), added in Phase 3. After adding it, remove
+- Managed components are declared in the `idf_component.yml` of the component
+  that uses them, with an exact version; commit `dependencies.lock`, never
+  `managed_components/`. The only one is `espressif/mdns` (FSD §17), declared by
+  `shared/components/mdns_name/`. After adding it, remove
   `build/` or run `idf.py reconfigure` so the component solver runs.
 - JSON is rendered with `snprintf` in `status_http`'s pure core, so no cJSON
   dependency is needed.

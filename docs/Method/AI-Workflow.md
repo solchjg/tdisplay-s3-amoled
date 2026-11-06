@@ -1,4 +1,4 @@
-# T-Display-S3 Webserver — AI Workflow (the build contract)
+# T-Display-S3 AMOLED Webserver — AI Workflow (the build contract)
 
 Read this before any change. It is how new functionality is built and how the
 documentation stays in sync with it.

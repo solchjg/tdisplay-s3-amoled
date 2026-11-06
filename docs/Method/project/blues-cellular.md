@@ -3,8 +3,9 @@
 The hardware for the cellular uplink of FSD §33: a Blues Notecard Cell+WiFi
 **NOTE-MBGLW**, hardware v2.5, on a **Notecarrier-X v1.3**, both parts the user owns.
 The device runs the Notecard on cellular only (FR-33.14), and, when `gps` is `on`,
-uses its GPS once per setup check to take a fix of the place (FR-33.15). The FSD specifies it, but
-neither the firmware nor the wiring is built yet. The Notecarrier joins the I2C bus in one
+uses its GPS once per setup check to take a fix of the place (FR-33.15). The firmware carries it
+(`components/uplink/`) and the bench Notecard is commissioned; the `tb.qo` and
+`tbattr.qo` notes wait for ThingsBoard telemetry (§32). The Notecarrier joins the I2C bus in one
 of two ways (FSD §33.2, Wiring): by a Qwiic cable, with nothing soldered, or by three
 wires soldered to its 16-pin header. Fritzing [sheet 5](wiring/wiring-5-blues-cellular.png)
 shows the Qwiic wiring, [sheet 6](wiring/wiring-6-blues-cellular-direct.png) the direct

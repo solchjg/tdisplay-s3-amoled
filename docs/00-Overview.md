@@ -1,4 +1,4 @@
-# T-Display-S3 Webserver — Documentation
+# T-Display-S3 AMOLED Webserver — Documentation
 
 Three planes, three questions, three readers. Every sentence belongs to exactly
 one of them.

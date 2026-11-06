@@ -1,3 +1,8 @@
+// Serial log interface (FSD §7): emits each `web:` line through esp_log under
+// the tag "web". The wording comes from web_log_format.c; this file adds what
+// needs ESP-IDF (the running image, the reset reason, the clock). Only
+// app_main.c calls it: the shared components report through callbacks.
+
 #include "web_log.h"
 
 #include <string.h>
