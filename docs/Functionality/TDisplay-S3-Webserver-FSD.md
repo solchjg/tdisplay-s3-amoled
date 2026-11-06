@@ -3600,7 +3600,7 @@ for an unknown field.
 |-------|--------|-------|-----------------|
 | `uplink` | `wifi` or `cell` (`cell` is the board's modem) | one of the two; `cell` needs `apn`, given or stored | the stored value; `wifi` when none is stored [user] |
 | `apn` | the SIM provider's access point name, e.g. `hologram` | 1 – 63 bytes, letters, digits, `.` and `-` | the stored value |
-| `cell_plmn` | a network to lock to, MCC+MNC, e.g. `310410`; empty for automatic choice | empty, or 5 – 6 digits | the stored value; empty when none is stored [user] |
+| `cell_plmn` | a network to lock to, MCC+MNC, e.g. `310410`; empty for automatic choice | empty, or 5 – 6 digits | empty clears the lock (automatic choice); absent keeps the stored value, empty when none is stored [user] |
 | `gps` | as §33.3 | as §33.3 | as §33.3 |
 | `cell_mail` | email over cellular: `on` (sent by §25's SMTP over the modem) or `off` | one of the two | the stored value; `on` when none is stored [user] |
 
@@ -4040,7 +4040,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.39.0
+fsd_version: 0.40.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4115,6 +4115,7 @@ change_history:
   - "0.37.0 2026-11-05 the user approved §35 and §36 with every proposal in them (pin map, displays, off-board key, settings card, modem behaviour, settings and defaults, the `epaper` setting) and the Qwiic rows of §2.2 and §35.2; §35 and §36 are no longer drafts; §35's verification contracts come before Phase 17"
   - "0.38.0 2026-11-05 from the user's go-ahead for Phase 17: §35.6 verification contracts for FR-35.1 – FR-35.19 and NFR-35.1 – NFR-35.2 (host cores, SLOT3 bench and operator rows)"
   - "0.39.0 2026-11-06 from the user's note that the T-SIM7080G's battery-side connector is not the T-Display's Qwiic: §35.2 the sensor bus moves from the PMU's GPIO 15/7 (not on a header) to P4, GPIO 43/44 (proposed), with a caution that P4's pin order is the Qwiic order reversed; the OLED's CS moves to GPIO 46; the PMU and the loop bus share I2C controller 1; one Qwiic board keeps its pull-ups; R-36 updated"
+  - "0.40.0 2026-11-06 the user's choice for `cell_plmn` (§35.4): an empty field clears the network lock, an absent field keeps the stored one"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"

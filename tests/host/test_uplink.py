@@ -381,9 +381,19 @@ def test_modem_settings_new_device(ul, body, want):
 
 
 def test_modem_settings_keep_the_stored_apn(ul):
-    # cell with the APN stored earlier; an empty field keeps the stored value.
-    assert ul("modem", "apn=hologram&cell_plmn=310410", "uplink=cell&apn=&cell_plmn=") == \
+    # cell with the APN stored earlier; an empty or absent APN keeps the stored value.
+    assert ul("modem", "apn=hologram&cell_plmn=310410", "uplink=cell&apn=") == \
         "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off"
+
+
+@pytest.mark.parametrize("body,want", [
+    ("uplink=cell&apn=&cell_plmn=", "uplink=cell&apn=hologram&cell_plmn=&cell_mail=on&gps=off"),
+    ("uplink=cell", "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off"),
+    ("cell_plmn=311480", "uplink=wifi&apn=hologram&cell_plmn=311480&cell_mail=on&gps=off"),
+])
+def test_modem_settings_cell_plmn_empty_clears_absent_keeps(ul, body, want):
+    # §35.4: an empty cell_plmn clears a stored lock; an absent one keeps it.
+    assert ul("modem", "apn=hologram&cell_plmn=310410", body) == want
 
 
 # FR-35.7 (core): the modem wake decision.

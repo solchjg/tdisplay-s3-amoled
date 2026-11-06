@@ -157,7 +157,7 @@ const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *st
     if (n == PC_FIELD_BAD || (n > 0 && !plmn_ok(v, n))) {
         return "cell_plmn";
     }
-    if (n > 0) {
+    if (n >= 0) {  // §35.4: an empty `cell_plmn` clears the lock, an absent one keeps it
         memcpy(out_m->plmn, v, (size_t)n + 1);
     }
     if (!choice(body, len, "gps", "on", "off", &out->gps)) {
