@@ -5,7 +5,7 @@
 | Layer | Component | Location | Depends on |
 |-------|-----------|----------|------------|
 | L2 | Device Logic (FSD §5) | `components/device_logic/` — pure C, no ESP-IDF headers: both transition functions, retry delay, screen content, SSID sanitising | nothing |
-| L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the six-line text display; layout core (`lcd_layout.c`) pure | `rm67162`, `text`, `tdisplay_s3_amoled` |
+| L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the six-line text display; layout core (`lcd_layout.c`) pure. On the T-SIM7080G build `lcd_oled.c` draws the lines on the SSD1322 OLED (FR-35.16: 6 × 10 cells, 42 characters from x 2, rows from y 2, `lcd_oled_layout.c` pure), display off in `lcd_sleep`, the off-board key's LED as FR-24.9's | `rm67162`, `ssd1322`, `text`, `tdisplay_s3_amoled`, `board` |
 | L0 | RM67162 panel driver | `shared/components/rm67162/` — board-agnostic QSPI bring-up, DMA canvas, rectangle writes, brightness; configured by `rm67162_config_t` | esp_lcd, SPI and GPIO drivers, `esp_try` |
 | L0 | Text renderer | `shared/components/text/` — 16 × 32 and 12 × 24 fonts, `text_render`/`text_width` and the font-taking `text_font_render`, pure C | nothing |
 | L0 | Board support | `shared/components/tdisplay_s3_amoled/` — header-only pin and panel constants, pure | nothing |
@@ -68,7 +68,9 @@ requirements first need them, never earlier.
   Bold 16x32 on lines 1 – 5 and 12x24 on line 6 (SIL OFL 1.1,
   `shared/components/text/font/OFL.txt`), converted by `shared/tools/bdf_to_c.py`
   into `shared/components/text/font16x32.c` and `font12x24.c`
-  (`bdf_to_c.py ter-u24b.bdf 12x24`). Regenerate, never hand-edit. Line tops
+  (`bdf_to_c.py ter-u24b.bdf 12x24`). The T-SIM7080G build's OLED uses the
+  X11 misc-fixed 6x10 font (public domain, `bdf_to_c.py 6x10.bdf 6x10` into
+  `font6x10.c`). Regenerate, never hand-edit. Line tops
   are 8, 48, 88, 128, 168 and 208 px (`lcd_layout.c`). Lines 1 – 3 at
   y = 36, 104, 172, all at x = 0 (recommendation; FR-6.5 is the requirement). A
   changed line is redrawn as its full 536 px-wide row, so no characters of a

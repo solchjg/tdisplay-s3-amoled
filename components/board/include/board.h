@@ -21,6 +21,13 @@
 #define BOARD_HAS_NOTECARD 0
 // The off-board key's LED (FR-35.18).
 #define BOARD_LED 47
+// The 3.12" SSD1322 OLED (§35.2, FR-35.16) on SPI2, the lines shared with the
+// optional e-paper (§36) except its own CS.
+#define BOARD_OLED_SCK 9
+#define BOARD_OLED_MOSI 10
+#define BOARD_OLED_CS 46
+#define BOARD_OLED_DC 14
+#define BOARD_OLED_RST 1
 
 #else  // CONFIG_APP_BOARD_TDISPLAY_S3_AMOLED
 

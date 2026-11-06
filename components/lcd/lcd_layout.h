@@ -17,3 +17,12 @@ lcd_rect_t lcd_text_line_rect(int line);
 
 // FR-6.15: 16 x 32 on lines 1 – 5, 12 x 24 on line 6.
 const text_font_t *lcd_text_line_font(int line);
+
+// FR-35.16: the T-SIM7080G build's 256 x 64 OLED: six rows of 6 x 10 cells,
+// 42 characters across 252 of its 256 pixels, 2 px margins on each side.
+#define LCD_OLED_W 256
+#define LCD_OLED_H 64
+
+// The box line 0 .. LCD_TEXT_LINES - 1 is drawn into on the OLED; its font is
+// text_font_tiny.
+lcd_rect_t lcd_oled_line_rect(int line);
