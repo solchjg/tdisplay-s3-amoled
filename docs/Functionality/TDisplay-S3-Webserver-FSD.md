@@ -3719,6 +3719,11 @@ Modem and sending:
   the WiFi path does not: the same TLS and certificate rules for `https://`
   peers and for the mail server, and no setting is sent to any peer other than
   its own.
+- **FR-35.21** [Must] [user] A modem call that can wait longer than
+  FR-19.1's 10 s (a wake or power-on, an attach, a GNSS start) shall take the
+  application task off the watch for that call only, and put it back when the
+  call returns; FR-35.9's limits bound each such call. The window's display
+  and keys wait for the call.
 - **NFR-35.1** [Must] [user] A timer wake that sends shall be back
   asleep within **25 s** of the wake after a PSM resume and within **100 s**
   after a cold attach, success or failure. On this build FR-32.12's 40 s
@@ -3771,6 +3776,7 @@ Bench rows run on SLOT3 with the T-SIM7080G (R-31 for coverage at the bench);
 | FR-35.7 (core) | Modem wake decision: `uplink` `wifi` at a due upload; `cell` with nothing due on a timer wake; `cell` with an alert due; a window with the clock never set | No wake; no wake; wake; wake | The modem woken with `uplink` `wifi` | host |
 | FR-35.8, NFR-35.1 | Sleep test build, `uplink` `cell`, the user's ThingsBoard and ntfy, an upload and an alert due on the next timer wake | L41 `what=telemetry`, L39, `web: sleep` within 25 s of the wake after a PSM resume (within 100 s after a cold attach); no WiFi start | WiFi on a timer wake; the panel lit; the mark moved without L41 | bench |
 | FR-35.9 (core) | Attach steps: registered at 59 s; not at 60 s; PPP up 9 s after registering; not within 10 s; with an upload, an alert and a summary due | Sends; L47 `register`; sends; L47 `ppp`; on each failure the mark kept, the alert as FR-31.6, the summary period advanced; modem off | A send after L47 | host |
+| FR-35.21 | In a window, an alert due over the modem with the LTE antenna removed | L47 `register` about 60 s after the attach began, no `TASK_WDT` restart, the window running again after the call; then the hang build (variant `app`) still restarts with `TASK_WDT` | A watchdog restart during the attach; the task left unwatched after it | bench (operator) |
 | FR-35.9 | The LTE antenna removed, an upload due on a timer wake | L47 `register` within 60 s of the wake, `web: sleep` within 100 s; the readings uploaded with the antenna back | A hang past 100 s | bench (operator) |
 | FR-35.10 (core) | Attributes with `uplink` `cell`, CSQ 21, firmware `1951B16SIM7080`, network 310410, grant 16/3600, 3950 mV, a place stored | The §32.3 attributes plus those keys and `latitude`, `longitude` | A secret or a key with no value | host |
 | FR-35.11 (core) | `cell_plmn` `310410`; then empty after a lock | `AT+COPS=1,2,"310410"` on the full attach; `AT+COPS=0` | A lock with `cell_plmn` empty | host |
@@ -4219,7 +4225,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.41.0
+fsd_version: 0.43.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4296,6 +4302,7 @@ change_history:
   - "0.39.0 2026-11-06 from the user's note that the T-SIM7080G's battery-side connector is not the T-Display's Qwiic: §35.2 the sensor bus moves from the PMU's GPIO 15/7 (not on a header) to P4, GPIO 43/44 (proposed), with a caution that P4's pin order is the Qwiic order reversed; the OLED's CS moves to GPIO 46; the PMU and the loop bus share I2C controller 1; one Qwiic board keeps its pull-ups; R-36 updated"
   - "0.40.0 2026-11-06 the user's choice for `cell_plmn` (§35.4): an empty field clears the network lock, an absent field keeps the stored one"
   - "0.41.0 2026-11-06 draft for the user's review, from the user's question whether one packed format should serve every link: §37 Packed Messages (all proposed) defines the rd, day, al and st messages shared by small-payload links (satellite, LoRa), in a template encoding for Notecard links and a raw one otherwise, decoded at the edge into the §32.3 and §31.3 JSON; IP links and the §33 notes keep JSON; R-40"
+  - "0.43.0 2026-11-06 the user's choice for the modem's long waits: FR-35.21, the application task is off the watch (FR-19.1) for each modem call that can pass 10 s, bounded by FR-35.9's limits"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
