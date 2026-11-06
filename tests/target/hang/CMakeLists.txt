@@ -6,7 +6,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
-set(EXTRA_COMPONENT_DIRS ${ROOT}/components/device_logic ${ROOT}/components/web_log
+set(EXTRA_COMPONENT_DIRS ${ROOT}/components/board ${ROOT}/components/device_logic ${ROOT}/components/web_log
                          ${ROOT}/shared/components/identity ${ROOT}/shared/components/portal
                          ${ROOT}/shared/components/status_http ${ROOT}/shared/components/udp_log
                          ${ROOT}/shared/components/ota_rx ${ROOT}/shared/components/button
