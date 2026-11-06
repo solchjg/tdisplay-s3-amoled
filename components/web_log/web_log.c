@@ -370,6 +370,20 @@ void web_log_modem_failed(const char *why, long ms)
     ESP_LOGW(TAG, "%s", line);
 }
 
+void web_log_rtc_drift(long long err_ms, int days_x10, int trim, int was)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_rtc_drift(line, sizeof line, err_ms, days_x10, trim, was);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+void web_log_rtc(esp_err_t err)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_rtc(line, sizeof line, err == ESP_OK ? NULL : esp_err_to_name(err));
+    ESP_LOGW(TAG, "%s", line);
+}
+
 void web_log_gps(const double *lat, const double *lon)
 {
     char line[WL_LINE_MAX];

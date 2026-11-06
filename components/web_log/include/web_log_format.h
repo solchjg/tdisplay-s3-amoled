@@ -103,6 +103,11 @@ void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int cs
                          long active_s, long tau_s, bool psm);
 // L47 "modem failed: <power|sim|register|ppp> ms=<n>" (FR-35.9).
 void wl_fmt_modem_failed(char *buf, size_t len, const char *why, long ms);
+// L50 "rtc drift ms=<±n> days=<d.d> trim=<±n>[ was=<±n>]" (FR-37.8); was < -99
+// leaves it out.
+void wl_fmt_rtc_drift(char *buf, size_t len, long long err_ms, int days_x10, int trim, int was);
+// L51 "rtc lost", or "rtc failed: <err>" (FR-37.9; err NULL for lost).
+void wl_fmt_rtc(char *buf, size_t len, const char *err);
 // L45 "gps fix lat=<±d.ddddd> lon=<±d.ddddd>" (FR-33.17), or "gps none" when
 // lat and lon are NULL (FR-33.18).
 void wl_fmt_gps(char *buf, size_t len, const double *lat, const double *lon);

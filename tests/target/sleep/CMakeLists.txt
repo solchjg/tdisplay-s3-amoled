@@ -10,6 +10,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/board ${ROOT}/components/device_logi
                          ${ROOT}/shared/components/ota_rx ${ROOT}/shared/components/button
                          ${ROOT}/shared/components/mdns_name ${ROOT}/shared/components/wifi_net
                          ${ROOT}/shared/components/deep_sleep ${ROOT}/shared/components/time_sync
+                         ${ROOT}/components/rtc_clock ${ROOT}/shared/components/rv8803
                          ${ROOT}/components/weather ${ROOT}/shared/components/bme280
                          ${ROOT}/components/history ${ROOT}/shared/components/flash_ring
                          ${ROOT}/components/ble_settings ${ROOT}/shared/components/ble_setup
