@@ -90,6 +90,13 @@ typedef enum {
     UL_LINK_PPP,       // L47 ppp
 } ul_link_t;
 
+// FR-35.13: where a modem link's time comes from on a boot whose clock was
+// never set: the network's time (AT+CCLK?) when it supplied one, else SNTP
+// over PPP; none when the clock is already set.
+typedef enum { UL_MT_NONE, UL_MT_NET, UL_MT_SNTP } ul_mtime_t;
+ul_mtime_t ul_modem_time(bool synced, bool net_time);
+#define UL_SNTP_MS 5000  // FR-35.13: the wait for SNTP over PPP
+
 // FR-35.9: from the milliseconds to registration after the wake and to PPP
 // after registration (-1: never).
 ul_link_t ul_modem_link(long register_ms, long ppp_ms);
@@ -215,6 +222,13 @@ unsigned ul_gps_step(ul_gps_t *g, ul_gps_ev_t ev, bool wanted, bool have_place, 
 // location the first answer held. So a location the Notecard already held,
 // GPS or cell tower, never counts as the search's fix. Else UL_GE_NO_FIX.
 ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *lon);
+
+// FR-35.14: the same for an AT+CGNSINF answer on the T-SIM7080G build: fix
+// with a fix status, utc its UTC time (Unix seconds). A fix counts only with
+// a time later than the search's start (g->after), or, with the clock unset,
+// later than a fix the first answer already held.
+ul_gps_ev_t ul_gps_modem_answer(ul_gps_t *g, bool fix, double la, double lo, int64_t utc,
+                                double *lat, double *lon);
 
 // FR-33.19: line 6 for the search, or false outside it (the add-on values).
 bool ul_gps_shown(const ul_gps_t *g, uint32_t now_s, char *out, size_t cap);

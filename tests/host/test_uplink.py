@@ -137,6 +137,20 @@ int main(int argc, char **argv)
         if (ul_parse_modem(argv[2], strlen(argv[2]), &none, &mnone, &s, &m)) { printf("bad"); return 0; }
         printf("%s", ul_modem_wanted(&s, atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), atoi(argv[6]),
                                      atoi(argv[7])) ? "wake" : "no wake");
+    } else if (!strcmp(argv[1], "mtime")) {  // mtime <synced> <net time>
+        static const char *const n[] = {"none", "net", "sntp"};
+        printf("%s", n[ul_modem_time(atoi(argv[2]) != 0, atoi(argv[3]) != 0)]);
+    } else if (!strcmp(argv[1], "cgnss")) {  // cgnss <after> <fix,lat,lon,utc|->...
+        ul_gps_t g = {.on = true, .after = atoll(argv[2])};
+        for (int i = 3; i < argc; i++) {
+            int fix = 0;
+            double la = 0, lo = 0, lat = 0, lon = 0;
+            long long utc = 0;
+            if (strcmp(argv[i], "-")) sscanf(argv[i], "%d,%lf,%lf,%lld", &fix, &la, &lo, &utc);
+            ul_gps_ev_t e = ul_gps_modem_answer(&g, fix != 0, la, lo, utc, &lat, &lon);
+            if (e == UL_GE_FIX) printf("F%.5f,%.5f ", lat, lon); else printf("N ");
+        }
+        printf("after=%lld", (long long)g.after);
     } else if (!strcmp(argv[1], "link")) {  // link <register ms> <ppp ms>
         static const char *const n[] = {"up", "register", "ppp"};
         printf("%s", n[ul_modem_link(atol(argv[2]), atol(argv[3]))]);
@@ -416,3 +430,40 @@ def test_modem_wake_decision(ul, body, due, want):
                                           (12000, 10000, "ppp"), (12000, -1, "ppp")])
 def test_modem_link_verdict(ul, reg, ppp, want):
     assert ul("link", reg, ppp) == want
+
+
+# FR-35.13 (core): the clock from the modem link on a boot whose clock was never set.
+@pytest.mark.parametrize("synced,net,want", [
+    (0, 1, "net"),    # AT+CCLK? answers a network time
+    (0, 0, "sntp"),   # it answers none: SNTP over PPP
+    (1, 1, "none"),   # the clock is already set
+    (1, 0, "none"),
+])
+def test_modem_clock_source(ul, synced, net, want):
+    assert ul("mtime", str(synced), str(net)) == want
+
+
+def test_modem_clock_timer_wake_nothing_due(ul):
+    # FR-35.13: on a timer wake the attach is made only with a send due; the
+    # time step counts only in a window, so nothing due means no attach.
+    assert ul("wanted", "uplink=cell&apn=hologram", 0, 0, 0, 0, 0) == "no wake"
+
+
+# FR-35.14 (core): what an AT+CGNSINF answer means for the search.
+START = 1793940000  # the search's start, clock set
+
+
+@pytest.mark.parametrize("after,answers,want", [
+    # no fix twice, then a fix with a UTC time after the start
+    (START, ["0,0,0,0", "-", f"1,40.712801,-74.006004,{START + 30}"],
+     "N N F40.71280,-74.00600 after=1793940000"),
+    # a fix older than the start: never the search's fix
+    (START, [f"1,40.7,-74.0,{START - 600}"], "N after=1793940000"),
+    # clock unset: a fix the first answer held is never the fix; a later one is
+    (0, [f"1,40.7,-74.0,{START - 600}", f"1,40.7,-74.0,{START - 600}",
+         f"1,40.71281,-74.00601,{START + 5}"], "N N F40.71281,-74.00601 after=1793939400"),
+    # clock unset, the first answer without a fix: the next fix counts
+    (0, ["0,0,0,0", f"1,40.7,-74.0,{START}"], "N F40.70000,-74.00000 after=0"),
+])
+def test_modem_gps_answers(ul, after, answers, want):
+    assert ul("cgnss", str(after), *answers) == want

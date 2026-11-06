@@ -114,7 +114,8 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   FR-35.5) and `board.h`, the pins this app wires on each board.
 - `components/modem_link/` (L1) — the T-SIM7080G build's link over its SIM7080G (FSD §35): the
   shared `axp2101` rails, `sim7080` wake, PSM resume or attach, PPP as the default route for the
-  existing senders, PSM or power-off after. The project's `CMakeLists.txt` keeps it, `sim7080`
+  existing senders, PSM or power-off after; the network's time after registering and the GPS
+  search with the modem's GNSS (LTE off while it runs). The project's `CMakeLists.txt` keeps it, `sim7080`
   and `axp2101` out of the T-Display build; `main` links it only with the T-SIM7080G board.
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key

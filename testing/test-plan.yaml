@@ -3795,3 +3795,29 @@ tests:
     observable: "modem attach ms=14250 net=310410 csq=21 psm_active_s=16 psm_tau_s=3600 mode=psm; none for a missing timer; modem failed: register ms=60012"
     impl: [tests/host/test_web_log.py::test_modem_attach_line, tests/host/test_web_log.py::test_modem_failed_line]
     result: {status: not done}
+
+  - id: TC-TSIM-07
+    title: "Clock from the modem link: network time, else SNTP"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.13]
+    needs: []
+    observable: "clock never set: AT+CCLK? answers a time: net; answers none: sntp; clock set: none; timer wake with nothing due: no wake"
+    impl: [tests/host/test_uplink.py::test_modem_clock_source, tests/host/test_uplink.py::test_modem_clock_timer_wake_nothing_due]
+    result: {status: not done}
+
+  - id: TC-TSIM-08
+    title: "GPS search answers from the modem's GNSS"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.14]
+    needs: []
+    observable: "no fix twice, then a fix with a UTC time after the start: the fix; a fix older than the start: no fix; clock unset: a fix the first answer held never counts, a later one does; +CGNSINF without a UTC time or at the receiver's epoch: no fix"
+    impl: [tests/host/test_uplink.py::test_modem_gps_answers, shared/tests/host/test_sim7080.py::test_gnss_fix, shared/tests/host/test_sim7080.py::test_gnss_no_fix]
+    result: {status: not done}

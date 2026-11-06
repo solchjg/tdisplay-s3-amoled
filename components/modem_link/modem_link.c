@@ -28,6 +28,8 @@ static esp_netif_t *ppp;
 static SemaphoreHandle_t got_ip;
 static bool started;  // sim7080_start done this boot
 static bool keep_psm;
+static bool searching;  // FR-35.14: a GPS search runs
+static bool gnss_on;    // its GNSS is on (a link pauses it)
 
 static long ms_since(int64_t t0)
 {
@@ -105,20 +107,15 @@ static bool sim_ready(void)
     return sim7080_at("AT+CPIN?", NULL, 5000, &a) == ESP_OK && strstr(a, "READY") != NULL;
 }
 
-bool modem_link_up(const ul_modem_t *m, modem_link_t *r)
+// The supply on and the modem answering AT: woken from PSM, or powered when
+// it was off. The PMU stays taken; false when any of it fails.
+static bool power_up(const ul_modem_t *m)
 {
-    memset(r, 0, sizeof *r);
-    r->csq = 99;
-    r->active_s = r->tau_s = SIM7080_GRANT_NONE;
-    int64_t t0 = esp_timer_get_time();
     if (!pmu()) {
-        r->failed = "power";
-        r->failed_ms = ms_since(t0);
         return false;
     }
     rails(true);
     if (!netif_once()) {
-        fail(r, "power", t0);
         return false;
     }
     if (!started) {
@@ -129,16 +126,35 @@ bool modem_link_up(const ul_modem_t *m, modem_link_t *r)
                                       .pwrkey_gpio = TSIM7080G_S3_MODEM_PWRKEY,
                                       .dtr_gpio = TSIM7080G_S3_MODEM_DTR};
         if (sim7080_start(&cfg, m->apn, ppp) != ESP_OK) {
-            fail(r, "power", t0);
             return false;
         }
         started = true;
     }
     sim7080_wake_t w;
-    if (sim7080_wake(in_psm ? ASK_PSM_MS : ASK_ON_MS, ANSWER_MS, &w) != ESP_OK) {
+    return sim7080_wake(in_psm ? ASK_PSM_MS : ASK_ON_MS, ANSWER_MS, &w) == ESP_OK;
+}
+
+// FR-35.14: the GNSS and the GPS antenna off, LTE free for an attach.
+static void gnss_pause(void)
+{
+    if (gnss_on) {
+        sim7080_gnss_off();
+        axp2101_rail(AXP2101_BLDO2, 0, false);
+        gnss_on = false;
+    }
+}
+
+bool modem_link_up(const ul_modem_t *m, bool want_time, modem_link_t *r)
+{
+    memset(r, 0, sizeof *r);
+    r->csq = 99;
+    r->active_s = r->tau_s = SIM7080_GRANT_NONE;
+    int64_t t0 = esp_timer_get_time();
+    if (!power_up(m)) {
         fail(r, "power", t0);
         return false;
     }
+    gnss_pause();  // the PMU is taken here
     int64_t t_woken = esp_timer_get_time();
     long reg_ms = -1;
     uint32_t ms = 0;
@@ -174,6 +190,10 @@ bool modem_link_up(const ul_modem_t *m, modem_link_t *r)
         fail(r, "register", t0);
         return false;
     }
+    int64_t t;
+    if (want_time && sim7080_network_time(&t) == ESP_OK) {
+        r->net_time = t;  // FR-35.13
+    }
     int64_t t_reg = esp_timer_get_time();
     xSemaphoreTake(got_ip, 0);  // nothing left from an earlier link
     long ppp_ms = -1;
@@ -196,6 +216,11 @@ void modem_link_down(void)
     if (sta != NULL) {
         esp_netif_set_default_netif(sta);
     }
+    if (searching) {
+        in_psm = false;  // FR-35.14: kept on; the next read restarts the GNSS
+        axp2101_stop();
+        return;
+    }
     if (keep_psm) {
         in_psm = true;  // FR-35.1: resumes without a new attach next time
     } else {
@@ -205,4 +230,72 @@ void modem_link_down(void)
     }
     sim7080_sleep_hold();
     axp2101_stop();  // the controller back for the loop bus
+}
+
+bool modem_link_gnss_start(const ul_modem_t *m)
+{
+    if (!power_up(m)) {
+        if (started) {
+            sim7080_sleep_hold();
+        }
+        rails(false);
+        axp2101_stop();
+        in_psm = false;
+        return false;
+    }
+    in_psm = false;  // CFUN=0 ends a kept registration
+    searching = true;
+    bool ok = axp2101_rail(AXP2101_BLDO2, TSIM7080G_S3_RAIL_GPS_BLDO2_MV, true) == ESP_OK &&
+              sim7080_gnss_on() == ESP_OK;
+    gnss_on = ok;
+    axp2101_stop();  // the controller back for the loop bus
+    return ok;
+}
+
+bool modem_link_gnss_read(bool *fix, double *lat, double *lon, int64_t *utc)
+{
+    *fix = false;
+    if (!searching) {
+        return false;
+    }
+    if (!gnss_on) {  // a link paused it
+        if (!pmu()) {
+            return false;
+        }
+        gnss_on = axp2101_rail(AXP2101_BLDO2, TSIM7080G_S3_RAIL_GPS_BLDO2_MV, true) == ESP_OK &&
+                  sim7080_gnss_on() == ESP_OK;
+        axp2101_stop();
+        if (!gnss_on) {
+            return false;
+        }
+    }
+    sim7080_gnss_t g;
+    if (sim7080_gnss_read(&g) != ESP_OK) {
+        return false;
+    }
+    *fix = g.fix;
+    *lat = g.lat;
+    *lon = g.lon;
+    *utc = g.utc;
+    return true;
+}
+
+void modem_link_gnss_stop(void)
+{
+    if (!searching) {
+        return;
+    }
+    searching = false;
+    if (gnss_on) {
+        sim7080_gnss_off();
+        gnss_on = false;
+    }
+    sim7080_power_off();  // LTE again only with the next send: a cold attach
+    sim7080_sleep_hold();
+    if (pmu()) {
+        axp2101_rail(AXP2101_BLDO2, 0, false);
+        rails(false);
+        axp2101_stop();
+    }
+    in_psm = false;
 }

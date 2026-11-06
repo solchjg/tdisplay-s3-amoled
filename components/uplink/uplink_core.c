@@ -188,6 +188,11 @@ bool ul_modem_wanted(const ul_settings_t *s, bool upload, bool alert, bool mail,
     return s->cell && (upload || alert || mail || time_step || gps_search);
 }
 
+ul_mtime_t ul_modem_time(bool synced, bool net_time)
+{
+    return synced ? UL_MT_NONE : net_time ? UL_MT_NET : UL_MT_SNTP;
+}
+
 ul_link_t ul_modem_link(long register_ms, long ppp_ms)
 {
     if (register_ms < 0 || register_ms >= UL_REGISTER_MS) {
@@ -407,6 +412,26 @@ unsigned ul_gps_step(ul_gps_t *g, ul_gps_ev_t ev, bool wanted, bool have_place, 
     return 0;
 }
 
+// FR-33.16, FR-35.14: an answer with a place counts as the search's fix only
+// when it is a GPS fix later than g->after; the first answer, with the clock
+// unset, sets g->after to the time of the place already held.
+static ul_gps_ev_t gps_fix(ul_gps_t *g, bool has, bool gps, double la, double lo, int64_t t,
+                           double *lat, double *lon)
+{
+    bool first = !g->asked;
+    g->asked = true;
+    if (first && g->after == 0 && has) {
+        g->after = t;  // held before the search: never its fix
+        return UL_GE_NO_FIX;
+    }
+    if (!has || !gps || t <= g->after) {
+        return UL_GE_NO_FIX;
+    }
+    *lat = la;
+    *lon = lo;
+    return UL_GE_FIX;
+}
+
 ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *lon)
 {
     double la = 0, lo = 0, t = 0;
@@ -420,18 +445,13 @@ ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *
             gps = memcmp(v + i, "{gps}", 5) == 0;
         }
     }
-    bool first = !g->asked;
-    g->asked = true;
-    if (first && g->after == 0 && has) {
-        g->after = (int64_t)t;  // held before the search: never its fix
-        return UL_GE_NO_FIX;
-    }
-    if (!has || !gps || (int64_t)t <= g->after) {
-        return UL_GE_NO_FIX;
-    }
-    *lat = la;
-    *lon = lo;
-    return UL_GE_FIX;
+    return gps_fix(g, has, gps, la, lo, (int64_t)t, lat, lon);
+}
+
+ul_gps_ev_t ul_gps_modem_answer(ul_gps_t *g, bool fix, double la, double lo, int64_t utc,
+                                double *lat, double *lon)
+{
+    return gps_fix(g, fix, true, la, lo, utc, lat, lon);
 }
 
 bool ul_gps_shown(const ul_gps_t *g, uint32_t now_s, char *out, size_t cap)

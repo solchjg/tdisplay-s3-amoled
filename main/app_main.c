@@ -933,6 +933,44 @@ static bool mail_wifi_up(void)
 #if !BOARD_HAS_NOTECARD
 static int modem_users;  // sends sharing the link that is up
 static bool modem_ok;    // the link came up for them
+static bool modem_sntp;  // SNTP started for the link's time (FR-35.13)
+static bool unwatched;   // the watch paused for a modem call
+
+// FR-19.1, FR-35.9: a modem call (a wake, an attach, a GNSS start) can wait
+// longer than the watch's 10 s; its own limits bound it, so the task is not
+// watched for its length.
+static void watch_pause(void)
+{
+    unwatched = esp_task_wdt_status(NULL) == ESP_OK && esp_task_wdt_delete(NULL) == ESP_OK;
+}
+
+static void watch_resume(void)
+{
+    if (unwatched) {
+        esp_task_wdt_add(NULL);
+        unwatched = false;
+    }
+}
+
+// FR-35.13: on a boot whose clock was never set, the network's time, else
+// SNTP over the link; L20 src=cell when the clock is set.
+static void modem_time(const modem_link_t *r)
+{
+    ul_mtime_t src = ul_modem_time(time_sync_synced(), r->net_time != 0);
+    if (src == UL_MT_NET && time_sync_set(r->net_time) == ESP_OK) {
+        web_log_time_synced("cell");  // L20
+        return;
+    }
+    if (src != UL_MT_NONE && time_sync_start(NULL) == ESP_OK) {
+        modem_sntp = true;
+        for (int ms = 0; ms < UL_SNTP_MS && !time_sync_synced(); ms += 100) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        if (time_sync_synced()) {
+            web_log_time_synced("cell");  // L20
+        }
+    }
+}
 
 // FR-35.8, FR-35.9: the link for the sends that follow, until the matching
 // modem_end; L46 after a full attach, L47 when it does not come up.
@@ -941,14 +979,18 @@ static bool modem_begin(void)
     if (modem_users++ > 0) {
         return modem_ok;
     }
+    watch_pause();
     modem_link_t r;
-    modem_ok = modem_link_up(uplink_modem(), &r);
+    modem_ok = modem_link_up(uplink_modem(), !time_sync_synced(), &r);
     if (r.attached) {
         web_log_modem_attach(r.attach_ms, r.net, r.csq, r.active_s, r.tau_s, r.psm);  // L46
     }
     if (!modem_ok) {
         web_log_modem_failed(r.failed, r.failed_ms);  // L47
+    } else {
+        modem_time(&r);
     }
+    watch_resume();
     return modem_ok;
 }
 
@@ -956,6 +998,10 @@ static bool modem_begin(void)
 static void modem_end(void)
 {
     if (--modem_users == 0 && modem_ok) {
+        if (modem_sntp) {
+            time_sync_stop();
+            modem_sntp = false;
+        }
         modem_link_down();
     }
 }
@@ -963,15 +1009,19 @@ static void modem_end(void)
 
 // ── Cellular uplink region (FSD §33) ─────────────────────────────────────
 
+#if BOARD_HAS_NOTECARD
 static ul_time_t cell_time;  // FR-33.12: the clock from the Notecard
+#endif
 static ul_gps_t gps;         // FR-33.15 – FR-33.18: the search in this hold
 
+#if BOARD_HAS_NOTECARD
 static void cell_failed(const char *why, const char *req)
 {
     if (why) {
         web_log_cell_failed(why, req);  // L44
     }
 }
+#endif
 
 // FR-33.3, FR-33.4, FR-33.14: the Notecard set up once per boot, only with
 // cell; L44 once when it does not answer, and that boot's notes then fail.
@@ -990,6 +1040,7 @@ static bool cell_up(void)
     return why == NULL;
 }
 
+#if BOARD_HAS_NOTECARD
 // FR-33.12: one card.time; the clock set and L20 src=cell when it has a time.
 static void cell_time_ask(bool window)
 {
@@ -1014,6 +1065,18 @@ static void cell_boot(bool window)
         cell_time_ask(window);
     }
 }
+#else
+// FR-35.13: in a window whose clock was never set, the modem link is brought
+// up for the time alone; on a timer wake only a due send brings it up.
+static void cell_boot(bool window)
+{
+    if (window && ul_modem_wanted(uplink_settings(), false, false, false, !time_sync_synced(),
+                                  false)) {
+        modem_begin();
+        modem_end();
+    }
+}
+#endif
 
 #if BOARD_HAS_NOTECARD
 // FR-33.6, FR-33.8 – FR-33.11: a note; L43 when the Notecard takes it, else L44.
@@ -1089,6 +1152,44 @@ static bool mail_note(int i, const char *subject, const char *text, uint32_t n)
 }
 #endif
 
+#if !BOARD_HAS_NOTECARD
+// FR-35.14: the search with the modem's GNSS; the GNSS and BLDO2 are off
+// again at a fix and at the search's end.
+static void gps_act(unsigned a)
+{
+    watch_pause();
+    if ((a & UL_GA_CONTINUOUS) && !modem_link_gnss_start(uplink_modem())) {
+        modem_link_gnss_stop();
+        gps.on = false;  // no search: the gps test fails at once (FR-33.20)
+    }
+    if (a & UL_GA_FIXED_NEW) {  // FR-33.17
+        modem_link_gnss_stop();
+        esp_err_t err =
+            uplink_place_store(gps.lat, gps.lon, time_sync_synced() ? (int64_t)time(NULL) : 0);
+        if (err != ESP_OK) {
+            web_log_warn("place store", err);
+        }
+        web_log_gps(&gps.lat, &gps.lon);  // L45
+    }
+    if (a & (UL_GA_FIXED_KEPT | UL_GA_OFF)) {  // FR-33.18
+        modem_link_gnss_stop();
+        web_log_gps(NULL, NULL);  // L45 none
+    }
+    watch_resume();
+}
+
+// FR-35.14: one AT+CGNSINF, as the search's answer.
+static ul_gps_ev_t gps_answer(double *lat, double *lon)
+{
+    bool fix = false;
+    double la = 0, lo = 0;
+    int64_t utc = 0;
+    watch_pause();
+    bool read = modem_link_gnss_read(&fix, &la, &lo, &utc);
+    watch_resume();
+    return ul_gps_modem_answer(&gps, read && fix, la, lo, utc, lat, lon);
+}
+#else
 static void gps_act(unsigned a)
 {
     if (a & UL_GA_CONTINUOUS) {
@@ -1117,10 +1218,18 @@ static void gps_act(unsigned a)
     }
 }
 
+static ul_gps_ev_t gps_answer(double *lat, double *lon)
+{
+    return ul_gps_answer(&gps, uplink_location(), lat, lon);
+}
+#endif
+
 // FR-33.15 – FR-33.18: the GPS search, only in the hold, only with cell and gps on.
 static void gps_event(ul_gps_ev_t ev)
 {
-    bool wanted = ul_gps_wanted(uplink_settings()) && (ev != UL_GE_START || cell_up());
+    // FR-33.16: the Notecard set up first; FR-35.14: the modem starts in gps_act.
+    bool wanted = ul_gps_wanted(uplink_settings()) &&
+                  (ev != UL_GE_START || !BOARD_HAS_NOTECARD || cell_up());
     double lat = 0, lon = 0;
     int64_t at = 0;
     bool place = ev == UL_GE_END && gps.on && !gps.fixed && uplink_place(&lat, &lon, &at);
@@ -1130,7 +1239,7 @@ static void gps_event(ul_gps_ev_t ev)
     }
     gps_act(a);
     if (a & UL_GA_ASK) {
-        ul_gps_ev_t got = ul_gps_answer(&gps, uplink_location(), &lat, &lon);
+        ul_gps_ev_t got = gps_answer(&lat, &lon);
         gps_act(ul_gps_step(&gps, got, wanted, false, uptime_s(), lat, lon));
     }
 }
@@ -1171,12 +1280,14 @@ static void gps_test_tick(void)
 // search and its line 6 in the hold or the gps test (FR-33.16, FR-33.19, FR-33.20).
 static void cell_tick(void)
 {
+#if BOARD_HAS_NOTECARD
     if (!uplink_ready()) {
         return;
     }
     if (ul_time_step(&cell_time, UL_TE_TICK, true, uptime_s()) & UL_TA_ASK) {
         cell_time_ask(true);
     }
+#endif
     if (hold == DL_HOLD_ON || sp_running(run, SP_GPS)) {
         gps_event(UL_GE_TICK);
         ul_gps_shown(&gps, uptime_s(), addons_line, sizeof addons_line);
