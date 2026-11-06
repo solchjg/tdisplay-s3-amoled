@@ -4332,7 +4332,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.43.0
+fsd_version: 0.44.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4409,7 +4409,7 @@ change_history:
   - "0.39.0 2026-11-06 from the user's note that the T-SIM7080G's battery-side connector is not the T-Display's Qwiic: §35.2 the sensor bus moves from the PMU's GPIO 15/7 (not on a header) to P4, GPIO 43/44 (proposed), with a caution that P4's pin order is the Qwiic order reversed; the OLED's CS moves to GPIO 46; the PMU and the loop bus share I2C controller 1; one Qwiic board keeps its pull-ups; R-36 updated"
   - "0.40.0 2026-11-06 the user's choice for `cell_plmn` (§35.4): an empty field clears the network lock, an absent field keeps the stored one"
   - "0.41.0 2026-11-06 draft for the user's review, from the user's question whether one packed format should serve every link: §37 Packed Messages (all proposed) defines the rd, day, al and st messages shared by small-payload links (satellite, LoRa), in a template encoding for Notecard links and a raw one otherwise, decoded at the edge into the §32.3 and §31.3 JSON; IP links and the §33 notes keep JSON; R-40"
-  - "0.43.0 2026-11-06 from the user's request for timekeeping with no wireless connection (a mine shaft) and their choices on the RTC assessment: §39 Hardware Clock (optional): an RV-8803 on both builds' sensor bus (user), a valid RTC time counts as synced (user), the phone's clock over BLE (user), the RTC skips the waits of FR-33.12 and FR-35.13 (user); FR-39.6 – FR-39.9 and NFR-39.1 (proposed); L55, L56, L20 sources `rtc` and `phone`; Phase 20"
+  - "0.44.0 2026-11-06 from the user's request for timekeeping with no wireless connection (a mine shaft) and their choices on the RTC assessment: §39 Hardware Clock (optional): an RV-8803 on both builds' sensor bus (user), a valid RTC time counts as synced (user), the phone's clock over BLE (user), the RTC skips the waits of FR-33.12 and FR-35.13 (user); FR-39.6 – FR-39.9 and NFR-39.1 (proposed); L55, L56, L20 sources `rtc` and `phone`; Phase 20"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
