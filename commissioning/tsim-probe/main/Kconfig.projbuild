@@ -1,0 +1,20 @@
+menu "T-SIM7080G probe"
+
+config PROBE_WALK_S
+    int "Seconds each header pin toggles in the pin walk (0: no walk)"
+    default 4
+    range 0 30
+
+config PROBE_SLEEP_S
+    int "Seconds of each deep sleep for the current measurement"
+    default 60
+    range 10 600
+
+config PROBE_OLED
+    bool "Draw the test screen on the SSD1322 OLED (FR-35.16)"
+    default y
+    help
+        Harmless without the OLED: the SPI writes go nowhere and the stage
+        only waits its 10 s.
+
+endmenu
