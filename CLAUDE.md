@@ -175,7 +175,10 @@ Other builds sharing the components:
   writes `main/sample_days.h`) and the program that sends those days through the Notecard over
   `cell` or `ntn` (Skylo), held together by `tests/host/test_sat_day.py`;
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
-  bench tests); `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
+  bench tests); `commissioning/ws-probe/` — the Waveshare SIM7670G board's hardware check (FSD §35, Phase 17:
+  chip and MAC, the sensor bus and fuel gauge, microSD and card detect, the modem over UART 1 with its GPIO 33
+  supply, GNSS, the off-board key, the pin walk and the sleep current, `docs/Method/project/ws-probe.md`);
+  `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
   T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`); `commissioning/epaper-probe/` —
   the e-paper bring-up on an Elecrow CrowPanel ESP32 E-Paper 4.2" (SSD1683 panel, Qwiic bus,
   sleep current; no FSD section yet, `docs/Method/project/crowpanel-epaper.md`); `commissioning/common/oled/`
