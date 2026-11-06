@@ -291,6 +291,13 @@ void web_log_ble_settings(const char *result)
     }
 }
 
+void web_log_card_settings(const char *result)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_card_settings(line, sizeof line, result);
+    ESP_LOGI(TAG, "%s", line);  // §7.2: L49 is I whatever the result
+}
+
 void web_log_ble_off(const char *reason)
 {
     char line[WL_LINE_MAX];

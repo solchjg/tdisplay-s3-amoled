@@ -2,3 +2,5 @@
 #   idf.py -B build-tsim -DSDKCONFIG=$PWD/build-tsim/sdkconfig \
 #          -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.tsim7080g" build
 CONFIG_APP_BOARD_TSIM7080G_S3=y
+# FR-35.19: /settings.done and /settings.result need long file names on FAT.
+CONFIG_FATFS_LFN_HEAP=y

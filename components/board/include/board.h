@@ -19,6 +19,7 @@
 #define BOARD_LOOP_SUPPLY 18
 // The Notecard of §33 is not part of this build.
 #define BOARD_HAS_NOTECARD 0
+#define BOARD_HAS_SD_CARD 1  // FR-35.4: the board's microSD slot
 // The off-board key's LED (FR-35.18).
 #define BOARD_LED 47
 // The 3.12" SSD1322 OLED (§35.2, FR-35.16) on SPI2, the lines shared with the
@@ -46,6 +47,7 @@
 #define BOARD_LOOP_SUPPLY 3
 // The Notecard (§33) on the sensor bus.
 #define BOARD_HAS_NOTECARD 1
+#define BOARD_HAS_SD_CARD 0
 #define BOARD_NOTECARD_SDA BOARD_SENSOR_SDA
 #define BOARD_NOTECARD_SCL BOARD_SENSOR_SCL
 // The LED on the panel power GPIO is driven by the lcd component.

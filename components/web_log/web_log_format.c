@@ -143,6 +143,11 @@ void wl_fmt_ble_settings(char *buf, size_t len, const char *result)
     snprintf(buf, len, "ble settings %s", result);
 }
 
+void wl_fmt_card_settings(char *buf, size_t len, const char *result)
+{
+    snprintf(buf, len, "card settings %s", result);
+}
+
 void wl_fmt_ble_off(char *buf, size_t len, const char *reason)
 {
     snprintf(buf, len, "ble off reason=%s", reason);

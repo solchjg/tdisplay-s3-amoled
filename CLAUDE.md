@@ -125,6 +125,11 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   existing senders, PSM or power-off after; the network's time after registering and the GPS
   search with the modem's GNSS (LTE off while it runs). The project's `CMakeLists.txt` keeps it, `sim7080`
   and `axp2101` out of the T-Display build; `main` links it only with the T-SIM7080G board.
+- `components/settings_card/` (L1) — settings from microSD on the T-SIM7080G build (FSD
+  FR-35.4, FR-35.19, FR-35.20): on a boot that is not a timer wake, the slot's supply (ALDO3,
+  through `modem_link_sd_power`) on, `/settings.txt` read and applied as a BLE `settings`
+  write, `/settings.done` without secrets and `/settings.result` written, unmounted and the
+  supply off; `settings_card_core.c` is the pure core (the file as the BLE body, the `.done` text).
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key
   window), the `settings` read without secrets, the field rules the page checks

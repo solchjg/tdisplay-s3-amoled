@@ -56,6 +56,9 @@
 #include "ota_rx.h"
 #include "portal.h"
 #include "sampling.h"
+#if BOARD_HAS_SD_CARD
+#include "settings_card.h"
+#endif
 #include "sampling_core.h"
 #include "sdkconfig.h"
 #include "setup_check.h"
@@ -380,11 +383,13 @@ static size_t ble_read_settings(char *out, size_t cap)
     return n;
 }
 
-// FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.
-static void ble_apply(const char *body, size_t len, char *result, size_t cap)
+// FR-26.6, FR-26.7: a settings body applied as in the provisioning window or a
+// key window; the application task acts on the event it posts. From the NimBLE
+// host task (BLE) or the application task (the card, FR-35.4), never both at once.
+static void settings_apply(const char *body, size_t len, bool provisioning, char *result,
+                           size_t cap)
 {
     static char merged[CONFIG_BLE_SETUP_BODY_MAX + BSET_MERGE_EXTRA];
-    bool provisioning = ble.state == DL_BLE_PROV;
     size_t n = 0;
     const char *bad = bset_prepare(body, len, provisioning ? BSET_PROVISION : BSET_CHANGE,
                                    &stored, summary_settings()->password, merged,
@@ -408,8 +413,21 @@ static void ble_apply(const char *body, size_t len, char *result, size_t cap)
         snprintf(result, cap, "ok");
         post(&e);
     }
+}
+
+static void ble_apply(const char *body, size_t len, char *result, size_t cap)
+{
+    settings_apply(body, len, ble.state == DL_BLE_PROV, result, cap);
     web_log_ble_settings(result);  // L29
 }
+
+#if BOARD_HAS_SD_CARD
+// FR-35.4: the card's file as a BLE write in the state the device is in.
+static void card_apply(const char *body, size_t len, char *result, size_t cap)
+{
+    settings_apply(body, len, view.conn == DL_PROVISIONING, result, cap);
+}
+#endif
 
 static void ble_passkey_cb(uint32_t passkey, bool shown_now)
 {
@@ -2092,6 +2110,13 @@ void app_main(void)
         cr.ev = DL_EV_READ_WIFI_OFF;
     }
     conn_event(&cr);
+#if BOARD_HAS_SD_CARD
+    if (wake != DL_WAKE_TIMER) {  // FR-35.20: never on a timer wake
+        char card[32];
+        settings_card_run(modem_link_sd_power, card_apply, card, sizeof card);
+        web_log_card_settings(card);  // L49
+    }
+#endif
     err = button_start(web_log_button_held, on_button_reset);  // sampled only after BOOT exits (§18.1)
     if (err != ESP_OK) {
         web_log_warn("button start", err);
