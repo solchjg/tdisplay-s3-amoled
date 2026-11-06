@@ -936,7 +936,7 @@ static bool modem_ok;    // the link came up for them
 static bool modem_sntp;  // SNTP started for the link's time (FR-35.13)
 static bool unwatched;   // the watch paused for a modem call
 
-// FR-19.1, FR-35.9: a modem call (a wake, an attach, a GNSS start) can wait
+// FR-19.1, FR-35.21: a modem call (a wake, an attach, a GNSS start) can wait
 // longer than the watch's 10 s; its own limits bound it, so the task is not
 // watched for its length.
 static void watch_pause(void)
