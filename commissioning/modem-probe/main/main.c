@@ -3,20 +3,25 @@
 // on a LilyGO T-SIM7080G-S3 (ESP32-S3, SIMCom SIM7080G, AXP2101 PMU). It runs
 // on that board alone, not on the T-Display. Each run
 //   1. sets the AXP2101 rails: DC3 3.0 V (modem), BLDO1 3.3 V (level shifter),
-//      BLDO2 3.3 V (GPS antenna) only while seeking a fix; prints VBAT;
+//      BLDO2 3.3 V (GPS antenna) only while seeking a fix; prints VBAT and the
+//      battery state; reads the secrets from the settings image in NVS;
 //   2. wakes the modem (PWRKEY pulse when AT gets no answer) and prints its
 //      firmware, SIM state, ICCID and signal;
 //   3. on the first run, optionally seeks one GPS fix with LTE off (the
 //      SIM7080G cannot run GNSS and LTE at once), as FR-33.15 does once per
 //      setup check;
-//   4. registers on LTE-M (or NB-IoT), timing the attach, optionally asking
-//      for PSM, and prints the operator, band and granted PSM timers;
-//   5. brings up PPP through esp_modem, so the stack has an ordinary IP link,
-//      sets the clock by SNTP and POSTs one §32.3-shaped telemetry record
+//   4. registers on LTE-M (or NB-IoT), timing the attach, optionally locked to
+//      one network and asking for PSM; a modem still registered after PSM is
+//      used as it is; prints the operator and band;
+//   5. sets the clock from the modem's network time (SNTP over PPP when it has
+//      none), brings up PPP through esp_modem, so the stack has an ordinary IP
+//      link, and POSTs one §32.3-shaped telemetry record
 //      straight to ThingsBoard, and on the first run one alert through the
 //      shared ntfy_tx, the same sender the WiFi path uses;
-//   6. leaves PPP and prints the run's timings and the running totals.
-// An optional SSD1306 on GPIO 13/21 shows the run's progress and results.
+//   6. leaves PPP and prints the run's timings, bytes and running totals;
+//   7. prints the granted PSM timers before deep sleep.
+// An optional SSD1306 or SH1106 on GPIO 13/21 shows the run's progress and
+// results. docs/Method/project/lte-m-modem.md describes the options and log.
 // With "Minutes between runs" 0 it then prints the signal every 30 s; above 0
 // it deep-sleeps until the next run (the 24 h soak), the modem in PSM or
 // powered down. Lines start with "modemprobe:"; CHECK marks a result to look at.
@@ -108,7 +113,10 @@
 
 #define GOT_IP BIT0
 
-// Running totals over the soak, kept through deep sleep.
+// Running totals over the soak, kept through deep sleep (a reset or power
+// cycle clears them). runs counts every wake, whether or not its record got
+// through, so a gap in the probe_run values ThingsBoard holds is a lost
+// record.
 static RTC_DATA_ATTR int runs, attach_ok, tb_tries, tb_ok, ntfy_tries, ntfy_ok;
 static RTC_DATA_ATTR int64_t attach_ms_sum;
 // The run-1 GPS result, kept so every later run shows and sends it too.
@@ -119,7 +127,7 @@ static RTC_DATA_ATTR double gps_lat, gps_lon;
 // and the running total, sent to ThingsBoard on the run after.
 static RTC_DATA_ATTR uint32_t prev_tx, prev_rx;
 static RTC_DATA_ATTR uint64_t total_tx, total_rx;
-static esp_netif_t *ppp_netif;
+static esp_netif_t *ppp_netif;  // the PPP link, whose lwIP netif holds the byte counters
 
 // The secrets: from namespace "probe" in NVS when the settings image is
 // flashed (kept off git, so builds of this public repo carry none), else the
@@ -158,8 +166,13 @@ static void load_secrets(void)
     printf("modemprobe: settings image tb_token=%s ntfy_topic=%s ntfy_token=%s\n",
            tb_token[0] ? "set" : "none", ntfy_topic[0] ? "set" : "none", ntfy_token[0] ? "set" : "none");
 }
+
+// ---- bytes over PPP ----
+
+// The counters at the end of the previous phase, so each phase prints its own bytes.
 static uint32_t mark_tx, mark_rx;
 
+// The netif's cumulative MIB2 octet counters; 0 before PPP exists.
 static void link_bytes(uint32_t *tx, uint32_t *rx)
 {
     struct netif *n = ppp_netif ? esp_netif_get_netif_impl(ppp_netif) : NULL;
@@ -177,6 +190,7 @@ static void bytes_mark(const char *phase)
     mark_rx = rx;
 }
 
+// Screen line 0: the run number and the run-1 GPS result.
 static void title_line(void)
 {
     char g[12];
@@ -187,9 +201,11 @@ static void title_line(void)
 }
 
 static i2c_master_dev_handle_t pmu;
+// This run's sender results for screen line 3: the HTTP status and the ntfy reason.
 static char tb_result[12] = "-", ntfy_result[12] = "-";
 static esp_modem_dce_t *dce;
-static EventGroupHandle_t net_events;
+static EventGroupHandle_t net_events;  // GOT_IP while PPP has an address
+// The last AT answer, shared by at() and the parsers that read it.
 static char out[CONFIG_ESP_MODEM_C_API_STR_MAX];
 
 static long ms_since(int64_t t0_us)
@@ -220,6 +236,7 @@ static bool pmu_bit(uint8_t reg, int bit, bool on)
     return pmu_write(reg, v);
 }
 
+// Read-modify-write: keeps the bits in keep_mask and sets the rest from code.
 static bool pmu_field(uint8_t reg, uint8_t keep_mask, uint8_t code)
 {
     uint8_t v;
@@ -233,6 +250,7 @@ static void gps_antenna(bool on)
     printf("modemprobe: gps antenna (BLDO2) %s %s\n", on ? "on" : "off", ok ? "ok" : "CHECK");
 }
 
+// The battery ADC: 13 bits over two registers, 1 mV a count; 0 when unreadable.
 static unsigned vbat_mv(void)
 {
     uint8_t h, l;
@@ -263,6 +281,8 @@ static void battery_status(void)
            bat ? "" : " CHECK");
 }
 
+// Brings up the PMU's I2C bus, sets the modem and level shifter rails and
+// turns on the battery ADC. False when the PMU does not answer or a write fails.
 static bool pmu_start(void)
 {
     i2c_master_bus_handle_t bus;
@@ -400,6 +420,9 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     }
 }
 
+// Creates the PPP netif and the esp_modem device on UART 1, then wakes the
+// modem. Network setup failures abort (ESP_ERROR_CHECK): without them the
+// probe has nothing to measure.
 static bool modem_start(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -435,6 +458,7 @@ static bool modem_start(void)
     return modem_wake();
 }
 
+// Facts for the log only: firmware, SIM ready, ICCID, signal.
 static void modem_info(void)
 {
     at("AT+CGMR", AT_TIMEOUT_MS);
@@ -591,6 +615,8 @@ static void gps_fix(void)
     gps_antenna(false);
 }
 
+// Registers on the network and returns the milliseconds it took, or -1 when
+// it did not register within PROBE_ATTACH_S.
 static long attach(void)
 {
     char cmd[96];
@@ -699,6 +725,7 @@ static bool clock_from_network(void)
     return true;
 }
 
+// The fallback clock source, over PPP, for networks that send no time.
 static void set_clock(void)
 {
     esp_sntp_config_t sc = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
@@ -708,6 +735,7 @@ static void set_clock(void)
     esp_netif_sntp_deinit();
 }
 
+// Unix time in ms, or 0 while the clock is unset (still near 1970).
 static int64_t now_ms(void)
 {
     struct timeval tv;
@@ -767,6 +795,7 @@ static void post_telemetry(long attach_ms, int rssi)
            esp_err_to_name(err), n, ms_since(t0), ok ? "ok" : "CHECK");
 }
 
+// One ntfy alert through the shared sender, as the WiFi path sends it.
 static void send_alert(long attach_ms, int rssi)
 {
     if (CONFIG_PROBE_NTFY_URL[0] == '\0' || ntfy_topic[0] == '\0') {
@@ -794,6 +823,8 @@ static void send_alert(long attach_ms, int rssi)
            ms_since(t0), err == ESP_OK ? "ok" : "CHECK");
 }
 
+// One PPP session: clock, telemetry, (run 1) the alert, then back to command
+// mode, with the bytes of each phase.
 static void session(long attach_ms)
 {
     int rssi = 99, ber = 99;
@@ -832,6 +863,7 @@ static void session(long attach_ms)
     printf("modemprobe: ppp session ms=%ld\n", ms_since(t0));
 }
 
+// The run summary line, and the lines USB may have missed after a timer wake.
 static void report(int64_t t_boot)
 {
     printf("modemprobe: run=%d awake_ms=%ld attach_ok=%d/%d attach_mean_ms=%" PRId64
@@ -892,6 +924,10 @@ static void psm_grant(void)
     }
 }
 
+// Leaves the modem in PSM (or powers it down) and deep-sleeps so the next run
+// starts PROBE_EVERY_MIN after this one began. The sleep timer runs on the
+// ESP32-S3's internal slow clock and the boot before app_main is not counted,
+// so runs drift: in the bench soak each started about 15 s after the hour.
 static void sleep_until_next(int64_t t_boot)
 {
     if (PROBE_PSM) {
