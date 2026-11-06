@@ -57,8 +57,8 @@ reused.
 | 32 | ThingsBoard Telemetry | L1 |
 | 33 | Cellular Uplink | L1 |
 | 34 | WiFi Off | cross-cutting |
-| 35 | T-SIM7080G Build (draft) | cross-cutting |
-| 36 | E-paper Display (optional, draft) | L1 |
+| 35 | T-SIM7080G Build | cross-cutting |
+| 36 | E-paper Display (optional) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -155,7 +155,7 @@ path: a failing display never stops the network side (FR-5.28).
 | Cellular (optional) | Blues Notecard Cell+WiFi NOTE-MBGLW v2.5 on a Notecarrier-X v1.3, I2C 0x17 on GPIO 43/44 through Qwiic or wires soldered to its header, its own LiPo for the modem, run on cellular only (§33) | [user]; bus and power [proposed] |
 | Add-on boards | The loop (§29) and the RS232 circuit (§30), and later the water probe, are each built on a separate board that plugs into a carrier holding the T-Display-S3 and the BME280; the Notecarrier-X (§33) is a board of its own. Each analog add-on carries its own ADS1115, so the board pins carry only power, switch lines and digital buses, and any add-on can be fitted or left off without changing the others | [user] |
 | Add-on connectors | One keyed through-hole JST-XH (2.5 mm) socket on the carrier for each add-on, each with a different pin count so a board fits only its own socket, pin 1 GND: loop 5 pins (GND, VSYS, GPIO 3, GPIO 15, GPIO 16), water probe 6 pins (GND, VSYS, 3V3, GPIO 43, GPIO 44, GPIO 2), RS232 4 pins (GND, GPIO 13, GPIO 11, GPIO 12); each add-on's pull-down on its switch line sits on the add-on; the Notecarrier-X on a Qwiic (JST-SH) socket of the carrier's I2C fan-out; boards are fitted or removed only with USB and battery disconnected | [proposed] |
-| Qwiic | Qwiic wherever a part needs only 3.3 V, GND and the I2C lines [user]: the carrier's I2C fan-out is a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort) on the BME280's bus (GPIO 43/44), into which the BME280, on a Qwiic breakout, and the Notecarrier-X (its red 3.3 V wire unconnected, §33.2) plug. The loop (its own bus and switched supply), the water probe (VSYS and its switch line) and RS232 (not I2C) keep their JST-XH sockets. One board's pull-ups stay in and the others' are cut, so the bus's pull-ups stay at or above about 2.2 kΩ [proposed] | [user]; parts [proposed] |
+| Qwiic | Qwiic wherever a part needs only 3.3 V, GND and the I2C lines [user]: the carrier's I2C fan-out is a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort) on the BME280's bus (GPIO 43/44), into which the BME280, on a Qwiic breakout, and the Notecarrier-X (its red 3.3 V wire unconnected, §33.2) plug. The loop (its own bus and switched supply), the water probe (VSYS and its switch line) and RS232 (not I2C) keep their JST-XH sockets. One board's pull-ups stay in and the others' are cut, so the bus's pull-ups stay at or above about 2.2 kΩ | [user] |
 | Bench slot | SLOT1 (EN/BOOT GPIOs configured on the bench but not yet proven; reset over USB) | [derived from the testbench device list, 2026-10-29] |
 
 The numbers a build reads (target, IDF version, flash size, partition offsets, image
@@ -3521,7 +3521,7 @@ Behaviour with WiFi off:
 
 ---
 
-## 35. T-SIM7080G Build (draft)
+## 35. T-SIM7080G Build
 
 ### 35.1 Purpose & peer
 
@@ -3545,8 +3545,7 @@ attach times, PSM grants, data use and GPS on this board is
 `docs/Method/project/lte-m-modem.md`. The T-Display build is unchanged by this
 section.
 
-This section is a draft: its numbers wait for the user's approval, and it has
-no verification contracts yet.
+Its verification contracts are written before Phase 17 is built.
 
 ### 35.2 Hardware
 
@@ -3554,20 +3553,20 @@ no verification contracts yet.
 |------|-------|--------|
 | Board | LilyGO T-SIM7080G-S3 V1.0, the board the user owns | [user] |
 | MCU | ESP32-S3, 16 MB flash, 8 MB octal PSRAM (PSRAM unused; GPIO 35 – 37 taken by it) | [derived from the board] |
-| Modem | SIM7080G on UART 1, RX GPIO 4, TX GPIO 5, 115200 baud; PWRKEY GPIO 41, DTR GPIO 42, RI GPIO 3; LTE-M only, a nano SIM fitted before power-up | [derived from the board]; LTE-M only [proposed] |
+| Modem | SIM7080G on UART 1, RX GPIO 4, TX GPIO 5, 115200 baud; PWRKEY GPIO 41, DTR GPIO 42, RI GPIO 3; LTE-M only, a nano SIM fitted before power-up | [derived from the board]; LTE-M only [user] |
 | PMU | AXP2101 at 0x34 on I2C controller 0, SDA GPIO 15, SCL GPIO 7, IRQ GPIO 6; modem rail DC3 3.0 V, level shifter BLDO1 3.3 V never off, GPS antenna rail BLDO2 3.3 V on only during a GPS search | [derived from the board] |
-| Power | One 18650 cell in the board's holder, charged from USB-C or the solar input (4.4 – 6 V); the battery voltage is read from the AXP2101 | [derived from the board]; reading [proposed] |
-| Sensor bus | The BME280 (0x76) and the water probe's ADS1115 (0x48) on the PMU's bus, GPIO 15/7, 100 kHz; no address clash with 0x34 | [proposed] |
-| Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 16, SCL GPIO 17, its supply and the isolator's board side switched by GPIO 18, as §29 with the pins moved | [proposed] |
-| RS232 | MAX3232 powered from GPIO 13, TX GPIO 11, RX GPIO 12 (the T-Display's pins), on UART 2 because the modem holds UART 1 | [proposed] |
-| Water probe | Switch line GPIO 2, as on the T-Display | [proposed] |
-| E-paper (optional, §36) | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), on SPI2: SCK GPIO 9, MOSI GPIO 10, CS GPIO 8, DC GPIO 14, RST GPIO 1, BUSY GPIO 48; always powered, put in its deep sleep after each drawing | [proposed] |
-| OLED | A 3.12" 256 × 64 SSD1322 module (16 grey levels, e.g. Newhaven NHD-3.12-25664), 4-wire SPI on SPI2 shared with the optional e-paper: SCK GPIO 9, MOSI GPIO 10, DC GPIO 14 and RST GPIO 1 shared, its own CS on GPIO 43 | [user] module; pins [proposed] |
-| Qwiic | Qwiic wherever a part needs only 3.3 V, GND and the I2C lines [user]: the sensor bus (GPIO 15/7, 3.3 V, GND from the header) goes to a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort), into which the BME280, on a Qwiic breakout, plugs. The PMU's own pull-ups are on this bus, so every Qwiic board's pull-ups are cut [proposed], and commissioning checks the result. The loop (its own bus and switched supply, 5 pins: GND, VSYS, GPIO 18, 16, 17), the water probe (VSYS and its switch line, 6 pins: GND, VSYS, 3V3, GPIO 15, 7, 2) and RS232 (4 pins: GND, GPIO 13, 11, 12) keep JST-XH sockets as in §2.2; the OLED, the e-paper and the off-board key are not I2C and have their own connectors | [user]; parts and pins [proposed] |
-| Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 21 (an RTC GPIO, the T-Display's user-key number), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 47 through a resistor | [user] key; parts and pins [proposed] |
+| Power | One 18650 cell in the board's holder, charged from USB-C or the solar input (4.4 – 6 V); the battery voltage is read from the AXP2101 | [derived from the board]; reading [user] |
+| Sensor bus | The BME280 (0x76) and the water probe's ADS1115 (0x48) on the PMU's bus, GPIO 15/7, 100 kHz; no address clash with 0x34 | [user] |
+| Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 16, SCL GPIO 17, its supply and the isolator's board side switched by GPIO 18, as §29 with the pins moved | [user] |
+| RS232 | MAX3232 powered from GPIO 13, TX GPIO 11, RX GPIO 12 (the T-Display's pins), on UART 2 because the modem holds UART 1 | [user] |
+| Water probe | Switch line GPIO 2, as on the T-Display | [user] |
+| E-paper (optional, §36) | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), on SPI2: SCK GPIO 9, MOSI GPIO 10, CS GPIO 8, DC GPIO 14, RST GPIO 1, BUSY GPIO 48; always powered, put in its deep sleep after each drawing | [user] |
+| OLED | A 3.12" 256 × 64 SSD1322 module (16 grey levels, e.g. Newhaven NHD-3.12-25664), 4-wire SPI on SPI2 shared with the optional e-paper: SCK GPIO 9, MOSI GPIO 10, DC GPIO 14 and RST GPIO 1 shared, its own CS on GPIO 43 | [user] module |
+| Qwiic | Qwiic wherever a part needs only 3.3 V, GND and the I2C lines [user]: the sensor bus (GPIO 15/7, 3.3 V, GND from the header) goes to a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort), into which the BME280, on a Qwiic breakout, plugs. The PMU's own pull-ups are on this bus, so every Qwiic board's pull-ups are cut [user], and commissioning checks the result. The loop (its own bus and switched supply, 5 pins: GND, VSYS, GPIO 18, 16, 17), the water probe (VSYS and its switch line, 6 pins: GND, VSYS, 3V3, GPIO 15, 7, 2) and RS232 (4 pins: GND, GPIO 13, 11, 12) keep JST-XH sockets as in §2.2; the OLED, the e-paper and the off-board key are not I2C and have their own connectors | [user] |
+| Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 21 (an RTC GPIO, the T-Display's user-key number), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 47 through a resistor | [user] key |
 | BOOT key | GPIO 0 on the board, as §18 | [derived from the board] |
-| microSD | The board's slot, SDMMC 1-bit, CMD GPIO 39, CLK GPIO 38, D0 GPIO 40; FAT32 | [derived from the board]; FAT32 [proposed] |
-| Antennas | LTE: a passive antenna rated for 698 – 960 MHz on the modem's LTE u.FL (bands 12 and 13), as `lte-m-modem.md` describes. GPS: an active antenna on the GPS u.FL, only with `gps` `on` | [proposed] |
+| microSD | The board's slot, SDMMC 1-bit, CMD GPIO 39, CLK GPIO 38, D0 GPIO 40; FAT32 | [derived from the board]; FAT32 [user] |
+| Antennas | LTE: a passive antenna rated for 698 – 960 MHz on the modem's LTE u.FL (bands 12 and 13), as `lte-m-modem.md` describes. GPS: an active antenna on the GPS u.FL, only with `gps` `on` | [user] |
 | Pins | Every free header GPIO is used: 1, 2, 8 – 14, 16 – 18, 21, 47, 48, and GPIO 43 (UART 0's TX, free with the console on USB) for the OLED's CS; the e-paper's CS and BUSY (GPIO 8, 48) are kept for it whether or not it is fitted; none is left for another add-on | [derived from the rows above] |
 | Bench slot | SLOT3; slot and MAC recorded when the build is commissioned | [user] |
 
@@ -3586,7 +3585,7 @@ no verification contracts yet.
 | 4-20 mA loop, RS232, water probe | 29, 30 | Same, on the pins of §35.2 |
 | Cellular uplink: ThingsBoard batches and attributes, alerts, email, network clock, GPS place, `gps` test | 33 | Same behaviour through the modem instead of notes (FR-35.8 – FR-35.14); no Notehub, no routes |
 | Notecard settings `nh_product`, `cell_every`; `card.*` and `hub.*` requests; Notefile templates | 33.3, 33.5 | Not on this build: sends go out when they are due, not at a Notecard sync |
-| HTTP OTA over cellular | — | Not offered [proposed]: an image is about 1.4 MB of cellular data; OTA stays on WiFi, or USB |
+| HTTP OTA over cellular | — | Not offered [user]: an image is about 1.4 MB of cellular data; OTA stays on WiFi, or USB |
 | WiFi off | 34 | Same; with `uplink` `cell`, sends go through the modem |
 | The satellite `day.qo` trial | — | Not product behaviour on either build (`commissioning/sat-probe`) |
 
@@ -3599,17 +3598,17 @@ for an unknown field.
 
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
-| `uplink` | `wifi` or `cell` (`cell` is the board's modem) | one of the two; `cell` needs `apn`, given or stored | the stored value; `wifi` when none is stored [proposed] |
+| `uplink` | `wifi` or `cell` (`cell` is the board's modem) | one of the two; `cell` needs `apn`, given or stored | the stored value; `wifi` when none is stored [user] |
 | `apn` | the SIM provider's access point name, e.g. `hologram` | 1 – 63 bytes, letters, digits, `.` and `-` | the stored value |
-| `cell_plmn` | a network to lock to, MCC+MNC, e.g. `310410`; empty for automatic choice | empty, or 5 – 6 digits | the stored value; empty when none is stored [proposed] |
+| `cell_plmn` | a network to lock to, MCC+MNC, e.g. `310410`; empty for automatic choice | empty, or 5 – 6 digits | the stored value; empty when none is stored [user] |
 | `gps` | as §33.3 | as §33.3 | as §33.3 |
-| `cell_mail` | email over cellular: `on` (sent by §25's SMTP over the modem) or `off` | one of the two | the stored value; `on` when none is stored [proposed] |
+| `cell_mail` | email over cellular: `on` (sent by §25's SMTP over the modem) or `off` | one of the two | the stored value; `on` when none is stored [user] |
 
 ### 35.5 Requirements
 
 Build:
 
-- **FR-35.5** [Must] [proposed] The T-SIM7080G build shall come from the same
+- **FR-35.5** [Must] [user] The T-SIM7080G build shall come from the same
   source tree as the T-Display build, the board chosen at build time; the
   T-Display build's image and behaviour do not change, and the T-SIM7080G
   image fits a 4 MB application slot (C-10.7) with the same partition table,
@@ -3624,13 +3623,13 @@ Displays:
   build shall show the §5.4 lines on the e-paper display when the temperature is above **40 °F** (4.4 °C) and on the OLED
   below it. The choice is made when a window starts, from the latest kept
   reading (§23), and kept for the whole window; with a reading of 40.00 °F or
-  no reading at all, the OLED is used [proposed]. Once on the OLED, the build
+  no reading at all, the OLED is used [user]. Once on the OLED, the build
   returns to the e-paper only at **42 °F** or above [user] (2 °F of
   hysteresis, so a reading near 40 °F does not swap the display at each
   window). The display not chosen stays off: the OLED dark, the e-paper
   holding its last drawing. Without the e-paper, the OLED is used in every
   window.
-- **FR-35.15** [Must] [proposed] With the e-paper fitted, on it lines 1 – 5 shall be drawn
+- **FR-35.15** [Must] [user] With the e-paper fitted, on it lines 1 – 5 shall be drawn
   in a 12 × 24 font (33 characters across 396 pixels) and line 6 in an
   8 × 16 font (44 characters), both generated by `bdf_to_c.py`. A window
   starts with a full refresh; a changed line is drawn with a partial refresh,
@@ -3638,7 +3637,7 @@ Displays:
   once more, with a full refresh, showing the last reading on line 4 and
   `Asleep, key to wake` on line 5, and the controller is put in its deep
   sleep. A timer wake never draws on the e-paper (FR-21.13).
-- **FR-35.16** [Must] [proposed] On the OLED, the six lines shall be drawn in
+- **FR-35.16** [Must] [user] On the OLED, the six lines shall be drawn in
   a 6 × 10 font generated by `bdf_to_c.py`, 42 characters a line across 252
   of its 256 pixels, so lines 1 – 5 (at most 33) fit whole and line 6 is cut
   at 42. The OLED is turned off (its display-off command) at the end of
@@ -3654,7 +3653,7 @@ Keys and LED:
   of every section that names it (§21, §24, §26, §28): it wakes the device
   from deep sleep, ends the setup check hold, opens the BLE key window with a
   3 s hold, and starts `quick` with a double press, with the same timings.
-- **FR-35.18** [Must] [proposed] The off-board key's LED shall do what the
+- **FR-35.18** [Must] [user] The off-board key's LED shall do what the
   LED of FR-24.9 does on the T-Display: flash at 1 Hz during the setup check
   hold, lit in a window while the display is on, off in sleep.
 
@@ -3667,13 +3666,13 @@ Settings from microSD:
   `apply` of that body is in the state the device is in: in PROVISIONING as
   FR-26.6, otherwise as FR-26.7, so absent secrets keep the stored ones and an
   accepted body restarts the device (T14).
-- **FR-35.19** [Must] [proposed] After an accepted file, the device shall
+- **FR-35.19** [Must] [user] After an accepted file, the device shall
   rename it to `/settings.done` with the values of `password`,
   `mail_password`, `tb_token` and `ntfy_token` removed, so the card carries
   no secret once applied and the same file is not applied again; after a
   refused file it leaves the file in place. Either way it writes
   `/settings.result` holding `ok` or `invalid=<field>` and logs L49.
-- **FR-35.20** [Must] [proposed] With no card, an unreadable card or no
+- **FR-35.20** [Must] [user] With no card, an unreadable card or no
   `/settings.txt`, the device shall go on as without this feature, logging
   L49 `none` or `failed`; the card is unmounted before the window ends, and
   never mounted on a timer wake.
@@ -3687,7 +3686,7 @@ Modem and sending:
   modem off between sends (`AT+CPOWD=1`, then DC3 off) and attach cold at the
   next one. Otherwise it shall leave the modem in PSM and resume without a
   new attach.
-- **FR-35.7** [Must] [proposed] The modem shall be woken or powered only for
+- **FR-35.7** [Must] [user] The modem shall be woken or powered only for
   a due ThingsBoard upload, alert or email with `uplink` `cell`, for the time
   step of FR-35.13, and for a GPS search (FR-35.14); with `uplink` `wifi` it
   stays powered off in every boot, window and wake.
@@ -3701,16 +3700,16 @@ Modem and sending:
   (§34). With `cell_mail` `off`, email over cellular follows FR-33.13's `off`.
 - **FR-35.9** [Must] [user] A modem that does not register within
   **60 s** of being woken or powered, or a PPP link that does not come up
-  within **10 s** [proposed] of registering, shall be logged as L47 and treated as each
+  within **10 s** [user] of registering, shall be logged as L47 and treated as each
   due send's failure as its section says (the ThingsBoard readings stay after
   the mark, an alert follows FR-31.6, an email follows §25's dropped send);
   the modem is then powered off and the next send attaches cold.
-- **FR-35.10** [Must] [proposed] With `uplink` `cell`, the ThingsBoard
+- **FR-35.10** [Must] [user] With `uplink` `cell`, the ThingsBoard
   attributes (§32.3) shall add `"uplink":"cell"`, the signal (CSQ), the
   modem's firmware revision, the network (MCC+MNC), the last PSM grant
   (`psm_active_s`, `psm_tau_s`, or none), the battery voltage in mV and, when
   a place is stored, `latitude` and `longitude`.
-- **FR-35.11** [Must] [proposed] With `cell_plmn` set, the device shall lock
+- **FR-35.11** [Must] [user] With `cell_plmn` set, the device shall lock
   the modem to that network on each full attach (`AT+COPS=1,2`, no
   fallback); with it empty, automatic choice (`AT+COPS=0`), undoing an
   earlier lock.
@@ -3751,7 +3750,7 @@ Location:
 
 ---
 
-## 36. E-paper Display (optional, draft)
+## 36. E-paper Display (optional)
 
 ### 36.1 Purpose & peer
 
@@ -3763,7 +3762,7 @@ builds (Phase 18) [user]. Peer: the e-paper panel, a 4.2" 400 × 300
 SSD1683 module on SPI as the CrowPanel bring-up measured
 (`docs/Method/project/crowpanel-epaper.md`).
 
-This section is a draft. The T-SIM7080G build's e-paper rules are FR-35.2 and
+The T-SIM7080G build's e-paper rules are FR-35.2 and
 FR-35.15; the T-Display build's (its pins, and what the e-paper shows beside
 the AMOLED) are defined when Phase 18 starts.
 
@@ -3774,7 +3773,7 @@ built; optional, so a submission without it leaves the e-paper as it was.
 
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
-| `epaper` | an e-paper display is fitted: `on` or `off` | one of the two | the stored value; `off` when none is stored [proposed] |
+| `epaper` | an e-paper display is fitted: `on` or `off` | one of the two | the stored value; `off` when none is stored [user] |
 
 ### 36.3 Requirements
 
@@ -4010,7 +4009,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.36.0
+fsd_version: 0.37.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4082,14 +4081,9 @@ change_history:
   - "0.35.0 2026-11-05 from the user's request that the e-ink screen be optional in both builds and come at the end of development: §36 E-paper Display (optional, draft) with FR-36.1 and FR-36.2 (user) and the `epaper` setting (proposed, default off); FR-35.2 and FR-35.15 apply only with the e-paper fitted, the OLED otherwise; Phase 17 (T-SIM7080G build without the e-paper) and Phase 18 (e-paper, last)"
   - "0.35.1 2026-11-05 from the user's choice of OLED: §35.2 the OLED is a 3.12\" 256 x 64 SSD1322 on SPI (user) instead of the 1.3\" SH1106 on I2C, sharing the e-paper's SPI lines with its own CS on GPIO 43 (proposed); FR-35.16 42 characters a line; R-36 names GPIO 43"
   - "0.36.0 2026-11-05 from the user's plan to use Qwiic connectors where possible with a star adapter: §2.2 and §35.2 gain a Qwiic row (user): a Qwiic star adapter on each build's sensor bus for the BME280 (and the Notecarrier-X on the T-Display build); the loop, water probe and RS232 keep JST-XH; pull-ups (proposed)"
+  - "0.37.0 2026-11-05 the user approved §35 and §36 with every proposal in them (pin map, displays, off-board key, settings card, modem behaviour, settings and defaults, the `epaper` setting) and the Qwiic rows of §2.2 and §35.2; §35 and §36 are no longer drafts; §35's verification contracts come before Phase 17"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
-  - "§2.2, §35.2 Qwiic rows: the star adapter part, which pull-ups stay in (on the T-SIM7080G build every Qwiic board's cut, the PMU's kept), the JST-XH pinouts on the T-SIM7080G build"
-  - "§36: `epaper` setting, default off; the T-Display build's e-paper rules defined when Phase 18 starts"
-  - "§35 (whole section, draft): the T-SIM7080G build, its pin map, displays, off-board key, settings card and modem behaviour"
-  - "FR-35.2: the OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, line 6 cut at 42; §35.2 OLED pins, CS on GPIO 43"
-  - "FR-35.9: 10 s from registering to the PPP link"
-  - "§35.4: uplink default wifi, apn 1 – 63 bytes, cell_plmn default empty, cell_mail default on; no OTA over cellular"
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
   - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"
   - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"
