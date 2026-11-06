@@ -58,6 +58,7 @@ reused.
 | 33 | Cellular Uplink | L1 |
 | 34 | WiFi Off | cross-cutting |
 | 35 | T-SIM7080G Build (draft) | cross-cutting |
+| 36 | E-paper Display (optional, draft) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -445,6 +446,32 @@ testbench.
 - **Dependencies.** §5 (connectivity), §13 (portal form), §26 (BLE settings),
   §21 (windows and timer wakes), §33 (cellular uplink, for reporting without
   WiFi).
+
+### 3.17 Phase 17: T-SIM7080G build
+
+- **Scope.** The T-SIM7080G build of §35 without the e-paper: the board, the
+  modem uplink over PPP with PSM adaptation, the clock and GPS from the modem,
+  the OLED, the off-board key and its LED, settings from microSD, and every
+  feature of §35.3 on the new pins.
+- **Deliverables.** §35 except FR-35.2 and FR-35.15; a commissioning check of
+  the pin map (R-36); L46, L47 and L49; a User Manual section for the build.
+- **Exit criteria.** On SLOT3 the build passes the §35 contracts (written when
+  §35 is approved) and the JRN-01 journey's steps that apply to it; a 24 h
+  soak on cellular delivers every ThingsBoard upload; the T-Display build is
+  unchanged.
+- **Dependencies.** §25, §31 – §34; the modem probe's evaluation
+  (`docs/Method/project/lte-m-modem.md`).
+
+### 3.18 Phase 18: E-paper display (optional, last)
+
+- **Scope.** The optional e-paper display of §36 on both builds: on the
+  T-SIM7080G build FR-35.2 and FR-35.15, on the T-Display build the rules
+  defined when this phase starts.
+- **Deliverables.** §36, FR-35.2, FR-35.15, L48; the `epaper` setting.
+- **Exit criteria.** With `epaper` `on` and a panel fitted, each build shows
+  its lines on the e-paper as its rules say; with `epaper` `off` both builds
+  behave exactly as before this phase.
+- **Dependencies.** Every other phase of both builds (FR-36.2).
 
 ---
 
@@ -3505,13 +3532,14 @@ carries an ordinary IP link over PPP: with `uplink` `cell` the WiFi senders
 (§25, §31, §32) run unchanged over that link and reach their servers directly,
 with no vendor cloud between the device and its peers. The Blues Notecard of
 §33 is not part of this build. The board has no panel of its own, so it drives
-an e-paper display in mild weather and an OLED in the cold (FR-35.2), takes an
+an OLED, and, when the optional e-paper display of §36 is fitted, the e-paper
+in mild weather and the OLED in the cold (FR-35.2); it takes an
 off-board key (FR-35.3), and can read its settings from a microSD card
 (FR-35.4).
 
 Peers: the modem on UART 1; the cellular network, which grants the PSM timers;
-the senders' servers, reached over the internet; the e-paper display, the
-OLED, the off-board key and the microSD card. The evaluation that measured
+the senders' servers, reached over the internet; the OLED, the optional
+e-paper display (§36), the off-board key and the microSD card. The evaluation that measured
 attach times, PSM grants, data use and GPS on this board is
 `docs/Method/project/lte-m-modem.md`. The T-Display build is unchanged by this
 section.
@@ -3532,13 +3560,13 @@ no verification contracts yet.
 | Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 16, SCL GPIO 17, its supply and the isolator's board side switched by GPIO 18, as §29 with the pins moved | [proposed] |
 | RS232 | MAX3232 powered from GPIO 13, TX GPIO 11, RX GPIO 12 (the T-Display's pins), on UART 2 because the modem holds UART 1 | [proposed] |
 | Water probe | Switch line GPIO 2, as on the T-Display | [proposed] |
-| E-paper | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), on SPI2: SCK GPIO 9, MOSI GPIO 10, CS GPIO 8, DC GPIO 14, RST GPIO 1, BUSY GPIO 48; always powered, put in its deep sleep after each drawing | [proposed] |
+| E-paper (optional, §36) | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), on SPI2: SCK GPIO 9, MOSI GPIO 10, CS GPIO 8, DC GPIO 14, RST GPIO 1, BUSY GPIO 48; always powered, put in its deep sleep after each drawing | [proposed] |
 | OLED | A 1.3" 128 × 64 SH1106 module on I2C (the one the modem probe uses), at 0x3C on the sensor bus | [proposed] |
 | Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 21 (an RTC GPIO, the T-Display's user-key number), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 47 through a resistor | [user] key; parts and pins [proposed] |
 | BOOT key | GPIO 0 on the board, as §18 | [derived from the board] |
 | microSD | The board's slot, SDMMC 1-bit, CMD GPIO 39, CLK GPIO 38, D0 GPIO 40; FAT32 | [derived from the board]; FAT32 [proposed] |
 | Antennas | LTE: a passive antenna rated for 698 – 960 MHz on the modem's LTE u.FL (bands 12 and 13), as `lte-m-modem.md` describes. GPS: an active antenna on the GPS u.FL, only with `gps` `on` | [proposed] |
-| Pins | Every free header GPIO is used: 1, 2, 8 – 14, 16 – 18, 21, 47, 48; none is left for another add-on | [derived from the rows above] |
+| Pins | Every free header GPIO is used: 1, 2, 8 – 14, 16 – 18, 21, 47, 48, the e-paper's six kept for it whether or not it is fitted; none is left for another add-on | [derived from the rows above] |
 | Bench slot | SLOT3; slot and MAC recorded when the build is commissioned | [user] |
 
 ### 35.3 Feature parity
@@ -3547,7 +3575,7 @@ no verification contracts yet.
 |---------|---|---------------|
 | Connectivity states, WiFi portal, status page and API, HTTP OTA, UDP log, mDNS | 5, 13 – 17 | Same, over the ESP32-S3's WiFi |
 | BOOT key, factory reset | 18 | Same (GPIO 0) |
-| Panel and its six lines | 5.4, 6 | E-paper or OLED by temperature (FR-35.2, FR-35.15, FR-35.16); same line content |
+| Panel and its six lines | 5.4, 6 | The OLED (FR-35.16); with the optional e-paper (§36), e-paper or OLED by temperature (FR-35.2, FR-35.15); same line content |
 | Serial log | 7 | Same, plus L46 – L49 (§7.2) |
 | Watchdog, identity, deep sleep, time | 19 – 22 | Same; the user key is the off-board key (FR-35.3); the clock also from the modem (FR-35.13) |
 | Weather sensor, setup check, reading history, sampling setups | 23, 24, 27, 28 | Same; the LED of FR-24.9 is the off-board key's LED |
@@ -3590,16 +3618,17 @@ Build:
 
 Displays:
 
-- **FR-35.2** [Must] [user] The build shall show the §5.4 lines on the e-paper
-  display when the temperature is above **40 °F** (4.4 °C) and on the OLED
+- **FR-35.2** [Must] [user] With the e-paper fitted (`epaper` `on`, §36), the
+  build shall show the §5.4 lines on the e-paper display when the temperature is above **40 °F** (4.4 °C) and on the OLED
   below it. The choice is made when a window starts, from the latest kept
   reading (§23), and kept for the whole window; with a reading of 40.00 °F or
   no reading at all, the OLED is used [proposed]. Once on the OLED, the build
   returns to the e-paper only at **42 °F** or above [user] (2 °F of
   hysteresis, so a reading near 40 °F does not swap the display at each
   window). The display not chosen stays off: the OLED dark, the e-paper
-  holding its last drawing.
-- **FR-35.15** [Must] [proposed] On the e-paper, lines 1 – 5 shall be drawn
+  holding its last drawing. Without the e-paper, the OLED is used in every
+  window.
+- **FR-35.15** [Must] [proposed] With the e-paper fitted, on it lines 1 – 5 shall be drawn
   in a 12 × 24 font (33 characters across 396 pixels) and line 6 in an
   8 × 16 font (44 characters), both generated by `bdf_to_c.py`. A window
   starts with a full refresh; a changed line is drawn with a partial refresh,
@@ -3716,6 +3745,43 @@ Location:
   shown on line 6 and sent with the attributes as §33 says; no `card.location`
   request exists on this build. After the search LTE is restarted only when a
   send is due.
+
+---
+
+## 36. E-paper Display (optional, draft)
+
+### 36.1 Purpose & peer
+
+Both builds can carry an e-paper display, which keeps its last screen with no
+power. It is optional on both [user]: the T-Display build shows its lines on
+the AMOLED and the T-SIM7080G build on the OLED (§35), and each is complete
+without an e-paper. It is developed last, after every other phase of both
+builds (Phase 18) [user]. Peer: the e-paper panel, a 4.2" 400 × 300
+SSD1683 module on SPI as the CrowPanel bring-up measured
+(`docs/Method/project/crowpanel-epaper.md`).
+
+This section is a draft. The T-SIM7080G build's e-paper rules are FR-35.2 and
+FR-35.15; the T-Display build's (its pins, and what the e-paper shows beside
+the AMOLED) are defined when Phase 18 starts.
+
+### 36.2 Setting
+
+Added to the §13.2 form and the BLE `settings` write (§26) when Phase 18 is
+built; optional, so a submission without it leaves the e-paper as it was.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `epaper` | an e-paper display is fitted: `on` or `off` | one of the two | the stored value; `off` when none is stored [proposed] |
+
+### 36.3 Requirements
+
+- **FR-36.1** [Must] [user] The e-paper display shall be optional in both
+  builds: with `epaper` `off`, or with no panel fitted, every other
+  requirement is met as without this section, and nothing is drawn, driven or
+  logged for the e-paper.
+- **FR-36.2** [Must] [user] The e-paper display shall be built last, in
+  Phase 18, after every other phase of both builds; no earlier phase depends
+  on it.
 
 ---
 
@@ -3941,7 +4007,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.34.1
+fsd_version: 0.35.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4010,8 +4076,10 @@ change_history:
   - "0.33.0 2026-11-04 the user approved §34 WiFi Off with its proposals (FR-34.2 credentials kept, FR-34.11 nothing sent without an uplink, the §5.4 WIFI_OFF screen) and asked for the build; FR-34.11 names the uplink section's intro instead of a WiFi hint; FR-26.19 rules gain `required_if`, so the BLE page requires the network name only with WiFi on (FR-34.3)"
   - "0.34.0 2026-11-05 from the user's request that the Blues and T-SIM7080G builds match where possible: §35 rewritten as the T-SIM7080G Build (draft): hardware and pin map, feature parity table, settings (`apn`, `cell_plmn`, `cell_mail` on/off), FR-35.5 – FR-35.20 and NFR-35.1 – NFR-35.2 (proposed) beside the user's FR-35.1 – FR-35.4, L46 – L49, R-36 – R-39; awaiting the user's review"
   - "0.34.1 2026-11-05 the user approved the §35 numbers: FR-35.1 the 60 s active-time limit, FR-35.2 the 2 °F hysteresis (back to the e-paper at 42 °F), FR-35.9 registration within 60 s, NFR-35.1 asleep within 25 s after a PSM resume and 100 s after a cold attach, NFR-35.2 under 10 MB a month; the rest of §35 stays open"
+  - "0.35.0 2026-11-05 from the user's request that the e-ink screen be optional in both builds and come at the end of development: §36 E-paper Display (optional, draft) with FR-36.1 and FR-36.2 (user) and the `epaper` setting (proposed, default off); FR-35.2 and FR-35.15 apply only with the e-paper fitted, the OLED otherwise; Phase 17 (T-SIM7080G build without the e-paper) and Phase 18 (e-paper, last)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
+  - "§36: `epaper` setting, default off; the T-Display build's e-paper rules defined when Phase 18 starts"
   - "§35 (whole section, draft): the T-SIM7080G build, its pin map, displays, off-board key, settings card and modem behaviour"
   - "FR-35.2: the OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, lines cut at 21"
   - "FR-35.9: 10 s from registering to the PPP link"
