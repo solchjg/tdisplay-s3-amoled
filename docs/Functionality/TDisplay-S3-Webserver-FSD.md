@@ -3724,6 +3724,14 @@ Modem and sending:
   application task off the watch for that call only, and put it back when the
   call returns; FR-35.9's limits bound each such call. The window's display
   and keys wait for the call.
+- **FR-35.22** [Should] [user] Until the SSD1322 is fitted, a bench build
+  (`sdkconfig.standin`, never released) shall draw the six lines on the 1.3"
+  128 × 64 SH1106 or SSD1306 soldered to GPIO 13 (SDA) and GPIO 21 (SCL), in
+  the 6 × 10 font, 21 characters a line, the rest cut [user]. Both I2C
+  controllers being taken, the bus is driven in software [proposed]. In that
+  build RS232 and the off-board key are off, the user key is the BOOT key
+  (GPIO 0) and only the timer wakes the chip [proposed]; the panel is turned
+  on, off and reported as FR-35.16 and FR-35.17 say of the OLED.
 - **NFR-35.1** [Must] [user] A timer wake that sends shall be back
   asleep within **25 s** of the wake after a PSM resume and within **100 s**
   after a cold attach, success or failure. On this build FR-32.12's 40 s
@@ -3769,6 +3777,8 @@ Bench rows run on SLOT3 with the T-SIM7080G (R-31 for coverage at the bench);
 | FR-35.4, FR-35.19 | Operator: a card with a valid `/settings.txt` in the slot, power-on | L49 `ok`, a restart, the settings in a BLE `settings` read; the card on a PC holds `settings.done` without secrets and `settings.result` `ok` | The file applied on the next boot again | bench (operator) |
 | FR-35.2 (core) | Display choice with the e-paper fitted: readings 45.00, 40.01, 40.00, 39.99 °F; none; on the OLED, 41.99 then 42.00 °F; `epaper` `off` at 70 °F | e-paper, e-paper, OLED, OLED; OLED; OLED, e-paper; OLED | A switch inside a window; the e-paper with `epaper` `off` | host |
 | FR-35.16 (core) | OLED layout of the ONLINE lines and a line 6 of 44 characters | Six rows of 6 × 10 cells, lines 1 – 5 whole, line 6 its first 42 characters | A line wrapped onto the next row | host |
+| FR-35.22 (core) | Stand-in layout of the ONLINE lines on a stale screen; the init of each chip; a box past the panel | Six rows of 6 × 10 cells from x 1, each line cut at 21, only the boxes cleared; the display left off, page addressing, the SH1106 from column 2; refused | A line wrapped onto the next row; the display on before a window | host |
+| FR-35.22 | Operator: the stand-in build on the T-SIM7080G with the 1.3" OLED, power-on; BOOT key pressed in the hold | The §5.4 lines on the 1.3" OLED in the window, cut at 21, dark after `web: sleep`; the hold ends | A reset; lines mirrored or upside down | bench (operator) |
 | FR-35.16, FR-35.17 | Operator: power-on with the OLED fitted; then with its CS line unplugged | The §5.4 lines on the OLED in the window, dark after `web: sleep`; with CS unplugged the window runs on, the display failure logged | A reset or a halted window | bench (operator) |
 | FR-35.3, FR-35.18 | Operator: asleep 300 s, presses the off-board key; then mark pending, power-on | `web: wake cause=button` ≤ 3 s after the press; during the hold the key's LED flashes 1 Hz and a press ends it with L24 `by=key` | Waking only at the period's end; the LED dark during the hold | bench (operator) |
 | FR-35.1 (core) | Grant core: no grant; active 300 s, TAU 18600 s; active 60 s; active 16 s, TAU 3600 s | `off`, `off`, `psm`, `psm`; each logged as L46 | PSM kept with an active time over 60 s | host |
@@ -4225,7 +4235,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.43.0
+fsd_version: 0.45.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4303,6 +4313,7 @@ change_history:
   - "0.40.0 2026-11-06 the user's choice for `cell_plmn` (§35.4): an empty field clears the network lock, an absent field keeps the stored one"
   - "0.41.0 2026-11-06 draft for the user's review, from the user's question whether one packed format should serve every link: §37 Packed Messages (all proposed) defines the rd, day, al and st messages shared by small-payload links (satellite, LoRa), in a template encoding for Notecard links and a raw one otherwise, decoded at the edge into the §32.3 and §31.3 JSON; IP links and the §33 notes keep JSON; R-40"
   - "0.43.0 2026-11-06 the user's choice for the modem's long waits: FR-35.21, the application task is off the watch (FR-19.1) for each modem call that can pass 10 s, bounded by FR-35.9's limits"
+  - "0.45.0 2026-11-06 the user's choice of a screen until the SSD1322 arrives: FR-35.22, a bench build drawing the six lines on the 1.3\" OLED soldered to GPIO 13/21 (user), driven in software with RS232 and the off-board key off and the BOOT key as the user key (proposed)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"

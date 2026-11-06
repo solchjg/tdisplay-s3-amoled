@@ -355,6 +355,13 @@ capabilities:
     consequence: >
       Never seen on a panel (testing/debugging-agenda.md); the FR-35.16 bench
       row in Phase 17 step 8 is its first run.
+  oled-standin:
+    what: The 1.3" 128 x 64 OLED soldered to the T-SIM7080G's GPIO 13/21 answers at 0x3C or 0x3D on the software bus and shows the six lines the right way round as an SH1106 (or an SSD1306 with CONFIG_APP_OLED_STANDIN_SH1106=n) (FSD FR-35.22)
+    available: unproven
+    consequence: >
+      Seen on the modem probe through the I2C controller, never through the
+      stand-in's software bus (testing/debugging-agenda.md); the FR-35.22
+      bench row is its first run.
   dut-bme280:
     what: A BME280 (chip ID 0x60) at 0x76 on SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1
     available: unproven
@@ -3839,4 +3846,16 @@ tests:
     needs: []
     observable: "the six line boxes at x 2, y 2 + 10 n, 252 x 10; the ONLINE lines drawn whole, a line 6 of 44 characters cut at 42, nothing in the margins or between rows; the 6 x 10 font fits 42 characters in 252 px; the SSD1322 window, init and 4-bit packing"
     impl: [tests/host/test_oled_layout.py::test_six_rows_of_6x10_cells_42_characters_across_252_pixels, tests/host/test_oled_layout.py::test_online_lines_whole_and_line_6_cut_at_42, shared/tests/host/test_text.py::test_tiny_font_cell_and_42_characters_fit_252_pixels, shared/tests/host/test_ssd1322.py::test_column_window, shared/tests/host/test_ssd1322.py::test_pack_left_pixel_high_nibble_with_offset, shared/tests/host/test_ssd1322.py::test_init_unlocks_first_and_leaves_the_display_off]
+    result: {status: not done}
+  - id: TC-TSIM-10
+    title: "OLED stand-in: six rows of 6 x 10 cells, lines cut at 21"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.22]
+    needs: []
+    observable: "the six line boxes at x 1, y 2 + 10 n, 126 x 10; each ONLINE line cut at 21 characters, only the boxes cleared on a stale screen, line 6 touching pages 6 and 7; each chip's init leaves the display off with page addressing, the SH1106 written from column 2; a box past the panel refused"
+    impl: [tests/host/test_oled_standin.py::test_six_rows_of_6x10_cells_21_characters_across_126_pixels, tests/host/test_oled_standin.py::test_lines_cut_at_21_and_margins_cleared, tests/host/test_oled_standin.py::test_init_leaves_the_display_off_and_page_addressing, tests/host/test_oled_standin.py::test_page_start_sh1106_from_column_2, tests/host/test_oled_standin.py::test_box_outside_the_panel_refused]
     result: {status: not done}

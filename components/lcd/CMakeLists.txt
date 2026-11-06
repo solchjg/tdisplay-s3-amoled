@@ -1,6 +1,9 @@
 # FR-35.5: the board chosen at build time picks the panel. Requirements are read
 # before sdkconfig is known, so both boards' requirements are listed.
-if(CONFIG_APP_BOARD_TSIM7080G_S3)
+if(CONFIG_APP_OLED_STANDIN)
+    # FR-35.22: the bench stand-in instead of the SSD1322.
+    set(srcs "lcd_standin.c" "lcd_standin_core.c" "lcd_layout.c" "lcd_oled_layout.c")
+elseif(CONFIG_APP_BOARD_TSIM7080G_S3)
     set(srcs "lcd_oled.c" "lcd_layout.c" "lcd_oled_layout.c")
 else()
     set(srcs "lcd.c" "lcd_layout.c")

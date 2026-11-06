@@ -14,4 +14,21 @@ menu "Board"
 
     endchoice
 
+    config APP_OLED_STANDIN
+        bool "Bench stand-in: the 1.3\" OLED on GPIO 13/21 (never released)"
+        depends on APP_BOARD_TSIM7080G_S3
+        default n
+        help
+            FSD FR-35.22: draws the six lines on a 128 x 64 SSD1306 or SH1106
+            on GPIO 13 (SDA) and GPIO 21 (SCL) instead of the SSD1322, 21
+            characters a line. RS232 and the off-board key are off in this
+            build. A bench build until the SSD1322 is fitted; never released.
+
+    config APP_OLED_STANDIN_SH1106
+        bool "The stand-in is an SH1106 (most 1.3\" modules)"
+        depends on APP_OLED_STANDIN
+        default y
+        help
+            Off for an SSD1306.
+
 endmenu

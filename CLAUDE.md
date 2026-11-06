@@ -22,6 +22,9 @@ git submodule update --init
 # -DSDKCONFIG keeps the generated config in build/, so sdkconfig.defaults always wins.
 idf.py -B build -DSDKCONFIG=$PWD/build/sdkconfig set-target esp32s3
 idf.py -B build -DSDKCONFIG=$PWD/build/sdkconfig build
+# T-SIM7080G build (FSD §35); add ;sdkconfig.standin for the 1.3" OLED bench stand-in
+idf.py -B build-tsim -DSDKCONFIG=$PWD/build-tsim/sdkconfig \
+       -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.tsim7080g" build
 
 # Lint + host tests (what ci.yml runs)
 ruff check .
@@ -71,6 +74,9 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   (policy belongs to the logic layer). The layout (`lcd_layout.c`) is a pure core.
   On the T-SIM7080G build it drives the 3.12" SSD1322 OLED instead (`lcd_oled.c`, FSD
   FR-35.16: six rows of 6 × 10 cells, `lcd_oled_layout.c` pure) through the shared `ssd1322`.
+  Until the SSD1322 arrives, the bench build `sdkconfig.standin` (FR-35.22, never released)
+  draws them on the 1.3" OLED soldered to GPIO 13/21 instead (`lcd_standin.c`, a software I2C
+  bus; `lcd_standin_core.c` pure), with the BOOT key as the user key.
 - `shared/components/rm67162/` (L0) — board-agnostic RM67162 QSPI driver via `esp_lcd`'s
   SPI panel IO, configured by `rm67162_config_t`; `shared/components/tdisplay_s3_amoled/`
   (L0) holds the board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.
