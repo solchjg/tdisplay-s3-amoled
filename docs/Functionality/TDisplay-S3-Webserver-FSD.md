@@ -3664,7 +3664,8 @@ Settings from microSD:
 - **FR-35.4** [Must] [user] On each boot that is not a timer wake, the device
   shall look on the microSD card for a file `/settings.txt` holding a
   settings body in the form of the BLE `settings` write (§26), one
-  `field=value` a line. A file found shall be validated and applied as a BLE
+  `field=value` a line, each value as typed (not percent-encoded; the device
+  encodes it), empty lines and lines starting with `#` skipped. A file found shall be validated and applied as a BLE
   `apply` of that body is in the state the device is in: in PROVISIONING as
   FR-26.6, otherwise as FR-26.7, so absent secrets keep the stored ones and an
   accepted body restarts the device (T14).
@@ -4235,7 +4236,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.45.0
+fsd_version: 0.46.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4314,6 +4315,7 @@ change_history:
   - "0.41.0 2026-11-06 draft for the user's review, from the user's question whether one packed format should serve every link: §37 Packed Messages (all proposed) defines the rd, day, al and st messages shared by small-payload links (satellite, LoRa), in a template encoding for Notecard links and a raw one otherwise, decoded at the edge into the §32.3 and §31.3 JSON; IP links and the §33 notes keep JSON; R-40"
   - "0.43.0 2026-11-06 the user's choice for the modem's long waits: FR-35.21, the application task is off the watch (FR-19.1) for each modem call that can pass 10 s, bounded by FR-35.9's limits"
   - "0.45.0 2026-11-06 the user's choice of a screen until the SSD1322 arrives: FR-35.22, a bench build drawing the six lines on the 1.3\" OLED soldered to GPIO 13/21 (user), driven in software with RS232 and the off-board key off and the BOOT key as the user key (proposed)"
+  - "0.46.0 2026-11-06 the user's choice for `/settings.txt` (FR-35.4): each value as typed, not percent-encoded, the device encodes it; empty lines and `#` lines skipped"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
