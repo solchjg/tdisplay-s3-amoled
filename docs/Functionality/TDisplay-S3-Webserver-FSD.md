@@ -456,8 +456,8 @@ testbench.
   feature of §35.3 on the new pins.
 - **Deliverables.** §35 except FR-35.2 and FR-35.15; a commissioning check of
   the pin map (R-36); L46, L47 and L49; a User Manual section for the build.
-- **Exit criteria.** On SLOT3 the build passes the §35 contracts (written when
-  §35 is approved) and the JRN-01 journey's steps that apply to it; a 24 h
+- **Exit criteria.** On SLOT3 the build passes the §35.6 contracts
+  except the e-paper's and the JRN-01 journey's steps that apply to it; a 24 h
   soak on cellular delivers every ThingsBoard upload; the T-Display build is
   unchanged.
 - **Dependencies.** §25, §31 – §34; the modem probe's evaluation
@@ -3545,7 +3545,7 @@ attach times, PSM grants, data use and GPS on this board is
 `docs/Method/project/lte-m-modem.md`. The T-Display build is unchanged by this
 section.
 
-Its verification contracts are written before Phase 17 is built.
+Its verification contracts are §35.6.
 
 ### 35.2 Hardware
 
@@ -3747,6 +3747,37 @@ Location:
   shown on line 6 and sent with the attributes as §33 says; no `card.location`
   request exists on this build. After the search LTE is restarted only when a
   send is due.
+
+### 35.6 Verification contracts
+
+Bench rows run on SLOT3 with the T-SIM7080G (R-31 for coverage at the bench);
+`(core)` rows drive the pure cores on the host.
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-35.5 | Both builds from one commit | Each builds; the T-SIM7080G image under 4 MB with the same partition table; the T-Display image's size and `sdkconfig` unchanged from a build without this section | One build's sources edited to build the other | host (build) |
+| FR-35.4, FR-35.6 (core) | `ble_settings` core with §35.4 bodies, nothing stored: `uplink=cell` alone; with `apn=hologram`; `apn` of 64 bytes; `cell_plmn=31041`; `cell_plmn=3104100`; `cell_mail=route`; `nh_product=x` | 400 `apn`; valid; 400 `apn`; valid; 400 `cell_plmn`; 400 `cell_mail`; 400 `nh_product` | `cell` stored without an APN | host |
+| FR-35.4, FR-35.20 (core) | Settings-card core: a valid file in PROVISIONING; in a key window without `password`; a file with `ssid` of 33 bytes; no file; an unreadable card | Applied as FR-26.6; applied as FR-26.7 keeping the stored password, restart; `invalid=ssid`, nothing stored; L49 `none`; L49 `failed` | A refused file stored in part; the card mounted on a timer wake | host |
+| FR-35.19 (core) | An accepted file holding `password`, `mail_password`, `tb_token`, `ntfy_token`; a refused one | `/settings.done` written with those four values empty and `/settings.txt` gone, `/settings.result` `ok`; `/settings.txt` kept, `/settings.result` `invalid=<field>` | A secret in `/settings.done`; the same file applied twice | host |
+| FR-35.4, FR-35.19 | Operator: a card with a valid `/settings.txt` in the slot, power-on | L49 `ok`, a restart, the settings in a BLE `settings` read; the card on a PC holds `settings.done` without secrets and `settings.result` `ok` | The file applied on the next boot again | bench (operator) |
+| FR-35.2 (core) | Display choice with the e-paper fitted: readings 45.00, 40.01, 40.00, 39.99 °F; none; on the OLED, 41.99 then 42.00 °F; `epaper` `off` at 70 °F | e-paper, e-paper, OLED, OLED; OLED; OLED, e-paper; OLED | A switch inside a window; the e-paper with `epaper` `off` | host |
+| FR-35.16 (core) | OLED layout of the ONLINE lines and a line 6 of 44 characters | Six rows of 6 × 10 cells, lines 1 – 5 whole, line 6 its first 42 characters | A line wrapped onto the next row | host |
+| FR-35.16, FR-35.17 | Operator: power-on with the OLED fitted; then with its CS line unplugged | The §5.4 lines on the OLED in the window, dark after `web: sleep`; with CS unplugged the window runs on, the display failure logged | A reset or a halted window | bench (operator) |
+| FR-35.3, FR-35.18 | Operator: asleep 300 s, presses the off-board key; then mark pending, power-on | `web: wake cause=button` ≤ 3 s after the press; during the hold the key's LED flashes 1 Hz and a press ends it with L24 `by=key` | Waking only at the period's end; the LED dark during the hold | bench (operator) |
+| FR-35.1 (core) | Grant core: no grant; active 300 s, TAU 18600 s; active 60 s; active 16 s, TAU 3600 s | `off`, `off`, `psm`, `psm`; each logged as L46 | PSM kept with an active time over 60 s | host |
+| FR-35.1, FR-35.7 | `uplink` `cell`, an upload due each timer wake, SIM on a network that grants 10 – 60 s; then locked to Verizon (`cell_plmn=311480`) | First run L46 `mode=psm`, later runs resume without L46; with Verizon L46 `mode=off` and a cold attach (L46) on each run | A full attach on a PSM-resumed run; the modem left awake after a 300 s grant | bench |
+| FR-35.7 (core) | Modem wake decision: `uplink` `wifi` at a due upload; `cell` with nothing due on a timer wake; `cell` with an alert due; a window with the clock never set | No wake; no wake; wake; wake | The modem woken with `uplink` `wifi` | host |
+| FR-35.8, NFR-35.1 | Sleep test build, `uplink` `cell`, the user's ThingsBoard and ntfy, an upload and an alert due on the next timer wake | L41 `what=telemetry`, L39, `web: sleep` within 25 s of the wake after a PSM resume (within 100 s after a cold attach); no WiFi start | WiFi on a timer wake; the panel lit; the mark moved without L41 | bench |
+| FR-35.9 (core) | Attach steps: registered at 59 s; not at 60 s; PPP up 9 s after registering; not within 10 s; with an upload, an alert and a summary due | Sends; L47 `register`; sends; L47 `ppp`; on each failure the mark kept, the alert as FR-31.6, the summary period advanced; modem off | A send after L47 | host |
+| FR-35.9 | The LTE antenna removed, an upload due on a timer wake | L47 `register` within 60 s of the wake, `web: sleep` within 100 s; the readings uploaded with the antenna back | A hang past 100 s | bench (operator) |
+| FR-35.10 (core) | Attributes with `uplink` `cell`, CSQ 21, firmware `1951B16SIM7080`, network 310410, grant 16/3600, 3950 mV, a place stored | The §32.3 attributes plus those keys and `latitude`, `longitude` | A secret or a key with no value | host |
+| FR-35.11 (core) | `cell_plmn` `310410`; then empty after a lock | `AT+COPS=1,2,"310410"` on the full attach; `AT+COPS=0` | A lock with `cell_plmn` empty | host |
+| FR-35.12 | `https://` ThingsBoard with a wrong certificate, over the modem | L42 `cert` as over WiFi | The request sent without a valid certificate | bench |
+| NFR-35.2 | A month of the `std` setup with hourly uploads on cellular | The SIM provider's data use for the device under 10 MB | — | bench (operator) |
+| FR-35.13 (core) | Clock never set: `AT+CCLK?` answers a network time; answers none, SNTP answers; timer wake with nothing due | Clock set, L20 `src=cell`; clock set by SNTP, L20 `src=cell`; no attach | An attach on a timer wake for the time alone | host |
+| FR-35.13 | Power-on with `uplink` `cell`, the bench AP down | L20 `src=cell` with a year ≥ 2026 within 60 s | A reading with `at=none` after L20 | bench |
+| FR-35.14 (core) | GNSS answers during a hold: no fix twice, then a fix with a UTC time after the start; a fix older than the start; the hold ends with none, a place stored | `AT+CFUN=0` and BLDO2 on once, asks at 5 s steps, the place stored, L45, BLDO2 off; no fix; L45 `none`, the place kept | LTE and GNSS on together; BLDO2 on after the search | host |
+| FR-35.14, FR-33.20 | GPS antenna at a window, `gps` `on`; BLE write `setup=std,gps` | L32 `id=gps`, line 6 `GPS searching <mm>:<ss>`, then L45 with the place and L33 `fix=yes result=pass` within 20 min, or L45 `none` and `fix=no` | The search on a timer wake | bench (operator) |
 
 ---
 
@@ -4009,7 +4040,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.37.0
+fsd_version: 0.38.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4082,6 +4113,7 @@ change_history:
   - "0.35.1 2026-11-05 from the user's choice of OLED: §35.2 the OLED is a 3.12\" 256 x 64 SSD1322 on SPI (user) instead of the 1.3\" SH1106 on I2C, sharing the e-paper's SPI lines with its own CS on GPIO 43 (proposed); FR-35.16 42 characters a line; R-36 names GPIO 43"
   - "0.36.0 2026-11-05 from the user's plan to use Qwiic connectors where possible with a star adapter: §2.2 and §35.2 gain a Qwiic row (user): a Qwiic star adapter on each build's sensor bus for the BME280 (and the Notecarrier-X on the T-Display build); the loop, water probe and RS232 keep JST-XH; pull-ups (proposed)"
   - "0.37.0 2026-11-05 the user approved §35 and §36 with every proposal in them (pin map, displays, off-board key, settings card, modem behaviour, settings and defaults, the `epaper` setting) and the Qwiic rows of §2.2 and §35.2; §35 and §36 are no longer drafts; §35's verification contracts come before Phase 17"
+  - "0.38.0 2026-11-05 from the user's go-ahead for Phase 17: §35.6 verification contracts for FR-35.1 – FR-35.19 and NFR-35.1 – NFR-35.2 (host cores, SLOT3 bench and operator rows)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
