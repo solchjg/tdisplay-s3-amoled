@@ -21,7 +21,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/board ${ROOT}/components/device_logi
                          ${ROOT}/shared/components/ads1115
                          ${ROOT}/components/uplink ${ROOT}/shared/components/notecard
                          ${ROOT}/components/lcd
-                         ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/text
+                         ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/ssd1322 ${ROOT}/shared/components/text
                          ${ROOT}/shared/components/tdisplay_s3_amoled ${ROOT}/shared/components/esp_try)
 # Distinct from every shipped version, so the bench can tell the boots apart.
 set(PROJECT_VER "0.0.0-no-network")

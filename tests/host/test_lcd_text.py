@@ -71,7 +71,8 @@ int main(int argc, char **argv)
 def run(compile_harness):
     return compile_harness(
         "lcd_text", HARNESS,
-        ["text/text.c", "text/font16x32.c", "text/font12x24.c", "lcd/lcd_layout.c"],
+        ["text/text.c", "text/font16x32.c", "text/font12x24.c", "text/font6x10.c",
+         "lcd/lcd_layout.c"],
         ["text/include", "lcd", "tdisplay_s3_amoled/include"])
 
 
