@@ -82,7 +82,7 @@ def decode_raw(b):
     return body
 
 
-def synthetic(seed=20261105, start=1793836800, days=7, every=600):
+def synthetic(seed=20261105, start=1790812800, days=7, every=600):
     """A tank level that fills overnight and draws down by day, with noise,
     a reading every 10 minutes; about 2 % of readings fail, and one 2-hour outage."""
     rnd = random.Random(seed)
@@ -96,12 +96,12 @@ def synthetic(seed=20261105, start=1793836800, days=7, every=600):
     return rows
 
 
-SYNTH_START = 1793836800  # synthetic()'s first reading, 2026-11-05 00:00 UTC
+SYNTH_START = 1790812800  # synthetic()'s first reading, 2026-10-01 00:00 UTC
 
 
 def sample_days():
-    """The days sat-probe sends, as (name, now, rows): the synthetic 5, 6 and 8
-    November 2026 (UTC; the 8th has the 2-hour outage) and an edge day, 12 November
+    """The days sat-probe sends, as (name, now, rows): the synthetic 1, 2 and 4
+    October 2026 (UTC; the 4th has the 2-hour outage) and an edge day, 8 October
     (hour 8 missing, hour 12 too big for float16, hour 20 a single reading)."""
     rows = synthetic()
     days = []
@@ -113,7 +113,7 @@ def sample_days():
     t0 = SYNTH_START + 7 * DAY
     edge = [(t0 + h * STEP + k * 600, 70000.0 if h == 12 else 4.0 + h * 0.5)
             for h in range(HOURS) if h != 8 for k in range(1 if h == 20 else 6)]
-    days.append(("edge 2026-11-12", t0 + DAY + 120, edge))
+    days.append(("edge 2026-10-08", t0 + DAY + 120, edge))
     return days
 
 

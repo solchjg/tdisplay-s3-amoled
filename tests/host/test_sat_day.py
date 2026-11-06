@@ -22,7 +22,7 @@ ref = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ref)
 
 DAY = ref.DAY
-START = 1793836800  # 2026-11-05 00:00 UTC, the synthetic set's first reading
+START = 1790812800  # 2026-10-01 00:00 UTC, the synthetic set's first reading
 
 HARNESS = r"""
 #include <math.h>
@@ -262,5 +262,5 @@ def test_sample_days_pack_as_the_reference(compile_harness):
         assert body["t0"] == t0, name
         assert [body[f"v{i + 1}"] for i in range(24)] == [0 if a is None else a for a in avgs]
         assert route(body, "tank") == ref.telemetry(rows, now, "tank"), name
-    assert bodies[2]["miss"] == 0b11 << 10                    # 2026-11-08's outage
+    assert bodies[2]["miss"] == 0b11 << 10                    # 2026-10-04's outage
     assert bodies[3]["miss"] == 1 << 8 | 1 << 12               # edge: missing, too big
