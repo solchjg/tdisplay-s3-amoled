@@ -67,6 +67,11 @@ int main(int argc, char **argv)
         wl_fmt_ntfy_failed(line, sizeof line, argv[2], argv[3]);
     } else if (strcmp(argv[1], "cell_note") == 0) {
         wl_fmt_cell_note(line, sizeof line, argv[2], atoi(argv[3]));
+    } else if (strcmp(argv[1], "modem_attach") == 0) {
+        wl_fmt_modem_attach(line, sizeof line, atol(argv[2]), argv[3], atoi(argv[4]),
+                            atol(argv[5]), atol(argv[6]), atoi(argv[7]));
+    } else if (strcmp(argv[1], "modem_failed") == 0) {
+        wl_fmt_modem_failed(line, sizeof line, argv[2], atol(argv[3]));
     } else if (strcmp(argv[1], "cell_failed") == 0) {
         wl_fmt_cell_failed(line, sizeof line, argv[2], argv[3]);
     } else if (strcmp(argv[1], "gps") == 0) {
@@ -211,3 +216,18 @@ def test_cell_and_gps_lines(fmt):
     assert fmt("cell_failed", "full", "note.add") == "cell failed: full note.add"
     assert fmt("gps", "40.712776", "-74.005974") == "gps fix lat=+40.71278 lon=-74.00597"
     assert fmt("gps", "none") == "gps none"
+
+
+# L46, L47 (FR-35.1, FR-35.9)
+def test_modem_attach_line(fmt):
+    assert fmt("modem_attach", 14250, "310410", 21, 16, 3600, 1) == \
+        "modem attach ms=14250 net=310410 csq=21 psm_active_s=16 psm_tau_s=3600 mode=psm"
+    assert fmt("modem_attach", 9000, "311480", 18, 300, 18600, 0) == \
+        "modem attach ms=9000 net=311480 csq=18 psm_active_s=300 psm_tau_s=18600 mode=off"
+    assert fmt("modem_attach", 9000, "", 99, -1, -1, 0) == \
+        "modem attach ms=9000 net=? csq=99 psm_active_s=none psm_tau_s=none mode=off"
+
+
+def test_modem_failed_line(fmt):
+    assert fmt("modem_failed", "register", 60012) == "modem failed: register ms=60012"
+    assert fmt("modem_failed", "ppp", 71000) == "modem failed: ppp ms=71000"

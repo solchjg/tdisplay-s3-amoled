@@ -74,6 +74,20 @@ jobs:
           echo "app image: $SIZE bytes"
           [ "$SIZE" -le 4194304 ] || { echo "FATAL: image exceeds 4 MB"; exit 1; }
 
+      # FR-35.5: the T-SIM7080G build's modem parts stay out of this build.
+      - name: Check the modem components are not in the T-Display build (FR-35.5)
+        run: |
+          if grep -E '^CONFIG_ESP_MODEM_' build/sdkconfig; then
+            echo "FATAL: esp_modem options in the T-Display sdkconfig"; exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          c = json.load(open("build/project_description.json"))["build_components"]
+          bad = sorted(set(c) & {"sim7080", "axp2101", "modem_link", "espressif__esp_modem"})
+          print("modem components in the T-Display build:", bad or "none")
+          raise SystemExit(1 if bad else 0)
+          PY
+
       # Host-tier inspection of this build (FSD C-10.1 – C-10.3, C-10.6 – C-10.8, FR-9.2);
       # in ci.yml these tests skip for want of a build.
       - name: Inspect the build (tests/host/test_build.py)

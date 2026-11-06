@@ -28,6 +28,7 @@
 
 #include "ble_settings_core.h"
 #include "ble_setup.h"
+#include "board.h"
 #include "button.h"
 #include "deep_sleep.h"
 #include "device_logic.h"
@@ -48,6 +49,9 @@
 #include "lcd.h"
 #include "loop.h"
 #include "mdns_name.h"
+#if !BOARD_HAS_NOTECARD
+#include "modem_link.h"
+#endif
 #include "notify.h"
 #include "ota_rx.h"
 #include "portal.h"
@@ -369,7 +373,8 @@ static size_t ble_read_settings(char *out, size_t cap)
     alerts = *notify_settings();
     strlcpy(alerts.topic, notify_topic(), sizeof alerts.topic);  // FR-31.3, as the portal shows it
     size_t n = bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(), &alerts,
-                         uplink_settings(), uplink_wifi_on(), out,
+                         uplink_settings(), BOARD_HAS_NOTECARD ? NULL : uplink_modem(),
+                         uplink_wifi_on(), out,
                          cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2, FR-33.2, FR-34.3
     memset(alerts.token, 0, sizeof alerts.token);
     return n;
@@ -429,7 +434,8 @@ static void ble_event_cb(ble_setup_event_t ev)
 static const ble_setup_config_t ble_cfg = {.name = softap_ssid,
                                            .read_info = ble_read_info,
                                            .read_settings = ble_read_settings,
-                                           .read_form = bset_form,  // FR-26.19
+                                           .read_form = BOARD_HAS_NOTECARD ? bset_form
+                                                                           : bset_form_modem,  // FR-26.19
                                            .on_apply = ble_apply,
                                            .on_passkey = ble_passkey_cb,
                                            .on_event = ble_event_cb,
@@ -804,8 +810,10 @@ static void tests_over(void)
 // FR-28.6: quick's next reading when due; after its last, the next test or the end.
 static void run_task_and_sleep(void);
 static void send_alerts_awake(void);
-static void send_summary(bool net);
+static void send_summary(bool net, const char *nolink);
+#if BOARD_HAS_NOTECARD
 static void send_summary_notes(void);
+#endif
 static bool mail_note(int i, const char *subject, const char *text, uint32_t n);
 static void gps_test_begin(void);
 static void gps_test_end(sp_by_t by);
@@ -920,6 +928,39 @@ static bool mail_wifi_up(void)
            xSemaphoreTake(got_ip, pdMS_TO_TICKS(MAIL_WIFI_MS)) == pdTRUE;
 }
 
+// ── The T-SIM7080G build's modem (FSD §35) ───────────────────────────────
+
+#if !BOARD_HAS_NOTECARD
+static int modem_users;  // sends sharing the link that is up
+static bool modem_ok;    // the link came up for them
+
+// FR-35.8, FR-35.9: the link for the sends that follow, until the matching
+// modem_end; L46 after a full attach, L47 when it does not come up.
+static bool modem_begin(void)
+{
+    if (modem_users++ > 0) {
+        return modem_ok;
+    }
+    modem_link_t r;
+    modem_ok = modem_link_up(uplink_modem(), &r);
+    if (r.attached) {
+        web_log_modem_attach(r.attach_ms, r.net, r.csq, r.active_s, r.tau_s, r.psm);  // L46
+    }
+    if (!modem_ok) {
+        web_log_modem_failed(r.failed, r.failed_ms);  // L47
+    }
+    return modem_ok;
+}
+
+// FR-35.1: after the last send, the modem in PSM or off.
+static void modem_end(void)
+{
+    if (--modem_users == 0 && modem_ok) {
+        modem_link_down();
+    }
+}
+#endif
+
 // ── Cellular uplink region (FSD §33) ─────────────────────────────────────
 
 static ul_time_t cell_time;  // FR-33.12: the clock from the Notecard
@@ -937,8 +978,8 @@ static void cell_failed(const char *why, const char *req)
 static bool cell_up(void)
 {
     static bool logged;
-    if (!uplink_settings()->cell) {
-        return false;
+    if (!BOARD_HAS_NOTECARD || !uplink_settings()->cell) {
+        return false;  // §35.3: no Notecard on the T-SIM7080G build
     }
     const char *req = NULL;
     const char *why = uplink_start(&req);
@@ -974,6 +1015,7 @@ static void cell_boot(bool window)
     }
 }
 
+#if BOARD_HAS_NOTECARD
 // FR-33.6, FR-33.8 – FR-33.11: a note; L43 when the Notecard takes it, else L44.
 static bool cell_note(const char *file, const char *what, const char *body)
 {
@@ -985,7 +1027,41 @@ static bool cell_note(const char *file, const char *what, const char *body)
     web_log_cell_note(what, 1);  // L43
     return true;
 }
+#endif
 
+#if !BOARD_HAS_NOTECARD
+// FR-35.8: on the T-SIM7080G build an alert with `uplink` `cell` goes by §31's
+// sender over the modem, with its logs; L40 connect when the link is down.
+static bool alert_note(const char *title, const char *body, bool good, const char *event)
+{
+    bool up = modem_begin();
+    if (up) {
+        notify_begin();
+    }
+    nt_reason_t why = up ? notify_send(hostname, title, body, good) : NT_ERR_CONNECT;
+    modem_end();
+    if (why != NT_OK) {
+        web_log_ntfy_failed(nt_reason_name(why), event);  // L40
+        return false;
+    }
+    web_log_ntfy_sent(event);  // L39
+    return true;
+}
+
+// FR-35.8: likewise one email (a test result, FR-28.13) by §25's sender.
+static bool mail_note(int i, const char *subject, const char *text, uint32_t n)
+{
+    bool up = modem_begin();
+    mt_reason_t why = up ? summary_send_text(hostname, i, subject, text) : MT_ERR_CONNECT;
+    modem_end();
+    if (why != MT_OK) {
+        web_log_mail_failed(summary_to(i), mt_reason_name(why));  // L26
+        return false;
+    }
+    web_log_mail_sent(summary_to(i), n);  // L25
+    return true;
+}
+#else
 // §33.4, FR-33.8: one alert as an alert.qo note, L39 when the Notecard takes it.
 static bool alert_note(const char *title, const char *body, bool good, const char *event)
 {
@@ -1011,6 +1087,7 @@ static bool mail_note(int i, const char *subject, const char *text, uint32_t n)
     web_log_mail_sent(summary_to(i), n);  // L25
     return true;
 }
+#endif
 
 static void gps_act(unsigned a)
 {
@@ -1233,21 +1310,36 @@ static void send_due_messages(void)
     // FR-33.6, FR-34.9: with cell or with WiFi off a timer wake never starts WiFi.
     bool wifi = (alerts && alert_via() == UL_VIA_WIFI) || (mail && mvia == UL_VIA_WIFI);
     bool net = wifi && (timer ? mail_wifi_up() : view.conn == DL_ONLINE);
+#if !BOARD_HAS_NOTECARD
+    // FR-35.7, FR-35.8: one modem link for every send that goes over it.
+    bool modem = (alerts && alert_via() == UL_VIA_CELL) || (mail && mvia == UL_VIA_CELL);
+    bool cnet = modem && modem_begin();
+#endif
     if (alerts) {
         send_alerts(net);
     }
     if (mail && mvia == UL_VIA_CELL) {
+#if BOARD_HAS_NOTECARD
         send_summary_notes();
+#else
+        send_summary(cnet, "connect");  // FR-35.8: §25's sender over the modem
+#endif
     } else if (mail && mvia == UL_VIA_NONE) {
         summary_done();  // FR-33.13: the period advances as after a dropped send
     } else if (mail) {
-        send_summary(net);
+        send_summary(net, "wifi");
     }
+#if !BOARD_HAS_NOTECARD
+    if (modem) {
+        modem_end();
+    }
+#endif
     if (timer && wifi) {
         wifi_net_stop();  // FR-21.7, FR-25.6, FR-31.10: WiFi only while they are sent
     }
 }
 
+#if BOARD_HAS_NOTECARD
 // FR-33.6, FR-33.8: the due summary as a mail.qo note to each recipient.
 static void send_summary_notes(void)
 {
@@ -1262,15 +1354,18 @@ static void send_summary_notes(void)
     }
     summary_done();
 }
+#endif
 
-// FR-25.12, FR-25.14: the due summary to each recipient, its own email.
-static void send_summary(bool net)
+// FR-25.12, FR-25.14: the due summary to each recipient, its own email;
+// without a link each is dropped with the reason nolink ("wifi", or
+// "connect" for the modem's).
+static void send_summary(bool net, const char *nolink)
 {
     for (int i = 0; summary_to(i); i++) {  // FR-25.12: each recipient its own email
         uint32_t n = 0;
         mt_reason_t why = net ? summary_send(hostname, i, &n) : MT_OK;
         if (!net || why != MT_OK) {
-            web_log_mail_failed(summary_to(i), net ? mt_reason_name(why) : "wifi");  // L26
+            web_log_mail_failed(summary_to(i), net ? mt_reason_name(why) : nolink);  // L26
         } else {
             web_log_mail_sent(summary_to(i), n);  // L25
         }
@@ -1783,6 +1878,11 @@ void app_main(void)
     id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
     id_hostname(CONFIG_IDENTITY_HOSTNAME_PREFIX, mac, hostname);  // the summary's sender name
     addons_setup();  // §29.2: before any reading or L33
+#if !BOARD_HAS_NOTECARD
+    if (wake != DL_WAKE_TIMER && !uplink_settings()->cell) {
+        modem_link_off();  // FR-35.7: with `uplink` `wifi` the modem stays powered off
+    }
+#endif
     cell_boot(wake != DL_WAKE_TIMER);  // FR-33.4, FR-33.12, FR-33.14: before the task's sends
     run = sampling_run();
     if (wake != DL_WAKE_TIMER) {

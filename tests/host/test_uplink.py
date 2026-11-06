@@ -122,6 +122,24 @@ int main(int argc, char **argv)
         if (bad) { printf("stored bad %s", bad); return 0; }
         bad = ul_parse(argv[3], strlen(argv[3]), &stored, &s);
         if (bad) printf("bad %s", bad); else show(&s);
+    } else if (!strcmp(argv[1], "modem")) {  // modem <stored body> <body>
+        static ul_modem_t mnone, mstored, m;
+        ul_modem_defaults(&none, &mnone);
+        const char *bad = ul_parse_modem(argv[2], strlen(argv[2]), &none, &mnone, &stored, &mstored);
+        if (bad) { printf("stored bad %s", bad); return 0; }
+        bad = ul_parse_modem(argv[3], strlen(argv[3]), &stored, &mstored, &s, &m);
+        if (bad) { printf("bad %s", bad); return 0; }
+        ul_report_modem(&s, &m, buf, sizeof buf);
+        printf("%s", buf);
+    } else if (!strcmp(argv[1], "wanted")) {  // wanted <body> <upload> <alert> <mail> <time> <gps>
+        static ul_modem_t mnone, m;
+        ul_modem_defaults(&none, &mnone);
+        if (ul_parse_modem(argv[2], strlen(argv[2]), &none, &mnone, &s, &m)) { printf("bad"); return 0; }
+        printf("%s", ul_modem_wanted(&s, atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), atoi(argv[6]),
+                                     atoi(argv[7])) ? "wake" : "no wake");
+    } else if (!strcmp(argv[1], "link")) {  // link <register ms> <ppp ms>
+        static const char *const n[] = {"up", "register", "ppp"};
+        printf("%s", n[ul_modem_link(atol(argv[2]), atol(argv[3]))]);
     } else if (!strcmp(argv[1], "split")) {
         int left = atoi(argv[2]);
         for (int n; (n = ul_next_note(left, UL_NOTE_READINGS)) > 0; left -= n) {
@@ -334,3 +352,67 @@ def test_gps_a_cell_tower_location_is_not_a_fix(ul):
 ])
 def test_via_with_wifi_off(ul, body, want):
     assert ul("via", body) == want
+
+
+# ── §35.4: the T-SIM7080G build's modem settings ───────────────────────────
+
+# FR-35.4, FR-35.6 (core): the §35.6 contract's bodies with nothing stored.
+@pytest.mark.parametrize("body,want", [
+    ("uplink=cell", "bad apn"),
+    ("uplink=cell&apn=hologram",
+     "uplink=cell&apn=hologram&cell_plmn=&cell_mail=on&gps=off"),
+    ("uplink=cell&apn=" + "a" * 64, "bad apn"),
+    ("uplink=cell&apn=" + "a" * 63, "uplink=cell&apn=" + "a" * 63 + "&cell_plmn=&cell_mail=on&gps=off"),
+    ("apn=hologram&cell_plmn=31041", "uplink=wifi&apn=hologram&cell_plmn=31041&cell_mail=on&gps=off"),
+    ("apn=hologram&cell_plmn=3104100", "bad cell_plmn"),
+    ("apn=hologram&cell_plmn=31041a", "bad cell_plmn"),
+    ("cell_mail=route", "bad cell_mail"),
+    ("nh_product=x", "bad nh_product"),
+    ("cell_every=60", "bad cell_every"),
+    ("apn=holo%20gram", "bad apn"),
+    ("apn=a%22b", "bad apn"),
+    ("gps=on", "bad gps"),
+    ("uplink=cell&apn=iot.1nce.net&cell_plmn=311480&cell_mail=off&gps=on",
+     "uplink=cell&apn=iot.1nce.net&cell_plmn=311480&cell_mail=off&gps=on"),
+    ("", "uplink=wifi&apn=&cell_plmn=&cell_mail=on&gps=off"),
+])
+def test_modem_settings_new_device(ul, body, want):
+    assert ul("modem", "", body) == want
+
+
+def test_modem_settings_keep_the_stored_apn(ul):
+    # cell with the APN stored earlier; an empty or absent APN keeps the stored value.
+    assert ul("modem", "apn=hologram&cell_plmn=310410", "uplink=cell&apn=") == \
+        "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off"
+
+
+@pytest.mark.parametrize("body,want", [
+    ("uplink=cell&apn=&cell_plmn=", "uplink=cell&apn=hologram&cell_plmn=&cell_mail=on&gps=off"),
+    ("uplink=cell", "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off"),
+    ("cell_plmn=311480", "uplink=wifi&apn=hologram&cell_plmn=311480&cell_mail=on&gps=off"),
+])
+def test_modem_settings_cell_plmn_empty_clears_absent_keeps(ul, body, want):
+    # §35.4: an empty cell_plmn clears a stored lock; an absent one keeps it.
+    assert ul("modem", "apn=hologram&cell_plmn=310410", body) == want
+
+
+# FR-35.7 (core): the modem wake decision.
+@pytest.mark.parametrize("body,due,want", [
+    ("uplink=wifi", (1, 1, 1, 1, 1), "no wake"),                    # wifi at a due upload
+    ("uplink=cell&apn=hologram", (0, 0, 0, 0, 0), "no wake"),       # nothing due on a timer wake
+    ("uplink=cell&apn=hologram", (0, 1, 0, 0, 0), "wake"),          # an alert due
+    ("uplink=cell&apn=hologram", (0, 0, 0, 1, 0), "wake"),          # a window, clock never set
+    ("uplink=cell&apn=hologram", (1, 0, 0, 0, 0), "wake"),
+    ("uplink=cell&apn=hologram", (0, 0, 1, 0, 0), "wake"),
+    ("uplink=cell&apn=hologram&gps=on", (0, 0, 0, 0, 1), "wake"),
+])
+def test_modem_wake_decision(ul, body, due, want):
+    assert ul("wanted", body, *due) == want
+
+
+# FR-35.9 (core): registered within 60 s of the wake, PPP within 10 s of registering.
+@pytest.mark.parametrize("reg,ppp,want", [(59000, 0, "up"), (60000, 0, "register"),
+                                          (-1, -1, "register"), (12000, 9000, "up"),
+                                          (12000, 10000, "ppp"), (12000, -1, "ppp")])
+def test_modem_link_verdict(ul, reg, ppp, want):
+    assert ul("link", reg, ppp) == want

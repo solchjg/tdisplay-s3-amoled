@@ -48,6 +48,52 @@ const char *ul_parse(const char *body, size_t len, const ul_settings_t *stored,
 // "uplink=<wifi|cell>&cell_mail=<route|off>&gps=<on|off>".
 void ul_report(const ul_settings_t *s, char *out, size_t cap);
 
+// ── The T-SIM7080G build's modem (FSD §35) ─────────────────────────────
+
+#define UL_APN_MAX 63            // §35.4
+#define UL_PLMN_MAX 6            // §35.4: MCC+MNC
+#define UL_REGISTER_MS 60000     // FR-35.9: registered within this of the wake
+#define UL_PPP_MS 10000          // FR-35.9: PPP up within this of registering
+#define UL_PSM_ACTIVE_MAX_S 60   // FR-35.1: the longest active time kept in PSM
+
+// §35.4: the modem's own settings, kept beside ul_settings_t (whose stored
+// size the T-Display build keeps). On this build ul_settings_t's mail_route
+// means `cell_mail` `on`, and product and cell_every are unused.
+typedef struct {
+    char apn[UL_APN_MAX + 1];    // empty: none stored
+    char plmn[UL_PLMN_MAX + 1];  // empty: automatic choice
+} ul_modem_t;
+
+// A new T-SIM7080G: wifi, cell_mail on, gps off, no APN, automatic choice.
+void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m);
+
+// §35.4, FR-35.4: the fields of a body over the stored settings; an absent or
+// empty field keeps its stored value. NULL when valid, else the first invalid
+// field: `nh_product` or `cell_every` when given (not offered on this build),
+// then uplink, apn, cell_plmn, gps, cell_mail; "apn" for cell without an APN,
+// given or stored; "gps" for gps on with wifi.
+const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *stored,
+                           const ul_modem_t *stored_m, ul_settings_t *out, ul_modem_t *out_m);
+
+// The BLE `settings` read of the modem's fields:
+// "uplink=<wifi|cell>&apn=<apn>&cell_plmn=<plmn>&cell_mail=<on|off>&gps=<on|off>".
+void ul_report_modem(const ul_settings_t *s, const ul_modem_t *m, char *out, size_t cap);
+
+// FR-35.7: the modem is woken or powered only with cell, for a due upload,
+// alert or email, the time step (FR-35.13) or a GPS search (FR-35.14).
+bool ul_modem_wanted(const ul_settings_t *s, bool upload, bool alert, bool mail, bool time_step,
+                     bool gps_search);
+
+typedef enum {
+    UL_LINK_UP,        // registered and PPP up in time: the sends go out
+    UL_LINK_REGISTER,  // L47 register
+    UL_LINK_PPP,       // L47 ppp
+} ul_link_t;
+
+// FR-35.9: from the milliseconds to registration after the wake and to PPP
+// after registration (-1: never).
+ul_link_t ul_modem_link(long register_ms, long ppp_ms);
+
 // FR-33.15: the GPS is sought in a setup check only with cell and gps on.
 static inline bool ul_gps_wanted(const ul_settings_t *s)
 {

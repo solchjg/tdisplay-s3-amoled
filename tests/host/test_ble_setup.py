@@ -183,10 +183,13 @@ int main(int argc, char **argv)
             strcpy(u.product, "com.example.joe:weather");
             u.cell_every = 120;
         }
-        bset_dump(&cur, &s, &sel, &loop, &a, &u, argv[2][0] != '2', out, sizeof out);
+        ul_modem_t m = {"hologram", "310410"};
+        bool modem = argc > 3 && !strcmp(argv[3], "modem");
+        bset_dump(&cur, &s, &sel, &loop, &a, &u, modem ? &m : NULL, argv[2][0] != '2', out,
+                  sizeof out);
         printf("%s", out);
     } else if (!strcmp(argv[1], "form")) {
-        printf("%zu|", bset_form(form, sizeof form));
+        printf("%zu|", argc > 2 ? bset_form_modem(form, sizeof form) : bset_form(form, sizeof form));
         printf("%s", form);
     } else {
         bset_info("0.2.0", "tds3-48c3a2", "ONLINE", out, sizeof out);
@@ -424,13 +427,17 @@ PORTAL_PARTS = [  # file, first and last text of its form HTML
 ]
 
 
-def _portal_html():
+def _portal_html(modem=False):
+    """The portal form; with modem, the T-SIM7080G build's (§35.4), whose uplink
+    section is the second in uplink.c."""
     import codecs
     root = pathlib.Path(__file__).resolve().parents[2]
     html = ""
     for rel, first, last in PORTAL_PARTS:
         src = (root / rel).read_text()
         a = src.index(first)
+        if modem and rel.endswith("uplink.c"):
+            a = src.index(first, a + 1)
         a = src.rindex('"', 0, a)  # the literal it starts in
         part = src[a:src.index(last, a) + len(last)]
         for lit in re.findall(r'"((?:[^"\\]|\\.)*)"', part):  # macros between them drop out
@@ -438,7 +445,7 @@ def _portal_html():
     return html.replace("%%", "%").replace('value="%s"', "").replace("%s", "")
 
 
-def _portal_fields():
+def _portal_fields(modem=False):
     """Each named control of the portal form, in order, with its label text, its
     section heading and intro text before it, its attributes, options and unit."""
     from html.parser import HTMLParser
@@ -497,7 +504,7 @@ def _portal_fields():
             self.text += d
 
     p = P()
-    p.feed(_portal_html())
+    p.feed(_portal_html(modem))
     return p.fields, p.extras
 
 
@@ -511,12 +518,14 @@ ATTR_CHECKS = ["type", "minlength", "maxlength", "min", "max", "step", "pattern"
 
 # TC-BLE-33 · FR-26.21 (core): the page's form is the portal form: the same
 # fields in the same order, sections, intro text, labels, choices, units and checks
-def test_form_rules_match_the_portal_form(bset):
+# (FR-35.4: likewise on the T-SIM7080G build, with the modem's fields)
+@pytest.mark.parametrize("modem", [False, True])
+def test_form_rules_match_the_portal_form(bset, modem):
     import urllib.parse as up
-    body = bset("form").split("|", 1)[1]
+    body = (bset("form", "modem") if modem else bset("form")).split("|", 1)[1]
     rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
              for k, v in up.parse_qsl(body, keep_blank_values=True)}
-    fields, extras = _portal_fields()
+    fields, extras = _portal_fields(modem)
     assert [f["name"] for f in fields] == list(rules)
     for f in fields:
         r, name = rules[f["name"]], f["name"]
@@ -559,3 +568,24 @@ def test_wifi_off_makes_the_credentials_optional(bset, mode, body, expected):
 # TC-WOFF-06 · FR-34.3 (core): a settings read reports the WiFi switch first
 def test_dump_reports_the_wifi_switch(bset):
     assert bset("dump", "2").startswith("wifi=off&ssid=home%20net&")
+
+
+
+# FR-35.4 (core): the T-SIM7080G build's settings read and rules show the
+# modem's fields of §35.4 instead of the Notecard's.
+def test_modem_dump_and_form(bset):
+    import urllib.parse as up
+    dump = dict(up.parse_qsl(bset("dump", "1", "modem"), keep_blank_values=True))
+    assert (dump["uplink"], dump["apn"], dump["cell_plmn"], dump["cell_mail"], dump["gps"]) == \
+        ("cell", "hologram", "310410", "on", "on")
+    assert "nh_product" not in dump and "cell_every" not in dump
+    n, body = bset("form", "modem").split("|", 1)
+    assert int(n) == len(body.encode()) < 6144                         # BLE_SETUP_FORM_MAX
+    rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
+             for k, v in up.parse_qsl(body, keep_blank_values=True)}
+    shown = [k[:-4] if k.endswith("_set") else k
+             for k, _ in up.parse_qsl(bset("dump", "1", "modem"), keep_blank_values=True)]
+    assert list(rules) == shown
+    assert rules["apn"]["required_if"] == "uplink=cell" and rules["apn"]["maxlength"] == "63"
+    assert rules["cell_plmn"]["pattern"] == "[0-9]{5,6}"
+    assert rules["cell_mail"]["options"].split(",") == ["on", "off"]

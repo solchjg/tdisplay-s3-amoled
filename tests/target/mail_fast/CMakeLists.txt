@@ -5,6 +5,8 @@ cmake_minimum_required(VERSION 3.22)
 
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
 set(EXTRA_COMPONENT_DIRS ${ROOT}/shared/components ${ROOT}/components)
+# A T-Display build: the T-SIM7080G modem parts stay out (FR-35.5).
+set(EXCLUDE_COMPONENTS sim7080 axp2101 modem_link)
 # Distinct from every shipped version, so the bench can tell the boots apart.
 set(PROJECT_VER "0.0.0-mail-fast")
 
