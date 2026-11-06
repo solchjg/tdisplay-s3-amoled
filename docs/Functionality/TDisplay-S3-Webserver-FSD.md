@@ -3595,7 +3595,7 @@ Displays:
   below it. The choice is made when a window starts, from the latest kept
   reading (§23), and kept for the whole window; with a reading of 40.00 °F or
   no reading at all, the OLED is used [proposed]. Once on the OLED, the build
-  returns to the e-paper only at **42 °F** or above [proposed] (2 °F of
+  returns to the e-paper only at **42 °F** or above [user] (2 °F of
   hysteresis, so a reading near 40 °F does not swap the display at each
   window). The display not chosen stays off: the OLED dark, the e-paper
   holding its last drawing.
@@ -3651,7 +3651,7 @@ Modem and sending:
 - **FR-35.1** [Must] [user] The device shall adapt to the network's PSM
   grant. On each full attach it shall read the granted active time (T3324)
   and periodic TAU (T3412 extended) and log them as L46. When PSM is not
-  granted, or the active time is over **60 s** [proposed], it shall power the
+  granted, or the active time is over **60 s** [user], it shall power the
   modem off between sends (`AT+CPOWD=1`, then DC3 off) and attach cold at the
   next one. Otherwise it shall leave the modem in PSM and resume without a
   new attach.
@@ -3667,9 +3667,9 @@ Modem and sending:
   L39 – L42). A timer wake never starts WiFi; a window still starts WiFi for
   the page, OTA and BLE when credentials are stored and `wifi` is `on`
   (§34). With `cell_mail` `off`, email over cellular follows FR-33.13's `off`.
-- **FR-35.9** [Must] [proposed] A modem that does not register within
+- **FR-35.9** [Must] [user] A modem that does not register within
   **60 s** of being woken or powered, or a PPP link that does not come up
-  within **10 s** of registering, shall be logged as L47 and treated as each
+  within **10 s** [proposed] of registering, shall be logged as L47 and treated as each
   due send's failure as its section says (the ThingsBoard readings stay after
   the mark, an alert follows FR-31.6, an email follows §25's dropped send);
   the modem is then powered off and the next send attaches cold.
@@ -3686,11 +3686,11 @@ Modem and sending:
   the WiFi path does not: the same TLS and certificate rules for `https://`
   peers and for the mail server, and no setting is sent to any peer other than
   its own.
-- **NFR-35.1** [Must] [proposed] A timer wake that sends shall be back
+- **NFR-35.1** [Must] [user] A timer wake that sends shall be back
   asleep within **25 s** of the wake after a PSM resume and within **100 s**
   after a cold attach, success or failure. On this build FR-32.12's 40 s
   counts from the PPP link coming up.
-- **NFR-35.2** [Should] [proposed] With the `std` setup (§28) and hourly
+- **NFR-35.2** [Should] [user] With the `std` setup (§28) and hourly
   ThingsBoard uploads, the cellular data used shall stay under **10 MB a
   month** (the evaluation measured 7 – 12 kB a PSM-resumed run, about
   5 – 9 MB a month), measured over a month on the bench.
@@ -3941,7 +3941,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.34.0
+fsd_version: 0.34.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4008,13 +4008,13 @@ change_history:
   - "0.32.1 2026-11-03 from the user's bench run of the gps test, which passed 1 s after its start on the location the Notecard already held: FR-33.16 counts only a GPS fix taken after the search began (derived)"
   - "0.32.2 2026-11-03 from Blues' answer to the user: the §33.2 Bus row names the Notecarrier-X's LiPo charger (TI BQ25628E) at its fixed I2C address 0x6A"
   - "0.33.0 2026-11-04 the user approved §34 WiFi Off with its proposals (FR-34.2 credentials kept, FR-34.11 nothing sent without an uplink, the §5.4 WIFI_OFF screen) and asked for the build; FR-34.11 names the uplink section's intro instead of a WiFi hint; FR-26.19 rules gain `required_if`, so the BLE page requires the network name only with WiFi on (FR-34.3)"
-  - "0.34.0 2026-11-06 from the user's request that the Blues and T-SIM7080G builds match where possible: §35 rewritten as the T-SIM7080G Build (draft): hardware and pin map, feature parity table, settings (`apn`, `cell_plmn`, `cell_mail` on/off), FR-35.5 – FR-35.20 and NFR-35.1 – NFR-35.2 (proposed) beside the user's FR-35.1 – FR-35.4, L46 – L49, R-36 – R-39; awaiting the user's review"
+  - "0.34.0 2026-11-05 from the user's request that the Blues and T-SIM7080G builds match where possible: §35 rewritten as the T-SIM7080G Build (draft): hardware and pin map, feature parity table, settings (`apn`, `cell_plmn`, `cell_mail` on/off), FR-35.5 – FR-35.20 and NFR-35.1 – NFR-35.2 (proposed) beside the user's FR-35.1 – FR-35.4, L46 – L49, R-36 – R-39; awaiting the user's review"
+  - "0.34.1 2026-11-05 the user approved the §35 numbers: FR-35.1 the 60 s active-time limit, FR-35.2 the 2 °F hysteresis (back to the e-paper at 42 °F), FR-35.9 registration within 60 s, NFR-35.1 asleep within 25 s after a PSM resume and 100 s after a cold attach, NFR-35.2 under 10 MB a month; the rest of §35 stays open"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§35 (whole section, draft): the T-SIM7080G build, its pin map, displays, off-board key, settings card and modem behaviour"
-  - "FR-35.1: 60 s active-time limit for keeping PSM"
-  - "FR-35.2: 42 °F to return to the e-paper, OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, lines cut at 21"
-  - "FR-35.9: 60 s to register, 10 s to PPP; NFR-35.1: 25 s and 100 s back asleep; NFR-35.2: under 10 MB a month"
+  - "FR-35.2: the OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, lines cut at 21"
+  - "FR-35.9: 10 s from registering to the PPP link"
   - "§35.4: uplink default wifi, apn 1 – 63 bytes, cell_plmn default empty, cell_mail default on; no OTA over cellular"
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
   - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"
