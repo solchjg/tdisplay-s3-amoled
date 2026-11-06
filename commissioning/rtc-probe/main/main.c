@@ -1,14 +1,14 @@
-// Commissioning aid, not product code: proves the hardware clock of FSD §37
+// Commissioning aid, not product code: proves the hardware clock of FSD §39
 // (an RV-8803 on the sensor bus, GPIO 43/44, 0x32) before its first bench
-// test, and measures its rate (NFR-37.1).
+// test, and measures its rate (NFR-39.1).
 //   1. reads the chip: present, its flags (V2F lost, V1F low), time and trim;
 //      a lost time is replaced by 2026-01-01T00:00:00Z so the chip runs;
 //   2. every 10 s prints the RTC's time and the ESP32-S3's own microsecond
 //      timer (its 40 MHz crystal). Over 24 h the RTC's elapsed time against
-//      the bench capture clock gives NFR-37.1's rate;
+//      the bench capture clock gives NFR-39.1's rate;
 //   3. in three 1 h phases, trim 0, +31 and -32 steps, prints the RTC's rate
 //      against the microsecond timer at the end of each: +31 must run faster
-//      than 0 and -32 slower (the sign rv8803_trim assumes, FR-37.8). The
+//      than 0 and -32 slower (the sign rv8803_trim assumes, FR-39.8). The
 //      trim is put back to what it was after the third phase.
 // Lines start "rtc-probe:" for the bench serial monitor.
 

@@ -110,10 +110,10 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   the `alert.qo` and `mail.qo` bodies, the clock and GPS steps, notes of at most 100
   readings, line 6 during the search). With `uplink` `cell`, alerts and email go out as
   notes and a timer wake never starts WiFi; the ThingsBoard notes wait for §32.
-- `components/rtc_clock/` (L1) — the optional hardware clock (FSD §37): the shared `rv8803`
+- `components/rtc_clock/` (L1) — the optional hardware clock (FSD §39): the shared `rv8803`
   on the sensor bus, read at boot to set the clock (L20 `src=rtc`, a sync for FR-22.3),
   written after every network sync and the phone's time (the BLE page's `control` `time=`,
-  L20 `src=phone`), its drift logged and trimmed (L50); `rtc_clock_core.c` is the pure core.
+  L20 `src=phone`), its drift logged and trimmed (L55); `rtc_clock_core.c` is the pure core.
   With no RTC answering, nothing changes and nothing is logged.
 - `components/board/` (L0) — the build-time board choice (`CONFIG_APP_BOARD_*`, FSD §35,
   FR-35.5) and `board.h`, the pins this app wires on each board.
@@ -165,7 +165,7 @@ Other builds sharing the components:
   `route.jsonata`, `tools/sat_ref.py` (reference decoder and sample-data generator, which also
   writes `main/sample_days.h`) and the program that sends those days through the Notecard over
   `cell` or `ntn` (Skylo), held together by `tests/host/test_sat_day.py`;
-  `commissioning/rtc-probe/` — the hardware clock check (FSD §37: found, flags, rate over
+  `commissioning/rtc-probe/` — the hardware clock check (FSD §39: found, flags, rate over
   24 h, trim direction);
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
   bench tests); `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO

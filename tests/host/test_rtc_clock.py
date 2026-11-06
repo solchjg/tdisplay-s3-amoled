@@ -1,4 +1,4 @@
-"""Host tier: the hardware clock (FSD §37), the pure core: the boot's choice,
+"""Host tier: the hardware clock (FSD §39), the pure core: the boot's choice,
 the phone's and the Notecard's time, and the drift a network sync measures."""
 
 import pytest
@@ -48,14 +48,14 @@ def core(compile_harness):
                            ["rtc_clock/include", "rv8803/include", "time_sync/include"])
 
 
-# TC-RTC-01 · FR-37.1, FR-37.2, FR-37.4, FR-37.9
+# TC-RTC-01 · FR-39.1, FR-39.2, FR-39.4, FR-39.9
 @pytest.mark.parametrize("answer,rtc_ms,synced,timer,expected", [
     (VALID, NOW_MS, 0, 0, "set=1 l20=1 lost=0 failed=0 write=0"),    # power-on
     (VALID, NOW_MS, 1, 1, "set=1 l20=0 lost=0 failed=0 write=0"),    # timer wake: no L20
     (LOST, 0, 0, 0, "set=0 l20=0 lost=1 failed=0 write=0"),
     (LOST, 0, 1, 1, "set=0 l20=0 lost=0 failed=0 write=1"),          # synced: written, quiet
     (LOST, 0, 1, 0, "set=0 l20=0 lost=1 failed=0 write=1"),
-    (ABSENT, 0, 0, 0, "set=0 l20=0 lost=0 failed=0 write=0"),        # FR-37.1: nothing
+    (ABSENT, 0, 0, 0, "set=0 l20=0 lost=0 failed=0 write=0"),        # FR-39.1: nothing
     (ABSENT, 0, 1, 1, "set=0 l20=0 lost=0 failed=0 write=0"),
     (VALID, 1704067199000, 0, 0, "set=0 l20=0 lost=1 failed=0 write=0"),  # before 2024
     (VALID, 1704067200000, 0, 0, "set=1 l20=1 lost=0 failed=0 write=0"),
@@ -65,7 +65,7 @@ def test_boot(core, answer, rtc_ms, synced, timer, expected):
     assert core("boot", answer, rtc_ms, synced, timer) == expected
 
 
-# TC-RTC-02 · FR-37.5
+# TC-RTC-02 · FR-39.5
 @pytest.mark.parametrize("synced,clock_ms,phone_ms,taken", [
     (0, 1000, NOW_MS, 1),                  # never set: taken
     (1, NOW_MS, NOW_MS + 1500, 0),         # within 2 s
@@ -79,7 +79,7 @@ def test_phone_time(core, synced, clock_ms, phone_ms, taken):
     assert core("phone", synced, clock_ms, phone_ms) == str(taken)
 
 
-# TC-RTC-03 · FR-37.6
+# TC-RTC-03 · FR-39.6
 @pytest.mark.parametrize("have,completed,taken", [
     (1, 120, 1), (1, 3600, 1), (1, 3601, 0), (0, 0, 0), (1, -1, 0),
 ])
@@ -87,7 +87,7 @@ def test_notecard_time_only_after_a_recent_sync(core, have, completed, taken):
     assert core("cell", have, completed) == str(taken)
 
 
-# TC-RTC-04 · FR-37.8
+# TC-RTC-04 · FR-39.8
 @pytest.mark.parametrize("rtc_ms,net_ms,ref_s,res,trim,expected", [
     # 2 s fast after 30 days by SNTP: 0.77 ppm, 3 steps
     (NOW_MS + 2000, NOW_MS, NOW_S - 30 * DAY, 50, 0, "log=1 err=2000 days=300 trim=-3 trimmed=1"),

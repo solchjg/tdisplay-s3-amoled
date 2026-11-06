@@ -12,7 +12,7 @@
 #include "rv8803.h"
 #include "time_sync.h"
 
-// §37.2: the sensor bus, as the BME280 uses it (§23.1, §35.2).
+// §39.2: the sensor bus, as the BME280 uses it (§23.1, §35.2).
 static const rv8803_config_t rtc_cfg = {
     .i2c_port = 0,
     .sda_gpio = BOARD_SENSOR_SDA,
@@ -22,7 +22,7 @@ static const rv8803_config_t rtc_cfg = {
 };
 
 #define NVS_NS "rtc"
-#define NVS_REF "ref"  // when the RTC was last set from a network (FR-37.8), s; 0 none
+#define NVS_REF "ref"  // when the RTC was last set from a network (FR-39.8), s; 0 none
 
 static bool present;
 
@@ -56,7 +56,7 @@ static void ref_set(int64_t v)
     }
 }
 
-// FR-37.4: the clock's time written at the start of a second, so the RTC's
+// FR-39.4: the clock's time written at the start of a second, so the RTC's
 // divider restarts in step with it. Returns the second written in *s.
 static esp_err_t write_clock(int64_t *s)
 {
@@ -146,7 +146,7 @@ bool rtc_clock_phone(int64_t phone_ms, int64_t at_us, esp_err_t *err)
     if (present) {
         int64_t s;
         *err = write_clock(&s);
-        ref_set(0);  // a phone time starts no measurement (FR-37.8)
+        ref_set(0);  // a phone time starts no measurement (FR-39.8)
     }
     return true;
 }

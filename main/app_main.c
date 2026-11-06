@@ -94,7 +94,7 @@ typedef struct {
     bool guard;        // APP_TAP: a double press (FR-28.4)
     pc_creds_t creds;  // DL_EV_CREDS_SUBMITTED
     char ip[16];       // DL_EV_IP
-    int64_t ms, at_us;  // APP_PHONE_TIME: the phone's clock and when it came (FR-37.5)
+    int64_t ms, at_us;  // APP_PHONE_TIME: the phone's clock and when it came (FR-39.5)
 } app_event_t;
 
 static QueueHandle_t queue;
@@ -433,7 +433,7 @@ static void ble_event_cb(ble_setup_event_t ev)
     }
 }
 
-// FR-37.5: the phone's clock, from the NimBLE host task to the application task.
+// FR-39.5: the phone's clock, from the NimBLE host task to the application task.
 static void ble_on_time(int64_t epoch_ms)
 {
     app_event_t e = {.kind = APP_PHONE_TIME, .ms = epoch_ms, .at_us = esp_timer_get_time()};
@@ -971,9 +971,9 @@ static void modem_end(void)
 }
 #endif
 
-// ── Hardware clock region (FSD §37) ──────────────────────────────────────
+// ── Hardware clock region (FSD §39) ──────────────────────────────────────
 
-// FR-37.2, FR-37.4, FR-37.9: the RTC read at boot, the clock set from it.
+// FR-39.2, FR-39.4, FR-39.9: the RTC read at boot, the clock set from it.
 static void rtc_boot(bool timer_wake)
 {
     esp_err_t err;
@@ -982,30 +982,30 @@ static void rtc_boot(bool timer_wake)
         web_log_time_synced("rtc");  // L20
     }
     if (b.log_lost) {
-        web_log_rtc(ESP_OK);  // L51 lost
+        web_log_rtc(ESP_OK);  // L56 lost
     }
     if (b.log_failed) {
-        web_log_rtc(err);  // L51 failed
+        web_log_rtc(err);  // L56 failed
     }
 }
 
-// FR-37.4, FR-37.8: after a network sync, the RTC measured, trimmed and set.
+// FR-39.4, FR-39.8: after a network sync, the RTC measured, trimmed and set.
 static void rtc_after_sync(int res_ms)
 {
     rc_drift_t d;
     esp_err_t err;
     if (!rtc_clock_net_sync(res_ms, &d, &err)) {
-        return;  // FR-37.1: none fitted
+        return;  // FR-39.1: none fitted
     }
     if (d.log) {
-        web_log_rtc_drift(d.err_ms, d.days_x10, d.trim, d.trimmed ? d.was : -100);  // L50
+        web_log_rtc_drift(d.err_ms, d.days_x10, d.trim, d.trimmed ? d.was : -100);  // L55
     }
     if (err != ESP_OK) {
-        web_log_rtc(err);  // L51 failed
+        web_log_rtc(err);  // L56 failed
     }
 }
 
-// FR-37.5: the phone's clock, taken when the clock is unsynced or 2 s off.
+// FR-39.5: the phone's clock, taken when the clock is unsynced or 2 s off.
 static void rtc_phone(const app_event_t *e)
 {
     esp_err_t err;
@@ -1013,7 +1013,7 @@ static void rtc_phone(const app_event_t *e)
         web_log_time_synced("phone");  // L20
     }
     if (err != ESP_OK) {
-        web_log_rtc(err);  // L51 failed
+        web_log_rtc(err);  // L56 failed
     }
 }
 
@@ -1053,7 +1053,7 @@ static void cell_time_ask(bool window)
     unsigned a;
     if (uplink_time(&t) && time_sync_set(t) == ESP_OK) {
         web_log_time_synced("cell");  // L20
-        rtc_after_sync(RC_RES_CELL_MS);  // FR-37.4
+        rtc_after_sync(RC_RES_CELL_MS);  // FR-39.4
         a = ul_time_step(&cell_time, UL_TE_TIME, window, uptime_s());
     } else {
         a = ul_time_step(&cell_time, UL_TE_NO_TIME, window, uptime_s());
@@ -1074,7 +1074,7 @@ static void cell_boot(bool window)
         cell_time_ask(window);
         return;
     }
-    // FR-37.6: with the clock from the RTC (FR-37.3: no wait), a window takes
+    // FR-39.6: with the clock from the RTC (FR-39.3: no wait), a window takes
     // the Notecard's time once when its last sync is recent enough.
     if (!window || !rtc_clock_present()) {
         return;
@@ -1945,7 +1945,7 @@ void app_main(void)
     if (wake != DL_WAKE_NONE) {
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
     }
-    rtc_boot(wake == DL_WAKE_TIMER);  // FR-37.2: before any reading and cell_boot (FR-37.3)
+    rtc_boot(wake == DL_WAKE_TIMER);  // FR-39.2: before any reading and cell_boot (FR-39.3)
     deep_sleep_on_prepare(lcd_sleep_cb, NULL);
     uint8_t mac[6];
     wifi_net_base_mac(mac);
@@ -2081,11 +2081,11 @@ void app_main(void)
         }
         if (e.kind == APP_TIME_SYNCED) {
             web_log_time_synced(NULL);  // L20 (FR-22.5)
-            rtc_after_sync(RC_RES_SNTP_MS);  // FR-37.4, FR-37.8
+            rtc_after_sync(RC_RES_SNTP_MS);  // FR-39.4, FR-39.8
             continue;
         }
         if (e.kind == APP_PHONE_TIME) {
-            rtc_phone(&e);  // FR-37.5
+            rtc_phone(&e);  // FR-39.5
             continue;
         }
         if (e.kind == APP_KEY) {

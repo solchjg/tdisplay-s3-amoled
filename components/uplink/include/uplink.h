@@ -64,7 +64,7 @@ bool uplink_time(int64_t *epoch_s);
 // FR-33.12: hub.sync.
 const char *uplink_hub_sync(void);
 
-// FR-37.6: hub.sync.status; true with *completed_s, the seconds since the
+// FR-39.6: hub.sync.status; true with *completed_s, the seconds since the
 // Notecard's last completed sync, false when it has none or does not answer.
 bool uplink_sync_age(double *completed_s);
 

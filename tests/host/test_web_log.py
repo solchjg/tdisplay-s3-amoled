@@ -233,7 +233,7 @@ def test_modem_attach_line(fmt):
         "modem attach ms=9000 net=? csq=99 psm_active_s=none psm_tau_s=none mode=off"
 
 
-# TC-RTC-06 · FR-37.8, FR-37.9: L50, L51
+# TC-RTC-06 · FR-39.8, FR-39.9: L55, L56
 def test_rtc_lines(fmt):
     assert fmt("rtc_drift", 1840, 302, -3, -100) == "rtc drift ms=+1840 days=30.2 trim=-3"
     assert fmt("rtc_drift", -250, 75, 4, 1) == "rtc drift ms=-250 days=7.5 trim=+4 was=+1"
@@ -242,7 +242,7 @@ def test_rtc_lines(fmt):
     assert fmt("rtc", "ESP_ERR_TIMEOUT") == "rtc failed: ESP_ERR_TIMEOUT"
 
 
-# TC-RTC-07 · FR-37.2, FR-37.5: L20 with src=rtc and src=phone
+# TC-RTC-07 · FR-39.2, FR-39.5: L20 with src=rtc and src=phone
 def test_time_synced_line_from_rtc_and_phone(fmt):
     assert fmt("time", "2026-11-06T07:08:35-0500", "rtc") == (
         "time synced 2026-11-06T07:08:35-0500 src=rtc")
