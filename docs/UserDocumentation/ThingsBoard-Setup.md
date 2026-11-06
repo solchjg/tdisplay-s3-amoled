@@ -1,4 +1,4 @@
-# T-Display-S3 Webserver — ThingsBoard Setup
+# T-Display-S3 AMOLED Webserver — ThingsBoard Setup
 
 How to set up a self-hosted ThingsBoard server so the device's readings appear
 on ThingsBoard dashboards, how to enter the server's details on the device,

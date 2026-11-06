@@ -1,4 +1,4 @@
-# T-Display-S3 Webserver — Cloud Server
+# T-Display-S3 AMOLED Webserver — Cloud Server
 
 How to set up the production servers on the existing cloud VM: ThingsBoard
 (FSD §32) at `https://tb.<your-fqdn>`[^fqdn] and ntfy (FSD §31) at
@@ -7,8 +7,9 @@ certificates, how to back them up, and how to move the devices from the LAN
 test servers (ThingsBoard `http://192.168.2.37:8080`, ntfy
 `http://192.168.2.231`) to them.
 
-**Status: specified, not yet built.** The device side of ThingsBoard and ntfy
-follows the FSD; this guide covers only the server. Device settings, the
+**Status: specified, not yet built.** The firmware sends ntfy alerts (FSD §31);
+its ThingsBoard uploads (FSD §32) are not built yet. This guide covers only the
+server. Device settings, the
 dashboard and the alarm rules are in the
 [ThingsBoard Setup](ThingsBoard-Setup.md) guide, which this guide does not
 repeat. Over cellular (FSD §33) Notehub posts to these servers from the
@@ -328,6 +329,12 @@ Each route holds the token, never the board (FR-33.9). With several cellular
 boards, one route per board (or a JSONata expression that picks the token by
 device) is needed for ThingsBoard, since each ThingsBoard device has its own
 token. The route log in Notehub shows the server's answer for each event.
+
+The satellite trial (`commissioning/sat-probe`, no FSD section yet) adds one
+more route to ThingsBoard telemetry: Notefile `day.qo`, the same URL as the
+telemetry route, and the JSONata in
+[`commissioning/sat-probe/route.jsonata`](../../commissioning/sat-probe/route.jsonata),
+which unpacks each day's 24 hourly loop averages into time-stamped points.
 
 ## 7. Moving the devices from the LAN server
 

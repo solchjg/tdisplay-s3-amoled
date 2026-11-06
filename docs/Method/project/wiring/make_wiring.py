@@ -272,27 +272,27 @@ def build_parts(used):
                     left=["VIN", "GND", "SCL", "SDA"], w=900, color="#5b2a86",
                     desc="BME280 breakout (I2C 0x76)"))
     add(module_part("tds3a_notecarrier_a", ["Notecarrier-X", "+ Notecard MBGLW"],
-                    "specified", left=["GND", "3V3", "SDA", "SCL"], right=["BAT-", "BAT+"],
+                    "built", left=["GND", "3V3", "SDA", "SCL"], right=["BAT-", "BAT+"],
                     w=1300, color="#0d47a1", notes=["Qwiic, I2C 0x17"],
                     desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5"))
     # Blues cellular uplink, FSD section 33 (docs/Method/project/blues-cellular.md)
     add(module_part("tds3a_notecarrier_x", ["Notecarrier-X v1.3", "+ Notecard NOTE-MBGLW v2.5"],
-                    "specified", left=["GND", "3V3", "SDA", "SCL"],
+                    "built", left=["GND", "3V3", "SDA", "SCL"],
                     right=["MAIN", "GPS", "WIFI", "USB-C", "BAT-", "BAT+"], w=1500,
                     color="#0d47a1", notes=["I2C 0x17, 10k pull-ups to VIO", "ESLOV (ATTN) not used"],
                     desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5: "
                          "Qwiic, u.FL antenna ports, USB-C, JST-PH LiPo"))
-    add(module_part("tds3a_lte_antenna", ["LTE antenna", "flexible, u.FL"], "specified",
+    add(module_part("tds3a_lte_antenna", ["LTE antenna", "flexible, u.FL"], "built",
                     left=["u.FL"], w=1000, color="#424242",
                     desc="Flexible LTE antenna with a u.FL lead, on the Notecard's MAIN port"))
     add(module_part("tds3a_notecarrier_x_hdr", ["Notecarrier-X v1.3", "+ Notecard NOTE-MBGLW v2.5"],
-                    "specified", left=["GND", "ATTN", "SCL", "SDA", "GND "],
+                    "built", left=["GND", "ATTN", "SCL", "SDA", "GND "],
                     right=["MAIN", "GPS", "VIO", "VBAT", "GND  "], w=1500, color="#0d47a1",
                     notes=["16-pin header (left: GND ... SCL, SDA, GND)", "other header pins unused"],
                     desc="Blues Notecarrier-X v1.3 with Notecard NOTE-MBGLW v2.5, wired at its "
                          "16-pin header instead of Qwiic and JST-PH"))
     add(lipo_part("tds3a_lipo_notecarrier_p", "Notecarrier LiPo", "L", top="+"))
-    add(module_part("tds3a_gps_antenna", ["GPS antenna", "optional, gps on"], "specified",
+    add(module_part("tds3a_gps_antenna", ["GPS antenna", "optional, gps on"], "built",
                     left=["u.FL"], w=1000, color="#424242",
                     desc="GPS antenna with a u.FL lead, on the Notecard's GPS port (optional)"))
     # 4-20 mA loop input, FSD section 29
