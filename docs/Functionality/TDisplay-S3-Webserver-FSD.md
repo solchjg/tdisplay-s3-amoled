@@ -513,7 +513,7 @@ testbench.
 | R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
 | R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`, `192.168.2.231`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
 | R-35 | The Notecard's GPS turns on only after its first Notehub sync and never while its modem is on, a cold first fix takes 1 – 2 min or fails indoors, and the Notecard ends a seek after about 17 min (after 90 s with no signal at all), so a setup check may end without a fix | Likely | Low | The search runs for the whole hold (up to 30 min, FR-24.6) after the time step's session; the GPS antenna faces the sky; an earlier place stays stored; the next key wake or setup check tries again |
-| R-36 | The pins of §35.2 come from LilyGO's pin map, whose camera pins are named as free without a camera; the board in hand may not bring every one out to a header, and all 15 are used | Likely | Medium | Commissioning checks each pin on the board before wiring; a pin that is not brought out sends the map back to `/define` |
+| R-36 | The pins of §35.2 come from LilyGO's pin map, whose camera pins are named as free without a camera; the board in hand may not bring every one out to a header (GPIO 43 included), and all 16 are used | Likely | Medium | Commissioning checks each pin on the board before wiring; a pin that is not brought out sends the map back to `/define` |
 | R-37 | Each network grants its own PSM timers (Verizon 300 s active time at the bench, T-Mobile and AT&T about what is asked), so one SIM gives different power use by site | Certain | Medium | FR-35.1 powers the modem off when the grant is over the limit; `cell_plmn` locks a site to one network |
 | R-38 | A microSD card in its slot may draw 100 µA or more in deep sleep if the slot's supply is not switched | Possible | Medium | Commissioning measures the sleep current with and without a card; if it is high, the card is removed after setup, as the User Manual will say |
 | R-39 | E-paper panels are rated for refreshes above about 0 °C; near 40 °F the panel is within its rating but slower | Likely | Low | FR-35.2 switches to the OLED below 40 °F with 2 °F hysteresis |
@@ -3556,17 +3556,17 @@ no verification contracts yet.
 | Modem | SIM7080G on UART 1, RX GPIO 4, TX GPIO 5, 115200 baud; PWRKEY GPIO 41, DTR GPIO 42, RI GPIO 3; LTE-M only, a nano SIM fitted before power-up | [derived from the board]; LTE-M only [proposed] |
 | PMU | AXP2101 at 0x34 on I2C controller 0, SDA GPIO 15, SCL GPIO 7, IRQ GPIO 6; modem rail DC3 3.0 V, level shifter BLDO1 3.3 V never off, GPS antenna rail BLDO2 3.3 V on only during a GPS search | [derived from the board] |
 | Power | One 18650 cell in the board's holder, charged from USB-C or the solar input (4.4 – 6 V); the battery voltage is read from the AXP2101 | [derived from the board]; reading [proposed] |
-| Sensor bus | The BME280 (0x76), the OLED (0x3C) and the water probe's ADS1115 (0x48) on the PMU's bus, GPIO 15/7, 100 kHz; no address clash with 0x34 | [proposed] |
+| Sensor bus | The BME280 (0x76) and the water probe's ADS1115 (0x48) on the PMU's bus, GPIO 15/7, 100 kHz; no address clash with 0x34 | [proposed] |
 | Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 16, SCL GPIO 17, its supply and the isolator's board side switched by GPIO 18, as §29 with the pins moved | [proposed] |
 | RS232 | MAX3232 powered from GPIO 13, TX GPIO 11, RX GPIO 12 (the T-Display's pins), on UART 2 because the modem holds UART 1 | [proposed] |
 | Water probe | Switch line GPIO 2, as on the T-Display | [proposed] |
 | E-paper (optional, §36) | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), on SPI2: SCK GPIO 9, MOSI GPIO 10, CS GPIO 8, DC GPIO 14, RST GPIO 1, BUSY GPIO 48; always powered, put in its deep sleep after each drawing | [proposed] |
-| OLED | A 1.3" 128 × 64 SH1106 module on I2C (the one the modem probe uses), at 0x3C on the sensor bus | [proposed] |
+| OLED | A 3.12" 256 × 64 SSD1322 module (16 grey levels, e.g. Newhaven NHD-3.12-25664), 4-wire SPI on SPI2 shared with the optional e-paper: SCK GPIO 9, MOSI GPIO 10, DC GPIO 14 and RST GPIO 1 shared, its own CS on GPIO 43 | [user] module; pins [proposed] |
 | Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 21 (an RTC GPIO, the T-Display's user-key number), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 47 through a resistor | [user] key; parts and pins [proposed] |
 | BOOT key | GPIO 0 on the board, as §18 | [derived from the board] |
 | microSD | The board's slot, SDMMC 1-bit, CMD GPIO 39, CLK GPIO 38, D0 GPIO 40; FAT32 | [derived from the board]; FAT32 [proposed] |
 | Antennas | LTE: a passive antenna rated for 698 – 960 MHz on the modem's LTE u.FL (bands 12 and 13), as `lte-m-modem.md` describes. GPS: an active antenna on the GPS u.FL, only with `gps` `on` | [proposed] |
-| Pins | Every free header GPIO is used: 1, 2, 8 – 14, 16 – 18, 21, 47, 48, the e-paper's six kept for it whether or not it is fitted; none is left for another add-on | [derived from the rows above] |
+| Pins | Every free header GPIO is used: 1, 2, 8 – 14, 16 – 18, 21, 47, 48, and GPIO 43 (UART 0's TX, free with the console on USB) for the OLED's CS; the e-paper's CS and BUSY (GPIO 8, 48) are kept for it whether or not it is fitted; none is left for another add-on | [derived from the rows above] |
 | Bench slot | SLOT3; slot and MAC recorded when the build is commissioned | [user] |
 
 ### 35.3 Feature parity
@@ -3637,8 +3637,9 @@ Displays:
   `Asleep, key to wake` on line 5, and the controller is put in its deep
   sleep. A timer wake never draws on the e-paper (FR-21.13).
 - **FR-35.16** [Must] [proposed] On the OLED, the six lines shall be drawn in
-  a 6 × 10 font, 21 characters a line, each line longer than 21 characters
-  cut at 21. The OLED is turned off (its display-off command) at the end of
+  a 6 × 10 font generated by `bdf_to_c.py`, 42 characters a line across 252
+  of its 256 pixels, so lines 1 – 5 (at most 33) fit whole and line 6 is cut
+  at 42. The OLED is turned off (its display-off command) at the end of
   every window and stays off on a timer wake.
 - **FR-35.17** [Must] [derived from FR-5.27] A failure of the chosen display
   shall be reported to the state machine as an LCD failure is (FR-5.27), and
@@ -4007,7 +4008,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.35.0
+fsd_version: 0.35.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4077,11 +4078,12 @@ change_history:
   - "0.34.0 2026-11-05 from the user's request that the Blues and T-SIM7080G builds match where possible: §35 rewritten as the T-SIM7080G Build (draft): hardware and pin map, feature parity table, settings (`apn`, `cell_plmn`, `cell_mail` on/off), FR-35.5 – FR-35.20 and NFR-35.1 – NFR-35.2 (proposed) beside the user's FR-35.1 – FR-35.4, L46 – L49, R-36 – R-39; awaiting the user's review"
   - "0.34.1 2026-11-05 the user approved the §35 numbers: FR-35.1 the 60 s active-time limit, FR-35.2 the 2 °F hysteresis (back to the e-paper at 42 °F), FR-35.9 registration within 60 s, NFR-35.1 asleep within 25 s after a PSM resume and 100 s after a cold attach, NFR-35.2 under 10 MB a month; the rest of §35 stays open"
   - "0.35.0 2026-11-05 from the user's request that the e-ink screen be optional in both builds and come at the end of development: §36 E-paper Display (optional, draft) with FR-36.1 and FR-36.2 (user) and the `epaper` setting (proposed, default off); FR-35.2 and FR-35.15 apply only with the e-paper fitted, the OLED otherwise; Phase 17 (T-SIM7080G build without the e-paper) and Phase 18 (e-paper, last)"
+  - "0.35.1 2026-11-05 from the user's choice of OLED: §35.2 the OLED is a 3.12\" 256 x 64 SSD1322 on SPI (user) instead of the 1.3\" SH1106 on I2C, sharing the e-paper's SPI lines with its own CS on GPIO 43 (proposed); FR-35.16 42 characters a line; R-36 names GPIO 43"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§36: `epaper` setting, default off; the T-Display build's e-paper rules defined when Phase 18 starts"
   - "§35 (whole section, draft): the T-SIM7080G build, its pin map, displays, off-board key, settings card and modem behaviour"
-  - "FR-35.2: the OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, lines cut at 21"
+  - "FR-35.2: the OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, line 6 cut at 42; §35.2 OLED pins, CS on GPIO 43"
   - "FR-35.9: 10 s from registering to the PPP link"
   - "§35.4: uplink default wifi, apn 1 – 63 bytes, cell_plmn default empty, cell_mail default on; no OTA over cellular"
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
