@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "board.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "notecard.h"
@@ -14,8 +15,10 @@
 
 // FSD §33.2: the Notecard on the BME280's bus (C-23.1).
 #define NC_I2C_PORT 0
-#define NC_SDA_GPIO 43
-#define NC_SCL_GPIO 44
+#if BOARD_HAS_NOTECARD
+#define NC_SDA_GPIO BOARD_NOTECARD_SDA
+#define NC_SCL_GPIO BOARD_NOTECARD_SCL
+#endif
 #define NC_CLK_HZ 100000
 
 // A mail.qo note of a whole summary (SM_BODY_MAX, escaped) with its fields.
@@ -220,6 +223,15 @@ const char *uplink_start(const char **req)
     }
     started = true;
     load();
+#if !BOARD_HAS_NOTECARD
+    // No Notecard on this board (§35.3); its modem uplink comes with Phase 17 step 3.
+    start_req = "card.version";
+    start_why = "timeout";
+    if (req) {
+        *req = start_req;
+    }
+    return start_why;
+#else
     const notecard_config_t cfg = {.i2c_port = NC_I2C_PORT,
                                    .sda_gpio = NC_SDA_GPIO,
                                    .scl_gpio = NC_SCL_GPIO,
@@ -255,6 +267,7 @@ const char *uplink_start(const char **req)
         *req = start_req;
     }
     return start_why;
+#endif
 }
 
 bool uplink_ready(void)

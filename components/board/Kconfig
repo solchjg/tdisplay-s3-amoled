@@ -1,0 +1,17 @@
+menu "Board"
+
+    choice APP_BOARD
+        prompt "Board this build runs on"
+        default APP_BOARD_TDISPLAY_S3_AMOLED
+        help
+            FSD §35 (FR-35.5): one source tree, the board chosen at build time.
+
+        config APP_BOARD_TDISPLAY_S3_AMOLED
+            bool "LilyGO T-Display-S3 AMOLED 1.91\""
+
+        config APP_BOARD_TSIM7080G_S3
+            bool "LilyGO T-SIM7080G-S3 (FSD §35)"
+
+    endchoice
+
+endmenu

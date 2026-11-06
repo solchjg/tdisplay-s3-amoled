@@ -22,6 +22,7 @@ From LilyGO's `utilities.h` and `ATDebug.ino` (repo `Xinyuan-LilyGO/LilyGo-T-SIM
 | Modem rail | DC3 at 3.0 V |
 | Level shifter rail | BLDO1 at 3.3 V, never off |
 | GPS antenna rail | BLDO2 at 3.3 V, on only while seeking a fix |
+| Battery-side connector P4 | 4 pins: 1 RXD GPIO 44, 2 TXD GPIO 43, 3 3.3 V (DCDC1), 4 GND; the product build's sensor bus (SDA 43, SCL 44). **Caution:** this is the Qwiic order (GND, 3.3 V, SDA, SCL) reversed, so a Qwiic cable plugged straight in puts 3.3 V on SCL and GND on SDA, and its plug may not fit P4; make up or meter the lead before first power-up (black GND, red 3.3 V, blue GPIO 43, yellow GPIO 44) |
 | Limits | A SIM fitted after power-up is not seen; GNSS and LTE share the RF path, so one runs at a time |
 | Status screen (optional) | SSD1306 or SH1106 (most 1.3" modules; `PROBE_OLED_SH1106`, workflow test `sh1106`) 128x64 on I2C port 1: GND, VCC to 3V3, SDA GPIO 13, SCL GPIO 21 (camera header pins, free without a camera), address 0x3C or 0x3D |
 

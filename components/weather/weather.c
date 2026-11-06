@@ -4,13 +4,14 @@
 #include <time.h>
 
 #include "bme280.h"
+#include "board.h"
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
 #include "time_sync.h"
 
-// FSD §23.1 and C-23.1: the sensor as wired on this board.
-#define SENSOR_SDA_GPIO 43
-#define SENSOR_SCL_GPIO 44
+// FSD §23.1 and C-23.1 (§35.2 on the T-SIM7080G): the sensor as wired, pins from board.h.
+#define SENSOR_SDA_GPIO BOARD_SENSOR_SDA
+#define SENSOR_SCL_GPIO BOARD_SENSOR_SCL
 #define SENSOR_ADDRESS 0x76
 #define SENSOR_CLK_HZ 100000
 
