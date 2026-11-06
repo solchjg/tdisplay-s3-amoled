@@ -87,6 +87,7 @@ void web_log_mail_failed(const char *to, const char *reason);
 void web_log_ble_on(const char *reason);
 void web_log_ble_pairing(bool ok);
 void web_log_ble_settings(const char *result);
+void web_log_card_settings(const char *result);  // L49
 void web_log_ble_off(const char *reason);
 
 // L31 (warning): no history partition (FR-27.8), or a history step failed (FR-27.9).

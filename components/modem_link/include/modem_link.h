@@ -40,6 +40,10 @@ void modem_link_down(void);
 // FR-35.7: with `uplink` `wifi`, the modem's supply rail off (it stays off).
 void modem_link_off(void);
 
+// FR-35.4, R-38: the microSD slot's supply (ALDO3) on or off; it stays as set
+// through deep sleep. false when the PMU does not answer.
+bool modem_link_sd_power(bool on);
+
 // FR-35.14: the GPS search with the modem's GNSS. gnss_start powers the modem
 // when it is off, stops LTE (AT+CFUN=0, the two share one RF path) and turns
 // the GPS antenna (BLDO2) on; false when the modem does not answer.

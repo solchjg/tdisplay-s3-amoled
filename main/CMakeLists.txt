@@ -6,5 +6,5 @@ idf_component_register(SRCS "app_main.c"
 # FSD §35: the modem link is in the T-SIM7080G build only (see the project's
 # CMakeLists), so it is linked here once the board choice is known.
 if(CONFIG_APP_BOARD_TSIM7080G_S3)
-    target_link_libraries(${COMPONENT_LIB} PRIVATE idf::modem_link)
+    target_link_libraries(${COMPONENT_LIB} PRIVATE idf::modem_link idf::settings_card)
 endif()

@@ -70,6 +70,16 @@ void modem_link_off(void)
     in_psm = false;
 }
 
+bool modem_link_sd_power(bool on)
+{
+    if (!pmu()) {
+        return false;
+    }
+    bool ok = axp2101_rail(AXP2101_ALDO3, TSIM7080G_S3_RAIL_SD_ALDO3_MV, on) == ESP_OK;
+    axp2101_stop();
+    return ok;
+}
+
 static bool netif_once(void)
 {
     if (ppp) {

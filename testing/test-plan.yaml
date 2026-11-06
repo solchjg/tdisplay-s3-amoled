@@ -362,6 +362,13 @@ capabilities:
       Seen on the modem probe through the I2C controller, never through the
       stand-in's software bus (testing/debugging-agenda.md); the FR-35.22
       bench row is its first run.
+  sd-card-tsim:
+    what: The T-SIM7080G-S3's microSD slot, powered from the AXP2101's ALDO3 at 3.3 V, mounts a FAT32 card over SDMMC 1-bit (CMD 39, CLK 38, D0 40) and reads and writes it; an empty slot fails the mount with a timeout (FSD FR-35.4, FR-35.20)
+    available: unproven
+    consequence: >
+      ALDO3 comes from LilyGO's power-domain table, never measured; the empty
+      slot's error code is what L49 `none` rests on (testing/debugging-agenda.md).
+      The FR-35.4 bench row in Phase 17 step 8 is its first run.
   dut-bme280:
     what: A BME280 (chip ID 0x60) at 0x76 on SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1
     available: unproven
@@ -3870,4 +3877,16 @@ tests:
     needs: []
     observable: "with sdkconfig.defaults and sdkconfig.tsim7080g merged, the user key and the deep-sleep wake on GPIO 21 and the BOOT key (GPIO 0) as the second key; board.h's LED on GPIO 47; with sdkconfig.standin added, the user key on GPIO 0, no second key and no key wake"
     impl: [tests/host/test_tsim_key.py::test_offboard_key_on_gpio_21_ends_the_hold_and_wakes, tests/host/test_tsim_key.py::test_offboard_key_led_on_gpio_47, tests/host/test_tsim_key.py::test_standin_moves_the_key_off_gpio_21]
+    result: {status: not done}
+  - id: TC-TSIM-12
+    title: "Settings card core: the file as the BLE body, applied by state, .done without secrets, L49"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.4, FR-35.19, FR-35.20]
+    needs: []
+    observable: "a /settings.txt with a BOM, CRLF, a comment and an empty line read as the fields joined by '&', each value percent-encoded; a line that is no field refused as invalid=line; applied as FR-26.6 in PROVISIONING and as FR-26.7 otherwise (the stored password kept); a 33-byte ssid refused as invalid=ssid; the .done text with password, mail_password, tb_token and ntfy_token emptied and every other line kept; L49 for ok, invalid, none and failed"
+    impl: [tests/host/test_settings_card.py::test_lines_become_the_body, tests/host/test_settings_card.py::test_a_line_that_is_no_field_is_refused, tests/host/test_settings_card.py::test_in_provisioning_as_a_portal_submission, tests/host/test_settings_card.py::test_in_a_key_window_the_stored_password_stays, tests/host/test_settings_card.py::test_a_33_byte_ssid_is_refused, tests/host/test_settings_card.py::test_done_without_secrets, tests/host/test_settings_card.py::test_password_in_a_value_is_not_a_secret_field, tests/host/test_settings_card.py::test_l49]
     result: {status: not done}
