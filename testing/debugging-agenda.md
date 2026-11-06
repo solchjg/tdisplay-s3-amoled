@@ -9,6 +9,7 @@ leaves this table. The testbench is not on this list.
 | Part | Capability | Unproven because | Proven by |
 |------|------------|------------------|-----------|
 | SSD1322 OLED on the T-SIM7080G build (FSD FR-35.16) | `oled-ssd1322` | The init sequence (remap `A0 14 11`, column offset 28) and the nibble order (left pixel in the high nibble) follow Newhaven's 256 × 64 sample code; never seen on a panel. A wrong remap shows mirrored, upside-down or pairwise-swapped pixels | The ONLINE lines read correctly on the module at SLOT3 (Phase 17 step 8) |
+| 1.3" OLED stand-in on the T-SIM7080G (FSD FR-35.22) | `oled-standin` | Driven through the I2C controller by the modem probe, never through the stand-in's software bus on GPIO 13/21; which chip it is (SH1106 or SSD1306) is not recorded | The ONLINE lines read correctly on it with `sdkconfig.standin` (Phase 17, before the SSD1322 arrives) |
 
 No project-side item is open. `release-verification` is resolved `no` with its
 consequence (no tag can be released until a runner is registered for this

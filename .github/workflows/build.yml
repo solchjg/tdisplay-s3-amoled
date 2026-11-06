@@ -335,6 +335,24 @@ jobs:
         with:
           name: tsim7080g
           path: build-tsim/tdisplay_webserver.bin
+      # FR-35.22: the bench stand-in (the 1.3" OLED on GPIO 13/21), with
+      # everything a first flash needs; never released.
+      - name: Build the bench stand-in
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build-standin -DSDKCONFIG=$PWD/build-standin/sdkconfig \
+                -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.tsim7080g;sdkconfig.standin"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tsim7080g-standin
+          path: |
+            build-standin/flash_args
+            build-standin/bootloader/bootloader.bin
+            build-standin/partition_table/partition-table.bin
+            build-standin/ota_data_initial.bin
+            build-standin/tdisplay_webserver.bin
 
   verify:
     needs: build

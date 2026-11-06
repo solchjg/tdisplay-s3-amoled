@@ -29,6 +29,14 @@
 #define BOARD_OLED_DC 14
 #define BOARD_OLED_RST 1
 
+// FR-35.22: the bench stand-in, a 1.3" OLED soldered to the camera header's
+// GPIO 13 and 21. They are RS232's supply and the off-board key's line, so
+// neither is driven in that build.
+#if CONFIG_APP_OLED_STANDIN
+#define BOARD_STANDIN_SDA 13
+#define BOARD_STANDIN_SCL 21
+#endif
+
 #else  // CONFIG_APP_BOARD_TDISPLAY_S3_AMOLED
 
 #define BOARD_SENSOR_SDA 43
