@@ -489,94 +489,6 @@ it where no WiFi reaches the device, or when it should not be on a network.
   Bluetooth page with the network name (and password if it changed), and save.
   The device restarts and connects.
 
-## 5j. The T-SIM7080G build
-
-The same firmware also runs on a LilyGO T-SIM7080G-S3, which has its own LTE-M
-modem, a battery holder and a microSD slot but no display. Everything in the
-chapters above works the same, except as this section says. Its cellular link
-is an ordinary internet connection, so the summary email, the push alerts and
-ThingsBoard reach their own servers directly: no Notecard and no Notehub.
-
-**Flashing.** Use the build's `tsim7080g` images (CI artefact of that name) at
-the offsets in its `flash_args`, as in chapter 1. Fit a nano SIM before
-powering the board.
-
-**What to connect.**
-
-| Part | Where |
-|------|-------|
-| Battery | One 18650 cell in the holder; it charges from USB-C or the solar input |
-| Display | A 3.12" 256 × 64 SSD1322 OLED on SPI: SCK GPIO 9, MOSI GPIO 10, CS GPIO 46, DC GPIO 14, RST GPIO 1. It shows the same six lines as the T-Display, in a smaller font (42 characters a line) |
-| User key | A push button on GPIO 21 to GND, with a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end, on a cable of at most 3 m. Its LED on GPIO 47 through a resistor does what the T-Display's LED does: flashes during the setup check, lit while the display is on |
-| BOOT key | On the board; it ends the setup check and does the factory reset, as on the T-Display |
-| Sensor | The BME280 on a Qwiic star fed from the 4-pin connector P4 by the battery holder (GPIO 43, 44, 3.3 V, GND) |
-| Antennas | An LTE antenna for 698 – 960 MHz on the modem's LTE u.FL; an active GPS antenna on the GPS u.FL only if you use GPS |
-
-**Caution:** P4's pins run in the opposite order to a Qwiic plug (P4: GPIO 44,
-GPIO 43, 3.3 V, GND). A Qwiic cable plugged straight in puts 3.3 V on SCL and
-GND on SDA. Make up the lead, or check it with a meter, before first power-up:
-black on GND, red on 3.3 V, blue on GPIO 43, yellow on GPIO 44.
-
-**Settings.** The setup page and the Bluetooth page show these fields instead
-of the Notecard's (section 5h):
-
-| Field | What to enter |
-|-------|---------------|
-| Uplink (`uplink`) | `cell` to send over the modem, `wifi` (the default) to send over WiFi with the modem off |
-| APN (`apn`) | Your SIM provider's access point name, e.g. `hologram`; needed for `cell` |
-| Network lock (`cell_plmn`) | A network's MCC+MNC, e.g. `311480` (Verizon), to use only that network; empty to let the modem choose |
-| Email over cellular (`cell_mail`) | `on` to send the summary over the modem, `off` for no email while on `cell` |
-| GPS fix in the setup check (`gps`) | As in section 5h, with the modem's own GPS |
-
-With `cell`, the device wakes the modem only when something is due: an upload,
-an alert or an email. The device then goes back to sleep. Where the network
-allows it, the modem stays registered in a low-power mode between sends and
-answers within seconds; otherwise it is powered off and registers afresh each
-time (the log says which: `modem attach ... mode=psm` or `mode=off`). If the
-modem cannot register within 60 s, the log shows `modem failed: register` and
-the send counts as failed, as its own chapter says: ThingsBoard keeps the
-readings for the next upload, an alert is tried once more, a summary email is
-dropped. The clock comes from the network
-when nothing else set it (`time synced ... src=cell`).
-
-**Settings from a microSD card.** Instead of the setup page or your phone, you
-can put the settings on a FAT32 microSD card:
-
-1. Create `settings.txt` with one setting a line, the same field names as on
-   the Bluetooth page, each value exactly as you would type it:
-
-   ```text
-   # my weather station
-   ssid=Home Network
-   password=my pass&word
-   uplink=cell
-   apn=hologram
-   ```
-
-   Lines starting with `#` and empty lines are skipped.
-2. Put the card in the slot and power the board on (or press the user key).
-   On a first setup the settings are taken as from the setup page. Later
-   on, settings you leave out keep their stored values, passwords included,
-   as with Bluetooth. The device restarts with them.
-3. The card then holds `settings.done`, your file with the four secrets
-   (`password`, `mail_password`, `tb_token`, `ntfy_token`) blanked, and
-   `settings.result` holding `ok`. `settings.txt` is gone, so the same file is
-   not applied again. A file with a mistake stays as it was, and
-   `settings.result` names the field, e.g. `invalid=apn`.
-
-The device looks at the card only at power-on and when woken by the key, never
-on its own timer wakes, and turns the slot off again at once. The log shows
-`card settings ok`, `invalid=<field>`, `none` (no card or no `settings.txt`)
-or `failed` (a card it cannot read). Whether a card left in the slot raises
-the sleep current is not yet measured; until it is, take the card out after
-setup.
-
-**Bench stand-in display.** Until the SSD1322 is fitted, the `tsim7080g-standin`
-build shows the six lines on a 1.3" 128 × 64 OLED soldered to GPIO 13 (SDA)
-and GPIO 21 (SCL), 21 characters a line. In that build the BOOT key is the user
-key, only the timer wakes the board, and RS232 and the off-board key are not
-used. It is for the bench only.
-
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |
@@ -586,8 +498,6 @@ used. It is for the bench only.
 | Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
 | `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76; the rest of the device keeps working |
 | A screen that never changes | The device may be hung | It restarts itself within 15 s (watchdog); if not, unplug and replug |
-| T-SIM7080G: nothing sent, the log shows `modem failed: register` | The modem found no network within 60 s | Check the SIM, the APN, the LTE antenna and the network lock (section 5j); the next send tries again |
-| T-SIM7080G: `card settings invalid=<field>` | The card's `settings.txt` has a mistake in that field | Correct the field on a PC (see `settings.result`) and power on again |
 
 The device logs its state on the USB serial console (115200 baud), one line per
 event, starting with `web:`; on your network it also sends the same lines as UDP

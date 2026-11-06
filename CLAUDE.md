@@ -176,10 +176,7 @@ Other builds sharing the components:
   `cell` or `ntn` (Skylo), held together by `tests/host/test_sat_day.py`;
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
   bench tests); `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
-  T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`); `commissioning/tsim-probe/` —
-  the T-SIM7080G build's hardware check (FSD §35, Phase 17 step 8: the microSD rail, the off-board
-  key's pull-up, the pin walk of R-36, the SSD1322 test screen, the sleep current of R-38,
-  `docs/Method/project/tsim-probe.md`); `commissioning/epaper-probe/` —
+  T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`); `commissioning/epaper-probe/` —
   the e-paper bring-up on an Elecrow CrowPanel ESP32 E-Paper 4.2" (SSD1683 panel, Qwiic bus,
   sleep current; no FSD section yet, `docs/Method/project/crowpanel-epaper.md`); `commissioning/common/oled/`
   is the modem probe's SSD1306 status screen. The LoRaWAN site survey for the Heltec
