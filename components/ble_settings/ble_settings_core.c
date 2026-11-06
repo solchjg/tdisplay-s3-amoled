@@ -111,7 +111,8 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
 
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *sel,
                  const lp_settings_t *loop, const nf_settings_t *alerts,
-                 const ul_settings_t *uplink, bool wifi_on, char *out, size_t cap)
+                 const ul_settings_t *uplink, const ul_modem_t *modem, bool wifi_on, char *out,
+                 size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
@@ -167,6 +168,13 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
         }
     }
     field(&b, "uplink", uplink->cell ? "cell" : "wifi");  // FR-33.2
+    if (modem) {  // §35.4: the board's modem
+        field(&b, "apn", modem->apn);
+        field(&b, "cell_plmn", modem->plmn);
+        field(&b, "cell_mail", uplink->mail_route ? "on" : "off");
+        field(&b, "gps", uplink->gps ? "on" : "off");
+        return b.len;
+    }
     field(&b, "nh_product", uplink->product);
     snprintf(num, sizeof num, "%u", (unsigned)uplink->cell_every);
     field(&b, "cell_every", num);
@@ -245,6 +253,10 @@ static const char *const RULES[][24] = {
      "%", NULL},
     LIMIT("alert_p_lo", "Pressure below", "0.01", "300", "1100", "mbar"),
     LIMIT("alert_p_hi", "Pressure above", "0.01", "300", "1100", "mbar"),
+};
+
+// §33.3: the Notecard's fields.
+static const char *const NOTECARD_RULES[][24] = {
     {"uplink", "section", "Cellular uplink (optional)", "intro",
      "Without WiFi at the site, alerts and email go out as notes through a Blues Notecard.",
      "label", "Uplink", "options", "wifi,cell", NULL},
@@ -253,6 +265,19 @@ static const char *const RULES[][24] = {
     {"cell_every", "label", "Sync every", "type", "number", "min", "10", "max", "1440",
      "placeholder", "60", "unit", "minutes", NULL},
     {"cell_mail", "label", "Email over cellular", "options", "off,route", NULL},
+    {"gps", "label", "GPS fix in the setup check", "options", "off,on", NULL},
+};
+
+// §35.4: the board's modem's fields, in the order the settings read shows them.
+static const char *const MODEM_RULES[][24] = {
+    {"uplink", "section", "Cellular uplink (optional)", "intro",
+     "Without WiFi at the site, alerts and email go out through the board's LTE-M modem.",
+     "label", "Uplink", "options", "wifi,cell", NULL},
+    {"apn", "label", "APN (from the SIM's provider)", "required_if", "uplink=cell", "maxlength",
+     "63", "pattern", "[A-Za-z0-9.\\-]+", "placeholder", "hologram", NULL},
+    {"cell_plmn", "label", "Network (MCC+MNC, empty for automatic)", "maxlength", "6", "pattern",
+     "[0-9]{5,6}", "placeholder", "310410", NULL},
+    {"cell_mail", "label", "Email over cellular", "options", "on,off", NULL},
     {"gps", "label", "GPS fix in the setup check", "options", "off,on", NULL},
 };
 #undef LIMIT
@@ -279,20 +304,40 @@ static void rule(buf_t *b, const char *name, const char *value)
     }
 }
 
-size_t bset_form(char *out, size_t cap)
+static void rules(buf_t *b, const char *const (*table)[24], size_t n)
 {
-    buf_t b = {out, cap, 0, false};
-    out[0] = '\0';
-    for (size_t i = 0; i < sizeof RULES / sizeof RULES[0]; i++) {
+    for (size_t i = 0; i < n; i++) {
         char inner[512];
         buf_t r = {inner, sizeof inner, 0, false};
         inner[0] = '\0';
-        for (size_t k = 1; RULES[i][k]; k += 2) {
-            rule(&r, RULES[i][k], RULES[i][k + 1]);
+        for (size_t k = 1; table[i][k]; k += 2) {
+            rule(&r, table[i][k], table[i][k + 1]);
         }
-        rule(&b, RULES[i][0], inner);
+        rule(b, table[i][0], inner);
+    }
+}
+
+static size_t form(bool modem, char *out, size_t cap)
+{
+    buf_t b = {out, cap, 0, false};
+    out[0] = '\0';
+    rules(&b, RULES, sizeof RULES / sizeof RULES[0]);
+    if (modem) {
+        rules(&b, MODEM_RULES, sizeof MODEM_RULES / sizeof MODEM_RULES[0]);
+    } else {
+        rules(&b, NOTECARD_RULES, sizeof NOTECARD_RULES / sizeof NOTECARD_RULES[0]);
     }
     return b.len;
+}
+
+size_t bset_form(char *out, size_t cap)
+{
+    return form(false, out, cap);
+}
+
+size_t bset_form_modem(char *out, size_t cap)
+{
+    return form(true, out, cap);
 }
 
 size_t bset_info(const char *fw, const char *host, const char *state, char *out, size_t cap)

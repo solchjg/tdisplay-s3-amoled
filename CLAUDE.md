@@ -110,6 +110,12 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   the `alert.qo` and `mail.qo` bodies, the clock and GPS steps, notes of at most 100
   readings, line 6 during the search). With `uplink` `cell`, alerts and email go out as
   notes and a timer wake never starts WiFi; the ThingsBoard notes wait for §32.
+- `components/board/` (L0) — the build-time board choice (`CONFIG_APP_BOARD_*`, FSD §35,
+  FR-35.5) and `board.h`, the pins this app wires on each board.
+- `components/modem_link/` (L1) — the T-SIM7080G build's link over its SIM7080G (FSD §35): the
+  shared `axp2101` rails, `sim7080` wake, PSM resume or attach, PPP as the default route for the
+  existing senders, PSM or power-off after. The project's `CMakeLists.txt` keeps it, `sim7080`
+  and `axp2101` out of the T-Display build; `main` links it only with the T-SIM7080G board.
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key
   window), the `settings` read without secrets, the field rules the page checks
@@ -119,7 +125,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring`, `sim7080`, `axp2101` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through
