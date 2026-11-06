@@ -57,7 +57,7 @@ reused.
 | 32 | ThingsBoard Telemetry | L1 |
 | 33 | Cellular Uplink | L1 |
 | 34 | WiFi Off | cross-cutting |
-| 35 | Direct LTE-M Modem (draft) | L1 |
+| 35 | T-SIM7080G Build (draft) | cross-cutting |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -486,6 +486,10 @@ testbench.
 | R-32 | A note counts as sent when the Notecard accepts it, so a route that fails later (wrong URL, target down) is not seen by the device | Certain | Medium | Notehub keeps each event and shows route failures and retries; the User Manual tells the user to check the route log |
 | R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`, `192.168.2.231`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
 | R-35 | The Notecard's GPS turns on only after its first Notehub sync and never while its modem is on, a cold first fix takes 1 – 2 min or fails indoors, and the Notecard ends a seek after about 17 min (after 90 s with no signal at all), so a setup check may end without a fix | Likely | Low | The search runs for the whole hold (up to 30 min, FR-24.6) after the time step's session; the GPS antenna faces the sky; an earlier place stays stored; the next key wake or setup check tries again |
+| R-36 | The pins of §35.2 come from LilyGO's pin map, whose camera pins are named as free without a camera; the board in hand may not bring every one out to a header, and all 15 are used | Likely | Medium | Commissioning checks each pin on the board before wiring; a pin that is not brought out sends the map back to `/define` |
+| R-37 | Each network grants its own PSM timers (Verizon 300 s active time at the bench, T-Mobile and AT&T about what is asked), so one SIM gives different power use by site | Certain | Medium | FR-35.1 powers the modem off when the grant is over the limit; `cell_plmn` locks a site to one network |
+| R-38 | A microSD card in its slot may draw 100 µA or more in deep sleep if the slot's supply is not switched | Possible | Medium | Commissioning measures the sleep current with and without a card; if it is high, the card is removed after setup, as the User Manual will say |
+| R-39 | E-paper panels are rated for refreshes above about 0 °C; near 40 °F the panel is within its rating but slower | Likely | Low | FR-35.2 switches to the OLED below 40 °F with 2 °F hysteresis |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
@@ -1050,6 +1054,10 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L43 | Note accepted by the Notecard (FR-33.11) | `web: cell note <tb\|tbattr\|alert\|mail> n=<readings, or 1>` | I |
 | L44 | Notecard request failed (FR-33.4, FR-33.10) | `web: cell failed: <timeout\|err\|full> <req>` | W |
 | L45 | GPS search ended in the setup check (FR-33.17, FR-33.18) | `web: gps fix lat=<±d.ddddd> lon=<±d.ddddd>` or `web: gps none` | I |
+| L46 | PSM grant on a full attach (FR-35.1) | `web: modem attach ms=<n> net=<MCC+MNC> csq=<n> psm_active_s=<n\|none> psm_tau_s=<n\|none> mode=<psm\|off>` | I |
+| L47 | Modem failed (FR-35.9) | `web: modem failed: <power\|sim\|register\|ppp> ms=<n>` | W |
+| L48 | Display chosen for the window (FR-35.2) | `web: display <epaper\|oled> t=<°F, 2 decimals, or none>` | I |
+| L49 | Settings card (FR-35.4, FR-35.19, FR-35.20) | `web: card settings <ok\|invalid=<field>\|none\|failed>` | I |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -3485,34 +3493,229 @@ Behaviour with WiFi off:
 
 ---
 
-## 35. Direct LTE-M Modem (draft)
+## 35. T-SIM7080G Build (draft)
 
 ### 35.1 Purpose & peer
 
-A build for the LilyGO T-SIM7080G-S3 (ESP32-S3 with a SIMCom SIM7080G LTE-M /
-NB-IoT modem and an AXP2101 PMU) [user] sends its traffic over an ordinary IP
-link on cellular, PPP through the modem, so the WiFi senders (§25, §31, §32)
-run unchanged with no vendor cloud between the device and its peers. Peers:
-the modem on UART 1; the cellular network, which grants the PSM timers; the
-senders' servers, reached over the internet. The evaluation that measured
-the networks' grants is `docs/Method/project/lte-m-modem.md`.
+A second product build of this firmware runs on the LilyGO T-SIM7080G-S3
+(ESP32-S3 with a SIMCom SIM7080G LTE-M / NB-IoT modem with GNSS, and an
+AXP2101 PMU) [user]. It has the features of the T-Display build wherever the
+board allows (§35.3). Its cellular uplink is the board's own modem, which
+carries an ordinary IP link over PPP: with `uplink` `cell` the WiFi senders
+(§25, §31, §32) run unchanged over that link and reach their servers directly,
+with no vendor cloud between the device and its peers. The Blues Notecard of
+§33 is not part of this build. The board has no panel of its own, so it drives
+an e-paper display in mild weather and an OLED in the cold (FR-35.2), takes an
+off-board key (FR-35.3), and can read its settings from a microSD card
+(FR-35.4).
 
-This section is a draft: its numbers and the 60 s limit wait for the user's
-approval, and it has no verification contracts yet.
+Peers: the modem on UART 1; the cellular network, which grants the PSM timers;
+the senders' servers, reached over the internet; the e-paper display, the
+OLED, the off-board key and the microSD card. The evaluation that measured
+attach times, PSM grants, data use and GPS on this board is
+`docs/Method/project/lte-m-modem.md`. The T-Display build is unchanged by this
+section.
 
-### 35.2 Requirements
+This section is a draft: its numbers wait for the user's approval, and it has
+no verification contracts yet.
+
+### 35.2 Hardware
+
+| Item | Value | Source |
+|------|-------|--------|
+| Board | LilyGO T-SIM7080G-S3 V1.0, the board the user owns | [user] |
+| MCU | ESP32-S3, 16 MB flash, 8 MB octal PSRAM (PSRAM unused; GPIO 35 – 37 taken by it) | [derived from the board] |
+| Modem | SIM7080G on UART 1, RX GPIO 4, TX GPIO 5, 115200 baud; PWRKEY GPIO 41, DTR GPIO 42, RI GPIO 3; LTE-M only, a nano SIM fitted before power-up | [derived from the board]; LTE-M only [proposed] |
+| PMU | AXP2101 at 0x34 on I2C controller 0, SDA GPIO 15, SCL GPIO 7, IRQ GPIO 6; modem rail DC3 3.0 V, level shifter BLDO1 3.3 V never off, GPS antenna rail BLDO2 3.3 V on only during a GPS search | [derived from the board] |
+| Power | One 18650 cell in the board's holder, charged from USB-C or the solar input (4.4 – 6 V); the battery voltage is read from the AXP2101 | [derived from the board]; reading [proposed] |
+| Sensor bus | The BME280 (0x76), the OLED (0x3C) and the water probe's ADS1115 (0x48) on the PMU's bus, GPIO 15/7, 100 kHz; no address clash with 0x34 | [proposed] |
+| Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 16, SCL GPIO 17, its supply and the isolator's board side switched by GPIO 18, as §29 with the pins moved | [proposed] |
+| RS232 | MAX3232 powered from GPIO 13, TX GPIO 11, RX GPIO 12 (the T-Display's pins), on UART 2 because the modem holds UART 1 | [proposed] |
+| Water probe | Switch line GPIO 2, as on the T-Display | [proposed] |
+| E-paper | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), on SPI2: SCK GPIO 9, MOSI GPIO 10, CS GPIO 8, DC GPIO 14, RST GPIO 1, BUSY GPIO 48; always powered, put in its deep sleep after each drawing | [proposed] |
+| OLED | A 1.3" 128 × 64 SH1106 module on I2C (the one the modem probe uses), at 0x3C on the sensor bus | [proposed] |
+| Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 21 (an RTC GPIO, the T-Display's user-key number), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 47 through a resistor | [user] key; parts and pins [proposed] |
+| BOOT key | GPIO 0 on the board, as §18 | [derived from the board] |
+| microSD | The board's slot, SDMMC 1-bit, CMD GPIO 39, CLK GPIO 38, D0 GPIO 40; FAT32 | [derived from the board]; FAT32 [proposed] |
+| Antennas | LTE: a passive antenna rated for 698 – 960 MHz on the modem's LTE u.FL (bands 12 and 13), as `lte-m-modem.md` describes. GPS: an active antenna on the GPS u.FL, only with `gps` `on` | [proposed] |
+| Pins | Every free header GPIO is used: 1, 2, 8 – 14, 16 – 18, 21, 47, 48; none is left for another add-on | [derived from the rows above] |
+| Bench slot | SLOT3; slot and MAC recorded when the build is commissioned | [user] |
+
+### 35.3 Feature parity
+
+| Feature | § | On this build |
+|---------|---|---------------|
+| Connectivity states, WiFi portal, status page and API, HTTP OTA, UDP log, mDNS | 5, 13 – 17 | Same, over the ESP32-S3's WiFi |
+| BOOT key, factory reset | 18 | Same (GPIO 0) |
+| Panel and its six lines | 5.4, 6 | E-paper or OLED by temperature (FR-35.2, FR-35.15, FR-35.16); same line content |
+| Serial log | 7 | Same, plus L46 – L49 (§7.2) |
+| Watchdog, identity, deep sleep, time | 19 – 22 | Same; the user key is the off-board key (FR-35.3); the clock also from the modem (FR-35.13) |
+| Weather sensor, setup check, reading history, sampling setups | 23, 24, 27, 28 | Same; the LED of FR-24.9 is the off-board key's LED |
+| Summary email, push alerts, ThingsBoard | 25, 31, 32 | Same, over WiFi or over the modem (FR-35.8) |
+| BLE setup | 26 | Same, plus settings from microSD (FR-35.4) |
+| 4-20 mA loop, RS232, water probe | 29, 30 | Same, on the pins of §35.2 |
+| Cellular uplink: ThingsBoard batches and attributes, alerts, email, network clock, GPS place, `gps` test | 33 | Same behaviour through the modem instead of notes (FR-35.8 – FR-35.14); no Notehub, no routes |
+| Notecard settings `nh_product`, `cell_every`; `card.*` and `hub.*` requests; Notefile templates | 33.3, 33.5 | Not on this build: sends go out when they are due, not at a Notecard sync |
+| HTTP OTA over cellular | — | Not offered [proposed]: an image is about 1.4 MB of cellular data; OTA stays on WiFi, or USB |
+| WiFi off | 34 | Same; with `uplink` `cell`, sends go through the modem |
+| The satellite `day.qo` trial | — | Not product behaviour on either build (`commissioning/sat-probe`) |
+
+### 35.4 Settings
+
+On this build the §33.3 fields read as below, and `apn` and `cell_plmn` are
+added to the §13.2 form and the BLE `settings` write (§26); `nh_product` and
+`cell_every` are not offered, and a submission carrying them is answered as
+for an unknown field.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `uplink` | `wifi` or `cell` (`cell` is the board's modem) | one of the two; `cell` needs `apn`, given or stored | the stored value; `wifi` when none is stored [proposed] |
+| `apn` | the SIM provider's access point name, e.g. `hologram` | 1 – 63 bytes, letters, digits, `.` and `-` | the stored value |
+| `cell_plmn` | a network to lock to, MCC+MNC, e.g. `310410`; empty for automatic choice | empty, or 5 – 6 digits | the stored value; empty when none is stored [proposed] |
+| `gps` | as §33.3 | as §33.3 | as §33.3 |
+| `cell_mail` | email over cellular: `on` (sent by §25's SMTP over the modem) or `off` | one of the two | the stored value; `on` when none is stored [proposed] |
+
+### 35.5 Requirements
+
+Build:
+
+- **FR-35.5** [Must] [proposed] The T-SIM7080G build shall come from the same
+  source tree as the T-Display build, the board chosen at build time; the
+  T-Display build's image and behaviour do not change, and the T-SIM7080G
+  image fits a 4 MB application slot (C-10.7) with the same partition table,
+  including the 2 MB `history` partition.
+- **FR-35.6** [Must] [user] Every feature §35.3 lists as the same shall meet
+  its own section on this build, with the same log lines; where §35.3 names a
+  change, this section's requirement replaces the named part only.
+
+Displays:
+
+- **FR-35.2** [Must] [user] The build shall show the §5.4 lines on the e-paper
+  display when the temperature is above **40 °F** (4.4 °C) and on the OLED
+  below it. The choice is made when a window starts, from the latest kept
+  reading (§23), and kept for the whole window; with a reading of 40.00 °F or
+  no reading at all, the OLED is used [proposed]. Once on the OLED, the build
+  returns to the e-paper only at **42 °F** or above [proposed] (2 °F of
+  hysteresis, so a reading near 40 °F does not swap the display at each
+  window). The display not chosen stays off: the OLED dark, the e-paper
+  holding its last drawing.
+- **FR-35.15** [Must] [proposed] On the e-paper, lines 1 – 5 shall be drawn
+  in a 12 × 24 font (33 characters across 396 pixels) and line 6 in an
+  8 × 16 font (44 characters), both generated by `bdf_to_c.py`. A window
+  starts with a full refresh; a changed line is drawn with a partial refresh,
+  at most once every **5 s**; at the end of the window the screen is drawn
+  once more, with a full refresh, showing the last reading on line 4 and
+  `Asleep, key to wake` on line 5, and the controller is put in its deep
+  sleep. A timer wake never draws on the e-paper (FR-21.13).
+- **FR-35.16** [Must] [proposed] On the OLED, the six lines shall be drawn in
+  a 6 × 10 font, 21 characters a line, each line longer than 21 characters
+  cut at 21. The OLED is turned off (its display-off command) at the end of
+  every window and stays off on a timer wake.
+- **FR-35.17** [Must] [derived from FR-5.27] A failure of the chosen display
+  shall be reported to the state machine as an LCD failure is (FR-5.27), and
+  the device shall carry on without it; the other display is not tried in
+  its place within that window.
+
+Keys and LED:
+
+- **FR-35.3** [Must] [user] The off-board key of §35.2 shall be the user key
+  of every section that names it (§21, §24, §26, §28): it wakes the device
+  from deep sleep, ends the setup check hold, opens the BLE key window with a
+  3 s hold, and starts `quick` with a double press, with the same timings.
+- **FR-35.18** [Must] [proposed] The off-board key's LED shall do what the
+  LED of FR-24.9 does on the T-Display: flash at 1 Hz during the setup check
+  hold, lit in a window while the display is on, off in sleep.
+
+Settings from microSD:
+
+- **FR-35.4** [Must] [user] On each boot that is not a timer wake, the device
+  shall look on the microSD card for a file `/settings.txt` holding a
+  settings body in the form of the BLE `settings` write (§26), one
+  `field=value` a line. A file found shall be validated and applied as a BLE
+  `apply` of that body is in the state the device is in: in PROVISIONING as
+  FR-26.6, otherwise as FR-26.7, so absent secrets keep the stored ones and an
+  accepted body restarts the device (T14).
+- **FR-35.19** [Must] [proposed] After an accepted file, the device shall
+  rename it to `/settings.done` with the values of `password`,
+  `mail_password`, `tb_token` and `ntfy_token` removed, so the card carries
+  no secret once applied and the same file is not applied again; after a
+  refused file it leaves the file in place. Either way it writes
+  `/settings.result` holding `ok` or `invalid=<field>` and logs L49.
+- **FR-35.20** [Must] [proposed] With no card, an unreadable card or no
+  `/settings.txt`, the device shall go on as without this feature, logging
+  L49 `none` or `failed`; the card is unmounted before the window ends, and
+  never mounted on a timer wake.
+
+Modem and sending:
 
 - **FR-35.1** [Must] [user] The device shall adapt to the network's PSM
   grant. On each full attach it shall read the granted active time (T3324)
-  and periodic TAU (T3412 extended). When PSM is not granted, or the active
-  time is over 60 s [proposed], it shall power the modem off between readings
-  and attach cold at the next one. Otherwise it shall leave the modem in PSM
-  and resume without a new attach.
-- **FR-35.2** [Must] [user] The build shall drive an e-paper display above
-  40 °F and an OLED below it.
-- **FR-35.3** [Must] [user] The build shall take an off-board button.
-- **FR-35.4** [Must] [user] The build shall read its settings from a microSD
-  card.
+  and periodic TAU (T3412 extended) and log them as L46. When PSM is not
+  granted, or the active time is over **60 s** [proposed], it shall power the
+  modem off between sends (`AT+CPOWD=1`, then DC3 off) and attach cold at the
+  next one. Otherwise it shall leave the modem in PSM and resume without a
+  new attach.
+- **FR-35.7** [Must] [proposed] The modem shall be woken or powered only for
+  a due ThingsBoard upload, alert or email with `uplink` `cell`, for the time
+  step of FR-35.13, and for a GPS search (FR-35.14); with `uplink` `wifi` it
+  stays powered off in every boot, window and wake.
+- **FR-35.8** [Must] [user] With `uplink` `cell`, a due ThingsBoard upload
+  (FR-32.4, FR-32.6) with its attributes, a due alert (§31) and a due summary
+  or test result (§25, §28, with `cell_mail` `on`) shall be sent by their own
+  sections' senders over PPP through the modem instead of over WiFi, with the
+  same requests, bodies, success rules, upload mark and logs (L25, L26,
+  L39 – L42). A timer wake never starts WiFi; a window still starts WiFi for
+  the page, OTA and BLE when credentials are stored and `wifi` is `on`
+  (§34). With `cell_mail` `off`, email over cellular follows FR-33.13's `off`.
+- **FR-35.9** [Must] [proposed] A modem that does not register within
+  **60 s** of being woken or powered, or a PPP link that does not come up
+  within **10 s** of registering, shall be logged as L47 and treated as each
+  due send's failure as its section says (the ThingsBoard readings stay after
+  the mark, an alert follows FR-31.6, an email follows §25's dropped send);
+  the modem is then powered off and the next send attaches cold.
+- **FR-35.10** [Must] [proposed] With `uplink` `cell`, the ThingsBoard
+  attributes (§32.3) shall add `"uplink":"cell"`, the signal (CSQ), the
+  modem's firmware revision, the network (MCC+MNC), the last PSM grant
+  (`psm_active_s`, `psm_tau_s`, or none), the battery voltage in mV and, when
+  a place is stored, `latitude` and `longitude`.
+- **FR-35.11** [Must] [proposed] With `cell_plmn` set, the device shall lock
+  the modem to that network on each full attach (`AT+COPS=1,2`, no
+  fallback); with it empty, automatic choice (`AT+COPS=0`), undoing an
+  earlier lock.
+- **FR-35.12** [Must] [derived from §9.1] The modem link shall carry nothing
+  the WiFi path does not: the same TLS and certificate rules for `https://`
+  peers and for the mail server, and no setting is sent to any peer other than
+  its own.
+- **NFR-35.1** [Must] [proposed] A timer wake that sends shall be back
+  asleep within **25 s** of the wake after a PSM resume and within **100 s**
+  after a cold attach, success or failure. On this build FR-32.12's 40 s
+  counts from the PPP link coming up.
+- **NFR-35.2** [Should] [proposed] With the `std` setup (§28) and hourly
+  ThingsBoard uploads, the cellular data used shall stay under **10 MB a
+  month** (the evaluation measured 7 – 12 kB a PSM-resumed run, about
+  5 – 9 MB a month), measured over a month on the bench.
+
+Time:
+
+- **FR-35.13** [Must] [derived from FR-33.12] With `uplink` `cell`, on a boot
+  whose clock was never set, the device shall take the time from the modem's
+  network time (`AT+CCLK?`) after registering and, when the network supplies
+  none, by SNTP over PPP; it sets the clock and marks readings synced as after
+  an SNTP sync, logging L20 with `src=cell`. In a window this attach is made
+  even with no send due; on a timer wake it is made only with a send due.
+
+Location:
+
+- **FR-35.14** [Must] [derived from FR-33.15 – FR-33.20] With `uplink`
+  `cell` and `gps` `on`, the setup check hold and the `gps` test shall seek a
+  fix as FR-33.15 – FR-33.20 say, with the modem's GNSS in place of the
+  Notecard's: LTE is stopped for the search (`AT+CFUN=0`, the two share one
+  RF path), BLDO2 is on only while it runs, the device asks `AT+CGNSINF`
+  every **5 s**, and a fix is an answer with a fix status and a UTC time
+  later than the search's start. The place is stored and logged (L45),
+  shown on line 6 and sent with the attributes as §33 says; no `card.location`
+  request exists on this build. After the search LTE is restarted only when a
+  send is due.
 
 ---
 
@@ -3738,7 +3941,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.33.0
+fsd_version: 0.34.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -3805,8 +4008,14 @@ change_history:
   - "0.32.1 2026-11-03 from the user's bench run of the gps test, which passed 1 s after its start on the location the Notecard already held: FR-33.16 counts only a GPS fix taken after the search began (derived)"
   - "0.32.2 2026-11-03 from Blues' answer to the user: the §33.2 Bus row names the Notecarrier-X's LiPo charger (TI BQ25628E) at its fixed I2C address 0x6A"
   - "0.33.0 2026-11-04 the user approved §34 WiFi Off with its proposals (FR-34.2 credentials kept, FR-34.11 nothing sent without an uplink, the §5.4 WIFI_OFF screen) and asked for the build; FR-34.11 names the uplink section's intro instead of a WiFi hint; FR-26.19 rules gain `required_if`, so the BLE page requires the network name only with WiFi on (FR-34.3)"
+  - "0.34.0 2026-11-06 from the user's request that the Blues and T-SIM7080G builds match where possible: §35 rewritten as the T-SIM7080G Build (draft): hardware and pin map, feature parity table, settings (`apn`, `cell_plmn`, `cell_mail` on/off), FR-35.5 – FR-35.20 and NFR-35.1 – NFR-35.2 (proposed) beside the user's FR-35.1 – FR-35.4, L46 – L49, R-36 – R-39; awaiting the user's review"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
+  - "§35 (whole section, draft): the T-SIM7080G build, its pin map, displays, off-board key, settings card and modem behaviour"
+  - "FR-35.1: 60 s active-time limit for keeping PSM"
+  - "FR-35.2: 42 °F to return to the e-paper, OLED with no reading; FR-35.15 12x24 and 8x16 fonts, 5 s partial refresh, a sleep screen; FR-35.16 6x10 font, lines cut at 21"
+  - "FR-35.9: 60 s to register, 10 s to PPP; NFR-35.1: 25 s and 100 s back asleep; NFR-35.2: under 10 MB a month"
+  - "§35.4: uplink default wifi, apn 1 – 63 bytes, cell_plmn default empty, cell_mail default on; no OTA over cellular"
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
   - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"
   - "§2.2: JST-XH add-on sockets (loop 5, water probe 6, RS232 4 pins, pin 1 GND), pull-downs on the add-ons, an I2C fan-out with a Qwiic socket for the Notecarrier, boards changed only unpowered"
