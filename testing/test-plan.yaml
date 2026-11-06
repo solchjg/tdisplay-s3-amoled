@@ -369,6 +369,12 @@ capabilities:
       ALDO3 comes from LilyGO's power-domain table, never measured; the empty
       slot's error code is what L49 `none` rests on (testing/debugging-agenda.md).
       The FR-35.4 bench row in Phase 17 step 8 is its first run.
+  modem-sim7670:
+    what: The Waveshare ESP32-S3-SIM7670G-4G in SLOT2 with its 4G switch off answers AT on UART 1 (GPIO 17/18) once GPIO 33 is high, registers, falls silent after AT+CPOF, and stays unpowered with GPIO 33 held low in deep sleep; its MAX17048 answers at 0x36 on GPIO 15/16 (FSD §35.2, FR-35.23)
+    available: unproven
+    consequence: >
+      Taken from Waveshare's examples and FAQ (testing/debugging-agenda.md);
+      commissioning/ws-probe is its first run.
   dut-bme280:
     what: A BME280 (chip ID 0x60) at 0x76 on SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1
     available: unproven

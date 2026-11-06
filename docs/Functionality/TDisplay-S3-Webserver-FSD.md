@@ -517,7 +517,7 @@ testbench.
 | R-33 | Notehub reaches the targets from the internet, so the LAN test servers (`192.168.2.37`, `192.168.2.231`) cannot be reached over cellular | Certain | Medium | Over cellular, ThingsBoard and ntfy must be the internet-reachable servers (`https://`, FR-32.9); the LAN servers stay for WiFi |
 | R-35 | The Notecard's GPS turns on only after its first Notehub sync and never while its modem is on, a cold first fix takes 1 – 2 min or fails indoors, and the Notecard ends a seek after about 17 min (after 90 s with no signal at all), so a setup check may end without a fix | Likely | Low | The search runs for the whole hold (up to 30 min, FR-24.6) after the time step's session; the GPS antenna faces the sky; an earlier place stays stored; the next key wake or setup check tries again |
 | R-36 | The pins of §35.2 come from Waveshare's examples and a schematic read as text: the PWRKEY GPIO and the modem UART's direction are not stated, the camera's pins are free only with the CAM switch off, and every free header pin is used | Likely | Medium | Commissioning finds PWRKEY and the UART direction and checks each pin on the board before wiring; a pin that does not work sends the map back to `/define` |
-| R-37 | LTE Cat-1 has no power saving mode and the board does not switch the modem's supply, so each send attaches afresh and the powered-down modem still draws from the battery in sleep | Certain | Medium | FR-35.23 powers the modem down after each send; NFR-35.3 measures the sleep current; `cell_plmn` locks a site to one network |
+| R-37 | LTE Cat-1 has no power saving mode, so each send attaches afresh; the modem's supply is cut by GPIO 33 only with the board's 4G switch off, and a switch left on keeps the modem powered | Certain | Medium | FR-35.23 powers the modem down and cuts its supply after each send; the User Manual and the bench set the 4G switch off; NFR-35.3 measures the sleep current; `cell_plmn` locks a site to one network |
 | R-38 | A microSD card in its slot may draw 100 µA or more in deep sleep, and this board does not switch the slot's supply | Possible | Medium | Commissioning measures the sleep current with and without a card; if it is high, the card is removed after setup, as the User Manual will say |
 | R-39 | E-paper panels are rated for refreshes above about 0 °C; near 40 °F the panel is within its rating but slower | Likely | Low | FR-35.2 switches to the OLED below 40 °F with 2 °F hysteresis |
 | R-40 | Notehub's routes offer JSONata only, so a `raw` message reaching Notehub could not be decoded there, and Notehub leaves zero fields out of a body | Certain | Medium | Notecard links use the template encoding (§37.2), which Notehub decodes; every decoder reads an absent field as 0 (§37.2, FR-37.4 contract) |
@@ -3554,10 +3554,10 @@ Its verification contracts are §35.6.
 
 | Item | Value | Source |
 |------|-------|--------|
-| Board | Waveshare ESP32-S3-SIM7670G-4G, the board the user owns, its CAM switch off (the camera's GPIO 7 – 14 free) and its USB switch on the PC side (the modem's USB reachable from a PC through the board's hub, for AT debugging) | [user] |
+| Board | Waveshare ESP32-S3-SIM7670G-4G, the board the user owns, its CAM switch off (the camera's GPIO 7 – 14 free), its 4G switch off (the modem's supply on GPIO 33, below) and its USB switch on the PC side (the modem's USB reachable from a PC through the board's hub, for AT debugging) | [user] |
 | MCU | ESP32-S3, 16 MB flash (PY25Q128HA); PSRAM unused | [derived from the board] |
 | Console | UART 0 (GPIO 43/44) through the board's CH343 USB-serial, which also flashes it (auto-program, no BOOT or EN wires) | [derived from the board] |
-| Modem | SIM7670G on UART 1, GPIO 17/18 through the board's TXB0104 level shifter, 115200 baud; PWRKEY driven through the board's transistor from the GPIO commissioning finds; a nano SIM whose plan covers LTE Cat-1, fitted before power-up. The modem is fed from the battery with no switch on its supply | [derived from the board]; UART [user] |
+| Modem | SIM7670G on UART 1, GPIO 17/18 through the board's TXB0104 level shifter, 115200 baud; PWRKEY driven through the board's transistor from the GPIO commissioning finds; a nano SIM whose plan covers LTE Cat-1, fitted before power-up. With the board's 4G switch off, GPIO 33 switches the modem's supply (high on, low off), held low through deep sleep | [derived from the board]; UART, GPIO 33 [user] |
 | Power | One 18650 cell in the board's holder, charged from USB-C or the solar input (CN3791); 3.3 V from the EA3036C. The battery's voltage and charge are read from the MAX17048 (0x36) | [derived from the board]; reading [user] |
 | Sensor bus | The BME280 (0x76), the water probe's ADS1115 (0x48) and the board's MAX17048 (0x36) on I2C controller 0, SDA GPIO 15, SCL GPIO 16, 100 kHz, from the header | [user] |
 | Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 39, SCL GPIO 40, its supply and the isolator's board side switched by GPIO 41, as §29 with the pins moved | [user] |
@@ -3570,7 +3570,7 @@ Its verification contracts are §35.6.
 | BOOT key | GPIO 0 on the board, as §18 | [derived from the board] |
 | microSD | The board's slot, SDMMC 1-bit, CMD GPIO 4, CLK GPIO 5, D0 GPIO 6, card detect GPIO 46; FAT32; always powered (the board does not switch its supply) | [derived from the board]; FAT32 [user] |
 | Antennas | LTE: the board's LTE antenna on the modem's main u.FL. GPS: an active antenna on the GNSS u.FL, powered by the modem, only with `gps` `on` | [user] |
-| Pins | Every free header GPIO is used: 7 – 14, 39 – 42, 45, and 15/16 shared with the MAX17048; GPIO 4 – 6 and 46 are the microSD's, 17/18 the modem's, 43/44 the console's, 38 the board's RGB LED (unused) | [derived from the rows above] |
+| Pins | Every free header GPIO is used: 7 – 14, 39 – 42, 45, and 15/16 shared with the MAX17048; GPIO 4 – 6 and 46 are the microSD's, 17/18 and 33 the modem's, 43/44 the console's, 38 the board's RGB LED (unused) | [derived from the rows above] |
 | Bench slot | SLOT2 (CH343 serial 5B91031846); the MAC is recorded when the build is commissioned | [user] |
 
 ### 35.3 Feature parity
@@ -3686,11 +3686,11 @@ Modem and sending:
 
 - **FR-35.23** [Must] [user] After the sends of a boot, a window or a wake
   are done, failed or given up, and after a GPS search with no send due, the
-  device shall power the modem down (`AT+CPOF`, then PWRKEY if it still
-  answers), so it draws only its powered-down current until the next send,
-  which attaches afresh. On each attach it logs the attach time, the network
+  device shall power the modem down (`AT+CPOF`) and then cut its supply
+  (GPIO 33 low, held through deep sleep), so it draws nothing until the next
+  send, which switches the supply on and attaches afresh. On each attach it logs the attach time, the network
   and the signal as L46.
-- **FR-35.7** [Must] [user] The modem shall be powered on only for
+- **FR-35.7** [Must] [user] The modem's supply shall be switched on only for
   a due ThingsBoard upload, alert or email with `uplink` `cell`, for the time
   step of FR-35.13, and for a GPS search (FR-35.14); with `uplink` `wifi` it
   stays powered off in every boot, window and wake.
@@ -3740,8 +3740,8 @@ Modem and sending:
 - **NFR-35.2** [Should] [user] With the `std` setup (§28) and hourly
   ThingsBoard uploads, the cellular data used shall stay under **10 MB a
   month**, measured over a month on the bench.
-- **NFR-35.3** [Should] [proposed] Asleep between windows with the modem
-  powered down, the board's current from the battery shall be measured at
+- **NFR-35.3** [Should] [proposed] Asleep between windows with the modem's
+  supply cut, the board's current from the battery shall be measured at
   commissioning, with and without a card in the slot, and recorded here and
   in the User Manual; the figure becomes this requirement's limit once the
   user accepts it.
@@ -3787,8 +3787,8 @@ Bench rows run on SLOT2 with the Waveshare board (R-31 for coverage at the bench
 | FR-35.22 | Operator: the stand-in build on the Waveshare board with the 1.3" OLED on the sensor bus, power-on; the off-board key pressed in the hold | The §5.4 lines on the 1.3" OLED in the window, cut at 21, dark after `web: sleep`; the hold ends; the BME280 still read | A reset; lines mirrored or upside down; a sensor-bus error | bench (operator) |
 | FR-35.16, FR-35.17 | Operator: power-on with the OLED fitted; then with its CS line unplugged | The §5.4 lines on the OLED in the window, dark after `web: sleep`; with CS unplugged the window runs on, the display failure logged | A reset or a halted window | bench (operator) |
 | FR-35.3, FR-35.18 | Operator: asleep 300 s, presses the off-board key; then mark pending, power-on | `web: wake cause=button` ≤ 3 s after the press; during the hold the key's LED flashes 1 Hz and a press ends it with L24 `by=key` | Waking only at the period's end; the LED dark during the hold | bench (operator) |
-| FR-35.23 (core) | Modem steps: a send done; a send failed; a GPS search with nothing due; `AT+CPOF` unanswered | Power-down after each; PWRKEY after the unanswered `AT+CPOF`; L46 on each attach | The modem left on after the boot's last send or search | host |
-| FR-35.23, FR-35.7 | `uplink` `cell`, an upload due each timer wake | L46 on every run; between runs the modem gives no answer on UART 1 until PWRKEY | The modem left powered on in sleep | bench |
+| FR-35.23 (core) | Modem steps: a send done; a send failed; a GPS search with nothing due; `AT+CPOF` unanswered | `AT+CPOF` then the supply cut after each; the supply cut after the unanswered `AT+CPOF`; L46 on each attach | The supply left on after the boot's last send or search | host |
+| FR-35.23, FR-35.7 | `uplink` `cell`, an upload due each timer wake | L46 on every run; between runs GPIO 33 held low and the modem silent on UART 1 | The modem's supply on in sleep | bench |
 | FR-35.7 (core) | Modem wake decision: `uplink` `wifi` at a due upload; `cell` with nothing due on a timer wake; `cell` with an alert due; a window with the clock never set | No wake; no wake; wake; wake | The modem woken with `uplink` `wifi` | host |
 | FR-35.8, NFR-35.1 | Sleep test build, `uplink` `cell`, the user's ThingsBoard and ntfy, an upload and an alert due on the next timer wake | L41 `what=telemetry`, L39, `web: sleep` within 60 s of the wake; no WiFi start | WiFi on a timer wake; the panel lit; the mark moved without L41 | bench |
 | FR-35.9 (core) | Attach steps: registered at 59 s; not at 60 s; PPP up 9 s after registering; not within 10 s; with an upload, an alert and a summary due | Sends; L47 `register`; sends; L47 `ppp`; on each failure the mark kept, the alert as FR-31.6, the summary period advanced; modem off | A send after L47 | host |
@@ -3798,7 +3798,7 @@ Bench rows run on SLOT2 with the Waveshare board (R-31 for coverage at the bench
 | FR-35.11 (core) | `cell_plmn` `310410`; then empty after a lock | `AT+COPS=1,2,"310410"` on the full attach; `AT+COPS=0` | A lock with `cell_plmn` empty | host |
 | FR-35.12 | `https://` ThingsBoard with a wrong certificate, over the modem | L42 `cert` as over WiFi | The request sent without a valid certificate | bench |
 | NFR-35.2 | A month of the `std` setup with hourly uploads on cellular | The SIM provider's data use for the device under 10 MB | — | bench (operator) |
-| NFR-35.3 | Operator: the build asleep between windows, `uplink` `cell`, the modem powered down; a meter in the battery lead; without, then with a card | Both currents recorded in this section and the User Manual | The modem's current still at its idle level in sleep | bench (operator) |
+| NFR-35.3 | Operator: the build asleep between windows, `uplink` `cell`, the modem's supply cut; a meter in the battery lead; without, then with a card | Both currents recorded in this section and the User Manual | The modem's current in sleep | bench (operator) |
 | FR-35.13 (core) | Clock never set: `AT+CCLK?` answers a network time; answers none, SNTP answers; timer wake with nothing due | Clock set, L20 `src=cell`; clock set by SNTP, L20 `src=cell`; no attach | An attach on a timer wake for the time alone | host |
 | FR-35.13 | Power-on with `uplink` `cell`, the bench AP down | L20 `src=cell` with a year ≥ 2026 within 60 s | A reading with `at=none` after L20 | bench |
 | FR-35.14 (core) | GNSS answers during a hold: no fix twice, then a fix with a UTC time after the start; a fix older than the start; the hold ends with none, a place stored | `AT+CFUN=0` and `AT+CGNSSPWR=1` once, asks at 5 s steps, the place stored, L45, GNSS off and the modem powered down; no fix; L45 `none`, the place kept | LTE and GNSS on together; GNSS on after the search | host |
@@ -4243,7 +4243,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.47.0
+fsd_version: 0.48.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4324,6 +4324,7 @@ change_history:
   - "0.45.0 2026-11-06 the user's choice of a screen until the SSD1322 arrives: FR-35.22, a bench build drawing the six lines on the 1.3\" OLED soldered to GPIO 13/21 (user), driven in software with RS232 and the off-board key off and the BOOT key as the user key (proposed)"
   - "0.46.0 2026-11-06 the user's choice for `/settings.txt` (FR-35.4): each value as typed, not percent-encoded, the device encodes it; empty lines and `#` lines skipped"
   - "0.47.0 2026-11-06 the user's switch of the cellular build to the Waveshare ESP32-S3-SIM7670G-4G (LTE Cat-1, SLOT2), with every recommendation of the change review approved: §35 renamed Cellular Build; §35.2 the new board, pin map, modem on UART 1, the MAX17048 on the sensor bus, the e-paper's wiring deferred to Phase 18; FR-35.1 (PSM) superseded by FR-35.23 (the modem powered down after each send); FR-35.10 `battery_pct` in place of the PSM grant; FR-35.14 the SIM7670G's GNSS; FR-35.20 card detect; FR-35.22 the 1.3\" OLED on the sensor bus; NFR-35.1 60 s, and 75 s after a failed attach (proposed); NFR-35.3 sleep current measured at commissioning (proposed); L46 without the grant; R-36 – R-38; Phase 17 on SLOT2"
+  - "0.48.0 2026-11-06 the user's choice to cut the modem's supply between sends: §35.2 the board's 4G switch off and GPIO 33 switching the modem's supply (Waveshare's FAQ), held low through deep sleep; FR-35.23 `AT+CPOF` then the supply cut; FR-35.7 the supply switched on only for a send, the time step or a GPS search; R-37, NFR-35.3 and their contracts follow"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
