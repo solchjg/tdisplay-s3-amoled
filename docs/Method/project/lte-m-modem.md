@@ -187,7 +187,7 @@ connector. LTE-M's coverage enhancement adds up to about 15 dB on top.
 
 ## Inputs to `/define`
 
-Requirements the user has asked for, drafted as FSD §35 (Direct LTE-M Modem):
+Requirements the user has asked for, drafted in FSD §35 (T-SIM7080G Build) with the parity requirements around them:
 
 - `[user]` The device adapts to the network's PSM grant: on each full attach it reads the
   granted active time and TAU, and when PSM is not granted or the active time is too long
