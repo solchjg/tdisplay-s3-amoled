@@ -87,7 +87,9 @@ Lines start with `modemprobe:`; `CHECK` marks a result to look at. The run summa
 4. **Power.** Enable PSM, set 60 minutes, power the board from a LiPo through a
    current meter: the current between runs, and the charge of one run from its
    `awake_ms` and the meter. These are whole-board figures, including the ESP32-S3.
-5. **Soak.** 24 h at 60 minutes: `thingsboard_ok` against `run`.
+5. **Soak.** 24 h at 60 minutes: the ThingsBoard records against their `probe_run`
+   (counted on every wake, so a gap is a lost record), or `thingsboard_ok` against `run`
+   in the log.
 
 Proposed pass marks: attach within 60 s, at least 95% of records arrive, under 1 mAh
 a run, a GPS fix within 2 min. The bench's SLOT1 holds the T-Display; this board needs
@@ -108,6 +110,7 @@ Measured on the bench with a Hologram SIM (APN `hologram`), runs every 10 minute
 | Data | one ThingsBoard POST moves 1.4–1.8 kB up and 5.8–10.4 kB down, mostly the TLS handshake; a PSM-resumed run moves 7–12 kB in all, a first run with the ntfy alert 18–21 kB |
 | GPS | cold fix in 59–69 s at a window |
 | Battery | an 18650 alone carries the board; full at 4.2 V the charger reports `charger=off` with charging enabled (`charge_on=1`), which is the normal end of charge |
+| Soak | 24 h at 60-minute runs with PSM, the board on its own supply: 25 of 25 records arrived (runs 1–25, Nov 4 7:52 PM to Nov 5 7:58 PM EST), no gaps; each run starts about 15 s later than the one before |
 
 ## Carriers
 
