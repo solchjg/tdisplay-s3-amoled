@@ -292,6 +292,36 @@ jobs:
           name: mail-fast
           path: tests/target/mail_fast/out/
 
+  # T-SIM7080G-S3 build (FSD §35, FR-35.5): the same sources for the other board.
+  tsim7080g:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Trust the workspace
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh >/dev/null
+          ARGS="-B build-tsim -DSDKCONFIG=$PWD/build-tsim/sdkconfig \
+                -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.tsim7080g"
+          idf.py $ARGS set-target esp32s3
+          idf.py $ARGS build
+      - name: Check the image fits a 4 MB OTA slot (FSD C-10.7, FR-35.5)
+        run: |
+          SIZE=$(stat -c %s build-tsim/tdisplay_webserver.bin)
+          echo "app image: $SIZE bytes"
+          [ "$SIZE" -le 4194304 ] || { echo "FATAL: image exceeds 4 MB"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tsim7080g
+          path: build-tsim/tdisplay_webserver.bin
+
   verify:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')

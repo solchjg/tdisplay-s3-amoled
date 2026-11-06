@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "ads1115.h"
+#include "board.h"
 #include "driver/gpio.h"
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
@@ -13,11 +14,11 @@
 #define NVS_NS "loop"
 #define KEY "settings"
 
-// §29.1: the loop side as wired on the carrier board.
-#define SUPPLY_GPIO 3          // active high, pulled low on the board; also the isolator's VCC1
+// §29.1 (§35.2 on the T-SIM7080G): the loop side as wired, pins from board.h.
+#define SUPPLY_GPIO BOARD_LOOP_SUPPLY  // active high, pulled low on the board; also the isolator's VCC1
 #define ADC_I2C_PORT 1         // the loop's own bus, opened and closed by the ads1115 driver
-#define ADC_SDA_GPIO 15
-#define ADC_SCL_GPIO 16
+#define ADC_SDA_GPIO BOARD_LOOP_SDA
+#define ADC_SCL_GPIO BOARD_LOOP_SCL
 #define ADC_ADDRESS 0x49
 #define ADC_CLK_HZ 100000
 
