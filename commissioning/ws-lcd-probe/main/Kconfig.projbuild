@@ -30,11 +30,11 @@ config PROBE_PIN_BL
     range -1 48
 
 config PROBE_BLINK
-    bool "Only blink every LCD line as a GPIO (1 s high, 1 s low) for a meter"
+    bool "Only blink every LCD line as a GPIO (3 s high, 3 s low) for a meter"
     default y
     help
         The panel is never started: CS, DC, CLK, DIN, RST and BL all go high
-        and low together once a second, forever, so each can be checked
+        and low together every 3 s, forever, so each can be checked
         with a meter at the LCD's own connector.
 
 endmenu

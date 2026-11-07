@@ -188,7 +188,7 @@ static void display_off_on(void)
 
 #if CONFIG_PROBE_BLINK
 // Every LCD line (CS, DC, CLK, DIN, RST, BL) as a plain GPIO, all of them
-// 1 s high and 1 s low together, forever, the panel never started: a meter at
+// 3 s high and 3 s low together, forever, the panel never started: a meter at
 // the LCD's connector finds a line that does not arrive, at any pace.
 static void blink(void)
 {
@@ -199,17 +199,17 @@ static void blink(void)
     }
     printf("wslcd: blink CS gpio%d DC gpio%d CLK gpio%d DIN gpio%d RST gpio%d BL gpio%d\n",
            PIN_CS, PIN_DC, PIN_SCK, PIN_MOSI, PIN_RST, PIN_BL);
-    printf("wslcd: CHECK each LCD pin swings 3.3 V / 0 V once a second against GND\n");
+    printf("wslcd: CHECK each LCD pin swings 3.3 V / 0 V every 3 s against GND\n");
     for (int t = 0;; t++) {
         for (int i = 0; i < n; i++) {
             if (pins[i] >= 0) {
                 gpio_set_level(pins[i], t & 1 ? 0 : 1);
             }
         }
-        if (t % 10 == 0) {
-            printf("wslcd: blink %d s reset reason %d\n", t, (int)esp_reset_reason());
+        if (t % 4 == 0) {
+            printf("wslcd: blink %d s reset reason %d\n", t * 3, (int)esp_reset_reason());
         }
-        hold(1000);
+        hold(3000);
     }
 }
 #endif
