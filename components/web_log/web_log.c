@@ -26,7 +26,9 @@ static const char *TAG = "web";
 #if CONFIG_APP_BOARD_WS_SIM7670G
 // FR-35.24: what the lines leave for the e-paper's status block, kept through
 // deep sleep so a timer wake's results show at the next window.
-static RTC_DATA_ATTR wl_status_t status;
+// RTC fast memory: the slow segment is full (the readings of §23 fill it), and
+// the force-fast section keeps fast memory powered through deep sleep.
+static RTC_FAST_ATTR wl_status_t status;
 static portMUX_TYPE status_lock = portMUX_INITIALIZER_UNLOCKED;
 #endif
 
