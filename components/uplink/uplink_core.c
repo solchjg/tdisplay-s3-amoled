@@ -1,5 +1,6 @@
 #include "uplink_core.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -96,11 +97,14 @@ void ul_report(const ul_settings_t *s, char *out, size_t cap)
 
 // ── The cellular build's modem (FSD §35) ─────────────────────────────
 
+_Static_assert(offsetof(ul_modem_t, epaper) == UL_MODEM_V1_SIZE, "the stored blob's first part");
+
 void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m)
 {
     ul_defaults(s);
     s->mail_route = true;  // §35.4: `cell_mail` `on` when none is stored
     memset(m, 0, sizeof *m);
+    m->oled = true;        // §35.4: `oled` `on` when none is stored; §36.2: `epaper` `off`
 }
 
 static bool apn_ok(const char *v, int n)
@@ -166,6 +170,12 @@ const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *st
     if (!choice(body, len, "cell_mail", "on", "off", &out->mail_route)) {
         return "cell_mail";
     }
+    if (!choice(body, len, "epaper", "on", "off", &out_m->epaper)) {
+        return "epaper";
+    }
+    if (!choice(body, len, "oled", "on", "off", &out_m->oled)) {
+        return "oled";
+    }
     if (out->cell && out_m->apn[0] == '\0') {
         return "apn";
     }
@@ -177,9 +187,9 @@ const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *st
 
 void ul_report_modem(const ul_settings_t *s, const ul_modem_t *m, char *out, size_t cap)
 {
-    snprintf(out, cap, "uplink=%s&apn=%s&cell_plmn=%s&cell_mail=%s&gps=%s",
+    snprintf(out, cap, "uplink=%s&apn=%s&cell_plmn=%s&cell_mail=%s&gps=%s&epaper=%s&oled=%s",
              s->cell ? "cell" : "wifi", m->apn, m->plmn, s->mail_route ? "on" : "off",
-             s->gps ? "on" : "off");
+             s->gps ? "on" : "off", m->epaper ? "on" : "off", m->oled ? "on" : "off");
 }
 
 bool ul_modem_wanted(const ul_settings_t *s, bool upload, bool alert, bool mail, bool time_step,

@@ -3,6 +3,9 @@
 // ESP-IDF headers, so the host tier compiles it as is. Private to this component.
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "text.h"
 
 typedef struct {
@@ -48,3 +51,10 @@ lcd_rect_t lcd_epaper_status_rect(int row);
 // Clears box r of the frame to white and draws text in black in font f, cut at
 // the box's width; the part of a box past the panel is left out.
 void lcd_epaper_draw(uint8_t *frame, lcd_rect_t r, const text_font_t *f, const char *text);
+
+// FR-35.15: which refresh the e-paper is due, from whether the window's full
+// refresh is still to come, lines were drawn since the last refresh, the
+// controller is busy, and the milliseconds since the last refresh started.
+#define LCD_EPD_PARTIAL_MS 5000
+typedef enum { LCD_EPD_NONE, LCD_EPD_FULL, LCD_EPD_PARTIAL } lcd_epd_refresh_t;
+lcd_epd_refresh_t lcd_epaper_refresh(bool full_due, bool dirty, bool busy, int64_t since_ms);

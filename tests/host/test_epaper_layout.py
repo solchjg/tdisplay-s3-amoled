@@ -10,6 +10,7 @@ import pytest
 
 HARNESS = r"""
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "lcd_layout.h"
 #include "text.h"
@@ -20,6 +21,12 @@ static uint8_t frame[LCD_EPD_BYTES];
 // and '.' (white), 400 characters a row, after "rects" lines of each box.
 int main(int argc, char **argv)
 {
+    if (strcmp(argv[1], "due") == 0) {  // due <full_due> <dirty> <busy> <since_ms>
+        static const char *name[] = {"none", "full", "partial"};
+        printf("%s\n", name[lcd_epaper_refresh(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]),
+                                                 atoll(argv[5]))]);
+        return 0;
+    }
     if (strcmp(argv[1], "rect") == 0) {
         for (int i = 0; i < LCD_TEXT_LINES; i++) {
             lcd_rect_t r = lcd_epaper_line_rect(i);
@@ -57,8 +64,20 @@ CHOICE = r"""
 
 // argv: <epaper 0|1> <oled 0|1> then readings, each a temperature or "none";
 // prints the choice for each window in turn, the previous choice carried over.
+// Or: sleep <reading> <six lines>: the sleep screen, one line each.
 int main(int argc, char **argv)
 {
+    if (strcmp(argv[1], "sleep") == 0) {
+        char shown[DL_LINES][DL_LINE_MAX], out[DL_LINES][DL_LINE_MAX];
+        for (int i = 0; i < DL_LINES; i++) {
+            snprintf(shown[i], DL_LINE_MAX, "%s", argv[3 + i]);
+        }
+        dl_sleep_screen(shown, argv[2], out);
+        for (int i = 0; i < DL_LINES; i++) {
+            printf("%s\n", out[i]);
+        }
+        return 0;
+    }
     static const char *name[] = {"none", "epaper", "oled"};
     dl_show_t prev = DL_SHOW_NONE;
     for (int i = 3; i < argc; i++) {
@@ -139,3 +158,30 @@ def test_display_choice_with_both_fitted(choose):
 def test_display_choice_with_one_or_neither_fitted(choose):
     assert choose(1, 0, "30.00", "none") == ["epaper", "epaper"]
     assert choose(0, 0, "70.00", "none") == ["none", "none"]
+
+
+@pytest.fixture(scope="module")
+def sleep_screen(compile_harness):
+    run = compile_harness("display_choice", CHOICE, ["device_logic/device_logic.c"],
+                          ["device_logic/include"])
+    return lambda *a: run(*a).split("\n")[:6]
+
+
+# TC-TSIM-19 · FR-35.15
+@pytest.mark.parametrize("full_due,dirty,busy,since,want", [
+    (1, 0, 0, 0, "full"),         # the window's first refresh, whatever was drawn
+    (1, 1, 1, 9000, "none"),      # never while the controller is busy
+    (0, 1, 0, 4999, "none"),      # a partial refresh at most every 5 s
+    (0, 1, 0, 5000, "partial"),
+    (0, 0, 0, 60000, "none"),     # nothing drawn since the last refresh
+    (0, 1, 1, 60000, "none"),
+])
+def test_refresh_due(run, full_due, dirty, busy, since, want):
+    assert run("due", full_due, dirty, busy, since).strip() == want
+
+
+def test_sleep_screen_keeps_the_lines_with_the_reading_and_the_sleep_line(sleep_screen):
+    lines = ["Online", "192.168.1.23", "Req: 3", "Hold: 01:12", "BLE passkey 123456", "Loop 12.34 mA"]
+    assert sleep_screen("sleep", "72.5F Hum 40% 1013.25 mbar", *lines) == [
+        "Online", "192.168.1.23", "Req: 3", "72.5F Hum 40% 1013.25 mbar", "Asleep, key to wake",
+        "Loop 12.34 mA"]

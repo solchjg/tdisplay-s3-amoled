@@ -62,3 +62,14 @@ void lcd_epaper_draw(uint8_t *frame, lcd_rect_t r, const text_font_t *f, const c
         }
     }
 }
+
+lcd_epd_refresh_t lcd_epaper_refresh(bool full_due, bool dirty, bool busy, int64_t since_ms)
+{
+    if (busy) {
+        return LCD_EPD_NONE;
+    }
+    if (full_due) {
+        return LCD_EPD_FULL;
+    }
+    return dirty && since_ms >= LCD_EPD_PARTIAL_MS ? LCD_EPD_PARTIAL : LCD_EPD_NONE;
+}

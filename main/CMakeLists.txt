@@ -6,5 +6,5 @@ idf_component_register(SRCS "app_main.c"
 # FSD §35: the modem link is in the cellular build only (see the project's
 # CMakeLists), so it is linked here once the board choice is known.
 if(CONFIG_APP_BOARD_WS_SIM7670G)
-    target_link_libraries(${COMPONENT_LIB} PRIVATE idf::modem_link idf::settings_card)
+    target_link_libraries(${COMPONENT_LIB} PRIVATE idf::modem_link idf::settings_card idf::max17048)
 endif()

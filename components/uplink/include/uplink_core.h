@@ -61,21 +61,29 @@ void ul_report(const ul_settings_t *s, char *out, size_t cap);
 typedef struct {
     char apn[UL_APN_MAX + 1];    // empty: none stored
     char plmn[UL_PLMN_MAX + 1];  // empty: automatic choice
+    bool epaper;                 // §36.2 `epaper`: an e-paper is fitted
+    bool oled;                   // §35.4 `oled`: the SSD1322 OLED is fitted
 } ul_modem_t;
 
-// A new cellular board: wifi, cell_mail on, gps off, no APN, automatic choice.
+// The stored size of a ul_modem_t from before `epaper` and `oled`: such a
+// blob keeps its APN and network, and the two take their defaults.
+#define UL_MODEM_V1_SIZE (UL_APN_MAX + 1 + UL_PLMN_MAX + 1)
+
+// A new cellular board: wifi, cell_mail on, gps off, no APN, automatic choice,
+// `epaper` off, `oled` on.
 void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m);
 
 // §35.4, FR-35.4: the fields of a body over the stored settings; an absent or
 // empty field keeps its stored value. NULL when valid, else the first invalid
 // field: `nh_product` or `cell_every` when given (not offered on this build),
-// then uplink, apn, cell_plmn, gps, cell_mail; "apn" for cell without an APN,
+// then uplink, apn, cell_plmn, gps, cell_mail, epaper, oled; "apn" for cell without an APN,
 // given or stored; "gps" for gps on with wifi.
 const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *stored,
                            const ul_modem_t *stored_m, ul_settings_t *out, ul_modem_t *out_m);
 
 // The BLE `settings` read of the modem's fields:
-// "uplink=<wifi|cell>&apn=<apn>&cell_plmn=<plmn>&cell_mail=<on|off>&gps=<on|off>".
+// "uplink=<wifi|cell>&apn=<apn>&cell_plmn=<plmn>&cell_mail=<on|off>&gps=<on|off>
+// &epaper=<on|off>&oled=<on|off>".
 void ul_report_modem(const ul_settings_t *s, const ul_modem_t *m, char *out, size_t cap);
 
 // FR-35.7: the modem is woken or powered only with cell, for a due upload,

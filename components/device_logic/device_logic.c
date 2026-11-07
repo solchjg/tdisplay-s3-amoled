@@ -420,3 +420,11 @@ dl_show_t dl_display_choose(dl_show_t prev, bool epaper, bool oled, bool have_te
     bool warm = prev == DL_SHOW_OLED ? temp_f >= 42.0f : temp_f > 40.0f;
     return warm ? DL_SHOW_EPAPER : DL_SHOW_OLED;
 }
+
+void dl_sleep_screen(const char shown[DL_LINES][DL_LINE_MAX], const char *reading,
+                     char out[DL_LINES][DL_LINE_MAX])
+{
+    memcpy(out, shown, sizeof(char[DL_LINES][DL_LINE_MAX]));
+    snprintf(out[3], DL_LINE_MAX, "%s", reading);
+    snprintf(out[4], DL_LINE_MAX, "%s", DL_SLEEP_LINE);
+}

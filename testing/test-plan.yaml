@@ -3885,6 +3885,42 @@ tests:
     observable: "with both fitted: 45.00, 40.01, 40.00, 39.99 °F give e-paper, e-paper, OLED, OLED; no reading the OLED; on the OLED 41.99 stays, 42.00 the e-paper; epaper off at 70 °F the OLED; oled off at 30 °F and with no reading the e-paper; both off neither"
     impl: [tests/host/test_epaper_layout.py::test_display_choice_with_both_fitted, tests/host/test_epaper_layout.py::test_display_choice_with_one_or_neither_fitted]
     result: {status: not done}
+  - id: TC-TSIM-18
+    title: "Status block: firmware, wake, attach, sends, card, battery and the latest four W/E lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.24]
+    needs: []
+    observable: "with nothing logged: fw and rst, wake and time, modem off, send none, card none, batt none; after L49 ok, L46, L26/L39/L40/L25 and four more W/E lines: attach 4200 ms csq 14 310410, send alert timeout mail ok, card ok, batt 3.95 V 81 %, the four newest W/E lines newest first, each cut at 44; an L47 replaces the attach row and L42 adds tb; L48 as display <panel> t=<°F 2 decimals|none>"
+    impl: [tests/host/test_epaper_status.py::test_rows_after_a_power_on_with_nothing_sent, tests/host/test_epaper_status.py::test_rows_after_an_attach_sends_and_warnings, tests/host/test_epaper_status.py::test_a_failed_attach_replaces_the_last_one, tests/host/test_epaper_status.py::test_display_line]
+    result: {status: not done}
+  - id: TC-TSIM-19
+    title: "E-paper refreshes: a full one first, partial ones at most every 5 s, the sleep screen"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.15]
+    needs: []
+    observable: "a full refresh when the window's first is due; none while busy; a partial one only with lines drawn and 5000 ms or more since the last; the sleep screen keeps the window's lines with the kept reading on line 4 and Asleep, key to wake on line 5"
+    impl: [tests/host/test_epaper_layout.py::test_refresh_due, tests/host/test_epaper_layout.py::test_sleep_screen_keeps_the_lines_with_the_reading_and_the_sleep_line]
+    result: {status: not done}
+  - id: TC-TSIM-20
+    title: "Display settings: epaper off and oled on by default, kept when absent or empty, on or off only"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.2, FR-35.4]
+    needs: []
+    observable: "a new board reports epaper=off&oled=on; epaper=on and oled=off are stored, kept by a body without them or with them empty; any other value is refused naming epaper or oled; the settings read and the form rules end with epaper (section Displays) and oled"
+    impl: [tests/host/test_uplink.py::test_modem_settings_displays, tests/host/test_ble_setup.py::test_modem_dump_and_form]
+    result: {status: not done}
   - id: TC-TSIM-10
     title: "OLED stand-in: six rows of 6 x 10 cells, lines cut at 21"
     shape: atomic
