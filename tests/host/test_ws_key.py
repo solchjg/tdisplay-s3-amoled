@@ -82,3 +82,15 @@ def test_console_on_uart0():
     assert console(*WS) == "UART_DEFAULT"
     assert console(*WS, "sdkconfig.standin") == "UART_DEFAULT"
     assert console("sdkconfig.defaults") == "USB_SERIAL_JTAG"   # the T-Display keeps its own
+
+
+# TC-TSIM-15 · FR-35.7, FR-35.23: gpio_reset_pin turns the pad's pull-up on
+# with the output off, which outweighs the board's 100 kOhm pull-down on
+# GPIO 21 and switches the modem's supply on until the pin is driven again;
+# the supply is set low before it is made an output, and never reset
+def test_modem_supply_never_passes_through_the_pull_up():
+    src = (ROOT / "components/modem_link/modem_link.c").read_text()
+    off = src.split("void modem_link_off(void)", 1)[1].split("\n}\n", 1)[0]
+    assert "gpio_reset_pin" not in src
+    assert off.index("gpio_set_level(BOARD_MODEM_SUPPLY, 0)") < off.index("gpio_config(")
+    assert "GPIO_PULLUP_DISABLE" in off
