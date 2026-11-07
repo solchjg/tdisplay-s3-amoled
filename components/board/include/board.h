@@ -41,6 +41,11 @@
 #define BOARD_OLED_CS 9
 #define BOARD_OLED_DC 10
 #define BOARD_OLED_RST (-1)
+// The optional 4.2" e-paper (§36, FR-35.15): Waveshare's e-Paper Module (V2,
+// SSD1683) on the same SPI2 lines, with its own CS, BUSY and RST.
+#define BOARD_EPD_CS 3
+#define BOARD_EPD_BUSY 1
+#define BOARD_EPD_RST 20
 
 #else  // CONFIG_APP_BOARD_TDISPLAY_S3_AMOLED
 

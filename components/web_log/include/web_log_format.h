@@ -21,6 +21,9 @@ void wl_fmt_lcd_init_failed(char *buf, size_t len, const char *err);
 // L9: "lcd write failed: <ERR>"
 void wl_fmt_lcd_write_failed(char *buf, size_t len, const char *err);
 
+// L48: "display <epaper|oled> t=<°F, 2 decimals>" or "... t=none" (FR-35.2)
+void wl_fmt_display(char *buf, size_t len, const char *panel, bool have, float temp_f);
+
 // K12: "alive <N>"
 void wl_fmt_alive(char *buf, size_t len, uint32_t n);
 

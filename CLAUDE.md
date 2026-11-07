@@ -77,9 +77,14 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   Until the SSD1322 arrives, the bench build `sdkconfig.standin` (FR-35.22, never released)
   draws them on the 1.3" OLED on the sensor bus at 0x3C instead (`lcd_standin.c`, joining the
   bus's I2C controller; `lcd_standin_core.c` pure).
-  The cellular build's optional 4.2" e-paper (FR-35.15, FR-35.24) has its pure layout in
-  `lcd_epaper_layout.c` (lines 1 – 5 in 12 × 24, line 6 and the status block in 8 × 16);
-  which display a window uses is `device_logic`'s `dl_display_choose` (FR-35.2).
+  The cellular build's optional 4.2" e-paper (FR-35.15, FR-35.24) is `lcd_epaper.c` over the
+  shared `ssd1683` on the OLED's SPI2 lines (its own CS, BUSY, RST): its pure layout and
+  refresh rule in `lcd_epaper_layout.c` (lines 1 – 5 in 12 × 24, line 6 and the status block
+  in 8 × 16; a full refresh first, partial ones at most every 5 s, sent by `lcd_flush` each
+  tick), and the sleep screen (`lcd_final`) before the controller's deep sleep. `lcd_cell.c`
+  draws a window on the panel `lcd_use` names; which one is `device_logic`'s
+  `dl_display_choose` (FR-35.2), from the `epaper` and `oled` settings kept with the modem's
+  in `uplink`.
 - `shared/components/rm67162/` (L0) — board-agnostic RM67162 QSPI driver via `esp_lcd`'s
   SPI panel IO, configured by `rm67162_config_t`; `shared/components/tdisplay_s3_amoled/`
   (L0) holds the board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.
@@ -90,6 +95,8 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   in NVS and the keys that end the hold (user key GPIO 21, BOOT GPIO 0); `setup_check_core.c` is the pure debouncer.
   When to hold is `device_logic`'s `dl_hold_step`.
 - `components/web_log/` (L1) — the `web:` serial log lines (FSD §7); `web_log_format.c` is the pure core.
+  On the cellular build every line is also noted for the e-paper's status block (FR-35.24,
+  `web_log_status.c` pure), kept in RTC memory.
 - `components/weather/` (L1) — the BME280 task's readings and period averages (FSD §23): kept in RTC
   memory, shown on line 4, logged (L21/L22), served at `/api/readings`;
   `weather_core.c` is the pure core. The sensor driver is `shared/components/bme280/`.
@@ -144,7 +151,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring`, `sim7670`, `sim7080`, `max17048`, `axp2101`, `ssd1322` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring`, `sim7670`, `sim7080`, `max17048`, `axp2101`, `ssd1322`, `ssd1683` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through

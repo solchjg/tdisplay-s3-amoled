@@ -6,9 +6,8 @@
 #include <string.h>
 
 #include "board.h"
-#include "driver/gpio.h"
 #include "driver/i2c_master.h"
-#include "lcd.h"
+#include "lcd_panels.h"
 #include "lcd_standin_core.h"
 #include "sdkconfig.h"
 #include "text.h"
@@ -67,14 +66,6 @@ static esp_err_t send_pages(unsigned mask)
     return ESP_OK;
 }
 
-static esp_err_t led_pin(void)
-{
-    gpio_config_t c = {.pin_bit_mask = 1ULL << BOARD_LED, .mode = GPIO_MODE_OUTPUT};
-    gpio_hold_dis(BOARD_LED);  // lcd_sleep held it low through a deep sleep
-    esp_err_t err = gpio_config(&c);
-    return err == ESP_OK ? gpio_set_level(BOARD_LED, 0) : err;
-}
-
 // The sensor bus, joined or opened, and the panel found at 0x3C or 0x3D.
 static esp_err_t panel(void)
 {
@@ -104,12 +95,9 @@ static esp_err_t panel(void)
     return i2c_master_bus_add_device(bus, &dc, &dev);
 }
 
-esp_err_t lcd_start(void)
+esp_err_t oled_start(void)
 {
-    esp_err_t err = led_pin();
-    if (err == ESP_OK && dev == NULL) {
-        err = panel();
-    }
+    esp_err_t err = dev == NULL ? panel() : ESP_OK;
     if (err == ESP_OK) {
         size_t n;
         const uint8_t *init = lcd_standin_init(SH1106, &n);
@@ -123,7 +111,7 @@ esp_err_t lcd_start(void)
     return err;
 }
 
-esp_err_t lcd_draw_line(int line, const char *text)
+esp_err_t oled_draw_line(int line, const char *text)
 {
     if (!started) {
         return ESP_ERR_INVALID_STATE;
@@ -134,28 +122,17 @@ esp_err_t lcd_draw_line(int line, const char *text)
     return pages != 0 ? send_pages(pages) : ESP_ERR_INVALID_SIZE;
 }
 
-void lcd_backlight(bool on)
+void oled_display(bool on)
 {
     if (started) {
         const uint8_t c = on ? 0xAF : 0xAE;
         (void)cmds(&c, 1);
     }
-    (void)lcd_led(on);
-}
-
-esp_err_t lcd_led(bool on)
-{
-    return gpio_set_level(BOARD_LED, on);
 }
 
 // As FR-35.16 for the OLED: display off at the end of every window.
-esp_err_t lcd_sleep(void)
+esp_err_t oled_sleep(void)
 {
     const uint8_t off = 0xAE;
-    esp_err_t err = started ? cmds(&off, 1) : ESP_OK;
-    esp_err_t led = led_pin();
-    if (led == ESP_OK) {
-        led = gpio_hold_en(BOARD_LED);
-    }
-    return err != ESP_OK ? err : led;
+    return started ? cmds(&off, 1) : ESP_OK;
 }

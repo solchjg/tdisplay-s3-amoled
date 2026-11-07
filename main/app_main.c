@@ -50,6 +50,7 @@
 #include "loop.h"
 #include "mdns_name.h"
 #if !BOARD_HAS_NOTECARD
+#include "max17048.h"
 #include "modem_link.h"
 #endif
 #include "notify.h"
@@ -197,6 +198,10 @@ static volatile int32_t ble_passkey = -1;  // shown on line 5 while pairing (FR-
 static dl_disp_t disp = DL_LCD_START;
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
+#if !BOARD_HAS_NOTECARD
+static RTC_DATA_ATTR dl_show_t show_on;  // FR-35.2: the display chosen, kept for the next window
+static uint32_t show_from_s;             // the uptime its window started at (FR-35.24)
+#endif
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
 
 // ── Events and callbacks ─────────────────────────────────────────────────
@@ -1574,8 +1579,73 @@ static void on_time_synced(void)
     post(&e);
 }
 
+#if !BOARD_HAS_NOTECARD
+// FR-35.2: the display of this window, from the latest kept reading; L48 with
+// the e-paper fitted (FR-36.1: nothing logged for it otherwise).
+static void display_choose(void)
+{
+    const ul_modem_t *m = uplink_modem();
+    const wx_reading_t *r = weather_newest();
+    float t_f = r ? (float)r->temp_centi_c / 100.0f * 9.0f / 5.0f + 32.0f : 0.0f;
+    show_on = dl_display_choose(show_on, m->epaper, m->oled, r != NULL, t_f);
+    show_from_s = uptime_s();
+    if (m->epaper) {
+        web_log_display(show_on == DL_SHOW_EPAPER ? "epaper" : "oled", r != NULL, t_f);  // L48
+    }
+    lcd_use(show_on == DL_SHOW_EPAPER ? LCD_PANEL_EPAPER
+            : show_on == DL_SHOW_OLED ? LCD_PANEL_OLED
+                                      : LCD_PANEL_NONE);
+}
+
+// FR-35.24: the window's wake and its local time, and the gauge's reading.
+static void sleep_screen(void)
+{
+    static const char *const WAKE[] = {[DL_WAKE_NONE] = "power-on", [DL_WAKE_TIMER] = "timer",
+                                       [DL_WAKE_KEY] = "key"};
+    char when[24] = "clock unset";
+    time_t t = time(NULL) - (time_t)(uptime_s() - show_from_s);
+    struct tm tm;
+    if (time_sync_synced() && localtime_r(&t, &tm)) {
+        strftime(when, sizeof when, "%Y-%m-%d %H:%M", &tm);
+    }
+    int mv = -1, pct = 0;
+    const max17048_config_t gauge = {.i2c_port = 0, .sda_gpio = BOARD_SENSOR_SDA,
+                                     .scl_gpio = BOARD_SENSOR_SCL, .clk_hz = 100000,
+                                     .internal_pullup = true};
+    max17048_reading_t b;
+    if (max17048_start(&gauge) == ESP_OK) {
+        if (max17048_read(&b) == ESP_OK) {
+            mv = b.mv;
+            pct = b.pct;
+        }
+        (void)max17048_stop();
+    }
+    static char rows[WL_STATUS_ROWS][WL_STATUS_COLS + 1];
+    int n = web_log_status_rows(wake <= DL_WAKE_KEY ? WAKE[wake] : "?", when, mv, pct, rows);
+    static char lines[DL_LINES][DL_LINE_MAX];
+    dl_sleep_screen(shown, reading_line, lines);
+    const char *lp[DL_LINES], *rp[WL_STATUS_ROWS];
+    for (int i = 0; i < DL_LINES; i++) {
+        lp[i] = lines[i];
+    }
+    for (int i = 0; i < n; i++) {
+        rp[i] = rows[i];
+    }
+    esp_err_t err = lcd_final(lp, rp, n);
+    if (err != ESP_OK) {
+        web_log_warn("epaper sleep screen", err);
+    }
+}
+#endif
+
 static esp_err_t lcd_sleep_cb(void *arg)
 {
+#if !BOARD_HAS_NOTECARD
+    if (show_on == DL_SHOW_EPAPER && wake != DL_WAKE_TIMER) {
+        sleep_screen();  // FR-35.15: a timer wake never draws on the e-paper
+        esp_task_wdt_reset();  // the full refresh ran; lcd_sleep waits for it to end
+    }
+#endif
     return lcd_sleep();  // FR-21.6
 }
 
@@ -1638,6 +1708,12 @@ static dl_disp_t disp_tick(dl_disp_t disp)
     }
     dl_disp_step_t step = dl_disp_step(disp, DL_EV_TICK, changed, err == ESP_OK);
     execute_disp(step.actions, err);
+#if !BOARD_HAS_NOTECARD
+    esp_err_t ferr = lcd_flush();  // FR-35.15: the e-paper's refresh, when one is due
+    if (ferr != ESP_OK) {
+        web_log_warn("epaper refresh", ferr);
+    }
+#endif
     return step.next;
 }
 
@@ -2066,6 +2142,9 @@ void app_main(void)
     // D1/D2: start, clear, and the first draw of the BOOT screen.
     char want[DL_LINES][DL_LINE_MAX];
     dl_screen(&view, want);
+#if !BOARD_HAS_NOTECARD
+    display_choose();  // FR-35.2: before the panel starts
+#endif
     esp_err_t err = lcd_start();
     if (err == ESP_OK) {
         err = draw_changed(want);

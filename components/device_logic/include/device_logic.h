@@ -253,3 +253,9 @@ typedef enum { DL_SHOW_NONE, DL_SHOW_EPAPER, DL_SHOW_OLED } dl_show_t;
 // every window; with both off, none.
 dl_show_t dl_display_choose(dl_show_t prev, bool epaper, bool oled, bool have_temp,
                             float temp_f);
+
+// FR-35.15: the e-paper's sleep screen, the window's last lines with the kept
+// reading on line 4 and "Asleep, key to wake" on line 5.
+#define DL_SLEEP_LINE "Asleep, key to wake"
+void dl_sleep_screen(const char shown[DL_LINES][DL_LINE_MAX], const char *reading,
+                     char out[DL_LINES][DL_LINE_MAX]);
