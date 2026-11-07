@@ -3564,10 +3564,10 @@ The board facts below are read from Waveshare's V2 schematic
 | Modem | SIM7670G on UART 1, 115200 baud, through the board's TXB0104 level shifter: the ESP32-S3 receives on GPIO 17 (the modem's TXD) and sends on GPIO 18 (its RXD); the modem's DTR on GPIO 45 and RI on GPIO 40 through the same shifter; RTS, CTS, DCD, RESET and STATUS not wired. The shifter's modem side runs from the modem's own 1.8 V (VDD_EXT), so GPIO 17/18 float until the modem has started. PWRKEY is held low by the board, so the modem starts by itself whenever its supply comes on. Its supply is the battery switched by the board's FDC6333C: with the 4G switch off, GPIO 21 high switches it on and low off, held low through deep sleep. A nano SIM whose plan covers LTE Cat-1, fitted before power-up | [derived from the board]; UART, GPIO 21 [user] |
 | Power | One 18650 cell in the board's holder, required: the modem runs only from the cell (its transmit peaks of about 2 A), never from USB alone. Charged from USB-C or the solar input (CN3791); 3.3 V from the EA3036C. The cell's voltage and charge are read from the MAX17048 (0x36); the board's GPIO 1 divider (VBAT / 3) is not used | [derived from the board]; reading [user] |
 | Sensor bus | The BME280 (0x76), the water probe's ADS1115 (0x48) and the board's MAX17048 (0x36) on I2C controller 0, SDA GPIO 15, SCL GPIO 16, 100 kHz, from the header. With the CAM switch off the board has no pull-ups on it (its 4.7 kΩ run from the camera's rail), so a Qwiic board's pull-ups serve the bus | [user]; pull-ups [derived from the board] |
-| Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 39, SCL GPIO 41, its supply and the isolator's board side switched by GPIO 42, as §29 with the pins moved | [proposed] |
-| RS232 | MAX3232 powered from GPIO 11, TX GPIO 46 (a strapping pin, driven only as an output, with the transceiver unpowered at reset), RX GPIO 2, on UART 2 because the modem holds UART 1 | [proposed] |
+| Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 39, SCL GPIO 41, its supply and the isolator's board side switched by GPIO 42, as §29 with the pins moved | [user] |
+| RS232 | MAX3232 powered from GPIO 11, TX GPIO 46 (a strapping pin, driven only as an output, with the transceiver unpowered at reset), RX GPIO 2, on UART 2 because the modem holds UART 1 | [user] |
 | Water probe | Switch line GPIO 14 | [user] |
-| E-paper (optional, §36) | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), sharing the OLED's SPI lines; GPIO 3 and GPIO 1 are left for its CS and BUSY, and its wiring is confirmed when Phase 18 starts | [user]; pins [proposed] |
+| E-paper (optional, §36) | A 4.2" 400 × 300 black-and-white SPI module with an SSD1683 controller (the CrowPanel's panel, `docs/Method/project/crowpanel-epaper.md`), sharing the OLED's SPI lines; GPIO 3 and GPIO 1 are left for its CS and BUSY, and its wiring is confirmed when Phase 18 starts | [user] |
 | OLED | A 3.12" 256 × 64 SSD1322 module (16 grey levels, e.g. Newhaven NHD-3.12-25664), 4-wire SPI on SPI2: SCK GPIO 7, MOSI GPIO 8, CS GPIO 9, DC GPIO 10; its reset from an RC on the module | [user] |
 | Qwiic | The board has no Qwiic socket. The sensor bus (header P3: GPIO 15/16, 3.3 V, GND) goes by a made-up lead to a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort), into which the BME280, on a Qwiic breakout, plugs; the lead is checked with a meter before first power-up (black on GND, red on 3.3 V, blue on GPIO 15, yellow on GPIO 16). One board's pull-ups stay in and the others' are cut, so the bus's pull-ups stay at or above about 2.2 kΩ. The loop (5 pins: GND, VSYS, GPIO 42, 39, 41), the water probe (6 pins: GND, VSYS, 3V3, GPIO 15, 16, 14) and RS232 (4 pins: GND, GPIO 11, 46, 2) keep JST-XH sockets as in §2.2; the OLED and the off-board key are not I2C and have their own connectors | [user]; pins [proposed] |
 | Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 12 (an RTC GPIO), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 13 through a resistor | [user] |
@@ -4247,7 +4247,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.49.0
+fsd_version: 0.49.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4255,7 +4255,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -4330,6 +4330,7 @@ change_history:
   - "0.47.0 2026-11-06 the user's switch of the cellular build to the Waveshare ESP32-S3-SIM7670G-4G (LTE Cat-1, SLOT2), with every recommendation of the change review approved: §35 renamed Cellular Build; §35.2 the new board, pin map, modem on UART 1, the MAX17048 on the sensor bus, the e-paper's wiring deferred to Phase 18; FR-35.1 (PSM) superseded by FR-35.23 (the modem powered down after each send); FR-35.10 `battery_pct` in place of the PSM grant; FR-35.14 the SIM7670G's GNSS; FR-35.20 card detect; FR-35.22 the 1.3\" OLED on the sensor bus; NFR-35.1 60 s, and 75 s after a failed attach (proposed); NFR-35.3 sleep current measured at commissioning (proposed); L46 without the grant; R-36 – R-38; Phase 17 on SLOT2"
   - "0.48.0 2026-11-06 the user's choice to cut the modem's supply between sends: §35.2 the board's 4G switch off and GPIO 33 switching the modem's supply (Waveshare's FAQ), held low through deep sleep; FR-35.23 `AT+CPOF` then the supply cut; FR-35.7 the supply switched on only for a send, the time step or a GPS search; R-37, NFR-35.3 and their contracts follow"
   - "0.49.0 2026-11-07 the board's V2 schematic read on SLOT2 after the first probe runs: §35.2 rewritten from it: the modem's supply on GPIO 21 (not GPIO 33, which the ESP32-S3R8's octal PSRAM takes), PWRKEY held low by the board so the modem starts with its supply, UART RX GPIO 17 / TX GPIO 18, DTR GPIO 45 and RI GPIO 40, the cell required for the modem, no card-detect line, no pull-ups on the sensor bus with the CAM switch off, the USB switch on; the loop moves to GPIO 39/41/42 and RS232 to GPIO 11/46/2 (proposed), GPIO 1 and 3 kept for the e-paper (proposed); FR-35.20 an empty slot by a mount timeout; FR-35.23 GPIO 21; R-36, R-37"
+  - "0.49.1 2026-11-07 the user accepted the proposed §35.2 pins: the loop on GPIO 39/41/42, RS232 on GPIO 11/46/2, GPIO 1 and 3 kept for the e-paper's CS and BUSY"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2]
 open_decisions:
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
