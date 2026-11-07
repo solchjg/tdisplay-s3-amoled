@@ -241,3 +241,15 @@ bool dl_ble_holds_task(const dl_ble_ctx_t *ctx);
 // `passkey` < 0: no passkey awaited.
 void dl_ble_line(const dl_ble_ctx_t *ctx, uint32_t now_s, int32_t passkey,
                  char out[DL_LINE_MAX]);
+
+// FR-35.2: which display a window shows its lines on (the cellular build).
+typedef enum { DL_SHOW_NONE, DL_SHOW_EPAPER, DL_SHOW_OLED } dl_show_t;
+
+// Chosen when a window starts, from the latest kept reading. `prev`: the last
+// window's choice (DL_SHOW_NONE before the first); `epaper`, `oled`: the
+// `epaper` and `oled` settings; `have_temp`: a reading exists. Above 40 °F the
+// e-paper, at or below it (or with no reading) the OLED; once on the OLED, the
+// e-paper again only at 42 °F or above. With one display off, the other in
+// every window; with both off, none.
+dl_show_t dl_display_choose(dl_show_t prev, bool epaper, bool oled, bool have_temp,
+                            float temp_f);
