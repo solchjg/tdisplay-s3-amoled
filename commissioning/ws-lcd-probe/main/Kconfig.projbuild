@@ -1,0 +1,15 @@
+menu "Waveshare 1.9in LCD probe"
+
+config PROBE_SPI_MHZ
+    int "SPI clock in MHz"
+    default 20
+    range 1 62
+    help
+        The ST7789 takes up to 62.5 MHz on short traces; jumper wires on a
+        shared bus may need less. Raise it once the pattern is clean.
+
+config PROBE_LANDSCAPE
+    bool "Landscape (320 x 170) instead of portrait (170 x 320)"
+    default y
+
+endmenu
