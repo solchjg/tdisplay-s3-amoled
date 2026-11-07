@@ -8,3 +8,6 @@ CONFIG_SETUP_CHECK_KEY_GPIO=12
 CONFIG_DEEP_SLEEP_WAKE_GPIO=12
 # FR-35.19: /settings.done and /settings.result need long file names on FAT.
 CONFIG_FATFS_LFN_HEAP=y
+# §35.2: the console is UART0 (GPIO 43/44) through the board's CH343; the
+# ESP32-S3's native USB (GPIO 19/20) does not reach the USB-C port.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
