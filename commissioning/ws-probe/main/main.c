@@ -4,19 +4,19 @@
 //   1. prints the chip, its flash size and MAC (the bench records the MAC);
 //   2. scans the sensor bus (I2C 0, GPIO 15/16, §35.2) and reads the
 //      MAX17048 (0x36): cell voltage, charge, version;
-//   3. microSD (FR-35.4, FR-35.20): the card detect level (GPIO 46) and a
-//      1-bit SDMMC mount (CMD 4, CLK 5, D0 6); with a card, lists the root;
-//   4. modem (R-36, R-37): whether it answers before GPIO 33 is driven (the
-//      4G DIP switch on), then GPIO 33 high and AT on UART 1 over GPIO 17/18,
-//      both directions tried; ATI, firmware, SIM, signal, registration time,
+//   3. microSD (FR-35.4, FR-35.20): a 1-bit SDMMC mount (CMD 4, CLK 5, D0 6;
+//      the slot has no card-detect line); with a card, lists the root;
+//   4. modem (R-36, R-37): whether it answers before GPIO 21 is driven (the
+//      4G switch on), then GPIO 21 high (its supply) and AT on UART 1 (RX
+//      GPIO 17, TX GPIO 18); ATI, firmware, SIM, signal, registration time,
 //      network, network time; with CONFIG_PROBE_GNSS_S, a GNSS search and
-//      whether LTE stays registered during it; then AT+CPOF, and GPIO 33 low;
+//      whether LTE stays registered during it; then AT+CPOF, and GPIO 21 low;
 //   5. off-board key (FR-35.3): GPIO 12 read with no internal pull for 10 s,
 //      the LED on GPIO 13 following it;
 //   6. pin walk (R-36): toggles each header pin §35.2 uses at 1 Hz for
 //      CONFIG_PROBE_WALK_S s, one at a time, so a meter or LED finds it;
 //   7. sleep current (NFR-35.3): deep sleep CONFIG_PROBE_SLEEP_S with the
-//      modem's supply cut (GPIO 33 low), then the same with the supply on and
+//      modem's supply cut (GPIO 21 low), then the same with the supply on and
 //      the modem powered down by AT+CPOF; measure the battery current in each.
 // Lines start with "wsprobe:"; CHECK marks a result to look at.
 
@@ -45,20 +45,18 @@
 #define PIN_SD_CMD 4
 #define PIN_SD_CLK 5
 #define PIN_SD_D0 6
-#define PIN_SD_CD 46
-#define PIN_MODEM_PWR 33  // Waveshare FAQ: with the 4G switch off, high powers the modem
-#define PIN_MODEM_A 17
-#define PIN_MODEM_B 18
+#define PIN_MODEM_PWR 21  // V2 schematic: with the 4G switch off, high switches the modem's supply
+#define PIN_MODEM_RX 17   // the modem's TXD, through the TXB0104
+#define PIN_MODEM_TX 18   // the modem's RXD
 #define MODEM_UART UART_NUM_1
 #define PIN_KEY 12
 #define PIN_LED 13
 #define MOUNT "/card"
 
 // §35.2's Pins row: the header GPIOs the build uses (15/16 are the bus).
-static const int WALK[] = {7, 8, 9, 10, 11, 12, 13, 14, 39, 40, 41, 42, 45};
+static const int WALK[] = {7, 8, 9, 10, 11, 12, 13, 14, 2, 39, 41, 42, 46};
 
 static RTC_DATA_ATTR int stage;    // 0 power-on, 1 after the sleep with the supply cut, 2 after both
-static RTC_DATA_ATTR int modem_tx; // the ESP's TX pin to the modem once found, 0 unknown
 
 static char rx[1024];
 
@@ -144,12 +142,6 @@ static void bus(void)
 
 static void sd(void)
 {
-    gpio_config_t cd = {.pin_bit_mask = 1ULL << PIN_SD_CD, .mode = GPIO_MODE_INPUT,
-                        .pull_up_en = GPIO_PULLUP_ENABLE};
-    gpio_config(&cd);
-    wait_ms(10);
-    printf("wsprobe: sd detect gpio46=%d (note it with and without a card) CHECK\n",
-           gpio_get_level(PIN_SD_CD));
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
     slot.width = 1;
@@ -226,26 +218,16 @@ static bool at(const char *cmd, int timeout_ms, const char *until)
     return ok;
 }
 
-// Tries both pin directions for up to wait_s seconds; true when one answers.
+// Asks AT for up to wait_s seconds; true when the modem answers.
 static bool find_modem(int wait_s)
 {
+    uart_on(PIN_MODEM_TX, PIN_MODEM_RX);
     int64_t end = now_ms() + wait_s * 1000LL;
-    const int dirs[2][2] = {{PIN_MODEM_B, PIN_MODEM_A}, {PIN_MODEM_A, PIN_MODEM_B}};
     while (now_ms() < end) {
-        for (int i = 0; i < 2; i++) {
-            if (modem_tx && dirs[i][0] != modem_tx) {
-                continue;
-            }
-            uart_on(dirs[i][0], dirs[i][1]);
-            for (int k = 0; k < 3; k++) {
-                if (at("AT", 300, NULL)) {
-                    modem_tx = dirs[i][0];
-                    printf("wsprobe: modem answers tx=gpio%d rx=gpio%d\n", dirs[i][0], dirs[i][1]);
-                    return true;
-                }
-            }
+        if (at("AT", 300, NULL)) {
+            return true;
         }
-        wait_ms(500);
+        wait_ms(700);
     }
     return false;
 }
@@ -257,7 +239,7 @@ static void modem_pwr(bool on)
     gpio_config(&c);
     gpio_set_level(PIN_MODEM_PWR, on);
     gpio_hold_en(PIN_MODEM_PWR);
-    printf("wsprobe: modem supply gpio33=%d\n", on);
+    printf("wsprobe: modem supply gpio21=%d\n", on);
 }
 
 static bool registered(void)
@@ -292,14 +274,15 @@ static void gnss(void)
 
 static void modem(void)
 {
-    // GPIO 33 left as input: an answer now means the 4G switch powers it.
+    // GPIO 21 left low (its 100 kOhm pull-down): an answer now means the 4G
+    // switch powers the modem. It starts within about 15 s of power-up.
     gpio_reset_pin(PIN_MODEM_PWR);
-    bool early = find_modem(3);
-    printf("wsprobe: modem before gpio33 %s\n", early ? "answers (4G switch on?) CHECK" : "silent");
+    bool early = find_modem(20);
+    printf("wsprobe: modem before gpio21 %s\n", early ? "answers (4G switch on) CHECK" : "silent");
     modem_pwr(true);
     int64_t t0 = now_ms();
     if (!early && !find_modem(40)) {
-        printf("wsprobe: modem no answer within 40 s on either direction CHECK\n");
+        printf("wsprobe: modem no answer within 40 s (a cell fitted? the NET LED lit?) CHECK\n");
         return;
     }
     printf("wsprobe: modem answer ms=%lld\n", now_ms() - t0);
@@ -418,5 +401,5 @@ void app_main(void)
     key();
     walk();
     stage = 1;
-    sleep_now("the modem's supply cut (gpio33 low)");
+    sleep_now("the modem's supply cut (gpio21 low)");
 }
