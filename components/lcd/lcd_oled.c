@@ -1,11 +1,10 @@
 // LCD Display Interface on the cellular build (FSD §35, FR-35.16): the six
 // lines on the 3.12" SSD1322 OLED, white on black in the 6 x 10 font, composed
 // from the reusable parts: the panel driver (ssd1322) and the text renderer
-// (text). The LED of FR-24.9 is the off-board key's (FR-35.18).
-#include "lcd.h"
+// (text). lcd_cell.c chooses it or the e-paper for a window (FR-35.2).
+#include "lcd_panels.h"
 
 #include "board.h"
-#include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "lcd_layout.h"
 #include "ssd1322.h"
@@ -30,25 +29,14 @@ static const ssd1322_config_t panel_cfg = {
 static uint16_t line_px[LCD_OLED_W * FONT_TINY_H];
 static bool started;
 
-static esp_err_t led_pin(void)
+esp_err_t oled_start(void)
 {
-    gpio_config_t c = {.pin_bit_mask = 1ULL << BOARD_LED, .mode = GPIO_MODE_OUTPUT};
-    gpio_hold_dis(BOARD_LED);  // lcd_sleep held it low through a deep sleep
-    esp_err_t err = gpio_config(&c);
-    return err == ESP_OK ? gpio_set_level(BOARD_LED, 0) : err;
-}
-
-esp_err_t lcd_start(void)
-{
-    esp_err_t err = led_pin();
-    if (err == ESP_OK) {
-        err = ssd1322_start(&panel_cfg);
-    }
+    esp_err_t err = ssd1322_start(&panel_cfg);
     started = err == ESP_OK;
     return err;
 }
 
-esp_err_t lcd_draw_line(int line, const char *text)
+esp_err_t oled_draw_line(int line, const char *text)
 {
     uint8_t *canvas = ssd1322_canvas(NULL);
     if (!started || canvas == NULL) {
@@ -62,27 +50,16 @@ esp_err_t lcd_draw_line(int line, const char *text)
     return ssd1322_write(r.y, r.h);
 }
 
-void lcd_backlight(bool on)
+void oled_display(bool on)
 {
     if (started) {
         (void)ssd1322_display(on);
     }
-    (void)lcd_led(on);
-}
-
-esp_err_t lcd_led(bool on)
-{
-    return gpio_set_level(BOARD_LED, on);
 }
 
 // FR-35.16: the OLED's display off at the end of every window; a timer wake
 // never starts it, so it stays off.
-esp_err_t lcd_sleep(void)
+esp_err_t oled_sleep(void)
 {
-    esp_err_t err = started ? ssd1322_display(false) : ESP_OK;
-    esp_err_t led = led_pin();
-    if (led == ESP_OK) {
-        led = gpio_hold_en(BOARD_LED);
-    }
-    return err != ESP_OK ? err : led;
+    return started ? ssd1322_display(false) : ESP_OK;
 }

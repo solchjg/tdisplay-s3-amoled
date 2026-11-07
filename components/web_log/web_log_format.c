@@ -27,6 +27,15 @@ void wl_fmt_lcd_write_failed(char *buf, size_t len, const char *err)
     snprintf(buf, len, "lcd write failed: %s", err);
 }
 
+void wl_fmt_display(char *buf, size_t len, const char *panel, bool have, float temp_f)
+{
+    if (have) {
+        snprintf(buf, len, "display %s t=%.2f", panel, (double)temp_f);
+    } else {
+        snprintf(buf, len, "display %s t=none", panel);
+    }
+}
+
 void wl_fmt_alive(char *buf, size_t len, uint32_t n)
 {
     snprintf(buf, len, "alive %" PRIu32, n);
