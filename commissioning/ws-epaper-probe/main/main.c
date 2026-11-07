@@ -76,7 +76,7 @@ static long epd_wait(void)
         if (esp_timer_get_time() - t0 > (int64_t)BUSY_LIMIT_MS * 1000) {
             return -1;
         }
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(1);  // at least one tick, so IDLE runs (5 ms is 0 ticks at 100 Hz)
     }
     return (long)((esp_timer_get_time() - t0) / 1000);
 }
