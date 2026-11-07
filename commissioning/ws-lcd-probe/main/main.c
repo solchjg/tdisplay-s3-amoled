@@ -2,11 +2,12 @@
 // Waveshare ESP32-S3-SIM7670G-4G, through the shared st7789 driver's SPI mode.
 // It shares SPI2 (SCK, MOSI, DC) with the OLED of §35.2, whose CS is held
 // high, and by default takes the e-paper's lines of §36 (CS, RST, BUSY as BL),
-// the e-paper unplugged; menuconfig moves CS, RST and BL. Over and over: five full-screen fills (red, green, blue, white,
-// black) with their times, a frame with three corner marks and two text
-// lines, eight colour bars, five seconds of a moving box with its frame
-// rate, and the display off and on. Each step prints a `wslcd:` line; CHECK
-// marks what to look at on the panel. The modem's supply (GPIO 21) is held
+// the e-paper unplugged; menuconfig moves CS, RST and BL. With PROBE_WALK_S,
+// a pin walk first. Then over and over: five full-screen fills (red, green,
+// blue, white, black) with their times, a frame with three corner marks and
+// two text lines, eight colour bars, five seconds of a moving box with its
+// frame rate, and the display off and on. Each step prints a `wslcd:` line;
+// CHECK marks what to look at on the panel. The modem's supply (GPIO 21) is held
 // low, so the USB console never drops. Never released.
 //
 // Wiring (P3 / P2 header labels), the e-paper's cable: VCC 3V3, GND GND,
@@ -56,6 +57,9 @@
 
 static void out_pin(int pin, int level)
 {
+    if (pin < 0) {
+        return;
+    }
     gpio_set_level(pin, level);
     gpio_config_t io = {.pin_bit_mask = 1ULL << pin, .mode = GPIO_MODE_OUTPUT};
     gpio_config(&io);
@@ -181,10 +185,46 @@ static void display_off_on(void)
     hold(1500);
 }
 
+// Each LCD line in turn held high, then low, for PROBE_WALK_S / 2 seconds each,
+// the others low, so a meter at the LCD's connector finds a line that does not
+// arrive or arrives on the wrong pin. The pins are released for SPI after.
+static void walk(void)
+{
+    static const struct {
+        const char *name;
+        int pin;
+    } lines[] = {{"CS", PIN_CS}, {"DC", PIN_DC}, {"CLK", PIN_SCK}, {"DIN", PIN_MOSI},
+                 {"RST", PIN_RST}, {"BL", PIN_BL}};
+    const int n = sizeof lines / sizeof lines[0];
+    for (int i = 0; i < n; i++) {
+        out_pin(lines[i].pin, 0);
+    }
+    for (int i = 0; i < n; i++) {
+        if (lines[i].pin < 0) {
+            continue;
+        }
+        for (int level = 1; level >= 0; level--) {
+            gpio_set_level(lines[i].pin, level);
+            printf("wslcd: walk %s gpio%d %s for %d s\n", lines[i].name, lines[i].pin,
+                   level ? "HIGH (3.3 V at the LCD)" : "low (0 V)", CONFIG_PROBE_WALK_S / 2);
+            hold(CONFIG_PROBE_WALK_S * 1000 / 2);
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        if (lines[i].pin >= 0) {
+            gpio_reset_pin(lines[i].pin);
+        }
+    }
+    printf("wslcd: CHECK each line read 3.3 V then 0 V at its own LCD pin while named\n");
+}
+
 void app_main(void)
 {
     out_pin(PIN_MODEM_SUPPLY, 0);
     out_pin(PIN_OLED_CS, 1);
+    if (CONFIG_PROBE_WALK_S > 0) {
+        walk();
+    }
 
     const st7789_config_t cfg = {
         .bus = ST7789_BUS_SPI,

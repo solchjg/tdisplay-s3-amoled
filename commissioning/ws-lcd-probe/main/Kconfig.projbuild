@@ -29,4 +29,13 @@ config PROBE_PIN_BL
     default 1
     range -1 48
 
+config PROBE_WALK_S
+    int "Seconds per LCD line in the pin walk at start (0: no walk)"
+    default 0
+    range 0 60
+    help
+        Before the panel starts, CS, DC, CLK, DIN, RST and BL are each held
+        high for half this time, then low, the others low, so each can be
+        checked with a meter at the LCD's own connector.
+
 endmenu
