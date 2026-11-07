@@ -30,7 +30,7 @@
 #define PIN_BUSY 1   // high = busy
 #define PIN_MODEM_SUPPLY 21
 
-#define SPI_HZ 4000000
+#define SPI_HZ 1000000
 #define EPD_W 400
 #define EPD_H 300
 #define EPD_BYTES (EPD_W / 8 * EPD_H)
@@ -149,8 +149,19 @@ static long epd_init(void)
     gpio_set_level(PIN_RST, 1);
     vTaskDelay(pdMS_TO_TICKS(10));
     pins("rst-high");
-    epd_cmd(0x12, NULL, 0);  // software reset
-    vTaskDelay(pdMS_TO_TICKS(2));
+    epd_cmd(0x12, NULL, 0);  // software reset: BUSY high for a few ms
+    long high_us = 0;
+    int64_t t0 = esp_timer_get_time(), seen = -1;
+    while (esp_timer_get_time() - t0 < 50000) {  // a tight 50 ms watch
+        if (gpio_get_level(PIN_BUSY) == 1) {
+            if (seen < 0) {
+                seen = esp_timer_get_time() - t0;
+            }
+            high_us = (long)(esp_timer_get_time() - t0 - seen);
+        }
+    }
+    printf("wsepaper: 0x12 busy high %s (first at %lld us, for %ld us)\n",
+           seen < 0 ? "never CHECK" : "seen ok", seen, high_us);
     pins("after-0x12");
     long ms = epd_wait();
     if (ms < 0) {
