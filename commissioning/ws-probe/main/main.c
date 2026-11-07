@@ -18,9 +18,14 @@
 //   7. sleep current (NFR-35.3): deep sleep CONFIG_PROBE_SLEEP_S with the
 //      modem's supply cut (GPIO 21 low), then the same with the supply on and
 //      the modem powered down by AT+CPOF; measure the battery current in each.
-// Lines start with "wsprobe:"; CHECK marks a result to look at.
+// Lines start with "wsprobe:"; CHECK marks a result to look at. The board's
+// USB console (CH343) drops off its host for a few seconds when the modem's
+// supply comes on, so the results are repeated in a "wsprobe: recap" block
+// once the modem is off again, and the cell voltage is read again with the
+// modem running.
 
 #include <dirent.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -59,6 +64,31 @@ static const int WALK[] = {7, 8, 9, 10, 11, 12, 13, 14, 2, 39, 41, 42, 46};
 static RTC_DATA_ATTR int stage;    // 0 power-on, 1 after the sleep with the supply cut, 2 after both
 
 static char rx[1024];
+
+// The lines repeated in the recap.
+static char recap[4096];
+static size_t recap_n;
+
+// Prints a "wsprobe: " line and keeps it for the recap.
+static void say(const char *fmt, ...)
+{
+    char line[320];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof(line), fmt, ap);
+    va_end(ap);
+    printf("wsprobe: %s\n", line);
+    int w = snprintf(recap + recap_n, sizeof(recap) - recap_n, "wsprobe: recap %s\n", line);
+    if (w > 0 && recap_n + w < sizeof(recap)) {
+        recap_n += w;
+    }
+}
+
+static void recap_print(void)
+{
+    printf("wsprobe: recap begins\n%swsprobe: recap ends\n", recap);
+    fflush(stdout);
+}
 
 static void wait_ms(int ms)
 {
@@ -129,11 +159,38 @@ static void bus(void)
             reg = 0x08;
             uint8_t ver[2] = {0};
             esp_err_t e3 = i2c_master_transmit_receive(d, &reg, 1, ver, 2, 100);
-            printf("wsprobe: gauge mv=%u pct=%u.%02u version=0x%02x%02x %s%s%s\n", mv, s[0],
+            say("gauge mv=%u pct=%u.%02u version=0x%02x%02x %s%s%s", mv, s[0],
                    s[1] * 100 / 256, ver[0], ver[1], esp_err_to_name(e1), e2 ? " CHECK" : "",
                    e3 ? " CHECK" : "");
             i2c_master_bus_rm_device(d);
         }
+    }
+    i2c_del_master_bus(b);
+}
+
+// The cell voltage alone, to compare with the modem running.
+static void gauge_now(const char *when)
+{
+    i2c_master_bus_config_t cfg = {.i2c_port = 0,
+                                   .sda_io_num = PIN_SDA,
+                                   .scl_io_num = PIN_SCL,
+                                   .clk_source = I2C_CLK_SRC_DEFAULT,
+                                   .glitch_ignore_cnt = 7,
+                                   .flags.enable_internal_pullup = true};
+    i2c_master_bus_handle_t b;
+    if (i2c_new_master_bus(&cfg, &b) != ESP_OK) {
+        return;
+    }
+    i2c_device_config_t dc = {.dev_addr_length = I2C_ADDR_BIT_LEN_7,
+                              .device_address = GAUGE_ADDR,
+                              .scl_speed_hz = 100000};
+    i2c_master_dev_handle_t d;
+    if (i2c_master_bus_add_device(b, &dc, &d) == ESP_OK) {
+        uint8_t reg = 0x02, v[2] = {0};
+        esp_err_t e = i2c_master_transmit_receive(d, &reg, 1, v, 2, 100);
+        say("gauge %s mv=%u %s", when, (unsigned)(((v[0] << 8) | v[1]) * 78125ULL / 1000000ULL),
+            esp_err_to_name(e));
+        i2c_master_bus_rm_device(d);
     }
     i2c_del_master_bus(b);
 }
@@ -214,7 +271,12 @@ static bool at(const char *cmd, int timeout_ms, const char *until)
             *p = ' ';
         }
     }
-    printf("wsprobe: at %s -> %s%s\n", cmd, n ? rx : "(nothing)", ok ? "" : " [no OK]");
+    // The polls stay out of the recap; their outcome is kept instead.
+    if (strcmp(cmd, "AT") == 0 || strcmp(cmd, "AT+CEREG?") == 0 || strcmp(cmd, "AT+CGNSSINFO") == 0) {
+        printf("wsprobe: at %s -> %s%s\n", cmd, n ? rx : "(nothing)", ok ? "" : " [no OK]");
+    } else {
+        say("at %s -> %s%s", cmd, n ? rx : "(nothing)", ok ? "" : " [no OK]");
+    }
     return ok;
 }
 
@@ -239,7 +301,7 @@ static void modem_pwr(bool on)
     gpio_config(&c);
     gpio_set_level(PIN_MODEM_PWR, on);
     gpio_hold_en(PIN_MODEM_PWR);
-    printf("wsprobe: modem supply gpio21=%d\n", on);
+    say("modem supply gpio21=%d", on);
 }
 
 static bool registered(void)
@@ -267,8 +329,8 @@ static void gnss(void)
         }
         wait_ms(5000);
     }
-    printf("wsprobe: gnss fix=%s after %lld s\n", fix ? "yes" : "no CHECK", (now_ms() - t0) / 1000);
-    printf("wsprobe: lte during gnss registered=%s\n", registered() ? "yes" : "no");
+    say("gnss fix=%s after %lld s", fix ? "yes" : "no CHECK", (now_ms() - t0) / 1000);
+    say("lte during gnss registered=%s", registered() ? "yes" : "no");
     at("AT+CGNSSPWR=0", 5000, NULL);
 }
 
@@ -278,14 +340,15 @@ static void modem(void)
     // switch powers the modem. It starts within about 15 s of power-up.
     gpio_reset_pin(PIN_MODEM_PWR);
     bool early = find_modem(20);
-    printf("wsprobe: modem before gpio21 %s\n", early ? "answers (4G switch on) CHECK" : "silent");
+    say("modem before gpio21 %s", early ? "answers (4G switch on) CHECK" : "silent");
     modem_pwr(true);
     int64_t t0 = now_ms();
     if (!early && !find_modem(40)) {
-        printf("wsprobe: modem no answer within 40 s (a cell fitted? the NET LED lit?) CHECK\n");
+        say("modem no answer within 40 s (the 4G switch off? the NET LED lit?) CHECK");
+        modem_pwr(false);
         return;
     }
-    printf("wsprobe: modem answer ms=%lld\n", now_ms() - t0);
+    say("modem answer ms=%lld", now_ms() - t0);
     at("ATE0", 1000, NULL);
     at("ATI", 2000, NULL);
     at("AT+CGMR", 2000, NULL);
@@ -305,7 +368,8 @@ static void modem(void)
         }
         wait_ms(2000);
     }
-    printf("wsprobe: modem registered=%s ms=%lld (since answer)\n", reg ? "yes" : "no CHECK", now_ms() - r0);
+    say("modem registered=%s ms=%lld (since answer)", reg ? "yes" : "no CHECK", now_ms() - r0);
+    gauge_now("with the modem on");
     at("AT+CSQ", 1000, NULL);
     at("AT+COPS?", 5000, NULL);
     at("AT+CPSI?", 2000, NULL);
@@ -315,8 +379,10 @@ static void modem(void)
     at("AT+CPOF", 10000, NULL);
     wait_ms(3000);
     bool still = at("AT", 500, NULL);
-    printf("wsprobe: modem after AT+CPOF %s ms=%lld\n", still ? "still answers CHECK" : "silent", now_ms() - d0);
+    say("modem after AT+CPOF %s ms=%lld", still ? "still answers CHECK" : "silent", now_ms() - d0);
     modem_pwr(false);
+    wait_ms(10000);  // the console back on its host
+    recap_print();
 }
 
 // --- off-board key and pin walk -----------------------------------------
@@ -375,14 +441,18 @@ static void sleep_now(const char *what)
 void app_main(void)
 {
     if (stage == 1) {
-        printf("wsprobe: woke from the sleep with the modem's supply cut\n");
+        say("woke from the sleep with the modem's supply cut");
         modem_pwr(true);
+        int64_t t0 = now_ms();
         if (find_modem(40)) {
+            say("modem answer after the sleep ms=%lld", now_ms() - t0);
             at("AT+CPOF", 10000, NULL);
             wait_ms(3000);
         } else {
-            printf("wsprobe: modem no answer after the sleep CHECK\n");
+            say("modem no answer after the sleep CHECK");
         }
+        wait_ms(10000);  // the console back on its host
+        recap_print();
         stage = 2;
         sleep_now("the modem's supply on and the modem powered down (AT+CPOF)");
     }

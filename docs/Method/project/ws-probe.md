@@ -42,13 +42,18 @@ Every line starts with `wsprobe:`; `CHECK` marks a result to look at.
 | Chip | `chip`, `mac` | flash=16 MB; record the MAC for SLOT2 |
 | Sensor bus | `bus found`, `gauge` | 0x36 (and 0x3c with the OLED); a plausible cell voltage and charge |
 | microSD | `sd mount`, `sd card`, `sd file` | `ESP_OK` and the root listed with a card; `ESP_ERR_TIMEOUT` with none (the slot has no card-detect line) |
-| Modem | `modem before gpio21`, `modem answer ms`, `at …`, `modem registered`, `modem after AT+CPOF` | silent before GPIO 21 with the 4G switch off (answers with it on); an answer within about 20 s of GPIO 21; the SIM `READY`; registered; silent after `AT+CPOF` |
+| Modem | `modem before gpio21`, `modem answer ms`, `at …`, `modem registered`, `modem after AT+CPOF` | silent before GPIO 21 with the 4G switch off; an answer within about 20 s of GPIO 21; the SIM `READY`; registered; silent after `AT+CPOF` |
 | GNSS (with `PROBE_GNSS_S`) | `gnss fix`, `lte during gnss` | a fix outdoors; whether LTE stays registered decides if FR-35.14 must stop LTE |
 | Key | `key` | idle 1, presses counted, the LED following |
 | Pin walk | `walk gpioN` | each pin found toggling on the header |
 | Sleep | `sleep … with the modem's supply cut`, then `… supply on and the modem powered down` | the two battery currents: NFR-35.3's figure, and what the 4G switch left on would cost |
 
-A modem that answers before GPIO 21 is driven means the 4G switch is on. No
+The board's USB console drops off the bench for about a second when the modem's
+supply comes on (its start-up draw), so lines printed then are lost; the
+`wsprobe: recap` block after `AT+CPOF` repeats every result, with the cell
+voltage read while the modem ran (`gauge with the modem on`). On SLOT2 the
+modem did not start with the 4G switch on; set it off. A modem that answers
+before GPIO 21 is driven means the 4G switch powers it. No
 answer within 40 s with a cell fitted and the NET LED lit means the UART is not
 as §35.2 says, which sends the map back to `/define`; a dark NET LED means the
 modem has no supply (no cell, or the switch and GPIO 21 both off).
