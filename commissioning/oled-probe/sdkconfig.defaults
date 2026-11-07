@@ -1,0 +1,4 @@
+# The Waveshare ESP32-S3-SIM7670G-4G (16 MB flash), one app, console on
+# UART 0 through the board's CH343 (FSD §35.2).
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
