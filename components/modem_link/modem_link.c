@@ -187,11 +187,16 @@ void modem_link_down(void)
 
 void modem_link_off(void)
 {
-    // FR-35.7: the supply driven low and held, without starting the UART.
-    gpio_hold_dis(BOARD_MODEM_SUPPLY);
-    gpio_reset_pin(BOARD_MODEM_SUPPLY);
-    gpio_set_direction(BOARD_MODEM_SUPPLY, GPIO_MODE_OUTPUT);
+    // FR-35.7: the supply driven low and held, without starting the UART. The
+    // level is set before the pad is an output and no pull-up is turned on (as
+    // a pin reset would), so GPIO 21 never rises over the board's pull-down.
     gpio_set_level(BOARD_MODEM_SUPPLY, 0);
+    gpio_config_t io = {.pin_bit_mask = 1ULL << BOARD_MODEM_SUPPLY,
+                        .mode = GPIO_MODE_OUTPUT,
+                        .pull_up_en = GPIO_PULLUP_DISABLE,
+                        .pull_down_en = GPIO_PULLDOWN_DISABLE};
+    gpio_config(&io);
+    gpio_hold_dis(BOARD_MODEM_SUPPLY);
     gpio_hold_en(BOARD_MODEM_SUPPLY);
     powered = false;
 }

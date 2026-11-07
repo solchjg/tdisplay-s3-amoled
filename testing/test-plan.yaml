@@ -3898,6 +3898,18 @@ tests:
     observable: "with sdkconfig.defaults and sdkconfig.ws7670g merged (and with sdkconfig.standin added) the console is UART0 (GPIO 43/44); sdkconfig.defaults alone keeps the T-Display's USB-Serial/JTAG console"
     impl: tests/host/test_ws_key.py::test_console_on_uart0
     result: {status: not done}
+  - id: TC-TSIM-15
+    title: "The modem's supply pin set low without passing through the pad's pull-up"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.7, FR-35.23]
+    needs: []
+    observable: "modem_link.c never resets the GPIO 21 pad; modem_link_off sets the level low before configuring the pad as an output, with its pull-up disabled"
+    impl: tests/host/test_ws_key.py::test_modem_supply_never_passes_through_the_pull_up
+    result: {status: not done}
   - id: TC-TSIM-12
     title: "Settings card core: the file as the BLE body, applied by state, .done without secrets, L49"
     shape: atomic
