@@ -180,6 +180,8 @@ Other builds sharing the components:
   bench tests); `commissioning/ws-probe/` — the Waveshare SIM7670G board's hardware check (FSD §35, Phase 17:
   chip and MAC, the sensor bus and fuel gauge, microSD and card detect, the modem over UART 1 with its GPIO 21
   supply, GNSS, the off-board key, the pin walk and the sleep current, `docs/Method/project/ws-probe.md`);
+  `commissioning/oled-probe/` — the 1.3" OLED stand-in alone on the Waveshare board (FR-35.22): every 3 s an
+  I2C scan of GPIO 15/16 in both pin orders and a test pattern on a panel at 0x3C/0x3D, the modem kept off;
   `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
   T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`); `commissioning/epaper-probe/` —
   the e-paper bring-up on an Elecrow CrowPanel ESP32 E-Paper 4.2" (SSD1683 panel, Qwiic bus,
