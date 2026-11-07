@@ -12,4 +12,21 @@ config PROBE_LANDSCAPE
     bool "Landscape (320 x 170) instead of portrait (170 x 320)"
     default y
 
+config PROBE_PIN_CS
+    int "LCD CS GPIO"
+    default 3
+    help
+        3 is the e-paper's CS line (§36), free with the e-paper unplugged;
+        19 is the one free header pin when the e-paper stays wired.
+
+config PROBE_PIN_RST
+    int "LCD RST GPIO (-1: RST tied to 3V3, software reset)"
+    default 20
+    range -1 48
+
+config PROBE_PIN_BL
+    int "LCD BL GPIO, driven high after start (-1: BL tied to 3V3)"
+    default 1
+    range -1 48
+
 endmenu
