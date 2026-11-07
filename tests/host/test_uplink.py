@@ -368,7 +368,7 @@ def test_via_with_wifi_off(ul, body, want):
     assert ul("via", body) == want
 
 
-# ── §35.4: the T-SIM7080G build's modem settings ───────────────────────────
+# ── §35.4: the cellular build's modem settings ───────────────────────────
 
 # FR-35.4, FR-35.6 (core): the §35.6 contract's bodies with nothing stored.
 @pytest.mark.parametrize("body,want", [

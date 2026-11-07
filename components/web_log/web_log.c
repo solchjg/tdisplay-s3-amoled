@@ -363,10 +363,10 @@ void web_log_cell_failed(const char *reason, const char *req)
     ESP_LOGW(TAG, "%s", line);
 }
 
-void web_log_modem_attach(long ms, const char *net, int csq, long active_s, long tau_s, bool psm)
+void web_log_modem_attach(long ms, const char *net, int csq)
 {
     char line[WL_LINE_MAX];
-    wl_fmt_modem_attach(line, sizeof line, ms, net, csq, active_s, tau_s, psm);
+    wl_fmt_modem_attach(line, sizeof line, ms, net, csq);
     ESP_LOGI(TAG, "%s", line);
 }
 

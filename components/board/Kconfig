@@ -9,20 +9,20 @@ menu "Board"
         config APP_BOARD_TDISPLAY_S3_AMOLED
             bool "LilyGO T-Display-S3 AMOLED 1.91\""
 
-        config APP_BOARD_TSIM7080G_S3
-            bool "LilyGO T-SIM7080G-S3 (FSD §35)"
+        config APP_BOARD_WS_SIM7670G
+            bool "Waveshare ESP32-S3-SIM7670G-4G (FSD §35)"
 
     endchoice
 
     config APP_OLED_STANDIN
-        bool "Bench stand-in: the 1.3\" OLED on GPIO 13/21 (never released)"
-        depends on APP_BOARD_TSIM7080G_S3
+        bool "Bench stand-in: the 1.3\" OLED on the sensor bus (never released)"
+        depends on APP_BOARD_WS_SIM7670G
         default n
         help
             FSD FR-35.22: draws the six lines on a 128 x 64 SSD1306 or SH1106
-            on GPIO 13 (SDA) and GPIO 21 (SCL) instead of the SSD1322, 21
-            characters a line. RS232 and the off-board key are off in this
-            build. A bench build until the SSD1322 is fitted; never released.
+            on the sensor bus (address 0x3C) instead of the SSD1322, 21
+            characters a line. A bench build until the SSD1322 is fitted;
+            never released.
 
     config APP_OLED_STANDIN_SH1106
         bool "The stand-in is an SH1106 (most 1.3\" modules)"

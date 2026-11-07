@@ -99,10 +99,8 @@ void wl_fmt_ntfy_failed(char *buf, size_t len, const char *reason, const char *e
 void wl_fmt_cell_note(char *buf, size_t len, const char *what, int n);
 // L44 "cell failed: <timeout|err|full> <req>" (FR-33.4, FR-33.10).
 void wl_fmt_cell_failed(char *buf, size_t len, const char *reason, const char *req);
-// L46 "modem attach ms=<n> net=<MCC+MNC> csq=<n> psm_active_s=<n|none>
-// psm_tau_s=<n|none> mode=<psm|off>" (FR-35.1): a timer below 0 is none.
-void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq,
-                         long active_s, long tau_s, bool psm);
+// L46 "modem attach ms=<n> net=<MCC+MNC> csq=<n>" (FR-35.23): "?" for an unread network.
+void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq);
 // L47 "modem failed: <power|sim|register|ppp> ms=<n>" (FR-35.9).
 void wl_fmt_modem_failed(char *buf, size_t len, const char *why, long ms);
 // L45 "gps fix lat=<±d.ddddd> lon=<±d.ddddd>" (FR-33.17), or "gps none" when

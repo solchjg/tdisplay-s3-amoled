@@ -1,5 +1,5 @@
-// Settings from microSD (FSD FR-35.4, FR-35.19, FR-35.20) on the T-SIM7080G
-// build: the board's slot, SDMMC 1-bit, FAT.
+// Settings from microSD (FSD FR-35.4, FR-35.19, FR-35.20) on the cellular
+// build: the board's slot, SDMMC 1-bit, FAT, always powered.
 #include "settings_card.h"
 
 #include <stdio.h>
@@ -8,17 +8,14 @@
 
 #include "driver/sdmmc_host.h"
 #include "esp_vfs_fat.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sdmmc_cmd.h"
 #include "settings_card_core.h"
-#include "tsim7080g_s3.h"
+#include "board.h"
 
 #define MOUNT "/card"
 #define TXT MOUNT "/settings.txt"
 #define DONE MOUNT "/settings.done"
 #define RESULT MOUNT "/settings.result"
-#define SETTLE_MS 20  // the slot's supply up before the card is spoken to
 
 static char file[SC_FILE_MAX + 1];
 static char text[SC_FILE_MAX + 1];  // the body, then the .done text
@@ -91,20 +88,14 @@ static void on_card(settings_card_apply_t apply, char *result, size_t cap)
     }
 }
 
-void settings_card_run(settings_card_power_t power, settings_card_apply_t apply, char *result,
-                       size_t cap)
+void settings_card_run(settings_card_apply_t apply, char *result, size_t cap)
 {
-    snprintf(result, cap, "failed");
-    if (!power(true)) {
-        return;
-    }
-    vTaskDelay(pdMS_TO_TICKS(SETTLE_MS));
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
     slot.width = 1;
-    slot.clk = TSIM7080G_S3_SD_CLK;
-    slot.cmd = TSIM7080G_S3_SD_CMD;
-    slot.d0 = TSIM7080G_S3_SD_D0;
+    slot.clk = BOARD_SD_CLK;
+    slot.cmd = BOARD_SD_CMD;
+    slot.d0 = BOARD_SD_D0;
     slot.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
     const esp_vfs_fat_sdmmc_mount_config_t mc = {.format_if_mount_failed = false,
                                                  .max_files = 2,
@@ -121,5 +112,4 @@ void settings_card_run(settings_card_power_t power, settings_card_apply_t apply,
     }
     memset(file, 0, sizeof file);  // held the secrets
     memset(text, 0, sizeof text);
-    (void)power(false);  // R-38: the slot unpowered in sleep
 }

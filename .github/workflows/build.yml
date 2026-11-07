@@ -74,7 +74,7 @@ jobs:
           echo "app image: $SIZE bytes"
           [ "$SIZE" -le 4194304 ] || { echo "FATAL: image exceeds 4 MB"; exit 1; }
 
-      # FR-35.5: the T-SIM7080G build's modem parts stay out of this build.
+      # FR-35.5: the cellular build's modem parts stay out of this build.
       - name: Check the modem components are not in the T-Display build (FR-35.5)
         run: |
           if grep -E '^CONFIG_ESP_MODEM_' build/sdkconfig; then
@@ -83,7 +83,8 @@ jobs:
           python3 - <<'PY'
           import json
           c = json.load(open("build/project_description.json"))["build_components"]
-          bad = sorted(set(c) & {"sim7080", "axp2101", "modem_link", "espressif__esp_modem"})
+          bad = sorted(set(c) & {"sim7080", "sim7670", "max17048", "axp2101", "modem_link",
+                                 "espressif__esp_modem"})
           print("modem components in the T-Display build:", bad or "none")
           raise SystemExit(1 if bad else 0)
           PY
@@ -306,8 +307,8 @@ jobs:
           name: mail-fast
           path: tests/target/mail_fast/out/
 
-  # T-SIM7080G-S3 build (FSD §35, FR-35.5): the same sources for the other board.
-  tsim7080g:
+  # Waveshare ESP32-S3-SIM7670G-4G build (FSD §35, FR-35.5): the same sources for the other board.
+  ws7670g:
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.2
     defaults:
@@ -322,31 +323,36 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null
-          ARGS="-B build-tsim -DSDKCONFIG=$PWD/build-tsim/sdkconfig \
-                -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.tsim7080g"
+          ARGS="-B build-ws -DSDKCONFIG=$PWD/build-ws/sdkconfig \
+                -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.ws7670g"
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
       - name: Check the image fits a 4 MB OTA slot (FSD C-10.7, FR-35.5)
         run: |
-          SIZE=$(stat -c %s build-tsim/tdisplay_webserver.bin)
+          SIZE=$(stat -c %s build-ws/tdisplay_webserver.bin)
           echo "app image: $SIZE bytes"
           [ "$SIZE" -le 4194304 ] || { echo "FATAL: image exceeds 4 MB"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
-          name: tsim7080g
-          path: build-tsim/tdisplay_webserver.bin
-      # FR-35.22: the bench stand-in (the 1.3" OLED on GPIO 13/21), with
+          name: ws7670g
+          path: |
+            build-ws/flash_args
+            build-ws/bootloader/bootloader.bin
+            build-ws/partition_table/partition-table.bin
+            build-ws/ota_data_initial.bin
+            build-ws/tdisplay_webserver.bin
+      # FR-35.22: the bench stand-in (the 1.3" OLED on the sensor bus), with
       # everything a first flash needs; never released.
       - name: Build the bench stand-in
         run: |
           . $IDF_PATH/export.sh >/dev/null
           ARGS="-B build-standin -DSDKCONFIG=$PWD/build-standin/sdkconfig \
-                -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.tsim7080g;sdkconfig.standin"
+                -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.ws7670g;sdkconfig.standin"
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
       - uses: actions/upload-artifact@v4
         with:
-          name: tsim7080g-standin
+          name: ws7670g-standin
           path: |
             build-standin/flash_args
             build-standin/bootloader/bootloader.bin

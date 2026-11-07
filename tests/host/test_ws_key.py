@@ -1,4 +1,4 @@
-"""Host tier: the T-SIM7080G build's user key and LED (FSD §35, FR-35.3, FR-35.18).
+"""Host tier: the cellular build's user key and LED (FSD §35, FR-35.3, FR-35.18).
 
 Merges the sdkconfig fragments in the order the build applies them, falling
 back to each option's Kconfig default, and reads the LED pin from board.h, so
@@ -36,29 +36,29 @@ def config(*fragments):
 
 def board_led():
     h = (ROOT / "components/board/include/board.h").read_text()
-    tsim = h.split("#if CONFIG_APP_BOARD_TSIM7080G_S3", 1)[1].split("#else", 1)[0]
-    return int(re.search(r"#define BOARD_LED (\d+)", tsim).group(1))
+    ws = h.split("#if CONFIG_APP_BOARD_WS_SIM7670G", 1)[1].split("#else", 1)[0]
+    return int(re.search(r"#define BOARD_LED (\d+)", ws).group(1))
 
 
-TSIM = ("sdkconfig.defaults", "sdkconfig.tsim7080g")
+WS = ("sdkconfig.defaults", "sdkconfig.ws7670g")
 
 
 # TC-TSIM-11 · FR-35.3
-def test_offboard_key_on_gpio_21_ends_the_hold_and_wakes():
-    get = config(*TSIM)
-    assert get("SETUP_CHECK_KEY_GPIO") == 21   # the user key: hold, BLE window, double press
-    assert get("DEEP_SLEEP_WAKE_GPIO") == 21   # FR-21.5: it wakes the chip (EXT1, active low)
+def test_offboard_key_on_gpio_12_ends_the_hold_and_wakes():
+    get = config(*WS)
+    assert get("SETUP_CHECK_KEY_GPIO") == 12   # the user key: hold, BLE window, double press
+    assert get("DEEP_SLEEP_WAKE_GPIO") == 12   # FR-21.5: it wakes the chip (EXT1, active low)
     assert get("SETUP_CHECK_KEY2_GPIO") == 0   # the BOOT key ends the hold as well
 
 
 # TC-TSIM-11 · FR-35.18
-def test_offboard_key_led_on_gpio_47():
-    assert board_led() == 47
+def test_offboard_key_led_on_gpio_13():
+    assert board_led() == 13
 
 
-# TC-TSIM-11 · FR-35.22: the stand-in takes GPIO 21, so the key moves to BOOT
-def test_standin_moves_the_key_off_gpio_21():
-    get = config(*TSIM, "sdkconfig.standin")
-    assert get("SETUP_CHECK_KEY_GPIO") == 0
-    assert get("SETUP_CHECK_KEY2_GPIO") == -1
-    assert get("DEEP_SLEEP_WAKE_GPIO") == -1
+# TC-TSIM-11 · FR-35.22: the stand-in is on the sensor bus, so the key stays
+def test_standin_keeps_the_key():
+    get = config(*WS, "sdkconfig.standin")
+    assert get("SETUP_CHECK_KEY_GPIO") == 12
+    assert get("SETUP_CHECK_KEY2_GPIO") == 0
+    assert get("DEEP_SLEEP_WAKE_GPIO") == 12

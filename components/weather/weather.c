@@ -9,7 +9,7 @@
 #include "esp_task_wdt.h"
 #include "time_sync.h"
 
-// FSD §23.1 and C-23.1 (§35.2 on the T-SIM7080G): the sensor as wired, pins from board.h.
+// FSD §23.1 and C-23.1 (§35.2 on the cellular build): the sensor as wired, pins from board.h.
 #define SENSOR_SDA_GPIO BOARD_SENSOR_SDA
 #define SENSOR_SCL_GPIO BOARD_SENSOR_SCL
 #define SENSOR_ADDRESS 0x76

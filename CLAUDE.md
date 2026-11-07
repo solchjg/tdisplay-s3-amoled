@@ -22,9 +22,9 @@ git submodule update --init
 # -DSDKCONFIG keeps the generated config in build/, so sdkconfig.defaults always wins.
 idf.py -B build -DSDKCONFIG=$PWD/build/sdkconfig set-target esp32s3
 idf.py -B build -DSDKCONFIG=$PWD/build/sdkconfig build
-# T-SIM7080G build (FSD §35); add ;sdkconfig.standin for the 1.3" OLED bench stand-in
-idf.py -B build-tsim -DSDKCONFIG=$PWD/build-tsim/sdkconfig \
-       -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.tsim7080g" build
+# Waveshare ESP32-S3-SIM7670G-4G build (FSD §35); add ;sdkconfig.standin for the 1.3" OLED bench stand-in
+idf.py -B build-ws -DSDKCONFIG=$PWD/build-ws/sdkconfig \
+       -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ws7670g" build
 
 # Lint + host tests (what ci.yml runs)
 ruff check .
@@ -72,11 +72,11 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `components/lcd/` (L1) — this app's text display, composed from the L0
   parts below. Every call returns `esp_err_t`; it never retries or aborts
   (policy belongs to the logic layer). The layout (`lcd_layout.c`) is a pure core.
-  On the T-SIM7080G build it drives the 3.12" SSD1322 OLED instead (`lcd_oled.c`, FSD
+  On the cellular build it drives the 3.12" SSD1322 OLED instead (`lcd_oled.c`, FSD
   FR-35.16: six rows of 6 × 10 cells, `lcd_oled_layout.c` pure) through the shared `ssd1322`.
   Until the SSD1322 arrives, the bench build `sdkconfig.standin` (FR-35.22, never released)
-  draws them on the 1.3" OLED soldered to GPIO 13/21 instead (`lcd_standin.c`, a software I2C
-  bus; `lcd_standin_core.c` pure), with the BOOT key as the user key.
+  draws them on the 1.3" OLED on the sensor bus at 0x3C instead (`lcd_standin.c`, joining the
+  bus's I2C controller; `lcd_standin_core.c` pure).
 - `shared/components/rm67162/` (L0) — board-agnostic RM67162 QSPI driver via `esp_lcd`'s
   SPI panel IO, configured by `rm67162_config_t`; `shared/components/tdisplay_s3_amoled/`
   (L0) holds the board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.
@@ -120,16 +120,18 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   notes and a timer wake never starts WiFi; the ThingsBoard notes wait for §32.
 - `components/board/` (L0) — the build-time board choice (`CONFIG_APP_BOARD_*`, FSD §35,
   FR-35.5) and `board.h`, the pins this app wires on each board.
-- `components/modem_link/` (L1) — the T-SIM7080G build's link over its SIM7080G (FSD §35): the
-  shared `axp2101` rails, `sim7080` wake, PSM resume or attach, PPP as the default route for the
-  existing senders, PSM or power-off after; the network's time after registering and the GPS
-  search with the modem's GNSS (LTE off while it runs). The project's `CMakeLists.txt` keeps it, `sim7080`
-  and `axp2101` out of the T-Display build; `main` links it only with the T-SIM7080G board.
-- `components/settings_card/` (L1) — settings from microSD on the T-SIM7080G build (FSD
-  FR-35.4, FR-35.19, FR-35.20): on a boot that is not a timer wake, the slot's supply (ALDO3,
-  through `modem_link_sd_power`) on, `/settings.txt` read and applied as a BLE `settings`
-  write, `/settings.done` without secrets and `/settings.result` written, unmounted and the
-  supply off; `settings_card_core.c` is the pure core (the file as the BLE body, the `.done` text).
+- `components/modem_link/` (L1) — the cellular build's link over the Waveshare board's SIM7670G
+  (FSD §35): the shared `sim7670`, its supply switched on by GPIO 21 (the board's 4G switch off),
+  an attach with the network lock (LTE Cat-1 has no PSM), PPP as the default route for the
+  existing senders, then `AT+CPOF` and the supply cut (FR-35.23); the network's time after
+  registering and the GPS search with the modem's GNSS (LTE off while it runs). The project's
+  `CMakeLists.txt` keeps it, `sim7670`, `sim7080` and `max17048` out of the T-Display build; `main`
+  links it only with the Waveshare board.
+- `components/settings_card/` (L1) — settings from microSD on the cellular build (FSD
+  FR-35.4, FR-35.19, FR-35.20): on a boot that is not a timer wake, the always-powered slot
+  mounted, `/settings.txt` read and applied as a BLE `settings` write, `/settings.done` without
+  secrets and `/settings.result` written, unmounted; `settings_card_core.c` is the pure core
+  (the file as the BLE body, the `.done` text).
 - `components/ble_settings/` (L1, pure) — BLE setup (FSD §26): what a `settings`
   write means in each window (absent secrets keep the stored ones in a key
   window), the `settings` read without secrets, the field rules the page checks
@@ -139,7 +141,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring`, `sim7080`, `axp2101`, `ssd1322` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring`, `sim7670`, `sim7080`, `max17048`, `axp2101`, `ssd1322` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through

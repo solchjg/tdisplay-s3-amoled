@@ -183,23 +183,9 @@ void wl_fmt_cell_failed(char *buf, size_t len, const char *reason, const char *r
     snprintf(buf, len, "cell failed: %s %s", reason, req);
 }
 
-static void timer(char *out, size_t n, long s)
+void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq)
 {
-    if (s < 0) {
-        snprintf(out, n, "none");
-    } else {
-        snprintf(out, n, "%ld", s);
-    }
-}
-
-void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq,
-                         long active_s, long tau_s, bool psm)
-{
-    char a[16], t[16];
-    timer(a, sizeof a, active_s);
-    timer(t, sizeof t, tau_s);
-    snprintf(buf, len, "modem attach ms=%ld net=%s csq=%d psm_active_s=%s psm_tau_s=%s mode=%s",
-             ms, net && net[0] ? net : "?", csq, a, t, psm ? "psm" : "off");
+    snprintf(buf, len, "modem attach ms=%ld net=%s csq=%d", ms, net && net[0] ? net : "?", csq);
 }
 
 void wl_fmt_modem_failed(char *buf, size_t len, const char *why, long ms)

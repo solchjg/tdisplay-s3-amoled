@@ -34,7 +34,7 @@ typedef struct {
 
 static ul_settings_t taken;     // from the accepted submission, until it is stored
 static ul_settings_t settings;  // as stored
-static ul_modem_t taken_m, modem;  // §35.4, the T-SIM7080G build: as taken, as stored
+static ul_modem_t taken_m, modem;  // §35.4, the cellular build: as taken, as stored
 static bool taken_wifi_on = true, wifi_on = true;  // FR-34.1: as taken, as stored
 static bool loaded;
 static char form[1536];

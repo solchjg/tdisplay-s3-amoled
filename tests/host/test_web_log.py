@@ -68,8 +68,7 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "cell_note") == 0) {
         wl_fmt_cell_note(line, sizeof line, argv[2], atoi(argv[3]));
     } else if (strcmp(argv[1], "modem_attach") == 0) {
-        wl_fmt_modem_attach(line, sizeof line, atol(argv[2]), argv[3], atoi(argv[4]),
-                            atol(argv[5]), atol(argv[6]), atoi(argv[7]));
+        wl_fmt_modem_attach(line, sizeof line, atol(argv[2]), argv[3], atoi(argv[4]));
     } else if (strcmp(argv[1], "modem_failed") == 0) {
         wl_fmt_modem_failed(line, sizeof line, argv[2], atol(argv[3]));
     } else if (strcmp(argv[1], "cell_failed") == 0) {
@@ -218,14 +217,10 @@ def test_cell_and_gps_lines(fmt):
     assert fmt("gps", "none") == "gps none"
 
 
-# L46, L47 (FR-35.1, FR-35.9)
+# L46, L47 (FR-35.23, FR-35.9)
 def test_modem_attach_line(fmt):
-    assert fmt("modem_attach", 14250, "310410", 21, 16, 3600, 1) == \
-        "modem attach ms=14250 net=310410 csq=21 psm_active_s=16 psm_tau_s=3600 mode=psm"
-    assert fmt("modem_attach", 9000, "311480", 18, 300, 18600, 0) == \
-        "modem attach ms=9000 net=311480 csq=18 psm_active_s=300 psm_tau_s=18600 mode=off"
-    assert fmt("modem_attach", 9000, "", 99, -1, -1, 0) == \
-        "modem attach ms=9000 net=? csq=99 psm_active_s=none psm_tau_s=none mode=off"
+    assert fmt("modem_attach", 8250, "310410", 15) == "modem attach ms=8250 net=310410 csq=15"
+    assert fmt("modem_attach", 9000, "", 99) == "modem attach ms=9000 net=? csq=99"
 
 
 def test_modem_failed_line(fmt):

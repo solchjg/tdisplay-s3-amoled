@@ -27,7 +27,7 @@ bool uplink_taken_wifi_on(void);
 // The stored settings (wifi if none). Initialises NVS if nothing else has.
 const ul_settings_t *uplink_settings(void);
 
-// §35.4: the modem's stored APN and network (T-SIM7080G build; empty otherwise).
+// §35.4: the modem's stored APN and network (cellular build; empty otherwise).
 const ul_modem_t *uplink_modem(void);
 
 // FR-33.2: at T3 or T14, store the held settings.
