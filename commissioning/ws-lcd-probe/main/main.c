@@ -2,8 +2,8 @@
 // Waveshare ESP32-S3-SIM7670G-4G, through the shared st7789 driver's SPI mode.
 // It shares SPI2 (SCK, MOSI, DC) with the OLED of §35.2, whose CS is held
 // high, and by default takes the e-paper's lines of §36 (CS, RST, BUSY as BL),
-// the e-paper unplugged; menuconfig moves CS, RST and BL. With PROBE_WALK_S,
-// a pin walk first. Then over and over: five full-screen fills (red, green,
+// the e-paper unplugged; menuconfig moves CS, RST and BL. With PROBE_BLINK,
+// only every LCD line blinking as a GPIO for a meter. Else over and over: five full-screen fills (red, green,
 // blue, white, black) with their times, a frame with three corner marks and
 // two text lines, eight colour bars, five seconds of a moving box with its
 // frame rate, and the display off and on. Each step prints a `wslcd:` line;
@@ -19,6 +19,7 @@
 
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -185,46 +186,42 @@ static void display_off_on(void)
     hold(1500);
 }
 
-// Each LCD line in turn held high, then low, for PROBE_WALK_S / 2 seconds each,
-// the others low, so a meter at the LCD's connector finds a line that does not
-// arrive or arrives on the wrong pin. The pins are released for SPI after.
-static void walk(void)
+#if CONFIG_PROBE_BLINK
+// Every LCD line (CS, DC, CLK, DIN, RST, BL) as a plain GPIO, all of them
+// 1 s high and 1 s low together, forever, the panel never started: a meter at
+// the LCD's connector finds a line that does not arrive, at any pace.
+static void blink(void)
 {
-    static const struct {
-        const char *name;
-        int pin;
-    } lines[] = {{"CS", PIN_CS}, {"DC", PIN_DC}, {"CLK", PIN_SCK}, {"DIN", PIN_MOSI},
-                 {"RST", PIN_RST}, {"BL", PIN_BL}};
-    const int n = sizeof lines / sizeof lines[0];
+    static const int pins[] = {PIN_CS, PIN_DC, PIN_SCK, PIN_MOSI, PIN_RST, PIN_BL};
+    const int n = sizeof pins / sizeof pins[0];
     for (int i = 0; i < n; i++) {
-        out_pin(lines[i].pin, 0);
+        out_pin(pins[i], 0);
     }
-    for (int i = 0; i < n; i++) {
-        if (lines[i].pin < 0) {
-            continue;
+    printf("wslcd: blink CS gpio%d DC gpio%d CLK gpio%d DIN gpio%d RST gpio%d BL gpio%d\n",
+           PIN_CS, PIN_DC, PIN_SCK, PIN_MOSI, PIN_RST, PIN_BL);
+    printf("wslcd: CHECK each LCD pin swings 3.3 V / 0 V once a second against GND\n");
+    for (int t = 0;; t++) {
+        for (int i = 0; i < n; i++) {
+            if (pins[i] >= 0) {
+                gpio_set_level(pins[i], t & 1 ? 0 : 1);
+            }
         }
-        for (int level = 1; level >= 0; level--) {
-            gpio_set_level(lines[i].pin, level);
-            printf("wslcd: walk %s gpio%d %s for %d s\n", lines[i].name, lines[i].pin,
-                   level ? "HIGH (3.3 V at the LCD)" : "low (0 V)", CONFIG_PROBE_WALK_S / 2);
-            hold(CONFIG_PROBE_WALK_S * 1000 / 2);
+        if (t % 10 == 0) {
+            printf("wslcd: blink %d s reset reason %d\n", t, (int)esp_reset_reason());
         }
+        hold(1000);
     }
-    for (int i = 0; i < n; i++) {
-        if (lines[i].pin >= 0) {
-            gpio_reset_pin(lines[i].pin);
-        }
-    }
-    printf("wslcd: CHECK each line read 3.3 V then 0 V at its own LCD pin while named\n");
 }
+#endif
 
 void app_main(void)
 {
     out_pin(PIN_MODEM_SUPPLY, 0);
     out_pin(PIN_OLED_CS, 1);
-    if (CONFIG_PROBE_WALK_S > 0) {
-        walk();
-    }
+    printf("wslcd: reset reason %d\n", (int)esp_reset_reason());
+#if CONFIG_PROBE_BLINK
+    blink();
+#endif
 
     const st7789_config_t cfg = {
         .bus = ST7789_BUS_SPI,
