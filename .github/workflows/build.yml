@@ -323,7 +323,10 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null
+          # The version as the T-Display build names it; IDF's own git describe
+          # reads the CI checkout as -dirty.
           ARGS="-B build-ws -DSDKCONFIG=$PWD/build-ws/sdkconfig \
+                -DPROJECT_VER=0.0.0-$(git rev-parse --short HEAD) \
                 -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.ws7670g"
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
@@ -347,6 +350,7 @@ jobs:
         run: |
           . $IDF_PATH/export.sh >/dev/null
           ARGS="-B build-standin -DSDKCONFIG=$PWD/build-standin/sdkconfig \
+                -DPROJECT_VER=0.0.0-$(git rev-parse --short HEAD) \
                 -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.ws7670g;sdkconfig.standin"
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
