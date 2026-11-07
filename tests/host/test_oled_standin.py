@@ -1,4 +1,4 @@
-"""Host tier: the T-SIM7080G bench stand-in (FSD §35, FR-35.22).
+"""Host tier: the cellular build's bench stand-in (FSD §35, FR-35.22).
 
 Compiles the stand-in core and the 6 x 10 font with the host compiler, draws
 the six lines into the 128 x 64 page frame and reads it back pixel by pixel.

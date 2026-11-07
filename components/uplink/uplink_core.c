@@ -94,7 +94,7 @@ void ul_report(const ul_settings_t *s, char *out, size_t cap)
              s->mail_route ? "route" : "off", s->gps ? "on" : "off");
 }
 
-// ── The T-SIM7080G build's modem (FSD §35) ─────────────────────────────
+// ── The cellular build's modem (FSD §35) ─────────────────────────────
 
 void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m)
 {

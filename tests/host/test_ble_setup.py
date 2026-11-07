@@ -428,7 +428,7 @@ PORTAL_PARTS = [  # file, first and last text of its form HTML
 
 
 def _portal_html(modem=False):
-    """The portal form; with modem, the T-SIM7080G build's (§35.4), whose uplink
+    """The portal form; with modem, the cellular build's (§35.4), whose uplink
     section is the second in uplink.c."""
     import codecs
     root = pathlib.Path(__file__).resolve().parents[2]
@@ -518,7 +518,7 @@ ATTR_CHECKS = ["type", "minlength", "maxlength", "min", "max", "step", "pattern"
 
 # TC-BLE-33 · FR-26.21 (core): the page's form is the portal form: the same
 # fields in the same order, sections, intro text, labels, choices, units and checks
-# (FR-35.4: likewise on the T-SIM7080G build, with the modem's fields)
+# (FR-35.4: likewise on the cellular build, with the modem's fields)
 @pytest.mark.parametrize("modem", [False, True])
 def test_form_rules_match_the_portal_form(bset, modem):
     import urllib.parse as up
@@ -571,7 +571,7 @@ def test_dump_reports_the_wifi_switch(bset):
 
 
 
-# FR-35.4 (core): the T-SIM7080G build's settings read and rules show the
+# FR-35.4 (core): the cellular build's settings read and rules show the
 # modem's fields of §35.4 instead of the Notecard's.
 def test_modem_dump_and_form(bset):
     import urllib.parse as up

@@ -48,13 +48,12 @@ const char *ul_parse(const char *body, size_t len, const ul_settings_t *stored,
 // "uplink=<wifi|cell>&cell_mail=<route|off>&gps=<on|off>".
 void ul_report(const ul_settings_t *s, char *out, size_t cap);
 
-// ── The T-SIM7080G build's modem (FSD §35) ─────────────────────────────
+// ── The cellular build's modem (FSD §35) ─────────────────────────────
 
 #define UL_APN_MAX 63            // §35.4
 #define UL_PLMN_MAX 6            // §35.4: MCC+MNC
 #define UL_REGISTER_MS 60000     // FR-35.9: registered within this of the wake
 #define UL_PPP_MS 10000          // FR-35.9: PPP up within this of registering
-#define UL_PSM_ACTIVE_MAX_S 60   // FR-35.1: the longest active time kept in PSM
 
 // §35.4: the modem's own settings, kept beside ul_settings_t (whose stored
 // size the T-Display build keeps). On this build ul_settings_t's mail_route
@@ -64,7 +63,7 @@ typedef struct {
     char plmn[UL_PLMN_MAX + 1];  // empty: automatic choice
 } ul_modem_t;
 
-// A new T-SIM7080G: wifi, cell_mail on, gps off, no APN, automatic choice.
+// A new cellular board: wifi, cell_mail on, gps off, no APN, automatic choice.
 void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m);
 
 // §35.4, FR-35.4: the fields of a body over the stored settings; an absent or
@@ -223,7 +222,7 @@ unsigned ul_gps_step(ul_gps_t *g, ul_gps_ev_t ev, bool wanted, bool have_place, 
 // GPS or cell tower, never counts as the search's fix. Else UL_GE_NO_FIX.
 ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *lon);
 
-// FR-35.14: the same for an AT+CGNSINF answer on the T-SIM7080G build: fix
+// FR-35.14: the same for an AT+CGNSSINFO answer on the cellular build: fix
 // with a fix status, utc its UTC time (Unix seconds). A fix counts only with
 // a time later than the search's start (g->after), or, with the clock unset,
 // later than a fix the first answer already held.

@@ -946,7 +946,7 @@ static bool mail_wifi_up(void)
            xSemaphoreTake(got_ip, pdMS_TO_TICKS(MAIL_WIFI_MS)) == pdTRUE;
 }
 
-// ── The T-SIM7080G build's modem (FSD §35) ───────────────────────────────
+// ── The cellular build's modem (FSD §35) ─────────────────────────────────
 
 #if !BOARD_HAS_NOTECARD
 static int modem_users;  // sends sharing the link that is up
@@ -1001,7 +1001,7 @@ static bool modem_begin(void)
     modem_link_t r;
     modem_ok = modem_link_up(uplink_modem(), !time_sync_synced(), &r);
     if (r.attached) {
-        web_log_modem_attach(r.attach_ms, r.net, r.csq, r.active_s, r.tau_s, r.psm);  // L46
+        web_log_modem_attach(r.attach_ms, r.net, r.csq);  // L46
     }
     if (!modem_ok) {
         web_log_modem_failed(r.failed, r.failed_ms);  // L47
@@ -1012,7 +1012,7 @@ static bool modem_begin(void)
     return modem_ok;
 }
 
-// FR-35.1: after the last send, the modem in PSM or off.
+// FR-35.23: after the last send, the modem powered down and its supply cut.
 static void modem_end(void)
 {
     if (--modem_users == 0 && modem_ok) {
@@ -1047,7 +1047,7 @@ static bool cell_up(void)
 {
     static bool logged;
     if (!BOARD_HAS_NOTECARD || !uplink_settings()->cell) {
-        return false;  // §35.3: no Notecard on the T-SIM7080G build
+        return false;  // §35.3: no Notecard on the cellular build
     }
     const char *req = NULL;
     const char *why = uplink_start(&req);
@@ -1111,7 +1111,7 @@ static bool cell_note(const char *file, const char *what, const char *body)
 #endif
 
 #if !BOARD_HAS_NOTECARD
-// FR-35.8: on the T-SIM7080G build an alert with `uplink` `cell` goes by §31's
+// FR-35.8: on the cellular build an alert with `uplink` `cell` goes by §31's
 // sender over the modem, with its logs; L40 connect when the link is down.
 static bool alert_note(const char *title, const char *body, bool good, const char *event)
 {
@@ -2113,7 +2113,7 @@ void app_main(void)
 #if BOARD_HAS_SD_CARD
     if (wake != DL_WAKE_TIMER) {  // FR-35.20: never on a timer wake
         char card[32];
-        settings_card_run(modem_link_sd_power, card_apply, card, sizeof card);
+        settings_card_run(card_apply, card, sizeof card);
         web_log_card_settings(card);  // L49
     }
 #endif

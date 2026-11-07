@@ -1,5 +1,5 @@
 // LCD Display Interface, pure core of the bench stand-in (FSD FR-35.22): the
-// 1.3" 128 x 64 SSD1306 or SH1106 soldered to GPIO 13/21, which stands in for
+// 1.3" 128 x 64 SSD1306 or SH1106 on the sensor bus, which stands in for
 // the SSD1322 on the bench. Six rows of 6 x 10 cells, 21 characters a line.
 // No ESP-IDF headers, so the host tier compiles it as is. Private to this component.
 #pragma once

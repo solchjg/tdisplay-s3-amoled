@@ -1,4 +1,4 @@
-// LCD Display Interface on the T-SIM7080G build (FSD §35, FR-35.16): the six
+// LCD Display Interface on the cellular build (FSD §35, FR-35.16): the six
 // lines on the 3.12" SSD1322 OLED, white on black in the 6 x 10 font, composed
 // from the reusable parts: the panel driver (ssd1322) and the text renderer
 // (text). The LED of FR-24.9 is the off-board key's (FR-35.18).

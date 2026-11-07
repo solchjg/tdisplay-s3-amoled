@@ -1,0 +1,10 @@
+# FSD §35: the Waveshare ESP32-S3-SIM7670G-4G build, layered on sdkconfig.defaults:
+#   idf.py -B build-ws -DSDKCONFIG=$PWD/build-ws/sdkconfig \
+#          -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ws7670g" build
+CONFIG_APP_BOARD_WS_SIM7670G=y
+# FR-35.3: the off-board key on GPIO 12 (an RTC GPIO) is the user key and wakes
+# the chip; the BOOT key (GPIO 0) ends the hold as well.
+CONFIG_SETUP_CHECK_KEY_GPIO=12
+CONFIG_DEEP_SLEEP_WAKE_GPIO=12
+# FR-35.19: /settings.done and /settings.result need long file names on FAT.
+CONFIG_FATFS_LFN_HEAP=y

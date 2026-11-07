@@ -3,11 +3,11 @@
 if(CONFIG_APP_OLED_STANDIN)
     # FR-35.22: the bench stand-in instead of the SSD1322.
     set(srcs "lcd_standin.c" "lcd_standin_core.c" "lcd_layout.c" "lcd_oled_layout.c")
-elseif(CONFIG_APP_BOARD_TSIM7080G_S3)
+elseif(CONFIG_APP_BOARD_WS_SIM7670G)
     set(srcs "lcd_oled.c" "lcd_layout.c" "lcd_oled_layout.c")
 else()
     set(srcs "lcd.c" "lcd_layout.c")
 endif()
 idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS "include"
-                       PRIV_REQUIRES board rm67162 ssd1322 text tdisplay_s3_amoled esp_driver_spi esp_driver_gpio)
+                       PRIV_REQUIRES board rm67162 ssd1322 text tdisplay_s3_amoled esp_driver_spi esp_driver_gpio esp_driver_i2c)

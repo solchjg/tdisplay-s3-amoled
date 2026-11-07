@@ -1,4 +1,4 @@
-"""Host tier: the T-SIM7080G build's OLED layout (FSD §35, FR-35.16).
+"""Host tier: the cellular build's OLED layout (FSD §35, FR-35.16).
 
 Compiles the OLED layout core, the 6 x 10 font and the SSD1322 packing with the
 host compiler and draws the six lines into a 256 x 64 frame of grey levels.
