@@ -4,7 +4,8 @@
 // text lines, five partial refreshes of a counter on line 6, then the
 // controller's deep sleep. Each step's BUSY time is printed (`wsepaper:`;
 // CHECK marks a result to look at). The modem's supply (GPIO 21) is held
-// low, so the USB console never drops. Never released.
+// low, so the USB console never drops. Before each reset it prints the
+// BUSY and RST levels and BUSY's voltage (`wsepaper: pins`). Never released.
 //
 // Wiring (P3 / P2 header labels): VCC 3V3, GND GND, CLK IO7, DIN IO8,
 // CS IO3, DC IO10, RST IO20, BUSY IO1.
@@ -13,6 +14,9 @@
 
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+#include "esp_adc/adc_oneshot.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -34,6 +38,8 @@
 #define SPI_CHUNK 4000
 
 static spi_device_handle_t spi;
+static adc_oneshot_unit_handle_t adc;
+static adc_cali_handle_t cali;
 static uint8_t fb[EPD_BYTES];  // 1 bit per pixel, 1 = white
 
 static void epd_send(bool data, const uint8_t *p, size_t n)
@@ -75,16 +81,53 @@ static long epd_wait(void)
     return (long)((esp_timer_get_time() - t0) / 1000);
 }
 
+static void busy_input(void)
+{
+    gpio_config_t in = {.pin_bit_mask = 1ULL << PIN_BUSY, .mode = GPIO_MODE_INPUT};
+    gpio_config(&in);
+}
+
+// BUSY's logic level, its voltage (GPIO 1 is ADC1 channel 0) and RST read back.
+// The board's VBAT/3 divider may also sit on GPIO 1 (R85/R86/R87).
+static void pins(const char *when)
+{
+    int busy = gpio_get_level(PIN_BUSY);
+    int rst = gpio_get_level(PIN_RST);
+    int raw = -1, mv = -1;
+    adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
+    if (adc != NULL && adc_oneshot_config_channel(adc, ADC_CHANNEL_0, &cc) == ESP_OK &&
+        adc_oneshot_read(adc, ADC_CHANNEL_0, &raw) == ESP_OK && cali != NULL) {
+        adc_cali_raw_to_voltage(cali, raw, &mv);
+    }
+    busy_input();
+    printf("wsepaper: pins %s busy=%d (%d mV) rst=%d\n", when, busy, mv, rst);
+}
+
+static void adc_start(void)
+{
+    adc_oneshot_unit_init_cfg_t uc = {.unit_id = ADC_UNIT_1};
+    if (adc_oneshot_new_unit(&uc, &adc) != ESP_OK) {
+        adc = NULL;
+        return;
+    }
+    adc_cali_curve_fitting_config_t kc = {.unit_id = ADC_UNIT_1, .chan = ADC_CHANNEL_0,
+                                          .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
+    if (adc_cali_create_scheme_curve_fitting(&kc, &cali) != ESP_OK) {
+        cali = NULL;
+    }
+}
+
 static esp_err_t bus_start(void)
 {
     gpio_set_level(PIN_MODEM_SUPPLY, 0);
     gpio_config_t modem = {.pin_bit_mask = 1ULL << PIN_MODEM_SUPPLY, .mode = GPIO_MODE_OUTPUT};
     gpio_config(&modem);
     gpio_set_level(PIN_RST, 1);
-    gpio_config_t out = {.pin_bit_mask = (1ULL << PIN_DC) | (1ULL << PIN_RST), .mode = GPIO_MODE_OUTPUT};
+    // INPUT_OUTPUT so RST can be read back (GPIO 20 is the USB D+ pad).
+    gpio_config_t out = {.pin_bit_mask = (1ULL << PIN_DC) | (1ULL << PIN_RST), .mode = GPIO_MODE_INPUT_OUTPUT};
     gpio_config(&out);
-    gpio_config_t in = {.pin_bit_mask = 1ULL << PIN_BUSY, .mode = GPIO_MODE_INPUT};
-    gpio_config(&in);
+    busy_input();
+    adc_start();
     spi_bus_config_t bc = {.sclk_io_num = PIN_SCK, .mosi_io_num = PIN_MOSI, .miso_io_num = -1,
                            .quadwp_io_num = -1, .quadhd_io_num = -1, .max_transfer_sz = SPI_CHUNK};
     esp_err_t err = spi_bus_initialize(SPI2_HOST, &bc, SPI_DMA_CH_AUTO);
@@ -99,11 +142,16 @@ static esp_err_t bus_start(void)
 // Hardware reset (which also ends the deep sleep), software reset, setup.
 static long epd_init(void)
 {
+    pins("before");
     gpio_set_level(PIN_RST, 0);
     vTaskDelay(pdMS_TO_TICKS(10));
+    pins("rst-low");
     gpio_set_level(PIN_RST, 1);
     vTaskDelay(pdMS_TO_TICKS(10));
+    pins("rst-high");
     epd_cmd(0x12, NULL, 0);  // software reset
+    vTaskDelay(pdMS_TO_TICKS(2));
+    pins("after-0x12");
     long ms = epd_wait();
     if (ms < 0) {
         return -1;
