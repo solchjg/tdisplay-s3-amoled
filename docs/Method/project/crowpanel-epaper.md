@@ -3,7 +3,8 @@
 [`commissioning/epaper-probe`](../../../commissioning/epaper-probe/main/main.c) checks
 whether the **Elecrow CrowPanel ESP32 E-Paper 4.2"** can serve as the board of an
 e-paper Blues build. The board carries an ESP32-S3-WROOM-1-N8R8 (8 MB flash, 8 MB
-PSRAM, WiFi and BLE), a 400 × 300 black-and-white panel with an SSD1683 controller, a
+PSRAM, WiFi and BLE), a 400 × 300 black-and-white panel (an SSD1683 controller on the
+v1.0 board, a UC8276C on v1.2: the revision is silkscreened next to the SKU), a
 LiPo socket with charger, a microSD slot, a rotary switch and two keys. No FSD section
 covers the board yet; this program only measures. It is never released.
 
@@ -13,7 +14,7 @@ covers the board yet; this program only measures. It is never released.
 |---|---|---|
 | Panel supply enable | 7 | high = on; held low in deep sleep |
 | Panel SCK / MOSI | 12 / 11 | SPI2; the board names these TFT_SCK and TFT_MOSI |
-| Panel CS / DC / RST / BUSY | 45 / 46 / 47 / 48 | BUSY high while the panel works |
+| Panel CS / DC / RST / BUSY | 45 / 46 / 47 / 48 | BUSY high while an SSD1683 works, low while a UC8276C works |
 | Qwiic SDA / SCL | 8 / 9 (default) | header pins; menuconfig "E-paper probe" moves them |
 
 Wire the Qwiic star (SparkFun Qwiic MultiPort) to header 3V3, GND and the two bus pins
@@ -24,6 +25,14 @@ this probe.
 
 The header's other free pins are 3, 14 – 18, 21 and 38. GPIO 19 and 20 are the
 ESP32-S3's USB pins, so the probe avoids them.
+
+## Panel controller
+
+menuconfig "E-paper probe" picks the controller; the default is the UC8276C (v1.2), the
+board on the bench. The UC8276C's OTP holds no usable waveform, so the probe uploads the
+full (GC) and partial (DU) waveforms of Elecrow's v1.2 demo driver, as the ESPBoards
+`crowpanel_epaper` ESPHome component does, and sends the frame inverted (a set bit is
+black).
 
 ## What it measures
 

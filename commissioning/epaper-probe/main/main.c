@@ -1,5 +1,6 @@
 // Commissioning aid, not product code: proves the Elecrow CrowPanel ESP32
-// E-Paper 4.2" (ESP32-S3-WROOM-1-N8R8, 400 x 300 SSD1683 panel) as a
+// E-Paper 4.2" (ESP32-S3-WROOM-1-N8R8, 400 x 300 panel: an SSD1683 on the v1.0
+// board, a UC8276C on v1.2, chosen in menuconfig; v1.2 by default) as a
 // candidate board for the Blues build, before any requirement relies on it.
 // Each run (after reset or a timer wake) it
 //   1. switches the panel supply on (GPIO 7 high), resets the SSD1683 and
@@ -40,7 +41,13 @@
 #define PIN_CS 45
 #define PIN_DC 46    // low = command
 #define PIN_RST 47   // low = reset
-#define PIN_BUSY 48  // high = busy
+#define PIN_BUSY 48  // SSD1683: high = busy; UC8276C: low = busy
+
+#if CONFIG_PROBE_PANEL_UC8276
+#define BUSY_LEVEL 0
+#else
+#define BUSY_LEVEL 1
+#endif
 
 #define EPD_W 400
 #define EPD_H 300
@@ -84,15 +91,15 @@ static void epd_cmd(uint8_t c, const uint8_t *data, size_t n)
         epd_cmd((c), d_, sizeof d_);                    \
     } while (0)
 
-// Waits for BUSY low; the time it took in ms, or -1 past the limit.
+// Waits for the controller to finish; the time it took in ms, or -1 past the limit.
 static long epd_wait(void)
 {
     int64_t t0 = esp_timer_get_time();
-    while (gpio_get_level(PIN_BUSY) == 1) {
+    while (gpio_get_level(PIN_BUSY) == BUSY_LEVEL) {
         if (esp_timer_get_time() - t0 > (int64_t)BUSY_LIMIT_MS * 1000) {
             return -1;
         }
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(1);  // at least one tick, so IDLE runs (5 ms is 0 ticks at 100 Hz)
     }
     return (long)((esp_timer_get_time() - t0) / 1000);
 }
@@ -120,6 +127,116 @@ static esp_err_t epd_bus_start(void)
     return spi_bus_add_device(SPI2_HOST, &dc, &spi);
 }
 
+#if CONFIG_PROBE_PANEL_UC8276
+// UC8276C (v1.2): the setup, waveforms and refresh of Elecrow's v1.2 demo
+// driver, as the ESPBoards crowpanel_epaper component uses them. Its OTP holds
+// no usable waveform, so the LUTs are uploaded; a set RAM bit is black, so the
+// frame (1 = white here) is sent inverted.
+#define UC_LUT_LEN 42  // six 7-byte phase groups per register, one used
+
+static const uint8_t LUT_FULL[5][7] = {
+    {0x01, 0x14, 0x0A, 0x14, 0x00, 0x01, 0x01},  // VCOM
+    {0x01, 0x54, 0x0A, 0x94, 0x00, 0x01, 0x01},  // WW
+    {0x01, 0x54, 0x0A, 0x94, 0x00, 0x01, 0x01},  // BW
+    {0x01, 0x94, 0x0A, 0x54, 0x00, 0x01, 0x01},  // WB
+    {0x01, 0x94, 0x0A, 0x54, 0x00, 0x01, 0x01},  // BB
+};
+static const uint8_t LUT_PART[5][7] = {
+    {0x01, 0x14, 0x00, 0x00, 0x00, 0x01, 0x00},
+    {0x01, 0x14, 0x00, 0x00, 0x00, 0x01, 0x00},
+    {0x01, 0x94, 0x00, 0x00, 0x00, 0x01, 0x00},
+    {0x01, 0x54, 0x00, 0x00, 0x00, 0x01, 0x00},
+    {0x01, 0x14, 0x00, 0x00, 0x00, 0x01, 0x00},
+};
+static uint8_t chunk[SPI_CHUNK];
+static bool old_primed;
+
+static void uc_luts(const uint8_t lut[5][7])
+{
+    uint8_t reg[UC_LUT_LEN];
+    for (int i = 0; i < 5; i++) {
+        memset(reg, 0, sizeof reg);
+        memcpy(reg, lut[i], 7);
+        epd_cmd((uint8_t)(0x20 + i), reg, sizeof reg);
+    }
+}
+
+// A whole plane: the frame inverted, or all white (0x00) with fb NULL.
+static void uc_plane(uint8_t cmd, const uint8_t *src)
+{
+    epd_send(false, &cmd, 1);
+    for (size_t off = 0; off < EPD_BYTES; off += SPI_CHUNK) {
+        size_t k = EPD_BYTES - off > SPI_CHUNK ? SPI_CHUNK : EPD_BYTES - off;
+        for (size_t i = 0; i < k; i++) {
+            chunk[i] = src ? (uint8_t)~src[off + i] : 0x00;
+        }
+        epd_send(true, chunk, k);
+    }
+}
+
+// Hardware reset, the setup, the full waveform and power-on. The power-on
+// time in ms, or -1.
+static long epd_init(void)
+{
+    gpio_set_level(PIN_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    gpio_set_level(PIN_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    CMD(0x00, 0x3F, 0xCA);                    // panel setting: LUT from registers
+    CMD(0x01, 0x03, 0x10, 0x3F, 0x3F, 0x03);  // power setting
+    CMD(0x06, 0xE7, 0xE7, 0x3D);              // booster soft start
+    CMD(0x60, 0x22);                          // TCON
+    CMD(0x82, 0x00);                          // VCOM DC
+    CMD(0x30, 0x09);                          // PLL 50 Hz
+    CMD(0xE3, 0x88);                          // power saving
+    CMD(0x61, 0x01, 0x90, 0x01, 0x2C);        // 400 x 300
+    CMD(0x50, 0xB7);                          // white border
+    uc_luts(LUT_FULL);
+    old_primed = false;
+    epd_cmd(0x04, NULL, 0);  // power on
+    return epd_wait();
+}
+
+static long uc_refresh(void)
+{
+    epd_cmd(0x12, NULL, 0);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    return epd_wait();
+}
+
+// Full refresh (the GC waveform). Time in ms, or -1.
+static long epd_full(void)
+{
+    uc_luts(LUT_FULL);
+    if (!old_primed) {
+        uc_plane(0x10, NULL);  // the old plane is garbage at power-up
+        old_primed = true;
+    }
+    uc_plane(0x13, fb);
+    return uc_refresh();
+}
+
+// Partial refresh (the DU waveform): only changed pixels move.
+static long epd_partial(void)
+{
+    uc_luts(LUT_PART);
+    uc_plane(0x13, fb);
+    return uc_refresh();
+}
+
+static void epd_off(void)
+{
+    epd_cmd(0x02, NULL, 0);  // power off
+    vTaskDelay(pdMS_TO_TICKS(100));
+    CMD(0x07, 0xA5);         // deep sleep
+    vTaskDelay(pdMS_TO_TICKS(10));
+    gpio_set_level(PIN_DC, 0);   // no signal may feed the unpowered panel
+    gpio_set_level(PIN_RST, 0);
+    gpio_set_level(PIN_PWR, 0);
+    gpio_hold_en(PIN_PWR);
+}
+
+#else
 // Hardware and software reset, then the SSD1683 setup for a 400 x 300 panel
 // filled left to right, top to bottom. The reset time in ms, or -1.
 static long epd_init(void)
@@ -182,6 +299,8 @@ static void epd_off(void)
     gpio_set_level(PIN_PWR, 0);
     gpio_hold_en(PIN_PWR);
 }
+
+#endif
 
 // ---------------------------------------------------------------- drawing
 
