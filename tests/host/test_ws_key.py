@@ -62,3 +62,23 @@ def test_standin_keeps_the_key():
     assert get("SETUP_CHECK_KEY_GPIO") == 12
     assert get("SETUP_CHECK_KEY2_GPIO") == 0
     assert get("DEEP_SLEEP_WAKE_GPIO") == 12
+
+
+def console(*fragments):
+    """The console choice the merged fragments leave: the last member set."""
+    choice = None
+    for f in fragments:
+        for line in (ROOT / f).read_text().splitlines():
+            m = re.match(r"CONFIG_ESP_CONSOLE_(UART_DEFAULT|UART_CUSTOM|USB_CDC|USB_SERIAL_JTAG|NONE)=y", line)
+            if m:
+                choice = m.group(1)
+    return choice
+
+
+# TC-TSIM-14 · §35.2: the board's CH343 sees only UART0 (GPIO 43/44); its
+# native USB (GPIO 19/20) never reaches the PC, so a USB-Serial/JTAG console
+# prints nothing on SLOT2
+def test_console_on_uart0():
+    assert console(*WS) == "UART_DEFAULT"
+    assert console(*WS, "sdkconfig.standin") == "UART_DEFAULT"
+    assert console("sdkconfig.defaults") == "USB_SERIAL_JTAG"   # the T-Display keeps its own

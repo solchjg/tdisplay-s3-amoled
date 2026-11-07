@@ -3885,6 +3885,19 @@ tests:
     observable: "with sdkconfig.defaults and sdkconfig.ws7670g merged, the user key and the deep-sleep wake on GPIO 12 and the BOOT key (GPIO 0) as the second key; board.h's LED on GPIO 13; with sdkconfig.standin added, the same keys and wake"
     impl: [tests/host/test_ws_key.py::test_offboard_key_on_gpio_12_ends_the_hold_and_wakes, tests/host/test_ws_key.py::test_offboard_key_led_on_gpio_13, tests/host/test_ws_key.py::test_standin_keeps_the_key]
     result: {status: not done}
+  # §35.2's Pins row has no requirement number yet, so this verifies none.
+  - id: TC-TSIM-14
+    title: "The cellular build's console on UART0, the board's CH343"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: []
+    needs: []
+    observable: "with sdkconfig.defaults and sdkconfig.ws7670g merged (and with sdkconfig.standin added) the console is UART0 (GPIO 43/44); sdkconfig.defaults alone keeps the T-Display's USB-Serial/JTAG console"
+    impl: tests/host/test_ws_key.py::test_console_on_uart0
+    result: {status: not done}
   - id: TC-TSIM-12
     title: "Settings card core: the file as the BLE body, applied by state, .done without secrets, L49"
     shape: atomic
