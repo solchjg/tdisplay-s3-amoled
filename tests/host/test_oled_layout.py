@@ -54,7 +54,7 @@ ONLINE = ["Online", "192.168.1.23", "-40.0F Hum 100% 1100.00 mbar", "Req: 1000",
 def run(compile_harness):
     return compile_harness(
         "oled_layout", HARNESS,
-        ["lcd/lcd_oled_layout.c", "text/text.c", "text/font16x32.c", "text/font12x24.c",
+        ["lcd/lcd_oled_layout.c", "text/text.c", "text/font16x32.c", "text/font12x24.c", "text/font8x16.c",
          "text/font6x10.c", "ssd1322/ssd1322_core.c"],
         ["lcd", "text/include", "ssd1322/include"])
 

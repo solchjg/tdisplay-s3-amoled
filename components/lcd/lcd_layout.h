@@ -26,3 +26,25 @@ const text_font_t *lcd_text_line_font(int line);
 // The box line 0 .. LCD_TEXT_LINES - 1 is drawn into on the OLED; its font is
 // text_font_tiny.
 lcd_rect_t lcd_oled_line_rect(int line);
+
+// FR-35.15, FR-35.24: the cellular build's 400 x 300 e-paper, one bit a pixel
+// (1 = white, bit 7 the leftmost of each byte, rows top to bottom). Lines 1 – 5
+// in 12 x 24 cells, 33 characters across 396 px; line 6 in 8 x 16, 44
+// characters; below them the status block's 10 rows of 44 in 8 x 16, from y 140.
+#define LCD_EPD_W 400
+#define LCD_EPD_H 300
+#define LCD_EPD_BYTES (LCD_EPD_W / 8 * LCD_EPD_H)
+#define LCD_EPD_STATUS_ROWS 10
+#define LCD_EPD_STATUS_Y 140
+
+// The box line 0 .. LCD_TEXT_LINES - 1 is drawn into on the e-paper, and its font.
+lcd_rect_t lcd_epaper_line_rect(int line);
+const text_font_t *lcd_epaper_line_font(int line);
+
+// The box of status row 0 .. LCD_EPD_STATUS_ROWS - 1 (its font is text_font_mini);
+// a row past the last gives a box of zero height.
+lcd_rect_t lcd_epaper_status_rect(int row);
+
+// Clears box r of the frame to white and draws text in black in font f, cut at
+// the box's width; the part of a box past the panel is left out.
+void lcd_epaper_draw(uint8_t *frame, lcd_rect_t r, const text_font_t *f, const char *text);

@@ -73,7 +73,7 @@ ONLINE = ["Online", "192.168.1.23", "-40.0F Hum 100% 1100.00 mbar", "Req: 1000",
 def run(compile_harness):
     return compile_harness(
         "oled_standin", "#include <stdlib.h>\n" + HARNESS,
-        ["lcd/lcd_standin_core.c", "text/text.c", "text/font16x32.c", "text/font12x24.c",
+        ["lcd/lcd_standin_core.c", "text/text.c", "text/font16x32.c", "text/font12x24.c", "text/font8x16.c",
          "text/font6x10.c"],
         ["lcd", "text/include"])
 
