@@ -142,17 +142,17 @@ static esp_err_t bus_start(void)
 }
 
 // Hardware reset (which also ends the deep sleep), software reset, setup.
-// RST is low for low_us, then high for high_us before the software reset,
+// RST is low for low_us, then high for rst_high_us before the software reset,
 // both exact (busy waits, no tick rounding, no pin readings in between).
-static long epd_init(int low_us, int high_us)
+static long epd_init(int low_us, int rst_high_us)
 {
     pins("before");
     gpio_set_level(PIN_RST, 0);
     esp_rom_delay_us(low_us);
     int busy_low = gpio_get_level(PIN_BUSY);
     gpio_set_level(PIN_RST, 1);
-    esp_rom_delay_us(high_us);
-    printf("wsepaper: reset low %d us (busy=%d), high %d us (busy=%d)\n", low_us, busy_low, high_us,
+    esp_rom_delay_us(rst_high_us);
+    printf("wsepaper: reset low %d us (busy=%d), high %d us (busy=%d)\n", low_us, busy_low, rst_high_us,
            gpio_get_level(PIN_BUSY));
     epd_cmd(0x12, NULL, 0);  // software reset: BUSY high for a few ms
     long high_us = 0;
