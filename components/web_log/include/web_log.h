@@ -112,6 +112,7 @@ void web_log_cell_failed(const char *reason, const char *req);
 void web_log_modem_attach(long ms, const char *net, int csq);  // L46
 void web_log_modem_failed(const char *why, long ms);         // L47
 void web_log_display(const char *panel, bool have, float temp_f);  // L48
+void web_log_displays(int epaper, int oled);  // L50, WL_DISPLAY_* states
 
 // FR-35.24 (the cellular build): the e-paper's status block from the lines
 // emitted since the last power-on or reset, with this window's wake cause and

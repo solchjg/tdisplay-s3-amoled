@@ -374,10 +374,10 @@ def test_via_with_wifi_off(ul, body, want):
 @pytest.mark.parametrize("body,want", [
     ("uplink=cell", "bad apn"),
     ("uplink=cell&apn=hologram",
-     "uplink=cell&apn=hologram&cell_plmn=&cell_mail=on&gps=off&epaper=off&oled=on"),
+     "uplink=cell&apn=hologram&cell_plmn=&cell_mail=on&gps=off&epaper=on&oled=on"),
     ("uplink=cell&apn=" + "a" * 64, "bad apn"),
-    ("uplink=cell&apn=" + "a" * 63, "uplink=cell&apn=" + "a" * 63 + "&cell_plmn=&cell_mail=on&gps=off&epaper=off&oled=on"),
-    ("apn=hologram&cell_plmn=31041", "uplink=wifi&apn=hologram&cell_plmn=31041&cell_mail=on&gps=off&epaper=off&oled=on"),
+    ("uplink=cell&apn=" + "a" * 63, "uplink=cell&apn=" + "a" * 63 + "&cell_plmn=&cell_mail=on&gps=off&epaper=on&oled=on"),
+    ("apn=hologram&cell_plmn=31041", "uplink=wifi&apn=hologram&cell_plmn=31041&cell_mail=on&gps=off&epaper=on&oled=on"),
     ("apn=hologram&cell_plmn=3104100", "bad cell_plmn"),
     ("apn=hologram&cell_plmn=31041a", "bad cell_plmn"),
     ("cell_mail=route", "bad cell_mail"),
@@ -388,7 +388,7 @@ def test_via_with_wifi_off(ul, body, want):
     ("gps=on", "bad gps"),
     ("uplink=cell&apn=iot.1nce.net&cell_plmn=311480&cell_mail=off&gps=on&epaper=off&oled=on",
      "uplink=cell&apn=iot.1nce.net&cell_plmn=311480&cell_mail=off&gps=on&epaper=off&oled=on"),
-    ("", "uplink=wifi&apn=&cell_plmn=&cell_mail=on&gps=off&epaper=off&oled=on"),
+    ("", "uplink=wifi&apn=&cell_plmn=&cell_mail=on&gps=off&epaper=on&oled=on"),
 ])
 def test_modem_settings_new_device(ul, body, want):
     assert ul("modem", "", body) == want
@@ -397,13 +397,13 @@ def test_modem_settings_new_device(ul, body, want):
 def test_modem_settings_keep_the_stored_apn(ul):
     # cell with the APN stored earlier; an empty or absent APN keeps the stored value.
     assert ul("modem", "apn=hologram&cell_plmn=310410", "uplink=cell&apn=") == \
-        "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off&epaper=off&oled=on"
+        "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off&epaper=on&oled=on"
 
 
 @pytest.mark.parametrize("body,want", [
-    ("uplink=cell&apn=&cell_plmn=", "uplink=cell&apn=hologram&cell_plmn=&cell_mail=on&gps=off&epaper=off&oled=on"),
-    ("uplink=cell", "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off&epaper=off&oled=on"),
-    ("cell_plmn=311480", "uplink=wifi&apn=hologram&cell_plmn=311480&cell_mail=on&gps=off&epaper=off&oled=on"),
+    ("uplink=cell&apn=&cell_plmn=", "uplink=cell&apn=hologram&cell_plmn=&cell_mail=on&gps=off&epaper=on&oled=on"),
+    ("uplink=cell", "uplink=cell&apn=hologram&cell_plmn=310410&cell_mail=on&gps=off&epaper=on&oled=on"),
+    ("cell_plmn=311480", "uplink=wifi&apn=hologram&cell_plmn=311480&cell_mail=on&gps=off&epaper=on&oled=on"),
 ])
 def test_modem_settings_cell_plmn_empty_clears_absent_keeps(ul, body, want):
     # §35.4: an empty cell_plmn clears a stored lock; an absent one keeps it.
@@ -472,8 +472,8 @@ def test_modem_gps_answers(ul, after, answers, want):
 # §35.4 `oled`, §36.2 `epaper` (FR-35.2): defaults, both kept when absent or
 # empty, and anything but on or off refused.
 @pytest.mark.parametrize("stored,body,want", [
-    ("", "", "&epaper=off&oled=on"),
-    ("", "epaper=on", "&epaper=on&oled=on"),
+    ("", "", "&epaper=on&oled=on"),
+    ("", "epaper=off", "&epaper=off&oled=on"),
     ("", "epaper=on&oled=off", "&epaper=on&oled=off"),
     ("epaper=on&oled=off", "uplink=wifi", "&epaper=on&oled=off"),
     ("epaper=on&oled=off", "epaper=&oled=", "&epaper=on&oled=off"),

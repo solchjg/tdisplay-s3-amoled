@@ -5,6 +5,8 @@
 #include "lcd_panels.h"
 
 #include "board.h"
+#include "driver/gpio.h"
+#include "esp_rom_sys.h"
 #include "driver/spi_master.h"
 #include "lcd_layout.h"
 #include "ssd1322.h"
@@ -28,6 +30,24 @@ static const ssd1322_config_t panel_cfg = {
 
 static uint16_t line_px[LCD_OLED_W * FONT_TINY_H];
 static bool started;
+
+// FR-35.25: a 10 kOhm from CS to GND on the OLED's lead marks it plugged in.
+// CS is read with the internal pull-up (about 45 kOhm), then driven high, so the
+// OLED ignores the bus until ssd1322 takes CS over.
+bool oled_present(void)
+{
+    gpio_config_t in = {.pin_bit_mask = 1ULL << BOARD_OLED_CS, .mode = GPIO_MODE_INPUT,
+                        .pull_up_en = GPIO_PULLUP_ENABLE};
+    if (gpio_config(&in) != ESP_OK) {
+        return false;
+    }
+    esp_rom_delay_us(50);  // the pull-up charges the lead
+    bool low = gpio_get_level(BOARD_OLED_CS) == 0;
+    gpio_set_level(BOARD_OLED_CS, 1);
+    gpio_config_t out = {.pin_bit_mask = 1ULL << BOARD_OLED_CS, .mode = GPIO_MODE_OUTPUT};
+    (void)gpio_config(&out);
+    return low;
+}
 
 esp_err_t oled_start(void)
 {

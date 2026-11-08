@@ -18,9 +18,19 @@ static esp_err_t led_pin(void)
     return err == ESP_OK ? gpio_set_level(BOARD_LED, 0) : err;
 }
 
+void lcd_detect(bool look_epaper, bool look_oled, bool *epaper, bool *oled)
+{
+    // The OLED first: its CS is read before any SPI device claims the bus.
+    *oled = look_oled && oled_present();
+    *epaper = look_epaper && epaper_start() != ESP_ERR_NOT_FOUND;
+}
+
 void lcd_use(lcd_panel_t p)
 {
     panel = p;
+    if (p != LCD_PANEL_EPAPER) {
+        (void)epaper_sleep();  // a probed e-paper not drawn on this window
+    }
 }
 
 esp_err_t lcd_start(void)

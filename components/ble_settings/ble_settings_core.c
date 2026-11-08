@@ -281,9 +281,9 @@ static const char *const MODEM_RULES[][24] = {
      "[0-9]{5,6}", "placeholder", "310410", NULL},
     {"cell_mail", "label", "Email over cellular", "options", "on,off", NULL},
     {"gps", "label", "GPS fix in the setup check", "options", "off,on", NULL},
-    {"epaper", "section", "Displays", "label", "4.2\" e-paper fitted", "options", "off,on",
-     NULL},
-    {"oled", "label", "3.12\" OLED fitted", "options", "on,off", NULL},
+    {"epaper", "section", "Displays", "label", "4.2\" e-paper, when plugged in", "options",
+     "on,off", NULL},
+    {"oled", "label", "3.12\" OLED, when plugged in", "options", "on,off", NULL},
 };
 #undef LIMIT
 #undef MAIL

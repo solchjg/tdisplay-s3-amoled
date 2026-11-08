@@ -32,6 +32,13 @@ esp_err_t lcd_sleep(void);
 typedef enum { LCD_PANEL_NONE, LCD_PANEL_EPAPER, LCD_PANEL_OLED } lcd_panel_t;
 void lcd_use(lcd_panel_t p);
 
+// FR-35.25: which panels are plugged in, before lcd_use. The OLED by its CS
+// line (a 10 kOhm to GND on the OLED's lead holds it low against the internal
+// pull-up), read only when look_oled; the e-paper by its BUSY pulse after a
+// reset, probed only when look_epaper. A found e-paper is left started; lcd_use
+// of another panel puts it back in its deep sleep.
+void lcd_detect(bool look_epaper, bool look_oled, bool *epaper, bool *oled);
+
 // FR-35.15: on the e-paper, the lines drawn since the last refresh are sent
 // once a refresh is due: the window's first as a full refresh, then partial
 // ones at most every 5 s. Called each tick; ESP_OK when nothing is due or on

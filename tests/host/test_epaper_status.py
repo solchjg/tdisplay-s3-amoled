@@ -1,4 +1,4 @@
-"""Host tier: the e-paper's status block (FSD FR-35.24) and L48 (FR-35.2).
+"""Host tier: the e-paper's status block (FSD FR-35.24), L48 (FR-35.2) and L50 (FR-35.25).
 
 Compiles web_log's status core and line formats, feeds it `web:` lines as
 web_log.c emits them, and prints the block's rows.
@@ -14,8 +14,15 @@ HARNESS = r"""
 #include "web_log_status.h"
 
 // argv: rows <mv> <pct> then lines "<level>:<text>" | display <panel> <temp|none>
+//       | displays <epaper state> <oled state>
 int main(int argc, char **argv)
 {
+    if (!strcmp(argv[1], "displays")) {
+        char line[WL_LINE_MAX];
+        wl_fmt_displays(line, sizeof line, atoi(argv[2]), atoi(argv[3]));
+        printf("%s\n", line);
+        return 0;
+    }
     if (!strcmp(argv[1], "display")) {
         char line[WL_LINE_MAX];
         bool have = strcmp(argv[3], "none") != 0;
@@ -91,3 +98,15 @@ def test_a_failed_attach_replaces_the_last_one(run):
 ])
 def test_display_line(run, panel, t, want):
     assert run("display", panel, t) == [want]
+
+
+# L50 · FR-35.25
+@pytest.mark.parametrize("ep,ol,want", [
+    (2, 2, "displays epaper=found oled=found"),
+    (1, 2, "displays epaper=none oled=found"),
+    (2, 1, "displays epaper=found oled=none"),
+    (0, 1, "displays epaper=off oled=none"),
+    (1, 0, "displays epaper=none oled=off"),
+])
+def test_displays_line(run, ep, ol, want):
+    assert run("displays", ep, ol) == [want]

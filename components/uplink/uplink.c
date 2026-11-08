@@ -166,14 +166,14 @@ const char *uplink_form_html(void)
              "<p><label>GPS fix in the setup check <select name=\"gps\"><option%s>off</option>"
              "<option%s>on</option></select></label></p>"
              "<h2>Displays</h2>"
-             "<p><label>4.2\" e-paper fitted <select name=\"epaper\"><option%s>off</option>"
-             "<option%s>on</option></select></label></p>"
-             "<p><label>3.12\" OLED fitted <select name=\"oled\"><option%s>on</option>"
+             "<p><label>4.2\" e-paper, when plugged in <select name=\"epaper\"><option%s>on</option>"
+             "<option%s>off</option></select></label></p>"
+             "<p><label>3.12\" OLED, when plugged in <select name=\"oled\"><option%s>on</option>"
              "<option%s>off</option></select></label></p>",
              s->cell ? "" : " selected", s->cell ? " selected" : "", modem.apn, modem.plmn,
              s->mail_route ? " selected" : "", s->mail_route ? "" : " selected",
              s->gps ? "" : " selected", s->gps ? " selected" : "",
-             modem.epaper ? "" : " selected", modem.epaper ? " selected" : "",
+             modem.epaper ? " selected" : "", modem.epaper ? "" : " selected",
              modem.oled ? " selected" : "", modem.oled ? "" : " selected");
     return form;
 #endif

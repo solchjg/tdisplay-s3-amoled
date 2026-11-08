@@ -20,7 +20,7 @@ select, so only the one being drawn to listens.
 | GPIO 3 | E-paper chip select | CS | — |
 | GPIO 20 | E-paper reset | RST | — |
 | GPIO 1 | E-paper busy (input) | BUSY | — |
-| GPIO 9 | OLED chip select | — | CS, pin 16 |
+| GPIO 9 | OLED chip select, and its detection | — | CS, pin 16, with 10 kΩ to GND |
 | GPIO 19 | OLED reset | — | RES, pin 15 |
 
 - Go by the silk label beside each header pin, not by counting. GPIO 21 (the
@@ -31,6 +31,24 @@ select, so only the one being drawn to listens.
 - Keep the SPI leads under about 15 cm, with a ground wire alongside each cable.
   A breadboard row or a 3-way Dupont splitter per shared signal joins the two
   displays to one board pin.
+
+## Detection
+
+Either display, both or neither may be plugged in (FR-35.25). At the start of
+each window the firmware looks for each display whose setting is `on`, logs L50
+(`web: displays epaper=found oled=none`, for example) and chooses among those
+found (FR-35.2).
+
+- **E-paper:** found when BUSY (GPIO 1, internal pull-down) rises within 2 ms
+  of the software reset. A fitted SSD1683 raises it within about 15 µs and holds
+  it for about 4.4 ms; with no panel the pull-down keeps it low. Nothing extra is
+  wired.
+- **OLED:** found when its CS (GPIO 9) reads low against the internal pull-up.
+  Fit a **10 kΩ resistor from CS to GND on the OLED's lead** (at its plug or on
+  the module's header). It draws about 0.3 mA while CS is high in a window, and
+  nothing in deep sleep.
+
+Plug or unplug a display with the power off; the next window sees the change.
 
 ## E-paper reset timing
 
@@ -89,7 +107,7 @@ flex, before wiring.
 | 13 | R/W | GND |
 | 14 | DC | GPIO 10 |
 | 15 | RES | GPIO 19 |
-| 16 | CS | GPIO 9 |
+| 16 | CS | GPIO 9, with 10 kΩ to GND (detection) |
 
 In serial mode the SSD1322 leaves D2 open and lets D3 to D7, E and R/W go to
 ground. Tying them low keeps them from floating.

@@ -24,6 +24,11 @@ void wl_fmt_lcd_write_failed(char *buf, size_t len, const char *err);
 // L48: "display <epaper|oled> t=<°F, 2 decimals>" or "... t=none" (FR-35.2)
 void wl_fmt_display(char *buf, size_t len, const char *panel, bool have, float temp_f);
 
+// L50: "displays epaper=<found|none|off> oled=<found|none|off>" (FR-35.25), each
+// state WL_DISPLAY_OFF (its setting off, not looked for), _NONE or _FOUND.
+enum { WL_DISPLAY_OFF, WL_DISPLAY_NONE, WL_DISPLAY_FOUND };
+void wl_fmt_displays(char *buf, size_t len, int epaper, int oled);
+
 // K12: "alive <N>"
 void wl_fmt_alive(char *buf, size_t len, uint32_t n);
 

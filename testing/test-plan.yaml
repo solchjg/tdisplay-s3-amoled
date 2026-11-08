@@ -3910,16 +3910,28 @@ tests:
     impl: [tests/host/test_epaper_layout.py::test_refresh_due, tests/host/test_epaper_layout.py::test_sleep_screen_keeps_the_lines_with_the_reading_and_the_sleep_line]
     result: {status: not done}
   - id: TC-TSIM-20
-    title: "Display settings: epaper off and oled on by default, kept when absent or empty, on or off only"
+    title: "Display settings: epaper and oled on by default, kept when absent or empty, on or off only"
     shape: atomic
     kind: standard
     wave: 1
     fsd_phase: 18
     tier: host
-    verifies: [FR-35.2, FR-35.4]
+    verifies: [FR-35.2, FR-35.4, FR-35.25]
     needs: []
-    observable: "a new board reports epaper=off&oled=on; epaper=on and oled=off are stored, kept by a body without them or with them empty; any other value is refused naming epaper or oled; the settings read and the form rules end with epaper (section Displays) and oled"
+    observable: "a new board reports epaper=on&oled=on; epaper=on and oled=off are stored, kept by a body without them or with them empty; any other value is refused naming epaper or oled; the settings read and the form rules end with epaper (section Displays) and oled"
     impl: [tests/host/test_uplink.py::test_modem_settings_displays, tests/host/test_ble_setup.py::test_modem_dump_and_form]
+    result: {status: not done}
+  - id: TC-TSIM-21
+    title: "L50: the displays found for the window"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.25]
+    needs: []
+    observable: "displays epaper=<found|none|off> oled=<found|none|off> for each state of each display"
+    impl: tests/host/test_epaper_status.py::test_displays_line
     result: {status: not done}
   - id: TC-TSIM-10
     title: "OLED stand-in: six rows of 6 x 10 cells, lines cut at 21"
