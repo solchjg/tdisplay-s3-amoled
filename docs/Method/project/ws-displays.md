@@ -56,11 +56,11 @@ found (FR-35.2).
 - **OLED:** found when its CS (GPIO 9) reads low against the internal pull-up.
   Fit a **10 kΩ resistor from CS to GND on the OLED's lead** (at its plug or on
   the module's header). It draws about 0.3 mA while CS is high in a window, and
-  nothing in deep sleep. On the header's solder side it stands on pin 16 (CS),
-  its top lead sleeved over pin 14 (DC) down to pin 12 (E/RD, grounded by the
-  cable):
+  nothing in deep sleep. On the module it runs from pin 16 (CS) to pin 1 (GND,
+  the square pad), laid along the header on the panel side with both leads
+  sleeved, so it needs no ground from the cable:
 
-  ![10 kΩ from pin 16 to pin 12 on the solder side of the OLED's header](wiring/oled-312-detect-resistor.png)
+  ![The 10 kΩ on the panel side of the OLED's header, pin 16 at the top to pin 1 at the bottom](wiring/oled-312-detect-resistor.jpg)
 
 Plug or unplug a display with the power off; the next window sees the change.
 
