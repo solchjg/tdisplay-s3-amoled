@@ -14,20 +14,26 @@ GPIOs in number order, not in the order they sit on the headers.
 The clock, data and D/C lines go to both displays. Each display has its own chip
 select, so only the one being drawn to listens.
 
-| Board pin | Signal | E-paper (8-pin) | OLED (2 × 8 header) |
-|-----------|--------|-----------------|---------------------|
-| 3V3 | Supply | VCC | VCC, pin 2 (see [Supply](#supply)) |
-| GND | Ground | GND | GND, pin 1 |
-| GPIO 7 | SPI2 clock | CLK | D0/SCLK, pin 4 |
-| GPIO 8 | SPI2 data | DIN | D1/SDIN, pin 5 |
-| GPIO 10 | Data/command | DC | DC, pin 14 |
-| GPIO 3 | E-paper chip select | CS | — |
-| GPIO 20 | E-paper reset | RST | — |
-| GPIO 1 | E-paper busy (input) | BUSY | — |
+| Board pin | Signal | E-paper (8-pin), cable colour | OLED (2 × 8 header) |
+|-----------|--------|-------------------------------|---------------------|
+| 3V3 | Supply | VCC, grey | VCC, pin 2 (see [Supply](#supply)) |
+| GND | Ground | GND, brown | GND, pin 1 |
+| GPIO 7 | SPI2 clock | CLK, yellow | D0/SCLK, pin 4 |
+| GPIO 8 | SPI2 data | DIN, blue | D1/SDIN, pin 5 |
+| GPIO 10 | Data/command | DC, green | DC, pin 14 |
+| GPIO 3 | E-paper chip select | CS, orange | — |
+| GPIO 20 | E-paper reset | RST, white | — |
+| GPIO 1 | E-paper busy (input) | BUSY, purple | — |
 | GPIO 9 | OLED chip select, and its detection | — | CS, pin 16, with 10 kΩ to GND |
 | GPIO 19 | OLED reset | — | RES, pin 15 |
 
-- The headers carry no silk labels, and the sheet shows the GPIOs in number
+- The cable colours are those of the cable that comes with Waveshare's 4.2"
+  e-Paper Module (V2, Rev2.2); its connector and the 8-pin header beside it are
+  labelled on the module's back.
+
+  ![The back of the 4.2" e-Paper Module V2: the cable's connector on the left, BUSY to VCC, and the BS link set to 0 (4-line SPI)](wiring/epaper-42-v2-back.jpg)
+
+- The board's headers carry no silk labels, and the sheet shows the GPIOs in number
   order, not header order. Find each pin with a meter before wiring. GPIO 21
   (the modem's supply) and GPIO 0 (the boot strap) stay free.
 - The header GND pins carry the e-paper's refresh current. A poor ground joint
