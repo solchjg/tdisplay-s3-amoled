@@ -21,7 +21,7 @@ select, so only the one being drawn to listens.
 | GPIO 20 | E-paper reset | RST | — |
 | GPIO 1 | E-paper busy (input) | BUSY | — |
 | GPIO 9 | OLED chip select | — | CS, pin 16 |
-| — | OLED reset | — | RES, pin 15, from an RC (see [Reset](#reset)) |
+| GPIO 19 | OLED reset | — | RES, pin 15 |
 
 - Go by the silk label beside each header pin, not by counting. GPIO 21 (the
   modem's supply) and GPIO 0 (the boot strap) sit beside the e-paper's pins and
@@ -88,7 +88,7 @@ flex, before wiring.
 | 12 | E/RD | GND |
 | 13 | R/W | GND |
 | 14 | DC | GPIO 10 |
-| 15 | RES | RC (see [Reset](#reset)) |
+| 15 | RES | GPIO 19 |
 | 16 | CS | GPIO 9 |
 
 In serial mode the SSD1322 leaves D2 open and lets D3 to D7, E and R/W go to
@@ -96,10 +96,12 @@ ground. Tying them low keeps them from floating.
 
 ### Reset
 
-`BOARD_OLED_RST` is −1: the firmware never drives the OLED's reset. This module
-shows no RC on RES, so the RC goes at the header: 10 kΩ from RES to 3V3 and 1 µF
-from RES to GND. To check, power the module with pin 15 unconnected and measure
-it. A RES that reads 3.3 V already has its own pull-up.
+The firmware drives RES from GPIO 19 (`BOARD_OLED_RST`), so every start of the
+shared `ssd1322` resets the controller, also after a deep sleep or an ESP32
+reset, when the OLED's supply never dropped. The module has no reset RC of its
+own. GPIO 19 is the ESP32-S3's USB D−, free with the board's USB switch on (the
+console runs on the CH343). With it, no header GPIO is left free: further sensors
+join the I2C buses.
 
 ### Supply
 

@@ -35,12 +35,13 @@
 // The off-board key's LED (FR-35.18); the key itself is CONFIG_SETUP_CHECK_KEY_GPIO.
 #define BOARD_LED 13
 // The 3.12" SSD1322 OLED (§35.2, FR-35.16) on SPI2, the lines shared with the
-// optional e-paper (§36) except its own CS; its reset from an RC on the module.
+// optional e-paper (§36) except its own CS; its reset on GPIO 19 (the USB D-
+// pad, free with the board's USB switch on).
 #define BOARD_OLED_SCK 7
 #define BOARD_OLED_MOSI 8
 #define BOARD_OLED_CS 9
 #define BOARD_OLED_DC 10
-#define BOARD_OLED_RST (-1)
+#define BOARD_OLED_RST 19
 // The optional 4.2" e-paper (§36, FR-35.15): Waveshare's e-Paper Module (V2,
 // SSD1683) on the same SPI2 lines, with its own CS, BUSY and RST.
 #define BOARD_EPD_CS 3
