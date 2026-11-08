@@ -224,7 +224,7 @@ def board_part(used):
 # The Waveshare ESP32-S3-SIM7670G-4G (FSD 35.2): its two headers' GPIOs, listed in
 # number order, not in their physical order on the board.
 WS_P2 = ["GND", "IO0", "IO1", "IO2", "IO3", "IO19", "IO20", "IO21", "IO39", "IO40",
-         "IO41", "IO42", "IO45"]
+         "IO41", "IO42", "IO45", "5V"]
 WS_P3 = ["3V3", "GND R", "IO4", "IO5", "IO6", "IO7", "IO8", "IO9", "IO10", "IO11",
          "IO12", "IO13", "IO14", "IO15", "IO16", "IO46"]
 
@@ -1019,7 +1019,8 @@ def sheet_ws_displays(S):
                              ("IO8", "DIN", "SDIN", "blue", 2500),
                              ("IO10", "DC", "DC", "green", 2700)):
         S.wire((B, bp), (EP, ep), c, ("x", x))
-        S.wire((B, bp), (OL, op), c, ("x", x))
+        if op != "VCC":  # the OLED's VCC comes from 5 V, below
+            S.wire((B, bp), (OL, op), c, ("x", x))
     # the OLED's chip select, and the 10k that marks it plugged in (FR-35.25)
     S.wire((B, "IO9"), (OL, "CS"), "orange", ("x", 2600))
     S.wire((OL, "CS"), ("R1", "1"), "orange", ("x", 3400))
@@ -1030,7 +1031,8 @@ def sheet_ws_displays(S):
     for bp, part, pin, c, lane, top, x in (("IO1", EP, "BUSY", "purple", 400, 450, 2800),
                                            ("IO3", EP, "CS", "orange", 350, 400, 2900),
                                            ("IO20", EP, "RST", "white", 300, 350, 3000),
-                                           ("IO19", OL, "RES", "brown", 250, 300, 3100)):
+                                           ("IO19", OL, "RES", "brown", 250, 300, 3100),
+                                           ("5V", OL, "VCC", "red", 200, 250, 3200)):
         S.wire((B, bp), (part, pin), c, ("x", lane), ("y", top), ("x", x))
     S.note(300, 5600, 6200, [
         "# Both displays on the Waveshare board (FSD 35.2, 36, FR-35.25)",
@@ -1038,7 +1040,7 @@ def sheet_ws_displays(S):
         "chip select: e-paper CS GPIO 3, OLED CS GPIO 9. E-paper BUSY GPIO 1, RST GPIO 20;",
         "OLED RES GPIO 19. R1 (10k, CS to GND) tells the firmware the OLED is plugged in;",
         "the e-paper is found by its BUSY pulse. OLED: R5 + R8 fitted (4-wire SPI), header",
-        "pins 7 - 13 to GND, 3 and 6 open; VCC from 3V3, or 5 V if the panel is dim.",
+        "pins 7 - 13 to GND, 3 and 6 open; VCC from 5 V (on 3V3 the panel stays dark).",
         "Keep leads under 15 cm with a ground beside them. Details in ws-displays.md.",
         LEGEND,
     ])

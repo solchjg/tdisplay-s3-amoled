@@ -16,7 +16,8 @@ select, so only the one being drawn to listens.
 
 | Board pin | Signal | E-paper (8-pin), cable colour | OLED (2 × 8 header) |
 |-----------|--------|-------------------------------|---------------------|
-| 3V3 | Supply | VCC, grey | VCC, pin 2 (see [Supply](#supply)) |
+| 3V3 | Supply | VCC, grey | — |
+| 5 V | OLED supply | — | VCC, pin 2 (see [Supply](#supply)) |
 | GND | Ground | GND, brown | GND, pin 1 |
 | GPIO 7 | SPI2 clock | CLK, yellow | D0/SCLK, pin 4 |
 | GPIO 8 | SPI2 data | DIN, blue | D1/SDIN, pin 5 |
@@ -113,7 +114,7 @@ order:
 | Pin | Signal | In 4-wire SPI |
 |-----|--------|---------------|
 | 1 | GND | GND |
-| 2 | VCC | 3V3, or 5 V (see [Supply](#supply)) |
+| 2 | VCC | 5 V (see [Supply](#supply)) |
 | 3 | NC | open |
 | 4 | D0/SCLK | GPIO 7 |
 | 5 | D1/SDIN | GPIO 8 |
@@ -139,9 +140,9 @@ join the I2C buses.
 
 ### Supply
 
-The module's own regulator (U1) has almost no headroom with 3.3 V on VCC. If the
-panel is dim or unstable on 3V3, VCC goes to the board's 5 V instead; the logic
-lines stay at 3.3 V either way. The OLED draws about 20 to 100 mA, depending on
+The module's VCC comes from the board's 5 V. Its own regulator (U1) has no
+headroom with 3.3 V on VCC, and the panel stays dark there. The logic lines stay
+at 3.3 V. The OLED draws about 20 to 100 mA, depending on
 how much of the screen is lit. The e-paper draws a few mA, and only while it
 refreshes.
 
