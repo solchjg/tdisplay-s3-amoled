@@ -2,7 +2,7 @@
 // 8-pin board) on the Waveshare ESP32-S3-SIM7670G-4G (FSD §36, §35.2). Over
 // and over, every 30 s: a hardware reset, a full refresh of a frame and six
 // text lines, five partial refreshes of a counter on line 6, then the
-// controller's deep sleep. Each step's BUSY time is printed (`wsepaper:`;
+// controller's power off and deep sleep. Each step's BUSY time is printed (`wsepaper:`;
 // CHECK marks a result to look at). The modem's supply (GPIO 21) is held
 // low, so the USB console never drops. Before each reset it prints the
 // BUSY and RST levels and BUSY's voltage (`wsepaper: pins`). Never released.
@@ -143,11 +143,15 @@ static esp_err_t bus_start(void)
 static long epd_init(void)
 {
     pins("before");
+    // Waveshare's demo timing: high 100 ms, low 2 ms, high 100 ms, so a
+    // controller waking from its deep sleep has booted before 0x12.
+    gpio_set_level(PIN_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(100));
     gpio_set_level(PIN_RST, 0);
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(2) + 1);
     pins("rst-low");
     gpio_set_level(PIN_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(100));
     pins("rst-high");
     epd_cmd(0x12, NULL, 0);  // software reset: BUSY high for a few ms
     long high_us = 0;
@@ -204,9 +208,16 @@ static long epd_partial(void)
     return ms;
 }
 
-static void epd_sleep(void)
+// The analog block and the clock off first (0x22 0x83, as Waveshare's and
+// GxEPD2's power-off do; a partial refresh's 0xFC leaves them on), then deep
+// sleep mode 1, which RST ends.
+static long epd_sleep(void)
 {
-    CMD(0x10, 0x01);  // deep sleep mode 1; RST ends it
+    CMD(0x22, 0x83);
+    epd_cmd(0x20, NULL, 0);
+    long ms = epd_wait();
+    CMD(0x10, 0x01);
+    return ms;
 }
 
 static void px(int x, int y, bool black)
@@ -280,8 +291,9 @@ void app_main(void)
                 ms = epd_partial();
                 printf("wsepaper: partial %d %ld ms %s\n", i, ms, ms > 100 && ms < 3000 ? "ok" : "CHECK");
             }
-            epd_sleep();
-            printf("wsepaper: controller asleep; next run in 30 s\n");
+            ms = epd_sleep();
+            printf("wsepaper: power off %ld ms %s; controller asleep; next run in 30 s\n", ms,
+                   ms >= 0 ? "ok" : "CHECK");
         }
         vTaskDelay(pdMS_TO_TICKS(30000));
     }
