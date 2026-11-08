@@ -195,7 +195,7 @@ Other builds sharing the components:
   `commissioning/ws-epaper-probe/` — the Waveshare 4.2" e-Paper Module (V2, SSD1683) on the Waveshare board (§36):
   a full refresh, five timed partial refreshes and the controller's deep sleep every 30 s, the modem kept off;
   `commissioning/ws-lcd-probe/` — the Waveshare 1.9" LCD module (170 × 320, ST7789) on the Waveshare board through the
-  shared `st7789`'s SPI mode, on SPI2 beside the e-paper and OLED with its own CS on GPIO 19 (no FSD section: the panel
+  shared `st7789`'s SPI mode, on SPI2 beside the OLED on the e-paper's cable (CS 3, RST 20, BL 1; CS 19 and RST, BL on 3V3 by menuconfig) (no FSD section: the panel
   is for another project): timed fills, a frame with corner marks, colour bars, a moving box's frame rate, the modem kept off;
   `commissioning/modem-probe/` — the LTE-M modem evaluation on a LilyGO
   T-SIM7080G-S3 (no FSD section yet, `docs/Method/project/lte-m-modem.md`); `commissioning/epaper-probe/` —

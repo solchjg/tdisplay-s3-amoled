@@ -1,21 +1,25 @@
 // ws-lcd-probe: the Waveshare 1.9" LCD module (170 x 320, ST7789, SPI) on the
 // Waveshare ESP32-S3-SIM7670G-4G, through the shared st7789 driver's SPI mode.
-// It shares SPI2 (SCK, MOSI, DC) with the e-paper and the OLED of §35.2 and
-// §36 and has its own CS on the one free header pin; their CS lines are held
-// high. Over and over: five full-screen fills (red, green, blue, white,
-// black) with their times, a frame with three corner marks and two text
-// lines, eight colour bars, five seconds of a moving box with its frame
-// rate, and the display off and on. Each step prints a `wslcd:` line; CHECK
-// marks what to look at on the panel. The modem's supply (GPIO 21) is held
+// It shares SPI2 (SCK, MOSI, DC) with the OLED of §35.2, whose CS is held
+// high, and by default takes the e-paper's lines of §36 (CS, RST, BUSY as BL),
+// the e-paper unplugged; menuconfig moves CS, RST and BL. With PROBE_BLINK,
+// only every LCD line blinking as a GPIO for a meter. Else over and over: five full-screen fills (red, green,
+// blue, white, black) with their times, a frame with three corner marks and
+// two text lines, eight colour bars, five seconds of a moving box with its
+// frame rate, and the display off and on. Each step prints a `wslcd:` line;
+// CHECK marks what to look at on the panel. The modem's supply (GPIO 21) is held
 // low, so the USB console never drops. Never released.
 //
-// Wiring (P3 / P2 header labels): VCC 3V3, GND GND, DIN IO8, CLK IO7,
-// CS IO19, DC IO10, RST 3V3 (software reset), BL 3V3 (backlight always on).
+// Wiring (P3 / P2 header labels), the e-paper's cable: VCC 3V3, GND GND,
+// DIN IO8, CLK IO7, CS IO3, DC IO10, RST IO20, BL IO1. RST or BL at -1 in
+// menuconfig means that LCD pin is tied to 3V3 instead (software reset,
+// backlight always on).
 #include <stdio.h>
 #include <string.h>
 
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -24,9 +28,10 @@
 
 #define PIN_SCK 7
 #define PIN_MOSI 8
-#define PIN_CS 19
+#define PIN_CS CONFIG_PROBE_PIN_CS
 #define PIN_DC 10
-#define PIN_EPAPER_CS 3
+#define PIN_RST CONFIG_PROBE_PIN_RST
+#define PIN_BL CONFIG_PROBE_PIN_BL
 #define PIN_OLED_CS 9
 #define PIN_MODEM_SUPPLY 21
 
@@ -53,6 +58,9 @@
 
 static void out_pin(int pin, int level)
 {
+    if (pin < 0) {
+        return;
+    }
     gpio_set_level(pin, level);
     gpio_config_t io = {.pin_bit_mask = 1ULL << pin, .mode = GPIO_MODE_OUTPUT};
     gpio_config(&io);
@@ -178,11 +186,42 @@ static void display_off_on(void)
     hold(1500);
 }
 
+#if CONFIG_PROBE_BLINK
+// Every LCD line (CS, DC, CLK, DIN, RST, BL) as a plain GPIO, all of them
+// 3 s high and 3 s low together, forever, the panel never started: a meter at
+// the LCD's connector finds a line that does not arrive, at any pace.
+static void blink(void)
+{
+    static const int pins[] = {PIN_CS, PIN_DC, PIN_SCK, PIN_MOSI, PIN_RST, PIN_BL};
+    const int n = sizeof pins / sizeof pins[0];
+    for (int i = 0; i < n; i++) {
+        out_pin(pins[i], 0);
+    }
+    printf("wslcd: blink CS gpio%d DC gpio%d CLK gpio%d DIN gpio%d RST gpio%d BL gpio%d\n",
+           PIN_CS, PIN_DC, PIN_SCK, PIN_MOSI, PIN_RST, PIN_BL);
+    printf("wslcd: CHECK each LCD pin swings 3.3 V / 0 V every 3 s against GND\n");
+    for (int t = 0;; t++) {
+        for (int i = 0; i < n; i++) {
+            if (pins[i] >= 0) {
+                gpio_set_level(pins[i], t & 1 ? 0 : 1);
+            }
+        }
+        if (t % 4 == 0) {
+            printf("wslcd: blink %d s reset reason %d\n", t * 3, (int)esp_reset_reason());
+        }
+        hold(3000);
+    }
+}
+#endif
+
 void app_main(void)
 {
     out_pin(PIN_MODEM_SUPPLY, 0);
-    out_pin(PIN_EPAPER_CS, 1);
     out_pin(PIN_OLED_CS, 1);
+    printf("wslcd: reset reason %d\n", (int)esp_reset_reason());
+#if CONFIG_PROBE_BLINK
+    blink();
+#endif
 
     const st7789_config_t cfg = {
         .bus = ST7789_BUS_SPI,
@@ -191,9 +230,9 @@ void app_main(void)
         .mosi_gpio = PIN_MOSI,
         .cs_gpio = PIN_CS,
         .dc_gpio = PIN_DC,
-        .rst_gpio = -1,
+        .rst_gpio = PIN_RST,
         .power_gpio = -1,
-        .backlight_gpio = -1,
+        .backlight_gpio = PIN_BL,
         .pclk_hz = CONFIG_PROBE_SPI_MHZ * 1000000,
         .width = LCD_W,
         .height = LCD_H,
@@ -211,13 +250,14 @@ void app_main(void)
     };
     int64_t t = now_us();
     esp_err_t err = st7789_start(&cfg);
-    printf("wslcd: start %s ms=%lld %dx%d spi=%d MHz sck=%d mosi=%d cs=%d dc=%d\n",
+    printf("wslcd: start %s ms=%lld %dx%d spi=%d MHz sck=%d mosi=%d cs=%d dc=%d rst=%d bl=%d\n",
            esp_err_to_name(err), (now_us() - t) / 1000, LCD_W, LCD_H, CONFIG_PROBE_SPI_MHZ,
-           PIN_SCK, PIN_MOSI, PIN_CS, PIN_DC);
+           PIN_SCK, PIN_MOSI, PIN_CS, PIN_DC, PIN_RST, PIN_BL);
     if (err != ESP_OK) {
         printf("wslcd: CHECK the start failed; nothing more runs\n");
         return;
     }
+    st7789_backlight(true);
     for (int round = 1;; round++) {
         printf("wslcd: round %d\n", round);
         fills();
