@@ -287,13 +287,12 @@ static void screen(int run, int count)
     draw(&text_font_large, 8, 230, s);
 }
 
-// Each run isolates one change, since a hung refresh lasts until the
-// module's power is cut:
-//   run 1 ends with the power off only (no deep sleep), so run 2 shows
-//   whether the short reset and refresh work without a deep sleep before them;
-//   run 2 and later end with the power off and the deep sleep;
-//   run 3 and later use the long reset.
-// A full refresh past its limit is retried once after a long reset.
+// Every run uses the long reset: the short one is "until the next tick",
+// anywhere from 0 to 10 ms, and an ESP32 reset (which holds RST low while it
+// boots) recovers a controller that hangs on later runs. Run 1 ends with the
+// power off only, so run 2 follows no deep sleep; run 2 and later end with
+// the deep sleep, so run 3 follows one. A full refresh past its limit is
+// retried once after another long reset.
 void app_main(void)
 {
     esp_err_t err = bus_start();
@@ -302,7 +301,7 @@ void app_main(void)
         return;
     }
     for (int run = 1;; run++) {
-        bool long_reset = run >= 3, deep = run >= 2;
+        bool long_reset = true, deep = run >= 2;
         printf("wsepaper: run %d: %s reset, ends with %s\n", run, long_reset ? "long" : "short",
                deep ? "power off and deep sleep" : "power off only");
         long ms = epd_init(long_reset);
