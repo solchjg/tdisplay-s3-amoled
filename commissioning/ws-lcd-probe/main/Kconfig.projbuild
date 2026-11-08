@@ -2,7 +2,7 @@ menu "Waveshare 1.9in LCD probe"
 
 config PROBE_SPI_MHZ
     int "SPI clock in MHz"
-    default 2
+    default 20
     range 1 62
     help
         The ST7789 takes up to 62.5 MHz on short traces; jumper wires on a
@@ -31,7 +31,7 @@ config PROBE_PIN_BL
 
 config PROBE_BLINK
     bool "Only blink every LCD line as a GPIO (3 s high, 3 s low) for a meter"
-    default y
+    default n
     help
         The panel is never started: CS, DC, CLK, DIN, RST and BL all go high
         and low together every 3 s, forever, so each can be checked
