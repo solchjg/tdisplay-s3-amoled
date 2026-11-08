@@ -1007,10 +1007,10 @@ def sheet_blues_direct(S):
 
 
 def sheet_ws_displays(S):
-    B, E, O = "Board", "EPD", "OLED"
+    B, EP, OL = "Board", "EPD", "OLED"
     S.place(B, "tds3a_waveshare_sim7670g", 500, 1100)
-    S.place(E, "tds3a_ws_epaper", 4000, 600)
-    S.place(O, "tds3a_oled_312", 4000, 2700)
+    S.place(EP, "tds3a_ws_epaper", 4000, 600)
+    S.place(OL, "tds3a_oled_312", 4000, 2700)
     S.place("R1", "tds3a_r10k5_v", 3300, 4500)
     # shared lines from P3, each in its own channel, to both displays
     for bp, ep, op, c, x in (("3V3", "VCC", "VCC", "red", 2200),
@@ -1018,19 +1018,19 @@ def sheet_ws_displays(S):
                              ("IO7", "CLK", "SCLK", "yellow", 2400),
                              ("IO8", "DIN", "SDIN", "blue", 2500),
                              ("IO10", "DC", "DC", "green", 2700)):
-        S.wire((B, bp), (E, ep), c, ("x", x))
-        S.wire((B, bp), (O, op), c, ("x", x))
+        S.wire((B, bp), (EP, ep), c, ("x", x))
+        S.wire((B, bp), (OL, op), c, ("x", x))
     # the OLED's chip select, and the 10k that marks it plugged in (FR-35.25)
-    S.wire((B, "IO9"), (O, "CS"), "orange", ("x", 2600))
-    S.wire((O, "CS"), ("R1", "1"), "orange", ("x", 3400))
-    S.wire(("R1", "2"), (O, "GND"), "black", ("y", 5300), ("x", 2300))
+    S.wire((B, "IO9"), (OL, "CS"), "orange", ("x", 2600))
+    S.wire((OL, "CS"), ("R1", "1"), "orange", ("x", 3400))
+    S.wire(("R1", "2"), (OL, "GND"), "black", ("y", 5300), ("x", 2300))
     # the unused parallel inputs (header pins 7 - 13) to GND
-    S.wire((O, "GND "), (B, "GND R"), "black", ("x", 3800), ("y", 5200), ("x", 2300))
+    S.wire((OL, "GND "), (B, "GND R"), "black", ("x", 3800), ("y", 5200), ("x", 2300))
     # P2 lines round the top of the board
-    for bp, part, pin, c, lane, top, x in (("IO1", E, "BUSY", "purple", 400, 450, 2800),
-                                           ("IO3", E, "CS", "orange", 350, 400, 2900),
-                                           ("IO20", E, "RST", "white", 300, 350, 3000),
-                                           ("IO19", O, "RES", "brown", 250, 300, 3100)):
+    for bp, part, pin, c, lane, top, x in (("IO1", EP, "BUSY", "purple", 400, 450, 2800),
+                                           ("IO3", EP, "CS", "orange", 350, 400, 2900),
+                                           ("IO20", EP, "RST", "white", 300, 350, 3000),
+                                           ("IO19", OL, "RES", "brown", 250, 300, 3100)):
         S.wire((B, bp), (part, pin), c, ("x", lane), ("y", top), ("x", x))
     S.note(300, 5600, 6200, [
         "# Both displays on the Waveshare board (FSD 35.2, 36, FR-35.25)",
