@@ -143,15 +143,11 @@ static esp_err_t bus_start(void)
 static long epd_init(void)
 {
     pins("before");
-    // Waveshare's demo timing: high 100 ms, low 2 ms, high 100 ms, so a
-    // controller waking from its deep sleep has booted before 0x12.
-    gpio_set_level(PIN_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(100));
     gpio_set_level(PIN_RST, 0);
-    vTaskDelay(pdMS_TO_TICKS(2) + 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
     pins("rst-low");
     gpio_set_level(PIN_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(10));
     pins("rst-high");
     epd_cmd(0x12, NULL, 0);  // software reset: BUSY high for a few ms
     long high_us = 0;
