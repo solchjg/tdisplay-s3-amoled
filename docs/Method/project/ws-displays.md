@@ -94,9 +94,11 @@ to R5 (or bridge R5's pads), and leave R8 fitted and R6 and R7 empty.
 
 ### Header
 
-Pin 1 is at the bottom right as printed. The usual order on these modules is
-below. Check it against the seller's sheet, or with a continuity meter to the
-flex, before wiring.
+Pin 1 is the square pad, at the bottom right as printed. The odd pins (1, 3 …
+15) run up one row and the even pins (2, 4 … 16) up the row beside it, so pin 2
+sits next to pin 1 and pin 16 is at the far end. The seller's pinout for this
+module family (the 2.8" GME25664-40 drawing, the same 16-pin header) gives this
+order:
 
 | Pin | Signal | In 4-wire SPI |
 |-----|--------|---------------|
