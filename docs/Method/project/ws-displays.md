@@ -5,6 +5,9 @@ How the cellular build's two displays (FSD §35.2, §36) are wired and set up: t
 on SPI2 at the same time. `components/board/include/board.h` holds the pins, and
 `dl_display_choose` (FR-35.2) picks which one a wake draws on.
 
+Fritzing sheet 7 in [`wiring/wiring.md`](wiring/wiring.md) is to draw this
+wiring; until it exists, the tables below are the reference.
+
 ## Shared bus
 
 The clock, data and D/C lines go to both displays. Each display has its own chip
