@@ -5,8 +5,9 @@ How the cellular build's two displays (FSD §35.2, §36) are wired and set up: t
 on SPI2 at the same time. `components/board/include/board.h` holds the pins, and
 `dl_display_choose` (FR-35.2) picks which one a wake draws on.
 
-Fritzing sheet 7 in [`wiring/wiring.md`](wiring/wiring.md) is to draw this
-wiring; until it exists, the tables below are the reference.
+Fritzing sheet 7 ([picture](wiring/wiring-7-ws-displays.png),
+[.fzz](wiring/wiring-7-ws-displays.fzz)) draws this wiring; it lists the board's
+GPIOs in number order, so go by the silk label beside each header pin.
 
 ## Shared bus
 
