@@ -2,7 +2,8 @@
 // 8-pin board) on the Waveshare ESP32-S3-SIM7670G-4G (FSD §36, §35.2). Over
 // and over, every 30 s: a hardware reset, a full refresh of a frame and six
 // text lines, five partial refreshes of a counter on line 6, then the
-// controller's power off and deep sleep. Each step's BUSY time is printed (`wsepaper:`;
+// controller's power off and (from run 2) deep sleep; see app_main for what
+// each run changes. Each step's BUSY time is printed (`wsepaper:`;
 // CHECK marks a result to look at). The modem's supply (GPIO 21) is held
 // low, so the USB console never drops. Before each reset it prints the
 // BUSY and RST levels and BUSY's voltage (`wsepaper: pins`). Never released.
@@ -17,6 +18,7 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
+#include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -140,14 +142,30 @@ static esp_err_t bus_start(void)
 }
 
 // Hardware reset (which also ends the deep sleep), software reset, setup.
-static long epd_init(void)
+// The short reset is one 100 Hz tick low and one high; the long one is an
+// exact 20 ms low and 20 ms high (a busy wait, no tick rounding), then up to
+// 100 ms for BUSY to fall before the software reset.
+static long epd_init(bool long_reset)
 {
     pins("before");
     gpio_set_level(PIN_RST, 0);
-    vTaskDelay(pdMS_TO_TICKS(10));
+    if (long_reset) {
+        esp_rom_delay_us(20000);
+    } else {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
     pins("rst-low");
     gpio_set_level(PIN_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(10));
+    if (long_reset) {
+        esp_rom_delay_us(20000);
+        int64_t t0 = esp_timer_get_time();
+        while (gpio_get_level(PIN_BUSY) == 1 && esp_timer_get_time() - t0 < 100000) {
+        }
+        printf("wsepaper: long reset, BUSY %s after %lld us\n", gpio_get_level(PIN_BUSY) ? "still high CHECK" : "low",
+               esp_timer_get_time() - t0);
+    } else {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
     pins("rst-high");
     epd_cmd(0x12, NULL, 0);  // software reset: BUSY high for a few ms
     long high_us = 0;
@@ -204,15 +222,17 @@ static long epd_partial(void)
     return ms;
 }
 
-// The analog block and the clock off first (0x22 0x83, as Waveshare's and
-// GxEPD2's power-off do; a partial refresh's 0xFC leaves them on), then deep
-// sleep mode 1, which RST ends.
-static long epd_sleep(void)
+// The analog block and the clock off (0x22 0x83, as Waveshare's and
+// GxEPD2's power-off do; a partial refresh's 0xFC leaves them on), then, if
+// asked, deep sleep mode 1, which RST ends.
+static long epd_sleep(bool deep)
 {
     CMD(0x22, 0x83);
     epd_cmd(0x20, NULL, 0);
     long ms = epd_wait();
-    CMD(0x10, 0x01);
+    if (deep) {
+        CMD(0x10, 0x01);
+    }
     return ms;
 }
 
@@ -267,6 +287,13 @@ static void screen(int run, int count)
     draw(&text_font_large, 8, 230, s);
 }
 
+// Each run isolates one change, since a hung refresh lasts until the
+// module's power is cut:
+//   run 1 ends with the power off only (no deep sleep), so run 2 shows
+//   whether the short reset and refresh work without a deep sleep before them;
+//   run 2 and later end with the power off and the deep sleep;
+//   run 3 and later use the long reset.
+// A full refresh past its limit is retried once after a long reset.
 void app_main(void)
 {
     esp_err_t err = bus_start();
@@ -275,21 +302,33 @@ void app_main(void)
         return;
     }
     for (int run = 1;; run++) {
-        long ms = epd_init();
+        bool long_reset = run >= 3, deep = run >= 2;
+        printf("wsepaper: run %d: %s reset, ends with %s\n", run, long_reset ? "long" : "short",
+               deep ? "power off and deep sleep" : "power off only");
+        long ms = epd_init(long_reset);
         printf("wsepaper: run %d reset busy=%ld ms %s\n", run, ms, ms < 0 ? "CHECK (BUSY stuck high or unwired)" : "ok");
         if (ms >= 0) {
             screen(run, 0);
             ms = epd_full();
             printf("wsepaper: full refresh %ld ms %s\n", ms, ms > 500 && ms < 6000 ? "ok" : "CHECK");
+            if (ms < 0) {
+                pins("stuck");
+                ms = epd_init(true);
+                printf("wsepaper: retry reset busy=%ld ms %s\n", ms, ms < 0 ? "CHECK" : "ok");
+                if (ms >= 0) {
+                    ms = epd_full();
+                    printf("wsepaper: retry full refresh %ld ms %s\n", ms, ms > 500 && ms < 6000 ? "ok" : "CHECK");
+                }
+            }
             for (int i = 1; i <= 5; i++) {
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 screen(run, i);
                 ms = epd_partial();
                 printf("wsepaper: partial %d %ld ms %s\n", i, ms, ms > 100 && ms < 3000 ? "ok" : "CHECK");
             }
-            ms = epd_sleep();
-            printf("wsepaper: power off %ld ms %s; controller asleep; next run in 30 s\n", ms,
-                   ms >= 0 ? "ok" : "CHECK");
+            ms = epd_sleep(deep);
+            printf("wsepaper: power off %ld ms %s; %s; next run in 30 s\n", ms, ms >= 0 ? "ok" : "CHECK",
+                   deep ? "controller asleep" : "controller awake");
         }
         vTaskDelay(pdMS_TO_TICKS(30000));
     }
