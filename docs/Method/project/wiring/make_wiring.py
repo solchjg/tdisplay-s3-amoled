@@ -242,7 +242,7 @@ def ws_board_part(used):
              t(1200, 560, "P3", 60, "middle", "bold", "#ffffff"),
              t(750, h - 330, "GPIOs in number order,", 46, "middle", fill="#bbbbbb"),
              t(750, h - 260, "not in header order:", 46, "middle", fill="#bbbbbb"),
-             t(750, h - 190, "go by the silk labels", 46, "middle", "bold", "#ffffff")]
+             t(750, h - 190, "find each pin with a meter", 46, "middle", "bold", "#ffffff")]
         for i, (n, x, y, side) in enumerate(pins):
             on = n.split()[0] in used
             fill = "#ffe24d" if on else "#9e9e9e"

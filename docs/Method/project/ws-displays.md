@@ -7,7 +7,7 @@ on SPI2 at the same time. `components/board/include/board.h` holds the pins, and
 
 Fritzing sheet 7 ([picture](wiring/wiring-7-ws-displays.png),
 [.fzz](wiring/wiring-7-ws-displays.fzz)) draws this wiring; it lists the board's
-GPIOs in number order, so go by the silk label beside each header pin.
+GPIOs in number order, not in the order they sit on the headers.
 
 ## Shared bus
 
@@ -27,9 +27,9 @@ select, so only the one being drawn to listens.
 | GPIO 9 | OLED chip select, and its detection | — | CS, pin 16, with 10 kΩ to GND |
 | GPIO 19 | OLED reset | — | RES, pin 15 |
 
-- Go by the silk label beside each header pin, not by counting. GPIO 21 (the
-  modem's supply) and GPIO 0 (the boot strap) sit beside the e-paper's pins and
-  stay free.
+- The headers carry no silk labels, and the sheet shows the GPIOs in number
+  order, not header order. Find each pin with a meter before wiring. GPIO 21
+  (the modem's supply) and GPIO 0 (the boot strap) stay free.
 - The header GND pins carry the e-paper's refresh current. A poor ground joint
   shows up as refreshes that hang.
 - Keep the SPI leads under about 15 cm, with a ground wire alongside each cable.
