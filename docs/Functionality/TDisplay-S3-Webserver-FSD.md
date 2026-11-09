@@ -481,7 +481,7 @@ testbench.
   the range test is recorded; with `espnow_role` `off` both builds behave
   exactly as before this phase.
 - **Dependencies.** §37 (packed messages and the `pack` component), §21,
-  §31, §32, §34; Phase 17 for the T-SIM7080G roles.
+  §31, §32, §34; Phase 17 for the cellular build's roles.
 
 ### 3.18 Phase 18: E-paper display (optional)
 
@@ -4247,7 +4247,7 @@ a new device).
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
 | `uplink` | adds `espnow` to `wifi` and `cell` (§33.3, §35.4) | `espnow` needs `espnow_role` `node`, `espnow_gw` and `espnow_key`, given or stored | the stored value |
-| `espnow_role` | `off`, `node` or `gateway` | one of the three; `node` needs `uplink` `espnow`; `gateway` needs `uplink` `wifi` (with `wifi` `on`), or `cell` on the T-SIM7080G build, and `espnow_key` | the stored value; `off` when none is stored [user] |
+| `espnow_role` | `off`, `node` or `gateway` | one of the three; `node` needs `uplink` `espnow`; `gateway` needs `uplink` `wifi` (with `wifi` `on`), or `cell` on the cellular build, and `espnow_key` | the stored value; `off` when none is stored [user] |
 | `espnow_gw` | the gateway's station MAC, `aa:bb:cc:dd:ee:ff` (a node only) | 6 hex bytes, not broadcast or multicast | the stored value |
 | `espnow_key` | the network key, 32 hex characters | exactly 16 bytes | the stored value (in a key-window BLE write an absent key keeps the stored one, as for the other secrets) |
 | `espnow_ch` | the channel, 1 – 13; empty means search (node) or channel 1 (gateway on cellular) | empty or 1 – 13 | the stored value; empty when none is stored [proposed] |
