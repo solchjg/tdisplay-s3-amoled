@@ -297,6 +297,37 @@ def de9_part():
                 "DE-9 male connector, DTE, panel mount")
 
 
+def qwiic_star_part():
+    """Qwiic star adapter: the input on the left, three ports on the right, 1100 mils apart."""
+    w, h = 1000, 3300
+    order = ["SCL", "SDA", "3V3", "GND"]
+    pins = [(n, 0, 400 + 150 * j, "L") for j, n in enumerate(order)]
+    pins += [(n + " " * (k + 1), w, 400 + 1100 * k + 150 * j, "R")
+             for k in range(3) for j, n in enumerate(order)]
+
+    def draw():
+        s = [f'<rect x="0" y="0" width="{w}" height="{h}" rx="40" fill="#c62828" '
+             f'stroke="#111111" stroke-width="12"/>',
+             f'<rect x="0" y="0" width="{w}" height="230" rx="40" fill="{STATUS["built"]}"/>',
+             t(w / 2, 100, "Qwiic star", 72, "middle", "bold", "#ffffff"),
+             t(w / 2, 190, "SparkFun MultiPort", 58, "middle", fill="#ffffff")]
+        for k in range(3):
+            s.append(t(w - 60, 300 + 1100 * k, f"port {k + 1}", 50, "end", "bold", "#ffe0e0"))
+        s.append(t(60, 300, "in", 50, "start", "bold", "#ffe0e0"))
+        for i, (n, x, y, side) in enumerate(pins):
+            if side == "L":
+                s.append(t(x + 60, y + 22, n.strip(), 60, "start", fill="#ffffff"))
+            else:
+                s.append(t(x - 60, y + 22, n.strip(), 60, "end", fill="#ffffff"))
+            s.append(pin_svg(i, x, y))
+        s.append(t(w / 2, h - 120, "all four ports", 50, "middle", fill="#e0e0e0"))
+        s.append(t(w / 2, h - 50, "are one bus", 50, "middle", fill="#e0e0e0"))
+        return "".join(s)
+
+    return Part("tds3a_qwiic_star", "Qwiic star adapter", w, h, pins, draw, "J",
+                "Qwiic star adapter (e.g. SparkFun Qwiic MultiPort): every port on one I2C bus")
+
+
 def build_parts(used):
     P = {}
 
@@ -416,6 +447,24 @@ def build_parts(used):
                     right=["TX", "RX", "GND"], w=900, color="#2e7d32", label="J",
                     desc="3-pin screw terminal, 5.08 mm"))
     add(de9_part())
+    # sheet 9: the Blues build's sensor bus through the Qwiic star (FSD 2.2, 39.2)
+    add(qwiic_star_part())
+    add(module_part("tds3a_bme280_q", ["BME280", "Qwiic, 0x76"], "built",
+                    left=["SCL", "SDA", "3V3", "GND"], w=1100, color="#5b2a86",
+                    notes=["keeps its pull-ups"],
+                    desc="BME280 breakout on Qwiic (I2C 0x76)"))
+    add(module_part("tds3a_rv8803_q", ["RV-8803 RTC", "Adafruit 6538, 0x32"], "specified",
+                    left=["SCL", "SDA", "3V3", "GND"], right=["CR1220"], w=1100,
+                    color="#1e5aa8", notes=["pull-up + LED jumpers cut"],
+                    desc="Adafruit RV-8803 RTC breakout (6538) on STEMMA QT, I2C 0x32, CR1220 backup"))
+    add(module_part("tds3a_notecarrier_q", ["Notecarrier-X", "+ Notecard MBGLW"],
+                    "built", left=["SCL", "SDA", "3V3", "GND"], right=["BAT-", "BAT+"],
+                    w=1300, color="#0d47a1", notes=["Qwiic, I2C 0x17"],
+                    desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5"))
+    add(module_part("tds3a_ads1115_water_s", ["ADS1115", "water 0x48"], "proposed",
+                    left=["ADDR", "GND", "SCL", "SDA", "VDD", "ALRT"],
+                    right=["A0", "A1"], w=1000, notes=["pull-ups cut"],
+                    desc="ADS1115 for the water probe, address 0x48"))
     return P
 
 
@@ -1084,6 +1133,46 @@ def sheet_ws_key(S):
     ])
 
 
+def sheet_blues_bus(S):
+    B = "Board"
+    S.place(B, BOARD, 500, 500)
+    S.place("U9", "tds3a_ads1115_water_s", 2700, 625)
+    S.place("J1", "tds3a_qwiic_star", 2600, 3600)
+    S.place("U1", "tds3a_bme280_q", 4300, 3625)
+    S.place("U13", "tds3a_rv8803_q", 4300, 4725)
+    S.place("U2", "tds3a_notecarrier_q", 4300, 5825)
+    S.place("BT2", "tds3a_lipo_notecarrier", 6200, 6025)
+    # water ADS1115 on the header through its 6-pin socket (sheet 3), ADDR to GND for 0x48
+    S.wire((B, "GND R1"), ("U9", "GND"), "black")
+    S.wire(("U9", "ADDR"), ("U9", "GND"), "black", ("x", 2600))
+    S.wire((B, "IO44"), ("U9", "SCL"), "yellow", ("x", 2100))
+    S.wire((B, "IO43"), ("U9", "SDA"), "blue", ("x", 2200))
+    S.wire((B, "3V3 R1"), ("U9", "VDD"), "red", ("x", 2300))
+    # the board's Qwiic connector to the star's input
+    for bp, sp, c, y in (("Q SCL", "SCL", "yellow", 4000), ("Q SDA", "SDA", "blue", 4150),
+                         ("Q 3V3", "3V3", "red", 4300), ("Q GND", "GND", "black", 4450)):
+        S.wire((B, bp), ("J1", sp), c, ("y", y))
+    # one Qwiic cable from each port; the Notecarrier's red 3.3 V wire stays unconnected
+    for k, u in enumerate(("U1", "U13", "U2")):
+        for n, c in (("SCL", "yellow"), ("SDA", "blue"), ("3V3", "red"), ("GND", "black")):
+            if u == "U2" and n == "3V3":
+                continue
+            S.wire(("J1", n + " " * (k + 1)), (u, n), c)
+    S.wire(("U2", "BAT-"), ("BT2", "-"), "black")
+    S.wire(("U2", "BAT+"), ("BT2", "+"), "red")
+    S.note(300, 7200, 7000, [
+        "# Blues build: the sensor bus, GPIO 43 SDA / 44 SCL at 100 kHz (FSD 2.2, 23, 33, 39)",
+        "The board's Qwiic connector feeds a Qwiic star; each Qwiic board plugs into a port:",
+        "BME280 0x76, RV-8803 RTC 0x32, Notecarrier-X 0x17 (its red 3.3 V wire unconnected,",
+        "its own LiPo). The water probe's ADS1115 (0x48, ADDR to GND) joins the same bus",
+        "through its 6-pin socket; its probe side is sheet 3. The BME280's pull-ups and the",
+        "Notecard's 10k stay; cut the RTC's and the ADS1115's (bus at or above about 2.2 kOhm).",
+        "The RTC's CR1220 keeps the time while the board is unpowered. Plug or unplug only",
+        "with USB and the battery disconnected.",
+        LEGEND,
+    ])
+
+
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
@@ -1102,6 +1191,8 @@ SHEETS = [
      sheet_ws_displays),
     ("wiring-8-ws-key", "8  Waveshare board: off-board key and LED (FSD 35.2, FR-35.3)",
      (5600, 5100), {"3V3", "GND", "IO12", "IO13"}, sheet_ws_key),
+    ("wiring-9-blues-sensor-bus", "9  Blues build: BME280, RTC, ADS1115 and Notecard on the Qwiic star",
+     (7600, 8300), {"Q", "IO43", "IO44", "3V3", "GND"}, sheet_blues_bus),
 ]
 
 
