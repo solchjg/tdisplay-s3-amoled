@@ -479,9 +479,10 @@ it where no WiFi reaches the device, or when it should not be on a network.
   to change settings or download the history.
 - **Reporting.** With the cellular uplink set to `cell` (section 5h), alerts,
   email and the clock come over the Notecard as before. With the uplink left
-  on `wifi`, nothing is sent: no email and no alerts. Without a Notecard, the
-  clock is not set again after the power is lost, so readings after that show
-  no time.
+  on `wifi`, nothing is sent: no email and no alerts. Without a Notecard or a
+  hardware clock (section 5k), the clock is not set again after the power is
+  lost, so readings after that show no time until a phone connects over
+  Bluetooth.
 - **What you lose.** The status page, the JSON pages, firmware updates over
   the network and the network log. To update the firmware, use USB (section
   4), or turn WiFi back on over Bluetooth first.
@@ -526,6 +527,35 @@ are in [ws-displays.md](../Method/project/ws-displays.md) and on Fritzing
   **4.2" e-paper, when plugged in** and **3.12" OLED, when plugged in**, each
   `on` or `off`. With `off`, that display is never looked for or used, even
   when plugged in. Both default to `on`.
+
+## 5k. Hardware clock (optional)
+
+A small battery-backed clock board keeps the date and time where no network
+ever reaches the device, such as underground, and through power cuts. It
+drifts about a minute a year.
+
+- **Fitting it.** Plug an Adafruit RV-8803 breakout (product 6538), with a
+  CR1220 coin cell in its holder, into a free port of the Qwiic star on the
+  sensor bus, with the device unpowered. Cut its pull-up jumper as for the
+  other Qwiic boards, and its power-LED jumper if it has one. Nothing needs
+  setting: the device finds it at boot.
+- **Setting it.** The clock learns the time once, from any network sync
+  (WiFi, the Notecard or the modem) or from your phone: connecting the
+  Bluetooth page (section 5c) sends the phone's time. Do this before taking
+  the device out of reach. The log shows `time synced ... src=phone` (or no
+  `src` for WiFi, `src=cell` for cellular).
+- **What it does.** After a power cut or reset the device reads the time from
+  the clock board (`time synced ... src=rtc`), so readings keep their time
+  and count as synced. Each later network sync corrects the clock board and
+  logs how far it had drifted (`rtc drift ms=...`); after a week or more
+  offline the device also trims its rate.
+- **Cellular.** With a set clock board, a Bluetooth window no longer waits up
+  to a minute for the Notecard's time, and the cellular build does not
+  attach to the network for the time alone.
+- **The coin cell.** It lasts at least 5 years. When it has run flat with the
+  board unpowered, the log shows `rtc lost` and readings show no time until
+  the next network sync or phone connection; change the cell and set the
+  time again.
 
 ## 6. Troubleshooting
 

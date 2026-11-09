@@ -64,6 +64,10 @@ bool uplink_time(int64_t *epoch_s);
 // FR-33.12: hub.sync.
 const char *uplink_hub_sync(void);
 
+// FR-39.6: hub.sync.status; true with *completed_s, the seconds since the
+// Notecard's last completed sync, false when it has none or does not answer.
+bool uplink_sync_age(double *completed_s);
+
 // FR-33.16 – FR-33.18: card.location.mode with mode ("continuous", "fixed"
 // with lat and lon, "off").
 const char *uplink_location_mode(const char *mode, const double *lat, const double *lon);

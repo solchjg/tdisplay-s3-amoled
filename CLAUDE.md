@@ -129,6 +129,11 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   the `alert.qo` and `mail.qo` bodies, the clock and GPS steps, notes of at most 100
   readings, line 6 during the search). With `uplink` `cell`, alerts and email go out as
   notes and a timer wake never starts WiFi; the ThingsBoard notes wait for §32.
+- `components/rtc_clock/` (L1) — the optional hardware clock (FSD §39): the shared `rv8803`
+  on the sensor bus, read at boot to set the clock (L20 `src=rtc`, a sync for FR-22.3),
+  written after every network sync and the phone's time (the BLE page's `control` `time=`,
+  L20 `src=phone`), its drift logged and trimmed (L55); `rtc_clock_core.c` is the pure core.
+  With no RTC answering, nothing changes and nothing is logged.
 - `components/board/` (L0) — the build-time board choice (`CONFIG_APP_BOARD_*`, FSD §35,
   FR-35.5) and `board.h`, the pins this app wires on each board.
 - `components/modem_link/` (L1) — the cellular build's link over the Waveshare board's SIM7670G
@@ -152,7 +157,7 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
 - `main/app_main.c` — composition root: runs the tick, calls the logic, executes
   the returned action bitmask against the interfaces.
 - Reusable components (`wifi_net`, `portal`, `status_http`, `ota_rx`, `udp_log`,
-  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring`, `sim7670`, `sim7080`, `max17048`, `axp2101`, `ssd1322`, `ssd1683` and the L0 parts) live in the separate repo
+  `mdns_name`, `button`, `deep_sleep`, `time_sync`, `identity`, `bme280`, `rv8803`, `ads1115`, `loop420`, `mail_tx`, `ntfy_tx`, `notecard`, `ble_setup`, `flash_ring`, `sim7670`, `sim7080`, `max17048`, `axp2101`, `ssd1322`, `ssd1683` and the L0 parts) live in the separate repo
   `solchjg/esp-idf-components`, checked out as the submodule `shared/` and added
   via `EXTRA_COMPONENT_DIRS`; change them there, then bump the pin here. They
   never include `web_log` or another app component: they report through
@@ -187,6 +192,8 @@ Other builds sharing the components:
   `route.jsonata`, `tools/sat_ref.py` (reference decoder and sample-data generator, which also
   writes `main/sample_days.h`) and the program that sends those days through the Notecard over
   `cell` or `ntn` (Skylo), held together by `tests/host/test_sat_day.py`;
+  `commissioning/rtc-probe/` — the hardware clock check (FSD §39: found, flags, rate over
+  24 h, trim direction);
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
   bench tests); `commissioning/ws-probe/` — the Waveshare SIM7670G board's hardware check (FSD §35, Phase 17:
   chip and MAC, the sensor bus and fuel gauge, microSD and card detect, the modem over UART 1 with its GPIO 21

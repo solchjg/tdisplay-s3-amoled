@@ -120,6 +120,10 @@ void web_log_displays(int epaper, int oled);  // L50, WL_DISPLAY_* states
 int web_log_status_rows(const char *wake, const char *when, int mv, int pct,
                         char rows[WL_STATUS_ROWS][WL_STATUS_COLS + 1]);
 void web_log_gps(const double *lat, const double *lon);
+// L55 (FR-39.8; was < -99: the trim did not change) and L56 (FR-39.9,
+// warning; err ESP_OK for "rtc lost").
+void web_log_rtc_drift(long long err_ms, int days_x10, int trim, int was);
+void web_log_rtc(esp_err_t err);
 
 // L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning
 // level when the test failed (ok false).

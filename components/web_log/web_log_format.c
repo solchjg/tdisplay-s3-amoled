@@ -212,6 +212,24 @@ void wl_fmt_modem_failed(char *buf, size_t len, const char *why, long ms)
     snprintf(buf, len, "modem failed: %s ms=%ld", why, ms);
 }
 
+void wl_fmt_rtc_drift(char *buf, size_t len, long long err_ms, int days_x10, int trim, int was)
+{
+    int n = snprintf(buf, len, "rtc drift ms=%+lld days=%d.%d trim=%+d", err_ms, days_x10 / 10,
+                     days_x10 % 10, trim);
+    if (was >= -99 && n > 0 && (size_t)n < len) {
+        snprintf(buf + n, len - (size_t)n, " was=%+d", was);
+    }
+}
+
+void wl_fmt_rtc(char *buf, size_t len, const char *err)
+{
+    if (err == NULL) {
+        snprintf(buf, len, "rtc lost");
+    } else {
+        snprintf(buf, len, "rtc failed: %s", err);
+    }
+}
+
 void wl_fmt_gps(char *buf, size_t len, const double *lat, const double *lon)
 {
     if (lat == NULL || lon == NULL) {
