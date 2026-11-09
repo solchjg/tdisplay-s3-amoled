@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "web_log_status.h"
 
 // L1, once per boot, before any other `web:` line (FR-7.7).
 void web_log_boot(void);
@@ -87,6 +88,7 @@ void web_log_mail_failed(const char *to, const char *reason);
 void web_log_ble_on(const char *reason);
 void web_log_ble_pairing(bool ok);
 void web_log_ble_settings(const char *result);
+void web_log_card_settings(const char *result);  // L49
 void web_log_ble_off(const char *reason);
 
 // L31 (warning): no history partition (FR-27.8), or a history step failed (FR-27.9).
@@ -107,10 +109,21 @@ void web_log_ntfy_failed(const char *reason, const char *event);
 // lat and lon NULL for "gps none").
 void web_log_cell_note(const char *what, int n);
 void web_log_cell_failed(const char *reason, const char *req);
-void web_log_modem_attach(long ms, const char *net, int csq, long active_s, long tau_s,
-                          bool psm);                         // L46
+void web_log_modem_attach(long ms, const char *net, int csq);  // L46
 void web_log_modem_failed(const char *why, long ms);         // L47
+void web_log_display(const char *panel, bool have, float temp_f);  // L48
+void web_log_displays(int epaper, int oled);  // L50, WL_DISPLAY_* states
+
+// FR-35.24 (the cellular build): the e-paper's status block from the lines
+// emitted since the last power-on or reset, with this window's wake cause and
+// time and the gauge's reading (mv < 0: none). Returns the number of rows.
+int web_log_status_rows(const char *wake, const char *when, int mv, int pct,
+                        char rows[WL_STATUS_ROWS][WL_STATUS_COLS + 1]);
 void web_log_gps(const double *lat, const double *lon);
+// L55 (FR-39.8; was < -99: the trim did not change) and L56 (FR-39.9,
+// warning; err ESP_OK for "rtc lost").
+void web_log_rtc_drift(long long err_ms, int days_x10, int trim, int was);
+void web_log_rtc(esp_err_t err);
 
 // L32 and L33 (FR-28.12), their text made by the sampling core; L33 at warning
 // level when the test failed (ok false).

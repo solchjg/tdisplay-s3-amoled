@@ -479,15 +479,83 @@ it where no WiFi reaches the device, or when it should not be on a network.
   to change settings or download the history.
 - **Reporting.** With the cellular uplink set to `cell` (section 5h), alerts,
   email and the clock come over the Notecard as before. With the uplink left
-  on `wifi`, nothing is sent: no email and no alerts. Without a Notecard, the
-  clock is not set again after the power is lost, so readings after that show
-  no time.
+  on `wifi`, nothing is sent: no email and no alerts. Without a Notecard or a
+  hardware clock (section 5k), the clock is not set again after the power is
+  lost, so readings after that show no time until a phone connects over
+  Bluetooth.
 - **What you lose.** The status page, the JSON pages, firmware updates over
   the network and the network log. To update the firmware, use USB (section
   4), or turn WiFi back on over Bluetooth first.
 - **Turning WiFi back on.** Hold the user key 3 s, choose **WiFi: On** on the
   Bluetooth page with the network name (and password if it changed), and save.
   The device restarts and connects.
+
+## 5j. Displays on the cellular board
+
+The Waveshare ESP32-S3-SIM7670G build drives up to two displays: a 3.12" OLED
+(256 × 64) and Waveshare's 4.2" e-Paper Module (V2, 400 × 300). Either one, both
+or neither may be plugged in. The wiring, the module settings and the pin table
+are in [ws-displays.md](../Method/project/ws-displays.md) and on Fritzing
+[sheet 7](../Method/project/wiring/wiring-7-ws-displays.png).
+
+- **Plugging in.** Plug or unplug a display only with the power off. Each
+  window the device looks for both and uses what it finds, with no setting
+  changed; a display plugged in while a window runs is seen at the next window.
+  The log says what it found: `web: displays epaper=found oled=none`, for
+  example.
+- **The OLED's two needs.** Its VCC goes to the board's **5 V**: on 3V3 the
+  panel stays dark. A **10 kΩ resistor** from its CS (header pin 16) to GND
+  (pin 1) tells the device it is plugged in; without it the OLED is never used.
+  The e-paper needs nothing extra.
+- **Which one shows.** With both plugged in, a window uses the e-paper when the
+  latest reading is above 40 °F or there is no reading yet, and the OLED at
+  40 °F or below. Once on the OLED it goes back to the e-paper only at 42 °F,
+  so a reading near 40 °F does not swap them every window. The log names the
+  choice when the e-paper is found: `web: display oled t=38.50`. With only one
+  plugged in, that one is always used.
+- **The OLED.** It shows the six lines while the window runs and turns off at
+  the end. It stays dark between windows.
+- **The e-paper.** A window starts with a full refresh, about 2 s with the
+  panel flashing. After that, changed lines are redrawn every 5 s at most. At the
+  end of the window it draws the last reading, `Asleep, key to wake`, and a
+  status block below the lines, then keeps that picture with no power while
+  the device sleeps. A timer wake never redraws it. The status block shows
+  the firmware version, the last reset and wake, the latest modem attach and
+  send results, the battery, and the latest four warnings or errors. It is the
+  first place to look when the device is out of reach.
+- **Turning one off.** The portal form and the Bluetooth page have
+  **4.2" e-paper, when plugged in** and **3.12" OLED, when plugged in**, each
+  `on` or `off`. With `off`, that display is never looked for or used, even
+  when plugged in. Both default to `on`.
+
+## 5k. Hardware clock (optional)
+
+A small battery-backed clock board keeps the date and time where no network
+ever reaches the device, such as underground, and through power cuts. It
+drifts about a minute a year.
+
+- **Fitting it.** Plug an Adafruit RV-8803 breakout (product 6538), with a
+  CR1220 coin cell in its holder, into a free port of the Qwiic star on the
+  sensor bus, with the device unpowered. Cut its pull-up jumper as for the
+  other Qwiic boards, and its power-LED jumper if it has one. Nothing needs
+  setting: the device finds it at boot.
+- **Setting it.** The clock learns the time once, from any network sync
+  (WiFi, the Notecard or the modem) or from your phone: connecting the
+  Bluetooth page (section 5c) sends the phone's time. Do this before taking
+  the device out of reach. The log shows `time synced ... src=phone` (or no
+  `src` for WiFi, `src=cell` for cellular).
+- **What it does.** After a power cut or reset the device reads the time from
+  the clock board (`time synced ... src=rtc`), so readings keep their time
+  and count as synced. Each later network sync corrects the clock board and
+  logs how far it had drifted (`rtc drift ms=...`); after a week or more
+  offline the device also trims its rate.
+- **Cellular.** With a set clock board, a Bluetooth window no longer waits up
+  to a minute for the Notecard's time, and the cellular build does not
+  attach to the network for the time alone.
+- **The coin cell.** It lasts at least 5 years. When it has run flat with the
+  board unpowered, the log shows `rtc lost` and readings show no time until
+  the next network sync or phone connection; change the cell and set the
+  time again.
 
 ## 6. Troubleshooting
 
@@ -497,6 +565,9 @@ it where no WiFi reaches the device, or when it should not be on a network.
 | Nothing (dark) | The display failed; the device keeps working on the network | Reset the board; the status page still answers |
 | Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
 | `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76; the rest of the device keeps working |
+| OLED dark on the cellular board, the log says `oled=none` | The 10 kΩ from the OLED's CS to GND is missing, or CS is on the wrong pin | Fit the resistor (section 5j) and check CS goes to GPIO 9 |
+| OLED dark on the cellular board, the log says `oled=found` | The OLED's VCC is on 3V3, or another display was chosen | Move its VCC to 5 V; with both displays plugged in, the e-paper shows above 40 °F or with no reading (section 5j) |
+| E-paper unchanged after a window | It was not chosen, or the window was a timer wake; it keeps its last picture | See section 5j; the log's `displays` and `display` lines say what happened |
 | A screen that never changes | The device may be hung | It restarts itself within 15 s (watchdog); if not, unplug and replug |
 
 The device logs its state on the USB serial console (115200 baud), one line per

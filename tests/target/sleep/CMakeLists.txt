@@ -10,6 +10,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/board ${ROOT}/components/device_logi
                          ${ROOT}/shared/components/ota_rx ${ROOT}/shared/components/button
                          ${ROOT}/shared/components/mdns_name ${ROOT}/shared/components/wifi_net
                          ${ROOT}/shared/components/deep_sleep ${ROOT}/shared/components/time_sync
+                         ${ROOT}/components/rtc_clock ${ROOT}/shared/components/rv8803
                          ${ROOT}/components/weather ${ROOT}/shared/components/bme280
                          ${ROOT}/components/history ${ROOT}/shared/components/flash_ring
                          ${ROOT}/components/ble_settings ${ROOT}/shared/components/ble_setup
@@ -19,7 +20,7 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/board ${ROOT}/components/device_logi
                          ${ROOT}/shared/components/ads1115
                          ${ROOT}/components/uplink ${ROOT}/shared/components/notecard
                          ${ROOT}/components/lcd
-                         ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/text
+                         ${ROOT}/shared/components/rm67162 ${ROOT}/shared/components/ssd1322 ${ROOT}/shared/components/ssd1683 ${ROOT}/shared/components/text
                          ${ROOT}/shared/components/tdisplay_s3_amoled ${ROOT}/shared/components/esp_try)
 # Distinct from every shipped version, so the bench can tell the boots apart.
 set(SLEEP_S 10 CACHE STRING "Sleep period the stand-in task asks for, in seconds")

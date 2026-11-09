@@ -404,3 +404,27 @@ void dl_ble_line(const dl_ble_ctx_t *c, uint32_t now_s, int32_t passkey, char ou
     uint32_t left = idle >= DL_BLE_IDLE_S ? 0 : DL_BLE_IDLE_S - idle;
     snprintf(out, DL_LINE_MAX, BLE_PROMPT "%02" PRIu32 ":%02" PRIu32, left / 60, left % 60);
 }
+
+dl_show_t dl_display_choose(dl_show_t prev, bool epaper, bool oled, bool have_temp,
+                            float temp_f)
+{
+    if (!epaper) {
+        return oled ? DL_SHOW_OLED : DL_SHOW_NONE;
+    }
+    if (!oled) {
+        return DL_SHOW_EPAPER;
+    }
+    if (!have_temp) {
+        return DL_SHOW_EPAPER;
+    }
+    bool warm = prev == DL_SHOW_OLED ? temp_f >= 42.0f : temp_f > 40.0f;
+    return warm ? DL_SHOW_EPAPER : DL_SHOW_OLED;
+}
+
+void dl_sleep_screen(const char shown[DL_LINES][DL_LINE_MAX], const char *reading,
+                     char out[DL_LINES][DL_LINE_MAX])
+{
+    memcpy(out, shown, sizeof(char[DL_LINES][DL_LINE_MAX]));
+    snprintf(out[3], DL_LINE_MAX, "%s", reading);
+    snprintf(out[4], DL_LINE_MAX, "%s", DL_SLEEP_LINE);
+}

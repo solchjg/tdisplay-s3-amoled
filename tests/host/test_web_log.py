@@ -68,12 +68,16 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "cell_note") == 0) {
         wl_fmt_cell_note(line, sizeof line, argv[2], atoi(argv[3]));
     } else if (strcmp(argv[1], "modem_attach") == 0) {
-        wl_fmt_modem_attach(line, sizeof line, atol(argv[2]), argv[3], atoi(argv[4]),
-                            atol(argv[5]), atol(argv[6]), atoi(argv[7]));
+        wl_fmt_modem_attach(line, sizeof line, atol(argv[2]), argv[3], atoi(argv[4]));
     } else if (strcmp(argv[1], "modem_failed") == 0) {
         wl_fmt_modem_failed(line, sizeof line, argv[2], atol(argv[3]));
     } else if (strcmp(argv[1], "cell_failed") == 0) {
         wl_fmt_cell_failed(line, sizeof line, argv[2], argv[3]);
+    } else if (strcmp(argv[1], "rtc_drift") == 0) {
+        wl_fmt_rtc_drift(line, sizeof line, atoll(argv[2]), atoi(argv[3]), atoi(argv[4]),
+                         atoi(argv[5]));
+    } else if (strcmp(argv[1], "rtc") == 0) {
+        wl_fmt_rtc(line, sizeof line, argc > 2 ? argv[2] : NULL);
     } else if (strcmp(argv[1], "gps") == 0) {
         double lat = atof(argv[2]), lon = argc > 3 ? atof(argv[3]) : 0;
         wl_fmt_gps(line, sizeof line, argc > 3 ? &lat : NULL, argc > 3 ? &lon : NULL);
@@ -218,14 +222,27 @@ def test_cell_and_gps_lines(fmt):
     assert fmt("gps", "none") == "gps none"
 
 
-# L46, L47 (FR-35.1, FR-35.9)
+# L46, L47 (FR-35.23, FR-35.9)
 def test_modem_attach_line(fmt):
-    assert fmt("modem_attach", 14250, "310410", 21, 16, 3600, 1) == \
-        "modem attach ms=14250 net=310410 csq=21 psm_active_s=16 psm_tau_s=3600 mode=psm"
-    assert fmt("modem_attach", 9000, "311480", 18, 300, 18600, 0) == \
-        "modem attach ms=9000 net=311480 csq=18 psm_active_s=300 psm_tau_s=18600 mode=off"
-    assert fmt("modem_attach", 9000, "", 99, -1, -1, 0) == \
-        "modem attach ms=9000 net=? csq=99 psm_active_s=none psm_tau_s=none mode=off"
+    assert fmt("modem_attach", 8250, "310410", 15) == "modem attach ms=8250 net=310410 csq=15"
+    assert fmt("modem_attach", 9000, "", 99) == "modem attach ms=9000 net=? csq=99"
+
+
+# TC-RTC-06 · FR-39.8, FR-39.9: L55, L56
+def test_rtc_lines(fmt):
+    assert fmt("rtc_drift", 1840, 302, -3, -100) == "rtc drift ms=+1840 days=30.2 trim=-3"
+    assert fmt("rtc_drift", -250, 75, 4, 1) == "rtc drift ms=-250 days=7.5 trim=+4 was=+1"
+    assert fmt("rtc_drift", 0, 0, 0, -100) == "rtc drift ms=+0 days=0.0 trim=+0"
+    assert fmt("rtc") == "rtc lost"
+    assert fmt("rtc", "ESP_ERR_TIMEOUT") == "rtc failed: ESP_ERR_TIMEOUT"
+
+
+# TC-RTC-07 · FR-39.2, FR-39.5: L20 with src=rtc and src=phone
+def test_time_synced_line_from_rtc_and_phone(fmt):
+    assert fmt("time", "2026-11-06T07:08:35-0500", "rtc") == (
+        "time synced 2026-11-06T07:08:35-0500 src=rtc")
+    assert fmt("time", "2026-11-06T07:08:35-0500", "phone") == (
+        "time synced 2026-11-06T07:08:35-0500 src=phone")
 
 
 def test_modem_failed_line(fmt):

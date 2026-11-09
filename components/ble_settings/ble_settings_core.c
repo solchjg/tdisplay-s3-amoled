@@ -173,6 +173,8 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
         field(&b, "cell_plmn", modem->plmn);
         field(&b, "cell_mail", uplink->mail_route ? "on" : "off");
         field(&b, "gps", uplink->gps ? "on" : "off");
+        field(&b, "epaper", modem->epaper ? "on" : "off");  // §36.2
+        field(&b, "oled", modem->oled ? "on" : "off");      // §35.4
         return b.len;
     }
     field(&b, "nh_product", uplink->product);
@@ -279,6 +281,9 @@ static const char *const MODEM_RULES[][24] = {
      "[0-9]{5,6}", "placeholder", "310410", NULL},
     {"cell_mail", "label", "Email over cellular", "options", "on,off", NULL},
     {"gps", "label", "GPS fix in the setup check", "options", "off,on", NULL},
+    {"epaper", "section", "Displays", "label", "4.2\" e-paper, when plugged in", "options",
+     "on,off", NULL},
+    {"oled", "label", "3.12\" OLED, when plugged in", "options", "on,off", NULL},
 };
 #undef LIMIT
 #undef MAIL

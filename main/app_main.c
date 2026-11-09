@@ -50,12 +50,17 @@
 #include "loop.h"
 #include "mdns_name.h"
 #if !BOARD_HAS_NOTECARD
+#include "max17048.h"
 #include "modem_link.h"
 #endif
 #include "notify.h"
 #include "ota_rx.h"
 #include "portal.h"
+#include "rtc_clock.h"
 #include "sampling.h"
+#if BOARD_HAS_SD_CARD
+#include "settings_card.h"
+#endif
 #include "sampling_core.h"
 #include "sdkconfig.h"
 #include "setup_check.h"
@@ -84,7 +89,7 @@ static const char *TAG = "main";
 #define HOLD_TIMEOUT_S DL_HOLD_TIMEOUT_S  // FR-24.6
 #endif
 
-typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY, APP_BLE, APP_TAP } app_kind_t;
+typedef enum { APP_TICK, APP_CONN, APP_TIME_SYNCED, APP_KEY, APP_BLE, APP_TAP, APP_PHONE_TIME } app_kind_t;
 
 typedef struct {
     app_kind_t kind;
@@ -93,6 +98,7 @@ typedef struct {
     bool guard;        // APP_TAP: a double press (FR-28.4)
     pc_creds_t creds;  // DL_EV_CREDS_SUBMITTED
     char ip[16];       // DL_EV_IP
+    int64_t ms, at_us;  // APP_PHONE_TIME: the phone's clock and when it came (FR-39.5)
 } app_event_t;
 
 static QueueHandle_t queue;
@@ -194,6 +200,10 @@ static volatile int32_t ble_passkey = -1;  // shown on line 5 while pairing (FR-
 static dl_disp_t disp = DL_LCD_START;
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
+#if !BOARD_HAS_NOTECARD
+static RTC_DATA_ATTR dl_show_t show_on;  // FR-35.2: the display chosen, kept for the next window
+static uint32_t show_from_s;             // the uptime its window started at (FR-35.24)
+#endif
 static bool redrawn[DL_LINES];            // lines drawn on this tick, for L7
 
 // ── Events and callbacks ─────────────────────────────────────────────────
@@ -380,11 +390,13 @@ static size_t ble_read_settings(char *out, size_t cap)
     return n;
 }
 
-// FR-26.6, FR-26.7: from the NimBLE host task; the application task acts on it.
-static void ble_apply(const char *body, size_t len, char *result, size_t cap)
+// FR-26.6, FR-26.7: a settings body applied as in the provisioning window or a
+// key window; the application task acts on the event it posts. From the NimBLE
+// host task (BLE) or the application task (the card, FR-35.4), never both at once.
+static void settings_apply(const char *body, size_t len, bool provisioning, char *result,
+                           size_t cap)
 {
     static char merged[CONFIG_BLE_SETUP_BODY_MAX + BSET_MERGE_EXTRA];
-    bool provisioning = ble.state == DL_BLE_PROV;
     size_t n = 0;
     const char *bad = bset_prepare(body, len, provisioning ? BSET_PROVISION : BSET_CHANGE,
                                    &stored, summary_settings()->password, merged,
@@ -408,8 +420,21 @@ static void ble_apply(const char *body, size_t len, char *result, size_t cap)
         snprintf(result, cap, "ok");
         post(&e);
     }
+}
+
+static void ble_apply(const char *body, size_t len, char *result, size_t cap)
+{
+    settings_apply(body, len, ble.state == DL_BLE_PROV, result, cap);
     web_log_ble_settings(result);  // L29
 }
+
+#if BOARD_HAS_SD_CARD
+// FR-35.4: the card's file as a BLE write in the state the device is in.
+static void card_apply(const char *body, size_t len, char *result, size_t cap)
+{
+    settings_apply(body, len, view.conn == DL_PROVISIONING, result, cap);
+}
+#endif
 
 static void ble_passkey_cb(uint32_t passkey, bool shown_now)
 {
@@ -431,6 +456,13 @@ static void ble_event_cb(ble_setup_event_t ev)
     }
 }
 
+// FR-39.5: the phone's clock, from the NimBLE host task to the application task.
+static void ble_on_time(int64_t epoch_ms)
+{
+    app_event_t e = {.kind = APP_PHONE_TIME, .ms = epoch_ms, .at_us = esp_timer_get_time()};
+    post(&e);
+}
+
 static const ble_setup_config_t ble_cfg = {.name = softap_ssid,
                                            .read_info = ble_read_info,
                                            .read_settings = ble_read_settings,
@@ -440,7 +472,8 @@ static const ble_setup_config_t ble_cfg = {.name = softap_ssid,
                                            .on_passkey = ble_passkey_cb,
                                            .on_event = ble_event_cb,
                                            .read_history = history_ble_read,       // §27.3
-                                           .on_history_range = history_ble_range};
+                                           .on_history_range = history_ble_range,
+                                           .on_time = ble_on_time};
 
 static uint32_t uptime_s(void);
 
@@ -928,11 +961,56 @@ static bool mail_wifi_up(void)
            xSemaphoreTake(got_ip, pdMS_TO_TICKS(MAIL_WIFI_MS)) == pdTRUE;
 }
 
-// ── The T-SIM7080G build's modem (FSD §35) ───────────────────────────────
+// ── The cellular build's modem (FSD §35) ─────────────────────────────────
 
 #if !BOARD_HAS_NOTECARD
 static int modem_users;  // sends sharing the link that is up
 static bool modem_ok;    // the link came up for them
+static bool modem_sntp;  // SNTP started for the link's time (FR-35.13)
+static bool unwatched;   // the watch paused for a modem call
+
+// FR-19.1, FR-35.21: a modem call (a wake, an attach, a GNSS start) can wait
+// longer than the watch's 10 s; its own limits bound it, so the task is not
+// watched for its length.
+static void watch_pause(void)
+{
+    unwatched = esp_task_wdt_status(NULL) == ESP_OK && esp_task_wdt_delete(NULL) == ESP_OK;
+}
+
+static void watch_resume(void)
+{
+    if (unwatched) {
+        esp_task_wdt_add(NULL);
+        unwatched = false;
+    }
+}
+
+static void rtc_after_sync(int res_ms);
+
+// FR-35.13: on a boot whose clock was never set, the network's time, else
+// SNTP over the link; L20 src=cell when the clock is set. FR-39.7: with an
+// RTC, the network's time is taken at every attach that supplies one.
+static void modem_time(const modem_link_t *r)
+{
+    ul_mtime_t src = ul_modem_time(time_sync_synced(), r->net_time != 0);
+    if (src == UL_MT_NONE && r->net_time != 0 && rtc_clock_present()) {
+        src = UL_MT_NET;
+    }
+    if (src == UL_MT_NET && time_sync_set(r->net_time) == ESP_OK) {
+        web_log_time_synced("cell");  // L20
+        rtc_after_sync(RC_RES_CELL_MS);  // FR-39.4, FR-39.8
+        return;
+    }
+    if (src != UL_MT_NONE && time_sync_start(NULL) == ESP_OK) {
+        modem_sntp = true;
+        for (int ms = 0; ms < UL_SNTP_MS && !time_sync_synced(); ms += 100) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        if (time_sync_synced()) {
+            web_log_time_synced("cell");  // L20
+        }
+    }
+}
 
 // FR-35.8, FR-35.9: the link for the sends that follow, until the matching
 // modem_end; L46 after a full attach, L47 when it does not come up.
@@ -941,37 +1019,95 @@ static bool modem_begin(void)
     if (modem_users++ > 0) {
         return modem_ok;
     }
+    watch_pause();
     modem_link_t r;
-    modem_ok = modem_link_up(uplink_modem(), &r);
+    modem_ok = modem_link_up(uplink_modem(), !time_sync_synced(), &r);
     if (r.attached) {
-        web_log_modem_attach(r.attach_ms, r.net, r.csq, r.active_s, r.tau_s, r.psm);  // L46
+        web_log_modem_attach(r.attach_ms, r.net, r.csq);  // L46
     }
     if (!modem_ok) {
         web_log_modem_failed(r.failed, r.failed_ms);  // L47
+    } else {
+        modem_time(&r);
     }
+    watch_resume();
     return modem_ok;
 }
 
-// FR-35.1: after the last send, the modem in PSM or off.
+// FR-35.23: after the last send, the modem powered down and its supply cut.
 static void modem_end(void)
 {
     if (--modem_users == 0 && modem_ok) {
+        if (modem_sntp) {
+            time_sync_stop();
+            modem_sntp = false;
+        }
         modem_link_down();
     }
 }
 #endif
 
+// ── Hardware clock region (FSD §39) ──────────────────────────────────────
+
+// FR-39.2, FR-39.4, FR-39.9: the RTC read at boot, the clock set from it.
+static void rtc_boot(bool timer_wake)
+{
+    esp_err_t err;
+    rc_boot_t b = rtc_clock_boot(timer_wake, &err);
+    if (b.log_synced) {
+        web_log_time_synced("rtc");  // L20
+    }
+    if (b.log_lost) {
+        web_log_rtc(ESP_OK);  // L56 lost
+    }
+    if (b.log_failed) {
+        web_log_rtc(err);  // L56 failed
+    }
+}
+
+// FR-39.4, FR-39.8: after a network sync, the RTC measured, trimmed and set.
+static void rtc_after_sync(int res_ms)
+{
+    rc_drift_t d;
+    esp_err_t err;
+    if (!rtc_clock_net_sync(res_ms, &d, &err)) {
+        return;  // FR-39.1: none fitted
+    }
+    if (d.log) {
+        web_log_rtc_drift(d.err_ms, d.days_x10, d.trim, d.trimmed ? d.was : -100);  // L55
+    }
+    if (err != ESP_OK) {
+        web_log_rtc(err);  // L56 failed
+    }
+}
+
+// FR-39.5: the phone's clock, taken when the clock is unsynced or 2 s off.
+static void rtc_phone(const app_event_t *e)
+{
+    esp_err_t err;
+    if (rtc_clock_phone(e->ms, e->at_us, &err)) {
+        web_log_time_synced("phone");  // L20
+    }
+    if (err != ESP_OK) {
+        web_log_rtc(err);  // L56 failed
+    }
+}
+
 // ── Cellular uplink region (FSD §33) ─────────────────────────────────────
 
+#if BOARD_HAS_NOTECARD
 static ul_time_t cell_time;  // FR-33.12: the clock from the Notecard
+#endif
 static ul_gps_t gps;         // FR-33.15 – FR-33.18: the search in this hold
 
+#if BOARD_HAS_NOTECARD
 static void cell_failed(const char *why, const char *req)
 {
     if (why) {
         web_log_cell_failed(why, req);  // L44
     }
 }
+#endif
 
 // FR-33.3, FR-33.4, FR-33.14: the Notecard set up once per boot, only with
 // cell; L44 once when it does not answer, and that boot's notes then fail.
@@ -979,7 +1115,7 @@ static bool cell_up(void)
 {
     static bool logged;
     if (!BOARD_HAS_NOTECARD || !uplink_settings()->cell) {
-        return false;  // §35.3: no Notecard on the T-SIM7080G build
+        return false;  // §35.3: no Notecard on the cellular build
     }
     const char *req = NULL;
     const char *why = uplink_start(&req);
@@ -990,6 +1126,7 @@ static bool cell_up(void)
     return why == NULL;
 }
 
+#if BOARD_HAS_NOTECARD
 // FR-33.12: one card.time; the clock set and L20 src=cell when it has a time.
 static void cell_time_ask(bool window)
 {
@@ -997,6 +1134,7 @@ static void cell_time_ask(bool window)
     unsigned a;
     if (uplink_time(&t) && time_sync_set(t) == ESP_OK) {
         web_log_time_synced("cell");  // L20
+        rtc_after_sync(RC_RES_CELL_MS);  // FR-39.4
         a = ul_time_step(&cell_time, UL_TE_TIME, window, uptime_s());
     } else {
         a = ul_time_step(&cell_time, UL_TE_NO_TIME, window, uptime_s());
@@ -1010,10 +1148,38 @@ static void cell_time_ask(bool window)
 // asked for when it was never set (in a window again every 5 s, FR-33.12).
 static void cell_boot(bool window)
 {
-    if (cell_up() && !time_sync_synced()) {
+    if (!cell_up()) {
+        return;
+    }
+    if (!time_sync_synced()) {
         cell_time_ask(window);
+        return;
+    }
+    // FR-39.6: with the clock from the RTC (FR-39.3: no wait), a window takes
+    // the Notecard's time once when its last sync is recent enough.
+    if (!window || !rtc_clock_present()) {
+        return;
+    }
+    double age = -1;
+    bool have = uplink_sync_age(&age);
+    int64_t t;
+    if (rc_cell_fresh(have, age) && uplink_time(&t) && time_sync_set(t) == ESP_OK) {
+        web_log_time_synced("cell");  // L20
+        rtc_after_sync(RC_RES_CELL_MS);
     }
 }
+#else
+// FR-35.13: in a window whose clock was never set, the modem link is brought
+// up for the time alone; on a timer wake only a due send brings it up.
+static void cell_boot(bool window)
+{
+    if (window && ul_modem_wanted(uplink_settings(), false, false, false, !time_sync_synced(),
+                                  false)) {
+        modem_begin();
+        modem_end();
+    }
+}
+#endif
 
 #if BOARD_HAS_NOTECARD
 // FR-33.6, FR-33.8 – FR-33.11: a note; L43 when the Notecard takes it, else L44.
@@ -1030,7 +1196,7 @@ static bool cell_note(const char *file, const char *what, const char *body)
 #endif
 
 #if !BOARD_HAS_NOTECARD
-// FR-35.8: on the T-SIM7080G build an alert with `uplink` `cell` goes by §31's
+// FR-35.8: on the cellular build an alert with `uplink` `cell` goes by §31's
 // sender over the modem, with its logs; L40 connect when the link is down.
 static bool alert_note(const char *title, const char *body, bool good, const char *event)
 {
@@ -1089,6 +1255,44 @@ static bool mail_note(int i, const char *subject, const char *text, uint32_t n)
 }
 #endif
 
+#if !BOARD_HAS_NOTECARD
+// FR-35.14: the search with the modem's GNSS; the GNSS and BLDO2 are off
+// again at a fix and at the search's end.
+static void gps_act(unsigned a)
+{
+    watch_pause();
+    if ((a & UL_GA_CONTINUOUS) && !modem_link_gnss_start(uplink_modem())) {
+        modem_link_gnss_stop();
+        gps.on = false;  // no search: the gps test fails at once (FR-33.20)
+    }
+    if (a & UL_GA_FIXED_NEW) {  // FR-33.17
+        modem_link_gnss_stop();
+        esp_err_t err =
+            uplink_place_store(gps.lat, gps.lon, time_sync_synced() ? (int64_t)time(NULL) : 0);
+        if (err != ESP_OK) {
+            web_log_warn("place store", err);
+        }
+        web_log_gps(&gps.lat, &gps.lon);  // L45
+    }
+    if (a & (UL_GA_FIXED_KEPT | UL_GA_OFF)) {  // FR-33.18
+        modem_link_gnss_stop();
+        web_log_gps(NULL, NULL);  // L45 none
+    }
+    watch_resume();
+}
+
+// FR-35.14: one AT+CGNSINF, as the search's answer.
+static ul_gps_ev_t gps_answer(double *lat, double *lon)
+{
+    bool fix = false;
+    double la = 0, lo = 0;
+    int64_t utc = 0;
+    watch_pause();
+    bool read = modem_link_gnss_read(&fix, &la, &lo, &utc);
+    watch_resume();
+    return ul_gps_modem_answer(&gps, read && fix, la, lo, utc, lat, lon);
+}
+#else
 static void gps_act(unsigned a)
 {
     if (a & UL_GA_CONTINUOUS) {
@@ -1117,10 +1321,18 @@ static void gps_act(unsigned a)
     }
 }
 
+static ul_gps_ev_t gps_answer(double *lat, double *lon)
+{
+    return ul_gps_answer(&gps, uplink_location(), lat, lon);
+}
+#endif
+
 // FR-33.15 – FR-33.18: the GPS search, only in the hold, only with cell and gps on.
 static void gps_event(ul_gps_ev_t ev)
 {
-    bool wanted = ul_gps_wanted(uplink_settings()) && (ev != UL_GE_START || cell_up());
+    // FR-33.16: the Notecard set up first; FR-35.14: the modem starts in gps_act.
+    bool wanted = ul_gps_wanted(uplink_settings()) &&
+                  (ev != UL_GE_START || !BOARD_HAS_NOTECARD || cell_up());
     double lat = 0, lon = 0;
     int64_t at = 0;
     bool place = ev == UL_GE_END && gps.on && !gps.fixed && uplink_place(&lat, &lon, &at);
@@ -1130,7 +1342,7 @@ static void gps_event(ul_gps_ev_t ev)
     }
     gps_act(a);
     if (a & UL_GA_ASK) {
-        ul_gps_ev_t got = ul_gps_answer(&gps, uplink_location(), &lat, &lon);
+        ul_gps_ev_t got = gps_answer(&lat, &lon);
         gps_act(ul_gps_step(&gps, got, wanted, false, uptime_s(), lat, lon));
     }
 }
@@ -1171,12 +1383,14 @@ static void gps_test_tick(void)
 // search and its line 6 in the hold or the gps test (FR-33.16, FR-33.19, FR-33.20).
 static void cell_tick(void)
 {
+#if BOARD_HAS_NOTECARD
     if (!uplink_ready()) {
         return;
     }
     if (ul_time_step(&cell_time, UL_TE_TICK, true, uptime_s()) & UL_TA_ASK) {
         cell_time_ask(true);
     }
+#endif
     if (hold == DL_HOLD_ON || sp_running(run, SP_GPS)) {
         gps_event(UL_GE_TICK);
         ul_gps_shown(&gps, uptime_s(), addons_line, sizeof addons_line);
@@ -1445,8 +1659,78 @@ static void on_time_synced(void)
     post(&e);
 }
 
+#if !BOARD_HAS_NOTECARD
+// FR-35.25, FR-35.2: the panels plugged in (L50), then the display of this
+// window from the latest kept reading; L48 with the e-paper found (FR-36.1:
+// nothing else logged for it otherwise).
+static void display_choose(void)
+{
+    const ul_modem_t *m = uplink_modem();
+    bool epaper, oled;
+    lcd_detect(m->epaper, m->oled, &epaper, &oled);
+    web_log_displays(!m->epaper ? WL_DISPLAY_OFF : epaper ? WL_DISPLAY_FOUND : WL_DISPLAY_NONE,
+                     !m->oled ? WL_DISPLAY_OFF : oled ? WL_DISPLAY_FOUND : WL_DISPLAY_NONE);
+    const wx_reading_t *r = weather_newest();
+    float t_f = r ? (float)r->temp_centi_c / 100.0f * 9.0f / 5.0f + 32.0f : 0.0f;
+    show_on = dl_display_choose(show_on, epaper, oled, r != NULL, t_f);
+    show_from_s = uptime_s();
+    if (epaper) {
+        web_log_display(show_on == DL_SHOW_EPAPER ? "epaper" : "oled", r != NULL, t_f);  // L48
+    }
+    lcd_use(show_on == DL_SHOW_EPAPER ? LCD_PANEL_EPAPER
+            : show_on == DL_SHOW_OLED ? LCD_PANEL_OLED
+                                      : LCD_PANEL_NONE);
+}
+
+// FR-35.24: the window's wake and its local time, and the gauge's reading.
+static void sleep_screen(void)
+{
+    static const char *const WAKE[] = {[DL_WAKE_NONE] = "power-on", [DL_WAKE_TIMER] = "timer",
+                                       [DL_WAKE_KEY] = "key"};
+    char when[24] = "clock unset";
+    time_t t = time(NULL) - (time_t)(uptime_s() - show_from_s);
+    struct tm tm;
+    if (time_sync_synced() && localtime_r(&t, &tm)) {
+        strftime(when, sizeof when, "%Y-%m-%d %H:%M", &tm);
+    }
+    int mv = -1, pct = 0;
+    const max17048_config_t gauge = {.i2c_port = 0, .sda_gpio = BOARD_SENSOR_SDA,
+                                     .scl_gpio = BOARD_SENSOR_SCL, .clk_hz = 100000,
+                                     .internal_pullup = true};
+    max17048_reading_t b;
+    if (max17048_start(&gauge) == ESP_OK) {
+        if (max17048_read(&b) == ESP_OK) {
+            mv = b.mv;
+            pct = b.pct;
+        }
+        (void)max17048_stop();
+    }
+    static char rows[WL_STATUS_ROWS][WL_STATUS_COLS + 1];
+    int n = web_log_status_rows(wake <= DL_WAKE_KEY ? WAKE[wake] : "?", when, mv, pct, rows);
+    static char lines[DL_LINES][DL_LINE_MAX];
+    dl_sleep_screen(shown, reading_line, lines);
+    const char *lp[DL_LINES], *rp[WL_STATUS_ROWS];
+    for (int i = 0; i < DL_LINES; i++) {
+        lp[i] = lines[i];
+    }
+    for (int i = 0; i < n; i++) {
+        rp[i] = rows[i];
+    }
+    esp_err_t err = lcd_final(lp, rp, n);
+    if (err != ESP_OK) {
+        web_log_warn("epaper sleep screen", err);
+    }
+}
+#endif
+
 static esp_err_t lcd_sleep_cb(void *arg)
 {
+#if !BOARD_HAS_NOTECARD
+    if (show_on == DL_SHOW_EPAPER && wake != DL_WAKE_TIMER) {
+        sleep_screen();  // FR-35.15: a timer wake never draws on the e-paper
+        esp_task_wdt_reset();  // the full refresh ran; lcd_sleep waits for it to end
+    }
+#endif
     return lcd_sleep();  // FR-21.6
 }
 
@@ -1509,6 +1793,12 @@ static dl_disp_t disp_tick(dl_disp_t disp)
     }
     dl_disp_step_t step = dl_disp_step(disp, DL_EV_TICK, changed, err == ESP_OK);
     execute_disp(step.actions, err);
+#if !BOARD_HAS_NOTECARD
+    esp_err_t ferr = lcd_flush();  // FR-35.15: the e-paper's refresh, when one is due
+    if (ferr != ESP_OK) {
+        web_log_warn("epaper refresh", ferr);
+    }
+#endif
     return step.next;
 }
 
@@ -1872,6 +2162,7 @@ void app_main(void)
     if (wake != DL_WAKE_NONE) {
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
     }
+    rtc_boot(wake == DL_WAKE_TIMER);  // FR-39.2: before any reading and cell_boot (FR-39.3)
     deep_sleep_on_prepare(lcd_sleep_cb, NULL);
     uint8_t mac[6];
     wifi_net_base_mac(mac);
@@ -1937,6 +2228,9 @@ void app_main(void)
     // D1/D2: start, clear, and the first draw of the BOOT screen.
     char want[DL_LINES][DL_LINE_MAX];
     dl_screen(&view, want);
+#if !BOARD_HAS_NOTECARD
+    display_choose();  // FR-35.2: before the panel starts
+#endif
     esp_err_t err = lcd_start();
     if (err == ESP_OK) {
         err = draw_changed(want);
@@ -1981,6 +2275,13 @@ void app_main(void)
         cr.ev = DL_EV_READ_WIFI_OFF;
     }
     conn_event(&cr);
+#if BOARD_HAS_SD_CARD
+    if (wake != DL_WAKE_TIMER) {  // FR-35.20: never on a timer wake
+        char card[32];
+        settings_card_run(card_apply, card, sizeof card);
+        web_log_card_settings(card);  // L49
+    }
+#endif
     err = button_start(web_log_button_held, on_button_reset);  // sampled only after BOOT exits (§18.1)
     if (err != ESP_OK) {
         web_log_warn("button start", err);
@@ -2007,6 +2308,11 @@ void app_main(void)
         }
         if (e.kind == APP_TIME_SYNCED) {
             web_log_time_synced(NULL);  // L20 (FR-22.5)
+            rtc_after_sync(RC_RES_SNTP_MS);  // FR-39.4, FR-39.8
+            continue;
+        }
+        if (e.kind == APP_PHONE_TIME) {
+            rtc_phone(&e);  // FR-39.5
             continue;
         }
         if (e.kind == APP_KEY) {

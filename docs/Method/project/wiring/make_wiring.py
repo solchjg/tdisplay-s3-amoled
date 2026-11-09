@@ -221,6 +221,44 @@ def board_part(used):
                 "LilyGO's pinout picture, seen from the chip side.")
 
 
+# The Waveshare ESP32-S3-SIM7670G-4G (FSD 35.2): its two headers' GPIOs, listed in
+# number order, not in their physical order on the board.
+WS_P2 = ["GND", "IO0", "IO1", "IO2", "IO3", "IO19", "IO20", "IO21", "IO39", "IO40",
+         "IO41", "IO42", "IO45", "5V"]
+WS_P3 = ["3V3", "GND R", "IO4", "IO5", "IO6", "IO7", "IO8", "IO9", "IO10", "IO11",
+         "IO12", "IO13", "IO14", "IO15", "IO16", "IO46"]
+
+
+def ws_board_part(used):
+    w, h = 1500, 650 + 100 * len(WS_P3) + 500
+    pins = [(n, 100, 650 + 100 * k, "L") for k, n in enumerate(WS_P2)]
+    pins += [(n, w - 100, 650 + 100 * k, "R") for k, n in enumerate(WS_P3)]
+
+    def draw():
+        s = [f'<rect x="0" y="0" width="{w}" height="{h}" rx="60" fill="#0b3d2e" stroke="#000000" stroke-width="14"/>',
+             t(750, 200, "Waveshare", 80, "middle", "bold", "#ffffff"),
+             t(750, 290, "ESP32-S3-SIM7670G-4G", 56, "middle", fill="#ffffff"),
+             t(300, 560, "P2", 60, "middle", "bold", "#ffffff"),
+             t(1200, 560, "P3", 60, "middle", "bold", "#ffffff"),
+             t(750, h - 330, "GPIOs in number order,", 46, "middle", fill="#bbbbbb"),
+             t(750, h - 260, "not in header order:", 46, "middle", fill="#bbbbbb"),
+             t(750, h - 190, "find each pin with a meter", 46, "middle", "bold", "#ffffff")]
+        for i, (n, x, y, side) in enumerate(pins):
+            on = n.split()[0] in used
+            fill = "#ffe24d" if on else "#9e9e9e"
+            wt = "bold" if on else "normal"
+            if side == "L":
+                s.append(t(x + 75, y + 20, n.split()[0], 56, "start", wt, fill))
+            else:
+                s.append(t(x - 75, y + 20, n.split()[0], 56, "end", wt, fill))
+            s.append(pin_svg(i, x, y, female=True))
+        return "".join(s)
+
+    return Part("tds3a_waveshare_sim7670g", "Waveshare ESP32-S3-SIM7670G-4G", w, h, pins, draw,
+                "Board", "Waveshare ESP32-S3-SIM7670G-4G, header GPIOs of P2 and P3 in number order "
+                "(not the physical order).")
+
+
 def lipo_part(mid, title, side, top="-"):
     """LiPo cell with its two leads on the left or right edge, 150 mils apart."""
     w, h = 1000, 500
@@ -257,6 +295,37 @@ def de9_part():
 
     return Part("tds3a_de9_male", "DE-9 male (DTE)", w, h, pins, draw, "J",
                 "DE-9 male connector, DTE, panel mount")
+
+
+def qwiic_star_part():
+    """Qwiic star adapter: the input on the left, three ports on the right, 1100 mils apart."""
+    w, h = 1000, 3300
+    order = ["SCL", "SDA", "3V3", "GND"]
+    pins = [(n, 0, 400 + 150 * j, "L") for j, n in enumerate(order)]
+    pins += [(n + " " * (k + 1), w, 400 + 1100 * k + 150 * j, "R")
+             for k in range(3) for j, n in enumerate(order)]
+
+    def draw():
+        s = [f'<rect x="0" y="0" width="{w}" height="{h}" rx="40" fill="#c62828" '
+             f'stroke="#111111" stroke-width="12"/>',
+             f'<rect x="0" y="0" width="{w}" height="230" rx="40" fill="{STATUS["built"]}"/>',
+             t(w / 2, 100, "Qwiic star", 72, "middle", "bold", "#ffffff"),
+             t(w / 2, 190, "SparkFun MultiPort", 58, "middle", fill="#ffffff")]
+        for k in range(3):
+            s.append(t(w - 60, 300 + 1100 * k, f"port {k + 1}", 50, "end", "bold", "#ffe0e0"))
+        s.append(t(60, 300, "in", 50, "start", "bold", "#ffe0e0"))
+        for i, (n, x, y, side) in enumerate(pins):
+            if side == "L":
+                s.append(t(x + 60, y + 22, n.strip(), 60, "start", fill="#ffffff"))
+            else:
+                s.append(t(x - 60, y + 22, n.strip(), 60, "end", fill="#ffffff"))
+            s.append(pin_svg(i, x, y))
+        s.append(t(w / 2, h - 120, "all four ports", 50, "middle", fill="#e0e0e0"))
+        s.append(t(w / 2, h - 50, "are one bus", 50, "middle", fill="#e0e0e0"))
+        return "".join(s)
+
+    return Part("tds3a_qwiic_star", "Qwiic star adapter", w, h, pins, draw, "J",
+                "Qwiic star adapter (e.g. SparkFun Qwiic MultiPort): every port on one I2C bus")
 
 
 def build_parts(used):
@@ -342,6 +411,22 @@ def build_parts(used):
     add(module_part("tds3a_probe", ["Pressure probe", "0.5-4.5 V ratiometric"], "proposed",
                     left=["+5V", "OUT", "GND"], w=1200, color="#6d4c41",
                     desc="Ratiometric 0.5-4.5 V pressure probe"))
+    add(ws_board_part(used))
+    add(module_part("tds3a_ws_epaper", ["4.2in e-Paper Module V2", "SSD1683, 8-pin"], "specified",
+                    left=["VCC", "GND", "DIN", "CLK", "CS", "DC", "RST", "BUSY"], w=1200,
+                    color="#4a3a7a", desc="Waveshare 4.2 inch e-Paper Module (V2), SSD1683"))
+    add(module_part("tds3a_oled_312", ["3.12in OLED Ver 2.1", "SSD1322, 4-wire SPI"], "specified",
+                    left=["GND", "VCC", "SCLK", "SDIN", "GND ", "DC", "RES", "CS"], w=1200,
+                    color="#1b6b52",
+                    notes=["header: 1 GND, 2 VCC, 4 SCLK, 5 SDIN,", "7-13 GND, 14 DC, 15 RES, 16 CS",
+                           "R5 + R8 fitted (4SPI)"],
+                    desc="3.12 inch 256 x 64 OLED, SSD1322, module Ver 2.1 set for 4-wire SPI"))
+    add(two_pin("tds3a_r10k5_v", "res", "10k", True, "R", "Resistor"))
+    add(module_part("tds3a_key_12mm", ["Off-board key", "12 mm, momentary, red LED"], "built",
+                    left=["4 NO", "1 LED +", "3 NO", "2 LED -"], w=1000, color="#8a1c1c",
+                    notes=["3, 4 green: switch", "1 red: LED +, 2 black: LED -"],
+                    desc="12 mm momentary push button, normally open, with a red LED"))
+    add(two_pin("tds3a_r150_h", "res", "150R", False, "R", "Resistor"))
     add(two_pin("tds3a_r10k_v", "res", "10k 0.1%", True, "R", "Resistor"))
     add(two_pin("tds3a_r10k_h", "res", "10k 0.1%", False, "R", "Resistor"))
     add(two_pin("tds3a_r1k_h", "res", "1k", False, "R", "Resistor"))
@@ -362,6 +447,24 @@ def build_parts(used):
                     right=["TX", "RX", "GND"], w=900, color="#2e7d32", label="J",
                     desc="3-pin screw terminal, 5.08 mm"))
     add(de9_part())
+    # sheet 9: the Blues build's sensor bus through the Qwiic star (FSD 2.2, 39.2)
+    add(qwiic_star_part())
+    add(module_part("tds3a_bme280_q", ["BME280", "Qwiic, 0x76"], "built",
+                    left=["SCL", "SDA", "3V3", "GND"], w=1100, color="#5b2a86",
+                    notes=["keeps its pull-ups"],
+                    desc="BME280 breakout on Qwiic (I2C 0x76)"))
+    add(module_part("tds3a_rv8803_q", ["RV-8803 RTC", "Adafruit 6538, 0x32"], "specified",
+                    left=["SCL", "SDA", "3V3", "GND"], right=["CR1220"], w=1100,
+                    color="#1e5aa8", notes=["pull-up + LED jumpers cut"],
+                    desc="Adafruit RV-8803 RTC breakout (6538) on STEMMA QT, I2C 0x32, CR1220 backup"))
+    add(module_part("tds3a_notecarrier_q", ["Notecarrier-X", "+ Notecard MBGLW"],
+                    "built", left=["SCL", "SDA", "3V3", "GND"], right=["BAT-", "BAT+"],
+                    w=1300, color="#0d47a1", notes=["Qwiic, I2C 0x17"],
+                    desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5"))
+    add(module_part("tds3a_ads1115_water_s", ["ADS1115", "water 0x48"], "proposed",
+                    left=["ADDR", "GND", "SCL", "SDA", "VDD", "ALRT"],
+                    right=["A0", "A1"], w=1000, notes=["pull-ups cut"],
+                    desc="ADS1115 for the water probe, address 0x48"))
     return P
 
 
@@ -957,6 +1060,119 @@ def sheet_blues_direct(S):
     ])
 
 
+def sheet_ws_displays(S):
+    B, EP, OL = "Board", "EPD", "OLED"
+    S.place(B, "tds3a_waveshare_sim7670g", 500, 1100)
+    S.place(EP, "tds3a_ws_epaper", 4000, 600)
+    S.place(OL, "tds3a_oled_312", 4000, 2700)
+    S.place("R1", "tds3a_r10k5_v", 3300, 4500)
+    # shared lines from P3, each in its own channel, to both displays
+    for bp, ep, op, c, x in (("3V3", "VCC", "VCC", "red", 2200),
+                             ("GND R", "GND", "GND", "black", 2300),
+                             ("IO7", "CLK", "SCLK", "yellow", 2400),
+                             ("IO8", "DIN", "SDIN", "blue", 2500),
+                             ("IO10", "DC", "DC", "green", 2700)):
+        S.wire((B, bp), (EP, ep), c, ("x", x))
+        if op != "VCC":  # the OLED's VCC comes from 5 V, below
+            S.wire((B, bp), (OL, op), c, ("x", x))
+    # the OLED's chip select, and the 10k that marks it plugged in (FR-35.25)
+    S.wire((B, "IO9"), (OL, "CS"), "orange", ("x", 2600))
+    S.wire((OL, "CS"), ("R1", "1"), "orange", ("x", 3400))
+    S.wire(("R1", "2"), (OL, "GND"), "black", ("y", 5300), ("x", 2300))
+    # the unused parallel inputs (header pins 7 - 13) to GND
+    S.wire((OL, "GND "), (B, "GND R"), "black", ("x", 3800), ("y", 5200), ("x", 2300))
+    # P2 lines round the top of the board
+    for bp, part, pin, c, lane, top, x in (("IO1", EP, "BUSY", "purple", 400, 450, 2800),
+                                           ("IO3", EP, "CS", "orange", 350, 400, 2900),
+                                           ("IO20", EP, "RST", "white", 300, 350, 3000),
+                                           ("IO19", OL, "RES", "brown", 250, 300, 3100),
+                                           ("5V", OL, "VCC", "red", 200, 250, 3200)):
+        S.wire((B, bp), (part, pin), c, ("x", lane), ("y", top), ("x", x))
+    S.note(300, 5600, 6200, [
+        "# Both displays on the Waveshare board (FSD 35.2, 36, FR-35.25)",
+        "SPI2: CLK GPIO 7, MOSI GPIO 8 and DC GPIO 10 go to both displays; each has its own",
+        "chip select: e-paper CS GPIO 3, OLED CS GPIO 9. E-paper BUSY GPIO 1, RST GPIO 20;",
+        "OLED RES GPIO 19. R1 (10k, CS to GND) tells the firmware the OLED is plugged in;",
+        "the e-paper is found by its BUSY pulse. OLED: R5 + R8 fitted (4-wire SPI), header",
+        "pins 7 - 13 to GND, 3 and 6 open; VCC from 5 V (on 3V3 the panel stays dark).",
+        "Keep leads under 15 cm with a ground beside them. Details in ws-displays.md.",
+        LEGEND,
+    ])
+
+
+def sheet_ws_key(S):
+    B = "Board"
+    S.place(B, "tds3a_waveshare_sim7670g", 500, 1100)
+    S.place("SW1", "tds3a_key_12mm", 4200, 2300)
+    S.place("R1", "tds3a_r10k5_v", 2600, 1650)
+    S.place("C1", "tds3a_c100n_v", 2100, 2050)
+    S.place("R2", "tds3a_r1k_h", 3000, 2650)
+    S.place("R3", "tds3a_r150_h", 3000, 3000)
+    # the key on GPIO 12: 10k pull-up, 100 nF to GND and 1k in series at the board end
+    S.wire((B, "IO12"), ("R2", "1"), "orange")
+    S.wire((B, "3V3"), ("R1", "1"), "red", ("x", 2000), ("y", 1600), ("x", 2700))
+    S.wire(("R1", "2"), ("R2", "1"), "orange", ("y", 2750))
+    S.wire(("C1", "2"), ("R2", "1"), "orange", ("y", 2750))
+    S.wire(("C1", "1"), (B, "GND R"), "black", ("y", 1850))
+    S.wire(("R2", "2"), ("SW1", "4 NO"), "orange", ("x", 3800))
+    # the key's LED on GPIO 13
+    S.wire((B, "IO13"), ("R3", "1"), "yellow", ("x", 2900))
+    S.wire(("R3", "2"), ("SW1", "1 LED +"), "yellow", ("x", 3900))
+    # the switch's other side and the LED's cathode to GND
+    S.wire(("SW1", "2 LED -"), ("SW1", "3 NO"), "black", ("x", 4100))
+    S.wire(("SW1", "3 NO"), (B, "GND"), "black", ("x", 4050), ("y", 4000), ("x", 300), ("y", 1750))
+    S.note(300, 4300, 5000, [
+        "# Off-board key and its LED on the Waveshare board (FSD 35.2, FR-35.3, FR-35.18)",
+        "Key: normally open, GPIO 12 to GND, active low; wakes the board from deep sleep.",
+        "At the board end: R1 10k to 3V3, C1 100 nF to GND, R2 1k in series. Add a TVS",
+        "diode from GPIO 12 to GND for a long cable (up to 3 m).",
+        "LED: GPIO 13 (high = on) through R3 150R to LED +, LED - to GND; 68R at the least.",
+        "Button pins: 3 and 4 (green leads) the switch, 1 (red) LED +, 2 (black) LED -.",
+        "The header is unlabelled: find GPIO 12 and 13 with ws-probe's pin walk.",
+        LEGEND,
+    ])
+
+
+def sheet_blues_bus(S):
+    B = "Board"
+    S.place(B, BOARD, 500, 500)
+    S.place("U9", "tds3a_ads1115_water_s", 2700, 625)
+    S.place("J1", "tds3a_qwiic_star", 2600, 3600)
+    S.place("U1", "tds3a_bme280_q", 4300, 3625)
+    S.place("U13", "tds3a_rv8803_q", 4300, 4725)
+    S.place("U2", "tds3a_notecarrier_q", 4300, 5825)
+    S.place("BT2", "tds3a_lipo_notecarrier", 6200, 6025)
+    # water ADS1115 on the header through its 6-pin socket (sheet 3), ADDR to GND for 0x48
+    S.wire((B, "GND R1"), ("U9", "GND"), "black")
+    S.wire(("U9", "ADDR"), ("U9", "GND"), "black", ("x", 2600))
+    S.wire((B, "IO44"), ("U9", "SCL"), "yellow", ("x", 2100))
+    S.wire((B, "IO43"), ("U9", "SDA"), "blue", ("x", 2200))
+    S.wire((B, "3V3 R1"), ("U9", "VDD"), "red", ("x", 2300))
+    # the board's Qwiic connector to the star's input
+    for bp, sp, c, y in (("Q SCL", "SCL", "yellow", 4000), ("Q SDA", "SDA", "blue", 4150),
+                         ("Q 3V3", "3V3", "red", 4300), ("Q GND", "GND", "black", 4450)):
+        S.wire((B, bp), ("J1", sp), c, ("y", y))
+    # one Qwiic cable from each port; the Notecarrier's red 3.3 V wire stays unconnected
+    for k, u in enumerate(("U1", "U13", "U2")):
+        for n, c in (("SCL", "yellow"), ("SDA", "blue"), ("3V3", "red"), ("GND", "black")):
+            if u == "U2" and n == "3V3":
+                continue
+            S.wire(("J1", n + " " * (k + 1)), (u, n), c)
+    S.wire(("U2", "BAT-"), ("BT2", "-"), "black")
+    S.wire(("U2", "BAT+"), ("BT2", "+"), "red")
+    S.note(300, 7200, 7000, [
+        "# Blues build: the sensor bus, GPIO 43 SDA / 44 SCL at 100 kHz (FSD 2.2, 23, 33, 39)",
+        "The board's Qwiic connector feeds a Qwiic star; each Qwiic board plugs into a port:",
+        "BME280 0x76, RV-8803 RTC 0x32, Notecarrier-X 0x17 (its red 3.3 V wire unconnected,",
+        "its own LiPo). The water probe's ADS1115 (0x48, ADDR to GND) joins the same bus",
+        "through its 6-pin socket; its probe side is sheet 3. The BME280's pull-ups and the",
+        "Notecard's 10k stay; cut the RTC's and the ADS1115's (bus at or above about 2.2 kOhm).",
+        "The RTC's CR1220 keeps the time while the board is unpowered. Plug or unplug only",
+        "with USB and the battery disconnected.",
+        LEGEND,
+    ])
+
+
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
@@ -970,6 +1186,13 @@ SHEETS = [
      (7700, 5200), set(), sheet_blues),
     ("wiring-6-blues-cellular-direct", "6  Blues cellular uplink, direct wiring (FSD 33)",
      (7000, 4900), {"IO43", "IO44", "GND"}, sheet_blues_direct),
+    ("wiring-7-ws-displays", "7  Waveshare board: e-paper and OLED (FSD 35.2, 36)",
+     (5600, 6500), {"3V3", "GND", "IO1", "IO3", "IO7", "IO8", "IO9", "IO10", "IO19", "IO20"},
+     sheet_ws_displays),
+    ("wiring-8-ws-key", "8  Waveshare board: off-board key and LED (FSD 35.2, FR-35.3)",
+     (5600, 5100), {"3V3", "GND", "IO12", "IO13"}, sheet_ws_key),
+    ("wiring-9-blues-sensor-bus", "9  Blues build: BME280, RTC, ADS1115 and Notecard on the Qwiic star",
+     (7600, 8300), {"Q", "IO43", "IO44", "3V3", "GND"}, sheet_blues_bus),
 ]
 
 
