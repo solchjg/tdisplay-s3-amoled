@@ -21,6 +21,14 @@ void wl_fmt_lcd_init_failed(char *buf, size_t len, const char *err);
 // L9: "lcd write failed: <ERR>"
 void wl_fmt_lcd_write_failed(char *buf, size_t len, const char *err);
 
+// L48: "display <epaper|oled> t=<°F, 2 decimals>" or "... t=none" (FR-35.2)
+void wl_fmt_display(char *buf, size_t len, const char *panel, bool have, float temp_f);
+
+// L50: "displays epaper=<found|none|off> oled=<found|none|off>" (FR-35.25), each
+// state WL_DISPLAY_OFF (its setting off, not looked for), _NONE or _FOUND.
+enum { WL_DISPLAY_OFF, WL_DISPLAY_NONE, WL_DISPLAY_FOUND };
+void wl_fmt_displays(char *buf, size_t len, int epaper, int oled);
+
 // K12: "alive <N>"
 void wl_fmt_alive(char *buf, size_t len, uint32_t n);
 
@@ -82,6 +90,8 @@ void wl_fmt_mail_failed(char *buf, size_t len, const char *to, const char *reaso
 void wl_fmt_ble_on(char *buf, size_t len, const char *reason);
 void wl_fmt_ble_pairing(char *buf, size_t len, int ok);
 void wl_fmt_ble_settings(char *buf, size_t len, const char *result);
+// L49 "card settings <ok|invalid=<field>|none|failed>" (FR-35.4, FR-35.19, FR-35.20).
+void wl_fmt_card_settings(char *buf, size_t len, const char *result);
 void wl_fmt_ble_off(char *buf, size_t len, const char *reason);
 
 // L31 "history unavailable" (FR-27.8); "history failed: <ERR>" (FR-27.9).
@@ -97,10 +107,8 @@ void wl_fmt_ntfy_failed(char *buf, size_t len, const char *reason, const char *e
 void wl_fmt_cell_note(char *buf, size_t len, const char *what, int n);
 // L44 "cell failed: <timeout|err|full> <req>" (FR-33.4, FR-33.10).
 void wl_fmt_cell_failed(char *buf, size_t len, const char *reason, const char *req);
-// L46 "modem attach ms=<n> net=<MCC+MNC> csq=<n> psm_active_s=<n|none>
-// psm_tau_s=<n|none> mode=<psm|off>" (FR-35.1): a timer below 0 is none.
-void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq,
-                         long active_s, long tau_s, bool psm);
+// L46 "modem attach ms=<n> net=<MCC+MNC> csq=<n>" (FR-35.23): "?" for an unread network.
+void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq);
 // L47 "modem failed: <power|sim|register|ppp> ms=<n>" (FR-35.9).
 void wl_fmt_modem_failed(char *buf, size_t len, const char *why, long ms);
 // L55 "rtc drift ms=<±n> days=<d.d> trim=<±n>[ was=<±n>]" (FR-39.8); was < -99

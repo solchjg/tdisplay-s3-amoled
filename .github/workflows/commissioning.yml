@@ -70,7 +70,7 @@ jobs:
     container: espressif/idf:v6.0.2
     strategy:
       matrix:
-        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe, notecard-probe, epaper-probe, modem-probe, sat-probe, rtc-probe]
+        program: [forward-path, lcd-probe, wifi-probe, button-probe, loop-probe, notecard-probe, epaper-probe, modem-probe, sat-probe, ws-probe, oled-probe, ws-epaper-probe, ws-lcd-probe, rtc-probe]
     defaults:
       run:
         shell: bash

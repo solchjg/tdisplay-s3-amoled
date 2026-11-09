@@ -5,7 +5,7 @@
 | Layer | Component | Location | Depends on |
 |-------|-----------|----------|------------|
 | L2 | Device Logic (FSD §5) | `components/device_logic/` — pure C, no ESP-IDF headers: both transition functions, retry delay, screen content, SSID sanitising | nothing |
-| L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the six-line text display; layout core (`lcd_layout.c`) pure | `rm67162`, `text`, `tdisplay_s3_amoled` |
+| L1 | LCD Display Interface (FSD §6) | `components/lcd/` — the six-line text display; layout core (`lcd_layout.c`) pure. On the cellular build `lcd_oled.c` draws the lines on the SSD1322 OLED (FR-35.16: 6 × 10 cells, 42 characters from x 2, rows from y 2, `lcd_oled_layout.c` pure), display off in `lcd_sleep`, the off-board key's LED as FR-24.9's; with `sdkconfig.standin` (FR-35.22, bench only) `lcd_standin.c` draws them on the 1.3" OLED on the sensor bus at 0x3C (I2C controller 0, joined or opened), 21 characters a line (`lcd_standin_core.c` pure) | `rm67162`, `ssd1322`, `text`, `tdisplay_s3_amoled`, `board`, `esp_driver_i2c` |
 | L0 | RM67162 panel driver | `shared/components/rm67162/` — board-agnostic QSPI bring-up, DMA canvas, rectangle writes, brightness; configured by `rm67162_config_t` | esp_lcd, SPI and GPIO drivers, `esp_try` |
 | L0 | Text renderer | `shared/components/text/` — 16 × 32 and 12 × 24 fonts, `text_render`/`text_width` and the font-taking `text_font_render`, pure C | nothing |
 | L0 | Board support | `shared/components/tdisplay_s3_amoled/` — header-only pin and panel constants, pure | nothing |
@@ -31,7 +31,8 @@
 | L1 | Summary Email (FSD §25) | `components/summary/` (settings check, due rule and message core pure); adds the mail and reading-time fields to the portal (`portal_start_extra`), keeps the settings, the sample and average minutes and the last due slot in NVS (namespace `mail`), sends through `mail_tx` in a helper task while feeding the caller's watchdog; on a timer wake the composition root brings the station up only for a due summary | `mail_tx`, `portal`, `weather`, nvs_flash, esp_timer |
 | L1 | Push Alerts (FSD §31) | `components/notify/` (settings check, condition state with hysteresis, titles and bodies core pure); adds the alert fields to the portal form, keeps the settings in NVS (namespace `ntfy`) and the condition state in RTC memory, sends through `ntfy_tx` in a helper task while feeding the caller's watchdog; the composition root observes each reading and, on a timer wake, starts the station once for due alerts and a due summary | `ntfy_tx`, `weather`, `portal`, nvs_flash, esp_timer |
 | L1 | Cellular Uplink (FSD §33) | `components/uplink/` (settings, send path, `alert.qo`/`mail.qo` bodies, clock and GPS steps core pure); keeps the settings and the GPS place in NVS, adds its section to the portal form, and sends the Notecard requests through `notecard` on the BME280's bus | `notecard`, `portal`, nvs_flash |
-| L1 | Modem Link (FSD §35) | `components/modem_link/`, in the T-SIM7080G build only (the project's `CMakeLists.txt` reads the board choice and excludes it, `sim7080` and `axp2101` from the T-Display build; `main` links it once `CONFIG_APP_BOARD_TSIM7080G_S3` is known): the AXP2101 rails (BLDO1 always on, DC3 for the modem), the SIM7080G woken or powered, a PSM resume or a full attach with the network lock and PSM request, PPP as the default route for §25's and §31's senders, the modem left in PSM or powered off (in RTC memory which); the settings, wake decision and link verdict are `uplink`'s pure core | `sim7080`, `axp2101`, `tsim7080g_s3`, `uplink`, esp_netif |
+| L1 | Modem Link (FSD §35) | `components/modem_link/`, in the cellular build only (the project's `CMakeLists.txt` reads the board choice and excludes it, `sim7670`, `sim7080` and `max17048` from the T-Display build; `main` links it once `CONFIG_APP_BOARD_WS_SIM7670G` is known): the SIM7670G's supply switched on by GPIO 21 (the 4G switch off) and its first answer, the SIM awaited, an attach with the network lock, PPP as the default route for §25's and §31's senders, the network's time read after registering (FR-35.13, UTC), then `AT+CPOF` and the supply cut and held low (FR-35.23); the GPS search with the modem's GNSS (LTE off with `AT+CFUN=0` while it runs, paused by a link, FR-35.14); the settings, wake decision, link verdict, clock source and GNSS answers are `uplink`'s pure core. Its waits can pass the watch's 10 s, so the composition root pauses the watch for each modem call (FR-35.21; FR-35.9 bounds them) | `sim7670`, `board`, `uplink`, esp_netif |
+| L1 | Settings card (FSD §35, FR-35.4, FR-35.19, FR-35.20) | `components/settings_card/`: the core (`settings_card_core.c`, pure: the file as the BLE body, the `.done` text) in both builds, the card (`settings_card.c`: the always-powered slot, SDMMC 1-bit on the pins of `board.h`, FAT with long names) in the cellular build only | `fatfs`, `esp_driver_sdmmc`, `sdmmc`, `vfs`, `board` |
 | L0 | Board choice (FSD §35) | `components/board/` — the Kconfig board choice and `board.h`, the pins this app wires on each board | nothing |
 | L1 | BLE Settings (FSD §26) | `components/ble_settings/` (pure): what a `settings` write means in each window, the read without secrets, the page's field rules, `info`; the transport is `shared/components/ble_setup/` | nothing |
 | L1 | Device Identity (FSD §20) | `shared/components/identity/` (name formatting core pure, prefixes passed in) | nothing |
@@ -70,7 +71,9 @@ requirements first need them, never earlier.
   Bold 16x32 on lines 1 – 5 and 12x24 on line 6 (SIL OFL 1.1,
   `shared/components/text/font/OFL.txt`), converted by `shared/tools/bdf_to_c.py`
   into `shared/components/text/font16x32.c` and `font12x24.c`
-  (`bdf_to_c.py ter-u24b.bdf 12x24`). Regenerate, never hand-edit. Line tops
+  (`bdf_to_c.py ter-u24b.bdf 12x24`). The cellular build's OLED uses the
+  X11 misc-fixed 6x10 font (public domain, `bdf_to_c.py 6x10.bdf 6x10` into
+  `font6x10.c`). Regenerate, never hand-edit. Line tops
   are 8, 48, 88, 128, 168 and 208 px (`lcd_layout.c`). Lines 1 – 3 at
   y = 36, 104, 172, all at x = 0 (recommendation; FR-6.5 is the requirement). A
   changed line is redrawn as its full 536 px-wide row, so no characters of a
@@ -186,6 +189,9 @@ before wiring, are in [`wiring/wiring.md`](wiring/wiring.md), with LilyGO's pino
 the board ([`wiring/lilygo-t-display-s3-amoled-pinout.jpg`](wiring/lilygo-t-display-s3-amoled-pinout.jpg)).
 The Notecard and Notecarrier chosen for the cellular uplink (FSD §33), with their
 power and data figures, are in [`blues-cellular.md`](blues-cellular.md).
+The cellular build's two displays on the Waveshare board (the SSD1322 OLED and the
+4.2" e-paper on one SPI bus), the OLED module's interface links and header and the
+e-paper's reset timing are in [`ws-displays.md`](ws-displays.md).
 
 ## Toolchain
 

@@ -14,7 +14,7 @@
 #define NVS_NS "loop"
 #define KEY "settings"
 
-// §29.1 (§35.2 on the T-SIM7080G): the loop side as wired, pins from board.h.
+// §29.1 (§35.2 on the cellular build): the loop side as wired, pins from board.h.
 #define SUPPLY_GPIO BOARD_LOOP_SUPPLY  // active high, pulled low on the board; also the isolator's VCC1
 #define ADC_I2C_PORT 1         // the loop's own bus, opened and closed by the ads1115 driver
 #define ADC_SDA_GPIO BOARD_LOOP_SDA

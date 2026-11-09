@@ -1,5 +1,19 @@
 menu "E-paper probe"
 
+choice PROBE_PANEL
+    prompt "Panel controller (the board revision next to the SKU)"
+    default PROBE_PANEL_UC8276
+    help
+        Elecrow fits an SSD1683 on the v1.0 board and a UC8276C on v1.2.
+
+config PROBE_PANEL_SSD1683
+    bool "SSD1683 (v1.0)"
+
+config PROBE_PANEL_UC8276
+    bool "UC8276C (v1.2)"
+
+endchoice
+
 config PROBE_SDA
     int "Qwiic bus SDA GPIO (a header pin)"
     default 8

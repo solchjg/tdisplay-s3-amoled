@@ -1,0 +1,4 @@
+# FSD FR-35.22: the cellular bench build with the 1.3" OLED on the sensor bus
+# (0x3C) standing in for the SSD1322. Applied after sdkconfig.ws7670g; never released.
+CONFIG_APP_OLED_STANDIN=y
+# An SSD1306 instead: CONFIG_APP_OLED_STANDIN_SH1106=n

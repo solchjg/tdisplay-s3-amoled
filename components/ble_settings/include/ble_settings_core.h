@@ -36,7 +36,7 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
 // FR-26.9: the WiFi switch (FR-34.3), the stored settings that are not secret, then password_set and
 // mail_password_set, the setup with its minutes (FR-28.3), the loop settings
 // (FR-29.11), the alert settings with ntfy_token_set (FR-31.2), and the
-// cellular uplink's (FR-33.2; with modem, the T-SIM7080G build's fields of
+// cellular uplink's (FR-33.2; with modem, the cellular build's fields of
 // §35.4 instead of the Notecard's). Returns the length written (cut to fit cap,
 // terminated).
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *mail, const sp_sel_t *sel,
@@ -48,7 +48,7 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *mail, const sp_sel_
 // before it writes (ble_setup.h read_form). Returns the length (cut to fit cap,
 // terminated).
 size_t bset_form(char *out, size_t cap);
-// The same with the modem's fields of §35.4 (the T-SIM7080G build).
+// The same with the modem's fields of §35.4 (the cellular build).
 size_t bset_form_modem(char *out, size_t cap);
 
 // §26.2: "fw=<V>&host=<hostname>&state=<S>".

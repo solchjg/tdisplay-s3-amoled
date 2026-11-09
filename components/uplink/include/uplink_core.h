@@ -48,13 +48,12 @@ const char *ul_parse(const char *body, size_t len, const ul_settings_t *stored,
 // "uplink=<wifi|cell>&cell_mail=<route|off>&gps=<on|off>".
 void ul_report(const ul_settings_t *s, char *out, size_t cap);
 
-// ── The T-SIM7080G build's modem (FSD §35) ─────────────────────────────
+// ── The cellular build's modem (FSD §35) ─────────────────────────────
 
 #define UL_APN_MAX 63            // §35.4
 #define UL_PLMN_MAX 6            // §35.4: MCC+MNC
 #define UL_REGISTER_MS 60000     // FR-35.9: registered within this of the wake
 #define UL_PPP_MS 10000          // FR-35.9: PPP up within this of registering
-#define UL_PSM_ACTIVE_MAX_S 60   // FR-35.1: the longest active time kept in PSM
 
 // §35.4: the modem's own settings, kept beside ul_settings_t (whose stored
 // size the T-Display build keeps). On this build ul_settings_t's mail_route
@@ -62,21 +61,29 @@ void ul_report(const ul_settings_t *s, char *out, size_t cap);
 typedef struct {
     char apn[UL_APN_MAX + 1];    // empty: none stored
     char plmn[UL_PLMN_MAX + 1];  // empty: automatic choice
+    bool epaper;                 // §36.2 `epaper`: the e-paper is used when found (FR-35.25)
+    bool oled;                   // §35.4 `oled`: the SSD1322 OLED is used when found
 } ul_modem_t;
 
-// A new T-SIM7080G: wifi, cell_mail on, gps off, no APN, automatic choice.
+// The stored size of a ul_modem_t from before `epaper` and `oled`: such a
+// blob keeps its APN and network, and the two take their defaults.
+#define UL_MODEM_V1_SIZE (UL_APN_MAX + 1 + UL_PLMN_MAX + 1)
+
+// A new cellular board: wifi, cell_mail on, gps off, no APN, automatic choice,
+// `epaper` off, `oled` on.
 void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m);
 
 // §35.4, FR-35.4: the fields of a body over the stored settings; an absent or
 // empty field keeps its stored value. NULL when valid, else the first invalid
 // field: `nh_product` or `cell_every` when given (not offered on this build),
-// then uplink, apn, cell_plmn, gps, cell_mail; "apn" for cell without an APN,
+// then uplink, apn, cell_plmn, gps, cell_mail, epaper, oled; "apn" for cell without an APN,
 // given or stored; "gps" for gps on with wifi.
 const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *stored,
                            const ul_modem_t *stored_m, ul_settings_t *out, ul_modem_t *out_m);
 
 // The BLE `settings` read of the modem's fields:
-// "uplink=<wifi|cell>&apn=<apn>&cell_plmn=<plmn>&cell_mail=<on|off>&gps=<on|off>".
+// "uplink=<wifi|cell>&apn=<apn>&cell_plmn=<plmn>&cell_mail=<on|off>&gps=<on|off>
+// &epaper=<on|off>&oled=<on|off>".
 void ul_report_modem(const ul_settings_t *s, const ul_modem_t *m, char *out, size_t cap);
 
 // FR-35.7: the modem is woken or powered only with cell, for a due upload,
@@ -89,6 +96,13 @@ typedef enum {
     UL_LINK_REGISTER,  // L47 register
     UL_LINK_PPP,       // L47 ppp
 } ul_link_t;
+
+// FR-35.13: where a modem link's time comes from on a boot whose clock was
+// never set: the network's time (AT+CCLK?) when it supplied one, else SNTP
+// over PPP; none when the clock is already set.
+typedef enum { UL_MT_NONE, UL_MT_NET, UL_MT_SNTP } ul_mtime_t;
+ul_mtime_t ul_modem_time(bool synced, bool net_time);
+#define UL_SNTP_MS 5000  // FR-35.13: the wait for SNTP over PPP
 
 // FR-35.9: from the milliseconds to registration after the wake and to PPP
 // after registration (-1: never).
@@ -215,6 +229,13 @@ unsigned ul_gps_step(ul_gps_t *g, ul_gps_ev_t ev, bool wanted, bool have_place, 
 // location the first answer held. So a location the Notecard already held,
 // GPS or cell tower, never counts as the search's fix. Else UL_GE_NO_FIX.
 ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *lon);
+
+// FR-35.14: the same for an AT+CGNSSINFO answer on the cellular build: fix
+// with a fix status, utc its UTC time (Unix seconds). A fix counts only with
+// a time later than the search's start (g->after), or, with the clock unset,
+// later than a fix the first answer already held.
+ul_gps_ev_t ul_gps_modem_answer(ul_gps_t *g, bool fix, double la, double lo, int64_t utc,
+                                double *lat, double *lon);
 
 // FR-33.19: line 6 for the search, or false outside it (the add-on values).
 bool ul_gps_shown(const ul_gps_t *g, uint32_t now_s, char *out, size_t cap);

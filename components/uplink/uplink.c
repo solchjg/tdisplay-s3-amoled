@@ -34,10 +34,10 @@ typedef struct {
 
 static ul_settings_t taken;     // from the accepted submission, until it is stored
 static ul_settings_t settings;  // as stored
-static ul_modem_t taken_m, modem;  // §35.4, the T-SIM7080G build: as taken, as stored
+static ul_modem_t taken_m, modem;  // §35.4, the cellular build: as taken, as stored
 static bool taken_wifi_on = true, wifi_on = true;  // FR-34.1: as taken, as stored
 static bool loaded;
-static char form[1536];
+static char form[2048];
 
 static void defaults(void)
 {
@@ -66,8 +66,16 @@ static void load(void)
     }
 #if !BOARD_HAS_NOTECARD
     len = sizeof modem;
-    if (nvs_get_blob(h, KEY_MODEM, &modem, &len) != ESP_OK || len != sizeof modem) {
-        memset(&modem, 0, sizeof modem);
+    esp_err_t got = nvs_get_blob(h, KEY_MODEM, &modem, &len);
+    if (got == ESP_OK && len == UL_MODEM_V1_SIZE) {
+        ul_settings_t s;
+        ul_modem_t m;
+        ul_modem_defaults(&s, &m);  // stored before `epaper` and `oled`: their defaults
+        modem.epaper = m.epaper;
+        modem.oled = m.oled;
+    } else if (got != ESP_OK || len != sizeof modem) {
+        ul_settings_t s;
+        ul_modem_defaults(&s, &modem);
     }
     modem.apn[UL_APN_MAX] = modem.plmn[UL_PLMN_MAX] = '\0';
 #endif
@@ -156,10 +164,17 @@ const char *uplink_form_html(void)
              "<p><label>Email over cellular <select name=\"cell_mail\"><option%s>on</option>"
              "<option%s>off</option></select></label></p>"
              "<p><label>GPS fix in the setup check <select name=\"gps\"><option%s>off</option>"
-             "<option%s>on</option></select></label></p>",
+             "<option%s>on</option></select></label></p>"
+             "<h2>Displays</h2>"
+             "<p><label>4.2\" e-paper, when plugged in <select name=\"epaper\"><option%s>on</option>"
+             "<option%s>off</option></select></label></p>"
+             "<p><label>3.12\" OLED, when plugged in <select name=\"oled\"><option%s>on</option>"
+             "<option%s>off</option></select></label></p>",
              s->cell ? "" : " selected", s->cell ? " selected" : "", modem.apn, modem.plmn,
              s->mail_route ? " selected" : "", s->mail_route ? "" : " selected",
-             s->gps ? "" : " selected", s->gps ? " selected" : "");
+             s->gps ? "" : " selected", s->gps ? " selected" : "",
+             modem.epaper ? " selected" : "", modem.epaper ? "" : " selected",
+             modem.oled ? " selected" : "", modem.oled ? "" : " selected");
     return form;
 #endif
 }

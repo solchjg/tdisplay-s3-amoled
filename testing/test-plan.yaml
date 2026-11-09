@@ -349,6 +349,33 @@ capabilities:
     consequence: >
       R-19; TC-TIME-10 is its first run. If the bench AP has no route, the
       test is blocked by a testbench change request, never worked around.
+  oled-ssd1322:
+    what: The cellular build's 3.12" SSD1322 OLED shows the six lines the right way round with the init sequence and nibble order of shared/components/ssd1322 (FSD FR-35.16)
+    available: unproven
+    consequence: >
+      Never seen on a panel (testing/debugging-agenda.md); the FR-35.16 bench
+      row in Phase 17 step 8 is its first run.
+  oled-standin:
+    what: The 1.3" 128 x 64 OLED on the Waveshare board's sensor bus (GPIO 15/16) answers at 0x3C or 0x3D beside the BME280 and the MAX17048 and shows the six lines the right way round as an SH1106 (or an SSD1306 with CONFIG_APP_OLED_STANDIN_SH1106=n) (FSD FR-35.22)
+    available: unproven
+    consequence: >
+      Seen on the T-SIM7080G modem probe through the I2C controller, never on
+      the Waveshare board's sensor bus (testing/debugging-agenda.md); the
+      FR-35.22 bench row is its first run.
+  sd-card-ws:
+    what: The Waveshare board's microSD slot, always powered, mounts a FAT32 card over SDMMC 1-bit (CMD 4, CLK 5, D0 6, the ESP32-S3's pull-ups) and reads and writes it; an empty slot fails the mount with a timeout (FSD FR-35.4, FR-35.20)
+    available: unproven
+    consequence: >
+      commissioning/ws-probe mounted a card and timed out on an empty slot,
+      but has not written one; the empty slot's error code is what L49 `none`
+      rests on (testing/debugging-agenda.md). The FR-35.4 bench row is its
+      first full run.
+  modem-sim7670:
+    what: The Waveshare ESP32-S3-SIM7670G-4G in SLOT2 with its 4G switch off with a cell fitted answers AT on UART 1 (RX GPIO 17, TX GPIO 18) once GPIO 21 is high, registers, falls silent after AT+CPOF, and stays unpowered with GPIO 21 held low in deep sleep; its MAX17048 answers at 0x36 on GPIO 15/16 (FSD §35.2, FR-35.23)
+    available: unproven
+    consequence: >
+      Taken from Waveshare's examples and FAQ (testing/debugging-agenda.md);
+      commissioning/ws-probe is its first run.
   dut-bme280:
     what: A BME280 (chip ID 0x60) at 0x76 on SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1
     available: unproven
@@ -3725,7 +3752,7 @@ tests:
     result: {status: not done}
 
   - id: TC-TSIM-01
-    title: "T-SIM7080G settings: apn, cell_plmn and cell_mail on/off, no Notehub fields"
+    title: "Cellular build settings: apn, cell_plmn and cell_mail on/off, no Notehub fields"
     shape: atomic
     kind: standard
     wave: 1
@@ -3738,7 +3765,7 @@ tests:
     result: {status: not done}
 
   - id: TC-TSIM-02
-    title: "T-SIM7080G BLE settings read and rules match the build's portal form"
+    title: "Cellular build BLE settings read and rules match the build's portal form"
     shape: atomic
     kind: standard
     wave: 1
@@ -3746,7 +3773,7 @@ tests:
     tier: host
     verifies: [FR-35.4, FR-26.19, FR-26.21]
     needs: []
-    observable: "the settings read shows uplink, apn, cell_plmn, cell_mail on/off and gps, not nh_product or cell_every; the rules cover those fields in that order and match the T-SIM7080G portal form's labels, choices and checks"
+    observable: "the settings read shows uplink, apn, cell_plmn, cell_mail on/off and gps, not nh_product or cell_every; the rules cover those fields in that order and match the cellular build's portal form's labels, choices and checks"
     impl: [tests/host/test_ble_setup.py::test_modem_dump_and_form, "tests/host/test_ble_setup.py::test_form_rules_match_the_portal_form[True]"]
     result: {status: not done}
 
@@ -3920,16 +3947,16 @@ tests:
     result: {status: not done}
 
   - id: TC-TSIM-05
-    title: "PSM grant decision and network lock commands"
+    title: "Network lock commands"
     shape: atomic
     kind: standard
     wave: 1
     fsd_phase: 17
     tier: host
-    verifies: [FR-35.1, FR-35.11]
+    verifies: [FR-35.11]
     needs: []
-    observable: "no grant: off; active 300 s, TAU 18600 s: off; active 60 s: psm; active 16 s, TAU 3600 s: psm; cell_plmn 310410: AT+COPS=1,2,\"310410\"; empty: AT+COPS=0"
-    impl: [shared/tests/host/test_sim7080.py::test_grant_decision, shared/tests/host/test_sim7080.py::test_lock_to_network, shared/tests/host/test_sim7080.py::test_empty_plmn_undoes_the_lock]
+    observable: "cell_plmn 310410: AT+COPS=1,2,\"310410\"; empty: AT+COPS=0; a bad PLMN refused"
+    impl: [shared/tests/host/test_sim7080.py::test_lock_to_network, shared/tests/host/test_sim7080.py::test_empty_plmn_undoes_the_lock, shared/tests/host/test_sim7080.py::test_bad_plmn_refused]
     result: {status: not done}
 
   - id: TC-TSIM-06
@@ -3939,8 +3966,192 @@ tests:
     wave: 1
     fsd_phase: 17
     tier: host
-    verifies: [FR-35.1, FR-35.9]
+    verifies: [FR-35.23, FR-35.9]
     needs: []
-    observable: "modem attach ms=14250 net=310410 csq=21 psm_active_s=16 psm_tau_s=3600 mode=psm; none for a missing timer; modem failed: register ms=60012"
+    observable: "modem attach ms=8250 net=310410 csq=15; net=? for an unread network; modem failed: register ms=60012"
     impl: [tests/host/test_web_log.py::test_modem_attach_line, tests/host/test_web_log.py::test_modem_failed_line]
+    result: {status: not done}
+
+  - id: TC-TSIM-07
+    title: "Clock from the modem link: network time, else SNTP"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.13]
+    needs: []
+    observable: "clock never set: AT+CCLK? answers a time: net; answers none: sntp; clock set: none; timer wake with nothing due: no wake"
+    impl: [tests/host/test_uplink.py::test_modem_clock_source, tests/host/test_uplink.py::test_modem_clock_timer_wake_nothing_due]
+    result: {status: not done}
+
+  - id: TC-TSIM-08
+    title: "GPS search answers from the modem's GNSS"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.14]
+    needs: []
+    observable: "no fix twice, then a fix with a UTC time after the start: the fix; a fix older than the start: no fix; clock unset: a fix the first answer held never counts, a later one does; +CGNSSINFO with no fix, a place out of range or a bad date: no fix; decimal degrees and (d)ddmm.mmmm both read"
+    impl: [tests/host/test_uplink.py::test_modem_gps_answers, shared/tests/host/test_sim7670.py::test_gnss_no_fix, shared/tests/host/test_sim7670.py::test_gnss_decimal_degrees, shared/tests/host/test_sim7670.py::test_gnss_degrees_minutes, shared/tests/host/test_sim7670.py::test_gnss_bad]
+    result: {status: not done}
+
+  - id: TC-TSIM-09
+    title: "OLED layout: six rows of 6 x 10 cells, line 6 cut at 42"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.16]
+    needs: []
+    observable: "the six line boxes at x 2, y 2 + 10 n, 252 x 10; the ONLINE lines drawn whole, a line 6 of 44 characters cut at 42, nothing in the margins or between rows; the 6 x 10 font fits 42 characters in 252 px; the SSD1322 window, init and 4-bit packing"
+    impl: [tests/host/test_oled_layout.py::test_six_rows_of_6x10_cells_42_characters_across_252_pixels, tests/host/test_oled_layout.py::test_online_lines_whole_and_line_6_cut_at_42, shared/tests/host/test_text.py::test_tiny_font_cell_and_42_characters_fit_252_pixels, shared/tests/host/test_ssd1322.py::test_column_window, shared/tests/host/test_ssd1322.py::test_pack_left_pixel_high_nibble_with_offset, shared/tests/host/test_ssd1322.py::test_init_unlocks_first_and_leaves_the_display_off]
+    result: {status: not done}
+  - id: TC-TSIM-16
+    title: "E-paper layout: lines 1 – 5 in 12 x 24, line 6 and the status block in 8 x 16, cut at 44"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.15, FR-35.24]
+    needs: []
+    observable: "lines 1 – 5 at x 2, y 2 + 24 n, 396 x 24; line 6 at y 124, 352 x 16; ten status rows at y 140 + 16 n, 352 x 16, an eleventh none; the ONLINE lines drawn whole, a 50-character line 6 and a 60-character status row cut at 44, nothing drawn outside the boxes; the 8 x 16 font fits 44 characters in 352 px"
+    impl: [tests/host/test_epaper_layout.py::test_line_and_status_boxes, tests/host/test_epaper_layout.py::test_online_lines_line_6_cut_at_44_and_status_rows, shared/tests/host/test_text.py::test_mini_font_cell_and_44_characters_fit_352_pixels]
+    result: {status: not done}
+  - id: TC-TSIM-17
+    title: "Display choice: e-paper above 40 °F, OLED below, back at 42 °F; one display off, the other always"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.2]
+    needs: []
+    observable: "with both fitted: 45.00, 40.01, 40.00, 39.99 °F give e-paper, e-paper, OLED, OLED; no reading the e-paper, and after the OLED at 39.00 °F no reading the e-paper; on the OLED 41.99 stays, 42.00 the e-paper; epaper off at 70 °F the OLED; oled off at 30 °F and with no reading the e-paper; both off neither"
+    impl: [tests/host/test_epaper_layout.py::test_display_choice_with_both_fitted, tests/host/test_epaper_layout.py::test_display_choice_with_one_or_neither_fitted]
+    result: {status: not done}
+  - id: TC-TSIM-18
+    title: "Status block: firmware, wake, attach, sends, card, battery and the latest four W/E lines"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.24]
+    needs: []
+    observable: "with nothing logged: fw and rst, wake and time, modem off, send none, card none, batt none; after L49 ok, L46, L26/L39/L40/L25 and four more W/E lines: attach 4200 ms csq 14 310410, send alert timeout mail ok, card ok, batt 3.95 V 81 %, the four newest W/E lines newest first, each cut at 44; an L47 replaces the attach row and L42 adds tb; L48 as display <panel> t=<°F 2 decimals|none>"
+    impl: [tests/host/test_epaper_status.py::test_rows_after_a_power_on_with_nothing_sent, tests/host/test_epaper_status.py::test_rows_after_an_attach_sends_and_warnings, tests/host/test_epaper_status.py::test_a_failed_attach_replaces_the_last_one, tests/host/test_epaper_status.py::test_display_line]
+    result: {status: not done}
+  - id: TC-TSIM-19
+    title: "E-paper refreshes: a full one first, partial ones at most every 5 s, the sleep screen"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.15]
+    needs: []
+    observable: "a full refresh when the window's first is due; none while busy; a partial one only with lines drawn and 5000 ms or more since the last; the sleep screen keeps the window's lines with the kept reading on line 4 and Asleep, key to wake on line 5"
+    impl: [tests/host/test_epaper_layout.py::test_refresh_due, tests/host/test_epaper_layout.py::test_sleep_screen_keeps_the_lines_with_the_reading_and_the_sleep_line]
+    result: {status: not done}
+  - id: TC-TSIM-20
+    title: "Display settings: epaper and oled on by default, kept when absent or empty, on or off only"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.2, FR-35.4, FR-35.25]
+    needs: []
+    observable: "a new board reports epaper=on&oled=on; epaper=on and oled=off are stored, kept by a body without them or with them empty; any other value is refused naming epaper or oled; the settings read and the form rules end with epaper (section Displays) and oled"
+    impl: [tests/host/test_uplink.py::test_modem_settings_displays, tests/host/test_ble_setup.py::test_modem_dump_and_form]
+    result: {status: not done}
+  - id: TC-TSIM-21
+    title: "L50: the displays found for the window"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 18
+    tier: host
+    verifies: [FR-35.25]
+    needs: []
+    observable: "displays epaper=<found|none|off> oled=<found|none|off> for each state of each display"
+    impl: tests/host/test_epaper_status.py::test_displays_line
+    result: {status: not done}
+  - id: TC-TSIM-10
+    title: "OLED stand-in: six rows of 6 x 10 cells, lines cut at 21"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.22]
+    needs: []
+    observable: "the six line boxes at x 1, y 2 + 10 n, 126 x 10; each ONLINE line cut at 21 characters, only the boxes cleared on a stale screen, line 6 touching pages 6 and 7; each chip's init leaves the display off with page addressing, the SH1106 written from column 2; a box past the panel refused"
+    impl: [tests/host/test_oled_standin.py::test_six_rows_of_6x10_cells_21_characters_across_126_pixels, tests/host/test_oled_standin.py::test_lines_cut_at_21_and_margins_cleared, tests/host/test_oled_standin.py::test_init_leaves_the_display_off_and_page_addressing, tests/host/test_oled_standin.py::test_page_start_sh1106_from_column_2, tests/host/test_oled_standin.py::test_box_outside_the_panel_refused]
+    result: {status: not done}
+  - id: TC-TSIM-11
+    title: "Off-board key on GPIO 12 and its LED on GPIO 13 in the cellular build"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.3, FR-35.18, FR-35.22]
+    needs: []
+    observable: "with sdkconfig.defaults and sdkconfig.ws7670g merged, the user key and the deep-sleep wake on GPIO 12 and the BOOT key (GPIO 0) as the second key; board.h's LED on GPIO 13; with sdkconfig.standin added, the same keys and wake"
+    impl: [tests/host/test_ws_key.py::test_offboard_key_on_gpio_12_ends_the_hold_and_wakes, tests/host/test_ws_key.py::test_offboard_key_led_on_gpio_13, tests/host/test_ws_key.py::test_standin_keeps_the_key]
+    result: {status: not done}
+  # §35.2's Pins row has no requirement number yet, so this verifies none.
+  - id: TC-TSIM-14
+    title: "The cellular build's console on UART0, the board's CH343"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: []
+    needs: []
+    observable: "with sdkconfig.defaults and sdkconfig.ws7670g merged (and with sdkconfig.standin added) the console is UART0 (GPIO 43/44); sdkconfig.defaults alone keeps the T-Display's USB-Serial/JTAG console"
+    impl: tests/host/test_ws_key.py::test_console_on_uart0
+    result: {status: not done}
+  - id: TC-TSIM-15
+    title: "The modem's supply pin set low without passing through the pad's pull-up"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.7, FR-35.23]
+    needs: []
+    observable: "modem_link.c never resets the GPIO 21 pad; modem_link_off sets the level low before configuring the pad as an output, with its pull-up disabled"
+    impl: tests/host/test_ws_key.py::test_modem_supply_never_passes_through_the_pull_up
+    result: {status: not done}
+  - id: TC-TSIM-12
+    title: "Settings card core: the file as the BLE body, applied by state, .done without secrets, L49"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.4, FR-35.19, FR-35.20]
+    needs: []
+    observable: "a /settings.txt with a BOM, CRLF, a comment and an empty line read as the fields joined by '&', each value percent-encoded; a line that is no field refused as invalid=line; applied as FR-26.6 in PROVISIONING and as FR-26.7 otherwise (the stored password kept); a 33-byte ssid refused as invalid=ssid; the .done text with password, mail_password, tb_token and ntfy_token emptied and every other line kept; L49 for ok, invalid, none and failed"
+    impl: [tests/host/test_settings_card.py::test_lines_become_the_body, tests/host/test_settings_card.py::test_a_line_that_is_no_field_is_refused, tests/host/test_settings_card.py::test_in_provisioning_as_a_portal_submission, tests/host/test_settings_card.py::test_in_a_key_window_the_stored_password_stays, tests/host/test_settings_card.py::test_a_33_byte_ssid_is_refused, tests/host/test_settings_card.py::test_done_without_secrets, tests/host/test_settings_card.py::test_password_in_a_value_is_not_a_secret_field, tests/host/test_settings_card.py::test_l49]
+    result: {status: not done}
+  - id: TC-TSIM-13
+    title: "SIM7670G core: the commands before an attach and the network clock in UTC"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 17
+    tier: host
+    verifies: [FR-35.11, FR-35.13]
+    needs: []
+    observable: "ATE0, AT+CMEE=2, AT+CGDCONT=1,\"IP\",\"hologram\"; a bad APN or PLMN refused; +CCLK \"26/11/07,01:11:17-20\" read as 01:11:17 UTC (the zone not applied); a clock before 2024 or from 2070 not taken; +CGMR's revision read"
+    impl: [shared/tests/host/test_sim7670.py::test_attach_script, shared/tests/host/test_sim7670.py::test_attach_script_refuses_bad_settings, shared/tests/host/test_sim7670.py::test_cclk_is_utc, shared/tests/host/test_sim7670.py::test_cclk_unset_or_bad, shared/tests/host/test_sim7670.py::test_cgmr_as_seen_on_slot2]
     result: {status: not done}

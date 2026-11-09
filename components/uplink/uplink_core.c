@@ -1,5 +1,6 @@
 #include "uplink_core.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -94,13 +95,17 @@ void ul_report(const ul_settings_t *s, char *out, size_t cap)
              s->mail_route ? "route" : "off", s->gps ? "on" : "off");
 }
 
-// ── The T-SIM7080G build's modem (FSD §35) ─────────────────────────────
+// ── The cellular build's modem (FSD §35) ─────────────────────────────
+
+_Static_assert(offsetof(ul_modem_t, epaper) == UL_MODEM_V1_SIZE, "the stored blob's first part");
 
 void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m)
 {
     ul_defaults(s);
     s->mail_route = true;  // §35.4: `cell_mail` `on` when none is stored
     memset(m, 0, sizeof *m);
+    m->epaper = true;      // §36.2: `epaper` `on` when none is stored (FR-35.25: used when found)
+    m->oled = true;        // §35.4: `oled` `on` when none is stored
 }
 
 static bool apn_ok(const char *v, int n)
@@ -166,6 +171,12 @@ const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *st
     if (!choice(body, len, "cell_mail", "on", "off", &out->mail_route)) {
         return "cell_mail";
     }
+    if (!choice(body, len, "epaper", "on", "off", &out_m->epaper)) {
+        return "epaper";
+    }
+    if (!choice(body, len, "oled", "on", "off", &out_m->oled)) {
+        return "oled";
+    }
     if (out->cell && out_m->apn[0] == '\0') {
         return "apn";
     }
@@ -177,15 +188,20 @@ const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *st
 
 void ul_report_modem(const ul_settings_t *s, const ul_modem_t *m, char *out, size_t cap)
 {
-    snprintf(out, cap, "uplink=%s&apn=%s&cell_plmn=%s&cell_mail=%s&gps=%s",
+    snprintf(out, cap, "uplink=%s&apn=%s&cell_plmn=%s&cell_mail=%s&gps=%s&epaper=%s&oled=%s",
              s->cell ? "cell" : "wifi", m->apn, m->plmn, s->mail_route ? "on" : "off",
-             s->gps ? "on" : "off");
+             s->gps ? "on" : "off", m->epaper ? "on" : "off", m->oled ? "on" : "off");
 }
 
 bool ul_modem_wanted(const ul_settings_t *s, bool upload, bool alert, bool mail, bool time_step,
                      bool gps_search)
 {
     return s->cell && (upload || alert || mail || time_step || gps_search);
+}
+
+ul_mtime_t ul_modem_time(bool synced, bool net_time)
+{
+    return synced ? UL_MT_NONE : net_time ? UL_MT_NET : UL_MT_SNTP;
 }
 
 ul_link_t ul_modem_link(long register_ms, long ppp_ms)
@@ -407,6 +423,26 @@ unsigned ul_gps_step(ul_gps_t *g, ul_gps_ev_t ev, bool wanted, bool have_place, 
     return 0;
 }
 
+// FR-33.16, FR-35.14: an answer with a place counts as the search's fix only
+// when it is a GPS fix later than g->after; the first answer, with the clock
+// unset, sets g->after to the time of the place already held.
+static ul_gps_ev_t gps_fix(ul_gps_t *g, bool has, bool gps, double la, double lo, int64_t t,
+                           double *lat, double *lon)
+{
+    bool first = !g->asked;
+    g->asked = true;
+    if (first && g->after == 0 && has) {
+        g->after = t;  // held before the search: never its fix
+        return UL_GE_NO_FIX;
+    }
+    if (!has || !gps || t <= g->after) {
+        return UL_GE_NO_FIX;
+    }
+    *lat = la;
+    *lon = lo;
+    return UL_GE_FIX;
+}
+
 ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *lon)
 {
     double la = 0, lo = 0, t = 0;
@@ -420,18 +456,13 @@ ul_gps_ev_t ul_gps_answer(ul_gps_t *g, const char *answer, double *lat, double *
             gps = memcmp(v + i, "{gps}", 5) == 0;
         }
     }
-    bool first = !g->asked;
-    g->asked = true;
-    if (first && g->after == 0 && has) {
-        g->after = (int64_t)t;  // held before the search: never its fix
-        return UL_GE_NO_FIX;
-    }
-    if (!has || !gps || (int64_t)t <= g->after) {
-        return UL_GE_NO_FIX;
-    }
-    *lat = la;
-    *lon = lo;
-    return UL_GE_FIX;
+    return gps_fix(g, has, gps, la, lo, (int64_t)t, lat, lon);
+}
+
+ul_gps_ev_t ul_gps_modem_answer(ul_gps_t *g, bool fix, double la, double lo, int64_t utc,
+                                double *lat, double *lon)
+{
+    return gps_fix(g, fix, true, la, lo, utc, lat, lon);
 }
 
 bool ul_gps_shown(const ul_gps_t *g, uint32_t now_s, char *out, size_t cap)

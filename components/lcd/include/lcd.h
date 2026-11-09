@@ -24,3 +24,30 @@ esp_err_t lcd_led(bool on);
 // Before deep sleep (FR-21.6): dark, display off, sleep in, and the panel power
 // GPIO held low. A panel never started (a timer wake) only gets its power held off.
 esp_err_t lcd_sleep(void);
+
+// ── The cellular build only (FSD §35) ─────────────────────────────────────
+
+// FR-35.2: the panel a window draws on, set before lcd_start (the OLED until
+// then). With none, lcd_start and lcd_draw_line do nothing and succeed.
+typedef enum { LCD_PANEL_NONE, LCD_PANEL_EPAPER, LCD_PANEL_OLED } lcd_panel_t;
+void lcd_use(lcd_panel_t p);
+
+// FR-35.25: which panels are plugged in, before lcd_use. The OLED by its CS
+// line (a 10 kOhm to GND on the OLED's lead holds it low against the internal
+// pull-up), read only when look_oled; the e-paper by its BUSY pulse after a
+// reset, probed only when look_epaper. A found e-paper is left started; lcd_use
+// of another panel puts it back in its deep sleep.
+void lcd_detect(bool look_epaper, bool look_oled, bool *epaper, bool *oled);
+
+// FR-35.15: on the e-paper, the lines drawn since the last refresh are sent
+// once a refresh is due: the window's first as a full refresh, then partial
+// ones at most every 5 s. Called each tick; ESP_OK when nothing is due or on
+// the OLED.
+esp_err_t lcd_flush(void);
+
+// FR-35.15, FR-35.24: the e-paper's sleep screen, the six lines and the first
+// n status rows (at most LCD_EPD_STATUS_ROWS), after any refresh still
+// running, with a full refresh; lcd_sleep then puts the controller in its deep
+// sleep. ESP_ERR_INVALID_STATE when the e-paper was not started this boot;
+// ESP_OK on the OLED.
+esp_err_t lcd_final(const char *const lines[], const char *const rows[], int n);

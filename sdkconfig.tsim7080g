@@ -1,4 +1,0 @@
-# FSD §35: the T-SIM7080G-S3 build, layered on sdkconfig.defaults:
-#   idf.py -B build-tsim -DSDKCONFIG=$PWD/build-tsim/sdkconfig \
-#          -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.tsim7080g" build
-CONFIG_APP_BOARD_TSIM7080G_S3=y

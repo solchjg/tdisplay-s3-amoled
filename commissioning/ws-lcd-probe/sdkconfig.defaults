@@ -1,0 +1,7 @@
+# The Waveshare ESP32-S3-SIM7670G-4G (16 MB flash), one app, console on
+# UART 0 through the board's CH343 (FSD §35.2); GPIO 20 (USB D+) is the
+# LCD's RST (GPIO 19, USB D-, its CS on the other wiring), so the
+# USB-Serial/JTAG console is off.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

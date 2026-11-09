@@ -183,7 +183,7 @@ int main(int argc, char **argv)
             strcpy(u.product, "com.example.joe:weather");
             u.cell_every = 120;
         }
-        ul_modem_t m = {"hologram", "310410"};
+        ul_modem_t m = {"hologram", "310410", .epaper = false, .oled = true};
         bool modem = argc > 3 && !strcmp(argv[3], "modem");
         bset_dump(&cur, &s, &sel, &loop, &a, &u, modem ? &m : NULL, argv[2][0] != '2', out,
                   sizeof out);
@@ -423,12 +423,12 @@ PORTAL_PARTS = [  # file, first and last text of its form HTML
     ("components/sampling/sampling.c", "<h2>Readings", "GPS on)</label></p>\";"),
     ("components/loop/loop.c", "<h2>4-20 mA", "ms</label></p>\";"),
     ("components/notify/notify.c", "<h2>Push alerts", "mbar</p>\","),
-    ("components/uplink/uplink.c", "<h2>Cellular uplink", "on</option></select></label></p>\","),
+    ("components/uplink/uplink.c", "<h2>Cellular uplink", "</select></label></p>\","),
 ]
 
 
 def _portal_html(modem=False):
-    """The portal form; with modem, the T-SIM7080G build's (§35.4), whose uplink
+    """The portal form; with modem, the cellular build's (§35.4), whose uplink
     section is the second in uplink.c."""
     import codecs
     root = pathlib.Path(__file__).resolve().parents[2]
@@ -518,7 +518,7 @@ ATTR_CHECKS = ["type", "minlength", "maxlength", "min", "max", "step", "pattern"
 
 # TC-BLE-33 · FR-26.21 (core): the page's form is the portal form: the same
 # fields in the same order, sections, intro text, labels, choices, units and checks
-# (FR-35.4: likewise on the T-SIM7080G build, with the modem's fields)
+# (FR-35.4: likewise on the cellular build, with the modem's fields)
 @pytest.mark.parametrize("modem", [False, True])
 def test_form_rules_match_the_portal_form(bset, modem):
     import urllib.parse as up
@@ -571,7 +571,7 @@ def test_dump_reports_the_wifi_switch(bset):
 
 
 
-# FR-35.4 (core): the T-SIM7080G build's settings read and rules show the
+# FR-35.4 (core): the cellular build's settings read and rules show the
 # modem's fields of §35.4 instead of the Notecard's.
 def test_modem_dump_and_form(bset):
     import urllib.parse as up
@@ -589,3 +589,8 @@ def test_modem_dump_and_form(bset):
     assert rules["apn"]["required_if"] == "uplink=cell" and rules["apn"]["maxlength"] == "63"
     assert rules["cell_plmn"]["pattern"] == "[0-9]{5,6}"
     assert rules["cell_mail"]["options"].split(",") == ["on", "off"]
+    # §36.2, §35.4: the displays, last
+    assert (dump["epaper"], dump["oled"]) == ("off", "on")
+    assert rules["epaper"]["section"] == "Displays"
+    assert rules["epaper"]["options"].split(",") == ["on", "off"]
+    assert rules["oled"]["options"].split(",") == ["on", "off"]

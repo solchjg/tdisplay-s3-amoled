@@ -27,6 +27,25 @@ void wl_fmt_lcd_write_failed(char *buf, size_t len, const char *err)
     snprintf(buf, len, "lcd write failed: %s", err);
 }
 
+void wl_fmt_display(char *buf, size_t len, const char *panel, bool have, float temp_f)
+{
+    if (have) {
+        snprintf(buf, len, "display %s t=%.2f", panel, (double)temp_f);
+    } else {
+        snprintf(buf, len, "display %s t=none", panel);
+    }
+}
+
+static const char *display_state(int st)
+{
+    return st == WL_DISPLAY_FOUND ? "found" : st == WL_DISPLAY_NONE ? "none" : "off";
+}
+
+void wl_fmt_displays(char *buf, size_t len, int epaper, int oled)
+{
+    snprintf(buf, len, "displays epaper=%s oled=%s", display_state(epaper), display_state(oled));
+}
+
 void wl_fmt_alive(char *buf, size_t len, uint32_t n)
 {
     snprintf(buf, len, "alive %" PRIu32, n);
@@ -143,6 +162,11 @@ void wl_fmt_ble_settings(char *buf, size_t len, const char *result)
     snprintf(buf, len, "ble settings %s", result);
 }
 
+void wl_fmt_card_settings(char *buf, size_t len, const char *result)
+{
+    snprintf(buf, len, "card settings %s", result);
+}
+
 void wl_fmt_ble_off(char *buf, size_t len, const char *reason)
 {
     snprintf(buf, len, "ble off reason=%s", reason);
@@ -178,23 +202,9 @@ void wl_fmt_cell_failed(char *buf, size_t len, const char *reason, const char *r
     snprintf(buf, len, "cell failed: %s %s", reason, req);
 }
 
-static void timer(char *out, size_t n, long s)
+void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq)
 {
-    if (s < 0) {
-        snprintf(out, n, "none");
-    } else {
-        snprintf(out, n, "%ld", s);
-    }
-}
-
-void wl_fmt_modem_attach(char *buf, size_t len, long ms, const char *net, int csq,
-                         long active_s, long tau_s, bool psm)
-{
-    char a[16], t[16];
-    timer(a, sizeof a, active_s);
-    timer(t, sizeof t, tau_s);
-    snprintf(buf, len, "modem attach ms=%ld net=%s csq=%d psm_active_s=%s psm_tau_s=%s mode=%s",
-             ms, net && net[0] ? net : "?", csq, a, t, psm ? "psm" : "off");
+    snprintf(buf, len, "modem attach ms=%ld net=%s csq=%d", ms, net && net[0] ? net : "?", csq);
 }
 
 void wl_fmt_modem_failed(char *buf, size_t len, const char *why, long ms)
