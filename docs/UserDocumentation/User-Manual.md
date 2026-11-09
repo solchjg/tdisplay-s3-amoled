@@ -507,8 +507,8 @@ are in [ws-displays.md](../Method/project/ws-displays.md) and on Fritzing
   (pin 1) tells the device it is plugged in; without it the OLED is never used.
   The e-paper needs nothing extra.
 - **Which one shows.** With both plugged in, a window uses the e-paper when the
-  latest reading is above 40 °F and the OLED at 40 °F or below, or with no
-  reading at all. Once on the OLED it goes back to the e-paper only at 42 °F,
+  latest reading is above 40 °F or there is no reading yet, and the OLED at
+  40 °F or below. Once on the OLED it goes back to the e-paper only at 42 °F,
   so a reading near 40 °F does not swap them every window. The log names the
   choice when the e-paper is found: `web: display oled t=38.50`. With only one
   plugged in, that one is always used.
@@ -536,7 +536,7 @@ are in [ws-displays.md](../Method/project/ws-displays.md) and on Fritzing
 | Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
 | `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76; the rest of the device keeps working |
 | OLED dark on the cellular board, the log says `oled=none` | The 10 kΩ from the OLED's CS to GND is missing, or CS is on the wrong pin | Fit the resistor (section 5j) and check CS goes to GPIO 9 |
-| OLED dark on the cellular board, the log says `oled=found` | The OLED's VCC is on 3V3, or another display was chosen | Move its VCC to 5 V; with both displays plugged in, the e-paper shows above 40 °F (section 5j) |
+| OLED dark on the cellular board, the log says `oled=found` | The OLED's VCC is on 3V3, or another display was chosen | Move its VCC to 5 V; with both displays plugged in, the e-paper shows above 40 °F or with no reading (section 5j) |
 | E-paper unchanged after a window | It was not chosen, or the window was a timer wake; it keeps its last picture | See section 5j; the log's `displays` and `display` lines say what happened |
 | A screen that never changes | The device may be hung | It restarts itself within 15 s (watchdog); if not, unplug and replug |
 

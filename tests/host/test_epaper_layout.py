@@ -150,7 +150,8 @@ def test_online_lines_line_6_cut_at_44_and_status_rows(run):
 # TC-TSIM-17 · FR-35.2
 def test_display_choice_with_both_fitted(choose):
     assert choose(1, 1, "45.00", "40.01", "40.00", "39.99") == ["epaper", "epaper", "oled", "oled"]
-    assert choose(1, 1, "none") == ["oled"]
+    assert choose(1, 1, "none") == ["epaper"], "no reading: the e-paper"
+    assert choose(1, 1, "39.00", "none") == ["oled", "epaper"]
     assert choose(1, 1, "39.00", "41.99", "42.00") == ["oled", "oled", "epaper"]
     assert choose(0, 1, "70.00") == ["oled"]
 

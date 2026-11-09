@@ -247,8 +247,8 @@ typedef enum { DL_SHOW_NONE, DL_SHOW_EPAPER, DL_SHOW_OLED } dl_show_t;
 
 // Chosen when a window starts, from the latest kept reading. `prev`: the last
 // window's choice (DL_SHOW_NONE before the first); `epaper`, `oled`: the
-// `epaper` and `oled` settings; `have_temp`: a reading exists. Above 40 °F the
-// e-paper, at or below it (or with no reading) the OLED; once on the OLED, the
+// `epaper` and `oled` settings; `have_temp`: a reading exists. Above 40 °F (or
+// with no reading) the e-paper, at or below it the OLED; once on the OLED, the
 // e-paper again only at 42 °F or above. With one display off, the other in
 // every window; with both off, none.
 dl_show_t dl_display_choose(dl_show_t prev, bool epaper, bool oled, bool have_temp,
