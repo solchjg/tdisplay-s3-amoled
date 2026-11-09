@@ -60,6 +60,7 @@ reused.
 | 35 | Cellular Build | cross-cutting |
 | 36 | E-paper Display (optional) | L1 |
 | 37 | Packed Messages | L1 |
+| 38 | ESP-NOW Link (optional) | L1 |
 | 39 | Hardware Clock (optional) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
@@ -149,7 +150,7 @@ path: a failing display never stops the network side (FR-5.28).
 | QSPI clock | 75 MHz requested (the SPI divider runs it at 80 MHz) | [user] |
 | Orientation | MADCTL 0x60 (MX, MV): landscape 536×240, no RAM offset | [derived from commissioning] |
 | BOOT button | GPIO 0, active low, external pull-up on the board | [derived from the LilyGO T-Display-S3 AMOLED pin map] |
-| Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE 5 used only inside a setup window (§26, FR-26.18), sharing the radio by ESP-IDF software coexistence | [derived from the board] |
+| Radio | ESP32-S3 2.4 GHz WiFi (802.11 b/g/n); BLE 5 used only inside a setup window (§26, FR-26.18), sharing the radio by ESP-IDF software coexistence; ESP-NOW, optionally in LR mode, with `espnow_role` not `off` (§38) | [derived from the board] |
 | Power and console | USB-C on the board, which is the ESP32-S3's native USB-Serial/JTAG | [derived from the board] |
 | Flash layout | Two 4 MB application slots, see C-10.6 | [user] |
 | 4-20 mA loop (optional) | One 2-wire transmitter on an isolated loop side: 24 V isolated supply from the battery/system rail behind a soft-start load switch, enabled by GPIO 3, a 30 mA loop current limit, 100 Ω shunt, ADS1115 at 0x49 (128 SPS) on an isolated 3.3 V LDO, behind an I2C isolator on its own bus (GPIO 15/16), the isolator's board side powered from GPIO 3 (§29) | [user] |
@@ -466,6 +467,22 @@ testbench.
 - **Dependencies.** §25, §31 – §34; the board's commissioning check of
   the modem, the pins and the sleep current.
 
+### 3.19 Phase 19: ESP-NOW link
+
+- **Scope.** The optional ESP-NOW link of §38 on both builds: node and
+  gateway roles, LR mode, the gateway's forwarding to ThingsBoard's gateway
+  API and to ntfy.
+- **Deliverables.** §38, the FR-21.13 exception, the FR-34.8 exception, L57 –
+  L61; the shared `espnow_link` component and a radio-only start in
+  `wifi_net`; a gateway-API transport for ThingsBoard; a bench peer (a bare
+  ESP32-S3 on a free slot); the commissioning probe and
+  `docs/Method/project/espnow.md`; a User Manual section.
+- **Exit criteria.** The §38.5 contracts pass on SLOT1 with the bench peer;
+  the range test is recorded; with `espnow_role` `off` both builds behave
+  exactly as before this phase.
+- **Dependencies.** §37 (packed messages and the `pack` component), §21,
+  §31, §32, §34; Phase 17 for the cellular build's roles.
+
 ### 3.18 Phase 18: E-paper display (optional)
 
 - **Scope.** The optional e-paper display of §36. On the cellular build, now,
@@ -540,6 +557,8 @@ testbench.
 | R-38 | A microSD card in its slot may draw 100 µA or more in deep sleep, and this board does not switch the slot's supply | Possible | Medium | Commissioning measures the sleep current with and without a card; if it is high, the card is removed after setup, as the User Manual will say |
 | R-39 | E-paper panels are rated for refreshes above about 0 °C; near 40 °F the panel is within its rating but slower | Likely | Low | FR-35.2 switches to the OLED below 40 °F with 2 °F hysteresis |
 | R-40 | Notehub's routes offer JSONata only, so a `raw` message reaching Notehub could not be decoded there, and Notehub leaves zero fields out of a body | Certain | Medium | Notecard links use the template encoding (§37.2), which Notehub decodes; every decoder reads an absent field as 0 (§37.2, FR-37.4 contract) |
+| R-41 | A gateway listens without sleeping, about 80 – 100 mA on an ESP32-S3 (an approximate figure, not yet measured) | Certain | Medium | A gateway is powered from USB or mains [user]; commissioning measures the draw (Phase 19) |
+| R-42 | Range and airtime of ESP-NOW, and of its LR mode, on these boards' on-board antennas are only the vendor's figures (about 100 – 200 m normal, up to about 1 km LR) | Likely | Medium | `espnow_lr` stays `off` by default; the FR-38.7 range test records the delivered share at 100 m, 300 m and 1 km |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
@@ -1111,6 +1130,11 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L55 | Hardware clock checked at a network sync (FR-39.8) | `web: rtc drift ms=<±n> days=<d.d> trim=<±n>[ was=<±n>]` (`was` when the trim changed; trim in 0.2384 ppm steps) | I |
 | L56 | Hardware clock lost or failing (FR-39.9) | `web: rtc lost` or `web: rtc failed: <esp_err name>` | W |
 | L50 | Displays found for the window (FR-35.25) | `web: displays epaper=<found\|none\|off> oled=<found\|none\|off>` | I |
+| L57 | ESP-NOW frame delivered (FR-38.11) | `web: espnow sent what=<rd\|al\|st> n=<readings, or 1> ch=<c> lr=<0\|1> tries=<t> left=<readings still after the mark>` | I |
+| L58 | ESP-NOW frame not delivered (FR-38.11) or channel search failed (FR-38.6) | `web: espnow failed: <noreply\|search> what=<rd\|al\|st\|search> ch=<c>` | W |
+| L59 | Gateway accepted a frame (FR-38.16) | `web: espnow rx node=<hostname> what=<rd\|al\|st> n=<readings, or 1> rssi=<dBm>` | I |
+| L60 | Gateway dropped a frame (FR-38.16) | `web: espnow dropped: <tag\|replay\|version\|full> mac=<aa:bb:cc:dd:ee:ff>` | W |
+| L61 | Gateway passed a node's data on (FR-38.17, FR-38.18) | `web: espnow fwd node=<hostname> to=<tb\|ntfy> <ok\|failed: <connect\|tls\|auth\|refused\|timeout>> n=<readings, or 1>` | I or W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -1566,10 +1590,10 @@ host-tier tests.
 |--------|----------|
 | Threat actors | Considered: none on the LAN (trusted, [user]). Nearby radio users during provisioning: accepted |
 | Physical access | Full control (accepted) |
-| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31); outbound HTTP or HTTPS to the configured ThingsBoard server (§32); with `uplink` `cell`, notes over I2C to the Notecard, which sends them to Blues Notehub (§33); with `wifi` `off`, nothing over WiFi at all (§34) |
+| Remote exposure | BLE GATT service inside a setup window only (§26): device info readable by anyone in range, settings only after passkey pairing; HTTP on port 80 (status, OTA request) in ONLINE; outbound HTTP to whatever URL an OTA request names; open SoftAP with portal in PROVISIONING; mDNS; outbound UDP logs; outbound SMTP over TLS to the configured mail server (§25); outbound HTTP or HTTPS to the configured ntfy server (§31); outbound HTTP or HTTPS to the configured ThingsBoard server (§32); with `uplink` `cell`, notes over I2C to the Notecard, which sends them to Blues Notehub (§33); with `wifi` `off`, nothing over WiFi at all (§34) except ESP-NOW; with `espnow_role` not `off`, ESP-NOW frames encrypted and authenticated with `espnow_key` and, on a gateway, MQTT to the ThingsBoard host (§38) |
 | Confidentiality | **Not claimed.** HTTP and UDP logs are plaintext; NVS is not encrypted, so the WiFi password is readable from flash |
 | Integrity / authenticity of firmware | **Not claimed.** Anyone on the LAN can upload an image; no signature check; secure boot off |
-| Credentials | One WiFi password, one mail password, one ThingsBoard access token and an optional ntfy token, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-31.13, FR-32.3) |
+| Credentials | One WiFi password, one mail password, one ThingsBoard access token, an optional ntfy token and an optional ESP-NOW network key, stored in NVS; never output by the device (FR-9.3, FR-25.10, FR-31.13, FR-32.3, FR-38.2) |
 
 Accepted risks [user]: readings and the ThingsBoard token sent in plain text when `tb_url` is `http://` (§32); unauthenticated OTA (anyone on the LAN can make the device
 download and run any image from any HTTP URL); open portal SoftAP (anyone in radio
@@ -1774,7 +1798,10 @@ The user key is GPIO 21, active low, an RTC GPIO (LilyGO factory
   only while it is sent; the second is an alert due on that wake (FR-31.10),
   likewise; the third is a ThingsBoard upload due on that wake (FR-32.5),
   likewise; the fourth is the wake whose reading ends the last
-  test (FR-28.11), which continues as after a key wake.
+  test (FR-28.11), which continues as after a key wake; the fifth, with
+  `uplink` `espnow`, is the ESP-NOW send of FR-38.10, for which the WiFi
+  driver runs in station mode without joining a network only while it sends
+  [proposed].
 - **FR-21.11** [Must] [user] A key wake
   shall be handled like a power-on boot: the 60 s window, panel, WiFi and web
   server (with `wifi` `on`, FR-34.9), then the task (local maintenance and OTA).
@@ -3512,7 +3539,9 @@ Behaviour with WiFi off:
 - **FR-34.8** [Must] [user] In WIFI_OFF the WiFi radio shall stay off in
   every boot, window and wake: no station, no SoftAP, no status server, OTA,
   mDNS, UDP log or SNTP, and nothing at the station or SoftAP MAC addresses
-  in a bench scan. The Notecard's own WiFi stays unused too (FR-33.14).
+  in a bench scan. The one exception is ESP-NOW with `espnow_role` not `off`
+  (§38): a node's frames (FR-38.10) and a gateway's receiving and replies,
+  with no association and no access point [proposed]. The Notecard's own WiFi stays unused too (FR-33.14).
 - **FR-34.9** [Must] [user] The window after a boot that is not a timer
   wake (FR-21.2, FR-21.3, FR-21.11) shall run in WIFI_OFF as with WiFi on but
   without WiFi: the panel with its lines, the setup check (§24), the BLE key
@@ -3617,6 +3646,7 @@ The board facts below are read from Waveshare's V2 schematic
 | HTTP OTA over cellular | — | Not offered [user]: an image is about 1.4 MB of cellular data; OTA stays on WiFi, or USB |
 | WiFi off | 34 | Same; with `uplink` `cell`, sends go through the modem |
 | The satellite `day.qo` trial | — | Not product behaviour on either build (`commissioning/sat-probe`) |
+| ESP-NOW link, node or gateway | 38 | Same; a gateway may also use `uplink` `cell`, the modem's PPP link (§38.2) |
 
 ### 35.4 Settings
 
@@ -4178,6 +4208,207 @@ unpowered.
 
 ---
 
+## 38. ESP-NOW Link
+
+### 38.1 Purpose & peer
+
+ESP-NOW is an optional third uplink on both builds, off by default [user].
+A battery **node** sends its readings, alerts and status on each timer wake
+as packed messages (§37) in ESP-NOW frames to a **gateway**, another device
+of either build that stays awake and passes them on over its own uplink, so
+ThingsBoard and ntfy see each node as they would see a device on WiFi
+[user]. Either build can be a node or a gateway; the role is a setting, not a
+separate image [user]. A node keeps its history, panel, setup check and BLE
+setup; ESP-NOW changes only how its data leaves the board. A gateway is still
+a weather station of its own.
+
+ESP-NOW runs on the ESP32-S3's own 2.4 GHz radio, the one WiFi and BLE use;
+it needs no association with an access point. Espressif's long range (LR)
+mode is offered as a setting on both roles [user], off by default until a
+range test on these boards shows it is worth its airtime [user].
+
+Peers: the other devices of the ESP-NOW network, identified by their station
+MAC; for a gateway, ThingsBoard through its MQTT gateway API (one ThingsBoard
+device per node [user]) and the ntfy server of §31. The evaluation that
+measures acknowledgement rate, range, airtime, wake-to-sleep time and frame
+loss during a BLE window is `docs/Method/project/espnow.md`, written by the
+Phase 19 commissioning probe. Built on a shared `espnow_link` component (L0,
+in esp-idf-components) and an app component `espnow` whose pure core
+`espnow_core` holds the field rules, the framing, the replay window, the
+backlog and the gateway's forward decisions [proposed]; the record packer and
+unpacker are the shared `pack` component of §37.
+
+### 38.2 Settings
+
+Added to the §13.2 form and the BLE `settings` write (§26) on both builds;
+all optional, so a submission without them leaves ESP-NOW as it was (off on
+a new device).
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `uplink` | adds `espnow` to `wifi` and `cell` (§33.3, §35.4) | `espnow` needs `espnow_role` `node`, `espnow_gw` and `espnow_key`, given or stored | the stored value |
+| `espnow_role` | `off`, `node` or `gateway` | one of the three; `node` needs `uplink` `espnow`; `gateway` needs `uplink` `wifi` (with `wifi` `on`), or `cell` on the cellular build, and `espnow_key` | the stored value; `off` when none is stored [user] |
+| `espnow_gw` | the gateway's station MAC, `aa:bb:cc:dd:ee:ff` (a node only) | 6 hex bytes, not broadcast or multicast | the stored value |
+| `espnow_key` | the network key, 32 hex characters | exactly 16 bytes | the stored value (in a key-window BLE write an absent key keeps the stored one, as for the other secrets) |
+| `espnow_ch` | the channel, 1 – 13; empty means search (node) or channel 1 (gateway on cellular) | empty or 1 – 13 | the stored value; empty when none is stored [proposed] |
+| `espnow_lr` | long range mode, `on` or `off` | one of the two | the stored value; `off` when none is stored [user] |
+
+A gateway on the T-Display build with `uplink` `cell` (the Notecard) is not
+offered [proposed]: the gateway API is an MQTT connection, which the
+Notecard does not carry (§33.1).
+
+### 38.3 Frames
+
+Every frame is at most 250 bytes, the ESP-NOW v1 limit, which every peer and
+both LR rates carry [proposed]:
+
+| Part | Bytes | Holds |
+|------|-------|-------|
+| `h` | 1 | frame version in the top 3 bits (1), kind in the low 5: 1 data (node to gateway), 2 reply (gateway to node) |
+| `ctr` | 4 | the sender's frame counter, uint32 little-endian |
+| body | data: 1 – 225; reply: 4 | data: one §37 message in the raw encoding (§37.2): `rd`, `al` or `st`; reply: the gateway's UTC time in seconds, uint32, 0 with its clock never set |
+| `tag` | 8 | AES-128-CCM tag under `espnow_key` over `h`, `ctr`, the node's MAC and the body; the body is encrypted |
+
+In both directions `ctr` is the node's counter and the CCM nonce is the
+node's MAC (6 bytes), `ctr` (4), `h` (1) and two zero bytes, so no nonce
+repeats under one key while a node's counter only rises; a reply that is sent
+again for a repeated frame is the same bytes (FR-38.16). The
+§37 packer is told 225 bytes as the link's largest message (FR-37.5), so an
+`rd` holds up to 24 readings with no add-on, 16 with one and 12 with two
+[derived from §37.3].
+
+### 38.4 Requirements
+
+Settings:
+
+- **FR-38.1** [Must] [user] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry the fields of §38.2 on both builds. A submission
+  shall be valid only if every field given is valid per §38.2 and the
+  combined stored-and-given values meet its "Valid" column, else answer 400
+  naming the first invalid field (portal) or `invalid=<field>` (BLE).
+- **FR-38.2** [Must] [derived from §9.1, FR-9.3] The device shall not output
+  `espnow_key` on serial, UDP, any HTTP response, any email, any BLE read or
+  any ESP-NOW frame; the `settings` read (FR-26.9) reports only
+  `espnow_key_set=<0|1>`.
+- **FR-38.3** [Must] [proposed] Valid settings shall be stored in NVS with the
+  other settings at T3, T16 or an accepted BLE write (T14), reported by the
+  `settings` read, and erased with the frame counter and the gateway's node
+  table by a factory reset (T10).
+- **FR-38.4** [Must] [user] With `espnow_role` `off` nothing of this section
+  shall run: the ESP-NOW driver is never initialised and the device behaves
+  exactly as without this section.
+
+Radio:
+
+- **FR-38.5** [Must] [proposed] A gateway with `uplink` `wifi` shall use its
+  access point's channel; a gateway on cellular shall use `espnow_ch`, or
+  channel 1 when it is empty. The gateway shall show its station MAC and its
+  channel on `GET /`, in `/api/status` (`espnow_mac`, `espnow_ch`), in the
+  BLE `info` read and on line 6 during a window, so they can be copied into
+  each node.
+- **FR-38.6** [Must] [proposed] A node with `espnow_ch` given shall send on
+  it. With it empty, a node shall try channels 1 – 13 in turn until a reply
+  arrives, keep the channel found in RTC memory and NVS, and search again
+  after **3** wakes in a row with no reply.
+- **FR-38.7** [Must] [user] With `espnow_lr` `on`, a node shall send at the
+  LR rate (250 kbit/s by default; 512 kbit/s as a build option) with its
+  radio in LR-only mode, and a gateway shall run its station in 802.11 b/g/n
+  plus LR mode, so it still joins an ordinary access point and hears both LR
+  and normal nodes [proposed]. With `espnow_lr` `off`, frames go at the
+  normal rate and the protocol mask is unchanged.
+- **FR-38.8** [Must] [proposed] A gateway shall keep its station's power save
+  off (`WIFI_PS_NONE`), so no frame is missed while the station dozes, and
+  shall keep receiving during a BLE window, accepting that a node may need a
+  retry.
+- **FR-38.9** [Must] [proposed] A node shall never send while a BLE window is
+  open (as FR-26.5) or while its station is associated: on a boot with a
+  window and `wifi` `on`, it sends after the station has left its access
+  point (FR-21.7).
+
+Node:
+
+- **FR-38.10** [Must] [user] With `uplink` `espnow`, after each reading the
+  node shall send the readings after its send mark as `rd` messages, oldest
+  first, at most **5** frames a wake [proposed], an `al` for each alert due
+  (§31.3) before them, and an `st` on each boot with a window. On a timer
+  wake this is the fifth exception of FR-21.13: the WiFi driver starts in
+  station mode without joining a network, sends, stops, and the device
+  sleeps; the panel stays dark.
+- **FR-38.11** [Must] [proposed] A frame counts as delivered only when a
+  reply arrives within **50 ms** whose tag checks and whose `ctr` is the one
+  sent; a frame is tried up to **3** times. The send mark (as FR-32.8) moves
+  past the readings of an `rd` only when it is delivered, so readings that
+  missed the gateway go with a later wake while the history holds them.
+- **FR-38.12** [Must] [proposed] The frame counter shall rise by 1 with each
+  frame sent, kept in RTC memory and written to NVS every 256 frames; at boot
+  the node continues from the NVS value plus 256, so no counter is ever used
+  twice under one key.
+- **FR-38.13** [Must] [proposed] A node whose clock was never set (FR-22.6),
+  or differs from a reply's time by more than 2 s, shall set its clock from
+  the reply's time when it is not 0 and log L20 with `src=espnow`. Readings
+  taken before the first set carry no time and are not sent (§37.3).
+- **FR-38.14** [Must] [user] With `uplink` `espnow`, no summary email is due
+  or sent (the period advances as after a dropped send, as FR-33.13), and the
+  node's own ThingsBoard and ntfy settings are unused; its alert conditions
+  are tracked as in §31.3 and sent as `al`.
+
+Gateway:
+
+- **FR-38.15** [Must] [user] A gateway shall not enter deep sleep. Where §21
+  would sleep for N s it shall stay awake for N s with the panel dark and
+  ESP-NOW receiving, then run the task as on a timer wake but with its uplink
+  kept up; a key press lights the panel and opens a key window as a key wake
+  does (FR-21.11), without a restart.
+- **FR-38.16** [Must] [user] A gateway shall accept a data frame only if its
+  version and kind are known, its tag checks under `espnow_key`, and its `ctr`
+  is above the last one accepted from that MAC; it shall then send a reply
+  carrying the same `ctr` and its UTC time. A frame whose `ctr` equals the
+  last one accepted from that MAC (a retry whose reply was lost) shall get the
+  same reply bytes again and is not passed on a second time. Any other frame
+  is dropped with L60 and gets no reply. The last counter of each node is kept in NVS, for at
+  most **16** nodes [proposed]; a seventeenth node's frames are dropped
+  (`full`).
+- **FR-38.17** [Must] [user] A gateway shall pass an accepted `rd` and `st` on
+  to ThingsBoard through its MQTT gateway API, as the telemetry and
+  attributes of the device named by the node's FR-20.1 hostname (built from
+  the frame's source MAC), with the keys and values of §32.3 (FR-37.4). It
+  connects to the host of its `tb_url` on port 1883, or 8883 with TLS for an
+  `https://` URL, with its own `tb_token`, which belongs to a ThingsBoard
+  device marked as a gateway [proposed]. It shall reply to the node only after
+  ThingsBoard's MQTT broker has acknowledged the publish (QoS 1), so a reading
+  is never acknowledged and lost [proposed].
+- **FR-38.18** [Must] [user] A gateway shall pass an accepted `al` on to its
+  own ntfy server and topic (§31) as the alert §37.3 decodes, titled with the
+  node's hostname; with ntfy off or not configured on the gateway, the alert
+  is still acknowledged and only logged [proposed].
+- **FR-38.19** [Must] [user] A gateway shall keep its own readings, uploads,
+  alerts and summary exactly as without this section.
+
+Logs:
+
+- **FR-38.20** [Must] [derived] The device shall log L57 – L61 (§7.2) for the
+  events they name, and never the key or a frame's body.
+
+### 38.5 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-38.1, FR-38.2 (core) | Portal and `ble_settings` cores: every row of §38.2 valid and one past each limit; `uplink=espnow` without `espnow_role=node`; `espnow_role=gateway` with `uplink=cell` on each build; a `settings` read with a key stored | Valid as §38.2; 400 naming the field; refused on the T-Display build only; `espnow_key_set=1` and no key | A key in any output; an inconsistent pair stored | host |
+| §38.3, FR-38.16 (core) | `espnow_core` framing against `tools/pack_ref.py` (frame and CCM added): data and reply frames; a flipped bit in each part; the last `ctr` repeated; a lower `ctr`; version 2; a seventeenth node | Same bytes both ways; the stored reply resent and nothing passed on; dropped as `tag`, `replay`, `version`, `full` | A frame accepted after any change | host |
+| FR-38.6 (core) | Channel search: the gateway on 1, 6, 11; then moved from 6 to 11 | Found in ≤ 13 tries; a search after 3 missed wakes, then 11 kept | A search on every wake | host |
+| FR-38.10, FR-38.11 (core) | 120 readings after the mark, one add-on; the second frame gets no reply on any try | 5 frames planned; the mark after the first `rd` (16 readings); 3 tries of the second | The mark moved for an unanswered frame | host |
+| FR-38.12 (core) | Counter at 1000 in RTC, 768 in NVS; a power loss | Next frame `ctr` 1024 (768 + 256) | A counter reused | host |
+| FR-38.4 | Shipped build, `espnow_role` `off`; the JRN-01 journey | Passes unchanged; no ESP-NOW frame in a peer sniff for 10 min | Any ESP-NOW frame | bench |
+| FR-38.10, FR-21.13 | SLOT1 node (`wifi` `off`, sleep test build) with the bench peer as gateway | `web: wake cause=timer`, L21, L57 `what=rd`, `web: sleep` within the commissioned limit; no join | WiFi association; the panel lit; a send in a key window | target |
+| FR-38.13 | Node with the clock never set; the peer replies with a time | L20 `src=espnow` after the first reply; the next `rd` holds the reading | An unset clock after a reply | target |
+| FR-38.16, FR-38.17 | SLOT1 as gateway on the bench AP; the peer sends `rd`, `st`, then replays one | L59; the node device's telemetry and attributes on the bench ThingsBoard as §32.3; L60 `replay` | A replayed frame forwarded or acknowledged | bench |
+| FR-38.18 | As above; the peer sends a `t_high` `al` | An ntfy message titled with the peer's hostname | A reply before the publish was acknowledged | bench |
+| FR-38.7 | SLOT1 in LR as node; the peer as a gateway in LR, then in normal mode; then SLOT1 normal, the peer LR | Delivered; not delivered; delivered | An LR node heard by a normal gateway | bench |
+| FR-38.7 (range) | Two boards outdoors, line of sight, 100 m, 300 m and 1 km, normal and LR at 250 kbit/s | The delivered share at each distance recorded in `espnow.md` | — | bench (operator) |
+| FR-38.15 | SLOT1 as gateway, sampling `std` | No `web: sleep` for 2 h; a reading at each period; a key press opens a window without L1 | A deep sleep; a restart on the key | target |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -4244,6 +4475,8 @@ Runtime configuration (the only persisted items):
 | `uplink`, `nh_product`, `cell_every`, `cell_mail`, `gps` | text / number | `wifi`, none, 60, `off`, `off` | §33.3 | NVS | operational | portal (§13), BLE (§26) | FR-33.1 | immediate (T3); restart (T14) | erased by factory reset (`uplink` back to `wifi`) |
 | `gps_lat`, `gps_lon`, `gps_at` | number / time | none | 5 decimals; the fix time | NVS | operational | set by a fix in the setup check (FR-33.17) | none | next attributes | erased by factory reset |
 | `wifi` | on/off | `on` | `on`, `off` | NVS | operational | portal (§13, §34.2), BLE (§26) | FR-34.1 | immediate (T3, T16); restart (T14) | erased by factory reset (back to `on`) |
+| `espnow_role`, `espnow_gw`, `espnow_ch`, `espnow_lr` | text / number | `off`, none, empty, `off` | §38.2 | NVS | operational | portal (§13, §38.2), BLE (§26) | FR-38.1 | immediate (T3, T16); restart (T14) | erased by factory reset with the frame counter and the node table |
+| `espnow_key` | hex | none | 16 bytes | NVS | secret | portal (§13), BLE write only (§26) | FR-38.1 | immediate (T3, T16); restart (T14) | erased by factory reset |
 | `setup_check` | flag | not pending | pending / not | NVS | operational | set by T3, cleared by a key (FR-24.11) | none | next non-timer boot | erased by factory reset |
 | `history` | readings (§27.1) | empty | 2 MB, about 65,000 readings | flash partition (C-10.10) | operational | appended by the task; read by `GET /api/history` and BLE (§27) | FR-27.3 | next reading | erased by factory reset (FR-27.7) |
 
@@ -4479,6 +4712,7 @@ change_history:
   - "0.39.0 2026-11-06 from the user's note that the T-SIM7080G's battery-side connector is not the T-Display's Qwiic: §35.2 the sensor bus moves from the PMU's GPIO 15/7 (not on a header) to P4, GPIO 43/44 (proposed), with a caution that P4's pin order is the Qwiic order reversed; the OLED's CS moves to GPIO 46; the PMU and the loop bus share I2C controller 1; one Qwiic board keeps its pull-ups; R-36 updated"
   - "0.40.0 2026-11-06 the user's choice for `cell_plmn` (§35.4): an empty field clears the network lock, an absent field keeps the stored one"
   - "0.41.0 2026-11-06 draft for the user's review, from the user's question whether one packed format should serve every link: §37 Packed Messages (all proposed) defines the rd, day, al and st messages shared by small-payload links (satellite, LoRa), in a template encoding for Notecard links and a raw one otherwise, decoded at the edge into the §32.3 and §31.3 JSON; IP links and the §33 notes keep JSON; R-40"
+  - "0.42.0 2026-11-06 draft for the user's review, from the user's approved ESP-NOW plan: §38 ESP-NOW Link (optional, both builds; node and gateway roles, LR mode, frames carrying §37 messages under AES-128-CCM, a USB-powered gateway forwarding readings and alerts to ThingsBoard's gateway API and ntfy), FR-38.1 – FR-38.20; L57 – L61; the FR-21.13 and FR-34.8 exceptions; §9.1, §35.3, Phase 19, R-41, R-42; Appendix A. Numbered after the §37 and 0.41.0 of the packed-messages draft it depends on"
   - "0.43.0 2026-11-06 the user's choice for the modem's long waits: FR-35.21, the application task is off the watch (FR-19.1) for each modem call that can pass 10 s, bounded by FR-35.9's limits"
   - "0.44.0 2026-11-06 from the user's request for timekeeping with no wireless connection (a mine shaft) and their choices on the RTC assessment: §39 Hardware Clock (optional): an RV-8803 on both builds' sensor bus (user), a valid RTC time counts as synced (user), the phone's clock over BLE (user), the RTC skips the waits of FR-33.12 and FR-35.13 (user); FR-39.6 – FR-39.9 and NFR-39.1 (proposed); L55, L56, L20 sources `rtc` and `phone`; Phase 20"
   - "0.45.0 2026-11-06 the user's choice of a screen until the SSD1322 arrives: FR-35.22, a bench build drawing the six lines on the 1.3\" OLED soldered to GPIO 13/21 (user), driven in software with RS232 and the off-board key off and the BOOT key as the user key (proposed)"
@@ -4495,6 +4729,7 @@ change_history:
   - "0.54.0 2026-11-09 the user's choice to show the e-paper when there is no reading: FR-35.2 with both displays fitted and no reading at all uses the e-paper (was the OLED)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
+  - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
   - "§35.2 the e-paper's RST on GPIO 20 and the OLED's RES on GPIO 19; FR-35.25 the detection method (CS resistor, BUSY pulse) and `epaper` `on` by default; §35.4 the `oled` setting (default on) and FR-35.2's e-paper in every window with `oled` `off`; FR-35.24 the status block's 10 rows, drawn only in the final full refresh, kept in RTC memory, and their content"
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
   - "§39: the breakout's pull-ups and LED cut; FR-39.5 a phone time taken more than 2 s from a synced clock; FR-39.6 a Notecard time only within 3600 s of its last sync; FR-39.8 a trim only from a measurement within 0.12 ppm and after 7 days; NFR-39.1 ±3 ppm over 24 h"
