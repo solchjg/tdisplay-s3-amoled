@@ -391,6 +391,11 @@ def build_parts(used):
                            "R5 + R8 fitted (4SPI)"],
                     desc="3.12 inch 256 x 64 OLED, SSD1322, module Ver 2.1 set for 4-wire SPI"))
     add(two_pin("tds3a_r10k5_v", "res", "10k", True, "R", "Resistor"))
+    add(module_part("tds3a_key_12mm", ["Off-board key", "12 mm, momentary, red LED"], "built",
+                    left=["SW 2", "LED +", "SW 1", "LED -"], w=1000, color="#8a1c1c",
+                    notes=["LED rated 3 - 9 V"],
+                    desc="12 mm momentary push button, normally open, with a red LED"))
+    add(two_pin("tds3a_r150_h", "res", "150R", False, "R", "Resistor"))
     add(two_pin("tds3a_r10k_v", "res", "10k 0.1%", True, "R", "Resistor"))
     add(two_pin("tds3a_r10k_h", "res", "10k 0.1%", False, "R", "Resistor"))
     add(two_pin("tds3a_r1k_h", "res", "1k", False, "R", "Resistor"))
@@ -1046,6 +1051,39 @@ def sheet_ws_displays(S):
     ])
 
 
+def sheet_ws_key(S):
+    B = "Board"
+    S.place(B, "tds3a_waveshare_sim7670g", 500, 1100)
+    S.place("SW1", "tds3a_key_12mm", 4200, 2300)
+    S.place("R1", "tds3a_r10k5_v", 2600, 1650)
+    S.place("C1", "tds3a_c100n_v", 2100, 2050)
+    S.place("R2", "tds3a_r1k_h", 3000, 2650)
+    S.place("R3", "tds3a_r150_h", 3000, 3000)
+    # the key on GPIO 12: 10k pull-up, 100 nF to GND and 1k in series at the board end
+    S.wire((B, "IO12"), ("R2", "1"), "orange")
+    S.wire((B, "3V3"), ("R1", "1"), "red", ("x", 2000), ("y", 1600), ("x", 2700))
+    S.wire(("R1", "2"), ("R2", "1"), "orange", ("y", 2750))
+    S.wire(("C1", "2"), ("R2", "1"), "orange", ("y", 2750))
+    S.wire(("C1", "1"), (B, "GND R"), "black", ("y", 1850))
+    S.wire(("R2", "2"), ("SW1", "SW 2"), "orange", ("x", 3800))
+    # the key's LED on GPIO 13
+    S.wire((B, "IO13"), ("R3", "1"), "yellow", ("x", 2900))
+    S.wire(("R3", "2"), ("SW1", "LED +"), "yellow", ("x", 3900))
+    # the switch's other side and the LED's cathode to GND
+    S.wire(("SW1", "LED -"), ("SW1", "SW 1"), "black", ("x", 4100))
+    S.wire(("SW1", "SW 1"), (B, "GND"), "black", ("x", 4050), ("y", 4000), ("x", 300), ("y", 1750))
+    S.note(300, 4300, 5000, [
+        "# Off-board key and its LED on the Waveshare board (FSD 35.2, FR-35.3, FR-35.18)",
+        "Key: normally open, GPIO 12 to GND, active low; wakes the board from deep sleep.",
+        "At the board end: R1 10k to 3V3, C1 100 nF to GND, R2 1k in series. Add a TVS",
+        "diode from GPIO 12 to GND for a long cable (up to 3 m).",
+        "LED: GPIO 13 (high = on) through R3 150R to LED +, LED - to GND; 68R at the least.",
+        "Meter the button: the switch pair closes only while pressed. Header unlabelled:",
+        "find GPIO 12 and 13 with ws-probe's pin walk.",
+        LEGEND,
+    ])
+
+
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
@@ -1062,6 +1100,8 @@ SHEETS = [
     ("wiring-7-ws-displays", "7  Waveshare board: e-paper and OLED (FSD 35.2, 36)",
      (5600, 6500), {"3V3", "GND", "IO1", "IO3", "IO7", "IO8", "IO9", "IO10", "IO19", "IO20"},
      sheet_ws_displays),
+    ("wiring-8-ws-key", "8  Waveshare board: off-board key and LED (FSD 35.2, FR-35.3)",
+     (5600, 5100), {"3V3", "GND", "IO12", "IO13"}, sheet_ws_key),
 ]
 
 
