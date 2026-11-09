@@ -415,7 +415,7 @@ dl_show_t dl_display_choose(dl_show_t prev, bool epaper, bool oled, bool have_te
         return DL_SHOW_EPAPER;
     }
     if (!have_temp) {
-        return DL_SHOW_OLED;
+        return DL_SHOW_EPAPER;
     }
     bool warm = prev == DL_SHOW_OLED ? temp_f >= 42.0f : temp_f > 40.0f;
     return warm ? DL_SHOW_EPAPER : DL_SHOW_OLED;

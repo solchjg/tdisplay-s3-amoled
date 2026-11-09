@@ -3636,8 +3636,8 @@ Displays:
 - **FR-35.2** [Must] [user] With the e-paper fitted (found by FR-35.25 with `epaper` `on`, §36), the
   build shall show the §5.4 lines on the e-paper display when the temperature is above **40 °F** (4.4 °C) and on the OLED
   below it. The choice is made when a window starts, from the latest kept
-  reading (§23), and kept for the whole window; with a reading of 40.00 °F or
-  no reading at all, the OLED is used [user]. Once on the OLED, the build
+  reading (§23), and kept for the whole window; with a reading of 40.00 °F the
+  OLED is used, and with no reading at all the e-paper [user]. Once on the OLED, the build
   returns to the e-paper only at **42 °F** or above [user] (2 °F of
   hysteresis, so a reading near 40 °F does not swap the display at each
   window). The display not chosen stays off: the OLED dark, the e-paper
@@ -3818,7 +3818,7 @@ Bench rows run on SLOT2 with the Waveshare board (R-31 for coverage at the bench
 | FR-35.4, FR-35.20 (core) | Settings-card core: a valid file in PROVISIONING; in a key window without `password`; a file with `ssid` of 33 bytes; no file; an empty slot (the mount times out); an unreadable card | Applied as FR-26.6; applied as FR-26.7 keeping the stored password, restart; `invalid=ssid`, nothing stored; L49 `none`; L49 `none`; L49 `failed` | A refused file stored in part; the card mounted on a timer wake | host |
 | FR-35.19 (core) | An accepted file holding `password`, `mail_password`, `tb_token`, `ntfy_token`; a refused one | `/settings.done` written with those four values empty and `/settings.txt` gone, `/settings.result` `ok`; `/settings.txt` kept, `/settings.result` `invalid=<field>` | A secret in `/settings.done`; the same file applied twice | host |
 | FR-35.4, FR-35.19 | Operator: a card with a valid `/settings.txt` in the slot, power-on | L49 `ok`, a restart, the settings in a BLE `settings` read; the card on a PC holds `settings.done` without secrets and `settings.result` `ok` | The file applied on the next boot again | bench (operator) |
-| FR-35.2 (core) | Display choice with the e-paper fitted: readings 45.00, 40.01, 40.00, 39.99 °F; none; on the OLED, 41.99 then 42.00 °F; `epaper` `off` at 70 °F | e-paper, e-paper, OLED, OLED; OLED; OLED, e-paper; OLED | A switch inside a window; the e-paper with `epaper` `off` | host |
+| FR-35.2 (core) | Display choice with the e-paper fitted: readings 45.00, 40.01, 40.00, 39.99 °F; none, also after the OLED; on the OLED, 41.99 then 42.00 °F; `epaper` `off` at 70 °F | e-paper, e-paper, OLED, OLED; e-paper; OLED, e-paper; OLED | A switch inside a window; the e-paper with `epaper` `off` | host |
 | FR-35.2 (core) | `oled` `off` with the e-paper fitted at 30.00 °F and with no reading; both off | e-paper, e-paper; neither | The OLED driven with `oled` `off` | host |
 | FR-35.15, FR-35.24 (core) | E-paper layout of the ONLINE lines, a line 6 of 50 characters and a status block of 12 rows, one of 60 characters | Lines 1 – 5 in 12 × 24 cells, line 6 its first 44 characters in 8 × 16, then 10 rows of 44 at y 140; the final screen with `Asleep, key to wake` on line 5 | A row drawn past the panel's 300 pixels; the status block in a partial refresh | host |
 | FR-35.15, FR-35.24 | Operator: the e-paper fitted, `oled` `off`, power-on; the hold ended by the key; then a timer wake with an upload due and the next key wake | The §5.4 lines on the e-paper in the window, partial updates at most every 5 s; after `web: sleep` the sleep screen with the status block; the timer wake leaves the screen as it was; the next window's sleep screen shows that wake's attach and send | A drawing on a timer wake; a refresh after the controller's deep sleep | bench (operator) |
@@ -4289,7 +4289,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.53.0
+fsd_version: 0.54.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4378,6 +4378,7 @@ change_history:
   - "0.51.0 2026-11-07 the user's choice to fit Waveshare's 4.2\" e-Paper Module (V2, Rev 2.2) on the cellular build now, before the SSD1322 arrives, and to keep development messages on it: FR-36.2 superseded by FR-36.3 (the e-paper built now on the cellular build); Phase 18 beside Phase 17; §35.2 the module's wiring on SPI2 (CS 3, BUSY 1, user; RST GPIO 20, proposed); the `oled` setting and FR-35.2's e-paper in every window with `oled` `off` (proposed); FR-35.24 the status block on the sleep screen (user; its rows, proposed)"
   - "0.52.0 2026-11-08 the user's agreement to drive the OLED's reset from a GPIO, given the sensors keep their pins: §35.2 OLED row RES on GPIO 19 (proposed; the user's 3.12\" OLED Ver 2.1 shows no reset RC), its R5/R8 links for 4-wire SPI; Pins row GPIO 19 used, none left free"
   - "0.53.0 2026-11-08 the user's choice to detect plugged-in displays at each window: FR-35.25 (user; method proposed): the OLED by a 10 kΩ from its CS to GND, the e-paper by its BUSY pulse after the software reset; FR-35.2 and FR-36.1 follow; §35.4 `oled` and §36.2 `epaper` mean use when found, `epaper` `on` when none is stored (proposed); §35.2 rows; L50; §35.6 rows"
+  - "0.54.0 2026-11-09 the user's choice to show the e-paper when there is no reading: FR-35.2 with both displays fitted and no reading at all uses the e-paper (was the OLED)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§35.2 the e-paper's RST on GPIO 20 and the OLED's RES on GPIO 19; FR-35.25 the detection method (CS resistor, BUSY pulse) and `epaper` `on` by default; §35.4 the `oled` setting (default on) and FR-35.2's e-paper in every window with `oled` `off`; FR-35.24 the status block's 10 rows, drawn only in the final full refresh, kept in RTC memory, and their content"

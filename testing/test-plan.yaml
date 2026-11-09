@@ -3882,7 +3882,7 @@ tests:
     tier: host
     verifies: [FR-35.2]
     needs: []
-    observable: "with both fitted: 45.00, 40.01, 40.00, 39.99 °F give e-paper, e-paper, OLED, OLED; no reading the OLED; on the OLED 41.99 stays, 42.00 the e-paper; epaper off at 70 °F the OLED; oled off at 30 °F and with no reading the e-paper; both off neither"
+    observable: "with both fitted: 45.00, 40.01, 40.00, 39.99 °F give e-paper, e-paper, OLED, OLED; no reading the e-paper, and after the OLED at 39.00 °F no reading the e-paper; on the OLED 41.99 stays, 42.00 the e-paper; epaper off at 70 °F the OLED; oled off at 30 °F and with no reading the e-paper; both off neither"
     impl: [tests/host/test_epaper_layout.py::test_display_choice_with_both_fitted, tests/host/test_epaper_layout.py::test_display_choice_with_one_or_neither_fitted]
     result: {status: not done}
   - id: TC-TSIM-18
