@@ -392,8 +392,8 @@ def build_parts(used):
                     desc="3.12 inch 256 x 64 OLED, SSD1322, module Ver 2.1 set for 4-wire SPI"))
     add(two_pin("tds3a_r10k5_v", "res", "10k", True, "R", "Resistor"))
     add(module_part("tds3a_key_12mm", ["Off-board key", "12 mm, momentary, red LED"], "built",
-                    left=["SW 2", "LED +", "SW 1", "LED -"], w=1000, color="#8a1c1c",
-                    notes=["LED rated 3 - 9 V"],
+                    left=["4 NO", "1 LED +", "3 NO", "2 LED -"], w=1000, color="#8a1c1c",
+                    notes=["3, 4 green: switch", "1 red: LED +, 2 black: LED -"],
                     desc="12 mm momentary push button, normally open, with a red LED"))
     add(two_pin("tds3a_r150_h", "res", "150R", False, "R", "Resistor"))
     add(two_pin("tds3a_r10k_v", "res", "10k 0.1%", True, "R", "Resistor"))
@@ -1065,21 +1065,21 @@ def sheet_ws_key(S):
     S.wire(("R1", "2"), ("R2", "1"), "orange", ("y", 2750))
     S.wire(("C1", "2"), ("R2", "1"), "orange", ("y", 2750))
     S.wire(("C1", "1"), (B, "GND R"), "black", ("y", 1850))
-    S.wire(("R2", "2"), ("SW1", "SW 2"), "orange", ("x", 3800))
+    S.wire(("R2", "2"), ("SW1", "4 NO"), "orange", ("x", 3800))
     # the key's LED on GPIO 13
     S.wire((B, "IO13"), ("R3", "1"), "yellow", ("x", 2900))
-    S.wire(("R3", "2"), ("SW1", "LED +"), "yellow", ("x", 3900))
+    S.wire(("R3", "2"), ("SW1", "1 LED +"), "yellow", ("x", 3900))
     # the switch's other side and the LED's cathode to GND
-    S.wire(("SW1", "LED -"), ("SW1", "SW 1"), "black", ("x", 4100))
-    S.wire(("SW1", "SW 1"), (B, "GND"), "black", ("x", 4050), ("y", 4000), ("x", 300), ("y", 1750))
+    S.wire(("SW1", "2 LED -"), ("SW1", "3 NO"), "black", ("x", 4100))
+    S.wire(("SW1", "3 NO"), (B, "GND"), "black", ("x", 4050), ("y", 4000), ("x", 300), ("y", 1750))
     S.note(300, 4300, 5000, [
         "# Off-board key and its LED on the Waveshare board (FSD 35.2, FR-35.3, FR-35.18)",
         "Key: normally open, GPIO 12 to GND, active low; wakes the board from deep sleep.",
         "At the board end: R1 10k to 3V3, C1 100 nF to GND, R2 1k in series. Add a TVS",
         "diode from GPIO 12 to GND for a long cable (up to 3 m).",
         "LED: GPIO 13 (high = on) through R3 150R to LED +, LED - to GND; 68R at the least.",
-        "Meter the button: the switch pair closes only while pressed. Header unlabelled:",
-        "find GPIO 12 and 13 with ws-probe's pin walk.",
+        "Button pins: 3 and 4 (green leads) the switch, 1 (red) LED +, 2 (black) LED -.",
+        "The header is unlabelled: find GPIO 12 and 13 with ws-probe's pin walk.",
         LEGEND,
     ])
 
