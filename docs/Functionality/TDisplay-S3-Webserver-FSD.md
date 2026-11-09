@@ -1094,6 +1094,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L47 | Modem failed (FR-35.9) | `web: modem failed: <power\|sim\|register\|ppp> ms=<n>` | W |
 | L48 | Display chosen for the window (FR-35.2) | `web: display <epaper\|oled> t=<°F, 2 decimals, or none>` | I |
 | L49 | Settings card (FR-35.4, FR-35.19, FR-35.20) | `web: card settings <ok\|invalid=<field>\|none\|failed>` | I |
+| L50 | Displays found for the window (FR-35.25) | `web: displays epaper=<found\|none\|off> oled=<found\|none\|off>` | I |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -3572,14 +3573,14 @@ The board facts below are read from Waveshare's V2 schematic
 | Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 39, SCL GPIO 41, its supply and the isolator's board side switched by GPIO 42, as §29 with the pins moved | [user] |
 | RS232 | MAX3232 powered from GPIO 11, TX GPIO 46 (a strapping pin, driven only as an output, with the transceiver unpowered at reset), RX GPIO 2, on UART 2 because the modem holds UART 1 | [user] |
 | Water probe | Switch line GPIO 14 | [user] |
-| E-paper (optional, §36) | Waveshare's 4.2" e-Paper Module (V2, Rev 2.2): 400 × 300 black and white, an SSD1683 controller (the CrowPanel's controller, `docs/Method/project/crowpanel-epaper.md`), 3.3 V, 4-wire SPI on SPI2 shared with the OLED: VCC 3.3 V, GND, CLK GPIO 7, DIN GPIO 8, DC GPIO 10, CS GPIO 3, BUSY GPIO 1 (high while the controller works), RST GPIO 20 [proposed]. GPIO 20 is the ESP32-S3's USB D+, free with the USB switch on, so the build turns its USB-Serial/JTAG console off | [user]; RST [proposed]; the console [derived] |
-| OLED | A 3.12" 256 × 64 SSD1322 module (16 grey levels, e.g. Newhaven NHD-3.12-25664), 4-wire SPI on SPI2: SCK GPIO 7, MOSI GPIO 8, CS GPIO 9, DC GPIO 10; its reset from an RC on the module | [user] |
+| E-paper (optional, §36) | Waveshare's 4.2" e-Paper Module (V2, Rev 2.2): 400 × 300 black and white, an SSD1683 controller (the CrowPanel's controller, `docs/Method/project/crowpanel-epaper.md`), 3.3 V, 4-wire SPI on SPI2 shared with the OLED: VCC 3.3 V, GND, CLK GPIO 7, DIN GPIO 8, DC GPIO 10, CS GPIO 3, BUSY GPIO 1 (high while the controller works; the internal pull-down holds it low with no panel, FR-35.25), RST GPIO 20 [proposed]. GPIO 20 is the ESP32-S3's USB D+, free with the USB switch on, so the build turns its USB-Serial/JTAG console off | [user]; RST [proposed]; the console [derived] |
+| OLED | A 3.12" 256 × 64 SSD1322 module (16 grey levels, e.g. Newhaven NHD-3.12-25664), 4-wire SPI on SPI2: SCK GPIO 7, MOSI GPIO 8, CS GPIO 9, DC GPIO 10, RES GPIO 19 [proposed]; a 10 kΩ resistor from CS to GND on the OLED's lead marks it plugged in (FR-35.25) [proposed]. The 3.12" OLED Ver 2.1 module the user owns ships set for 8080 parallel and shows no reset RC: for 4-wire SPI its R6 link moves to R5 (R5 and R8 fitted), and its unused parallel inputs go to GND, and its VCC comes from the board's 5 V (on 3.3 V the module's regulator leaves the panel dark) (`docs/Method/project/ws-displays.md`) | [user]; RES [proposed]; the module [derived from the board]; 5 V [derived from the bench] |
 | Qwiic | The board has no Qwiic socket. The sensor bus (header P3: GPIO 15/16, 3.3 V, GND) goes by a made-up lead to a Qwiic star adapter (e.g. SparkFun Qwiic MultiPort), into which the BME280, on a Qwiic breakout, plugs; the lead is checked with a meter before first power-up (black on GND, red on 3.3 V, blue on GPIO 15, yellow on GPIO 16). Beside the header's 4.7 kΩ pull-ups, at most one board's stay in and the others' are cut, so the bus's pull-ups stay at or above about 2.2 kΩ. The loop (5 pins: GND, VSYS, GPIO 42, 39, 41), the water probe (6 pins: GND, VSYS, 3V3, GPIO 15, 16, 14) and RS232 (4 pins: GND, GPIO 11, 46, 2) keep JST-XH sockets as in §2.2; the OLED and the off-board key are not I2C and have their own connectors | [user]; pins [proposed] |
 | Off-board key | A momentary, normally open, illuminated push button on a cable of at most 3 m: the key on GPIO 12 (an RTC GPIO), active low, a 10 kΩ pull-up to 3.3 V, 1 kΩ in series and 100 nF to GND at the board end and a TVS diode on the line; its LED on GPIO 13 through a resistor | [user] |
 | BOOT key | GPIO 0 on the board, as §18 | [derived from the board] |
 | microSD | The board's slot, SDMMC 1-bit, CMD GPIO 4, CLK GPIO 5, D0 GPIO 6 (no external pull-ups; the ESP32-S3's own are used); no card-detect line, so an empty slot is known by a mount that times out; FAT32; always powered (the board does not switch its supply) | [derived from the board]; FAT32 [user] |
 | Antennas | LTE: the board's LTE antenna on the modem's main u.FL. GPS: an active antenna on the GNSS u.FL, which the board biases from 3.3 V, only with `gps` `on` | [user] |
-| Pins | The header GPIOs are P3: 4 – 16, 46; P2: 0 – 3, 19 – 21, 39 – 45 (43/44 the console). Used: 7 – 14, 2, 11, 39, 41, 42, 46, and 15/16 shared with the MAX17048; GPIO 4 – 6 are the microSD's, 17/18, 21, 40 and 45 the modem's, 0 the BOOT key's, 38 the board's RGB LED (unused); GPIO 1, 3 and 20 are the e-paper's, GPIO 19 is free | [derived from the rows above] |
+| Pins | The header GPIOs are P3: 4 – 16, 46; P2: 0 – 3, 19 – 21, 39 – 45 (43/44 the console). Used: 7 – 14, 2, 11, 39, 41, 42, 46, and 15/16 shared with the MAX17048; GPIO 4 – 6 are the microSD's, 17/18, 21, 40 and 45 the modem's, 0 the BOOT key's, 38 the board's RGB LED (unused); GPIO 1, 3 and 20 are the e-paper's, GPIO 19 the OLED's reset [proposed]; no header GPIO is left free, so further sensors join the I2C buses | [derived from the rows above] |
 | Bench slot | SLOT2 (CH343 serial 5B91031846), MAC 28:84:85:91:89:58 | [user]; MAC [derived from the board] |
 
 ### 35.3 Feature parity
@@ -3615,7 +3616,7 @@ for an unknown field.
 | `cell_plmn` | a network to lock to, MCC+MNC, e.g. `310410`; empty for automatic choice | empty, or 5 – 6 digits | empty clears the lock (automatic choice); absent keeps the stored value, empty when none is stored [user] |
 | `gps` | as §33.3 | as §33.3 | as §33.3 |
 | `cell_mail` | email over cellular: `on` (sent by §25's SMTP over the modem) or `off` | one of the two | the stored value; `on` when none is stored [user] |
-| `oled` | the SSD1322 OLED is fitted: `on` or `off` | one of the two | the stored value; `on` when none is stored [proposed] |
+| `oled` | the SSD1322 OLED, when plugged in (FR-35.25): `on` uses it, `off` never does | one of the two | the stored value; `on` when none is stored [proposed] |
 
 ### 35.5 Requirements
 
@@ -3632,7 +3633,7 @@ Build:
 
 Displays:
 
-- **FR-35.2** [Must] [user] With the e-paper fitted (`epaper` `on`, §36), the
+- **FR-35.2** [Must] [user] With the e-paper fitted (found by FR-35.25 with `epaper` `on`, §36), the
   build shall show the §5.4 lines on the e-paper display when the temperature is above **40 °F** (4.4 °C) and on the OLED
   below it. The choice is made when a window starts, from the latest kept
   reading (§23), and kept for the whole window; with a reading of 40.00 °F or
@@ -3641,7 +3642,7 @@ Displays:
   hysteresis, so a reading near 40 °F does not swap the display at each
   window). The display not chosen stays off: the OLED dark, the e-paper
   holding its last drawing. Without the e-paper, the OLED is used in every
-  window; with `oled` `off` (§35.4) and the e-paper fitted, the e-paper is
+  window; with the OLED not fitted (not found, or `oled` `off`, §35.4) and the e-paper fitted, the e-paper is
   used in every window whatever the temperature, and L48 says `epaper`
   [proposed]. With both off, nothing is drawn and the window runs on.
 - **FR-35.15** [Must] [user] With the e-paper fitted, on it lines 1 – 5 shall be drawn
@@ -3664,6 +3665,18 @@ Displays:
   each send path that ran (ThingsBoard, alert, mail); the latest settings-card
   result (L49); the cell's voltage and charge (MAX17048); and the latest four
   `web:` lines at level W or E, newest first [proposed].
+- **FR-35.25** [Must] [user] When a window starts, before FR-35.2 chooses,
+  the build shall detect which displays are plugged in, so either one, both or
+  neither may be fitted with no setting changed [user]. The OLED (with `oled`
+  `on`) is found when its CS, GPIO 9, reads low with the internal pull-up on,
+  through the 10 kΩ to GND on its lead; CS is then driven high until the panel
+  starts [proposed]. The e-paper (with `epaper` `on`) is found when BUSY,
+  GPIO 1 with the internal pull-down on, rises within 2 ms of the software reset
+  that follows its hardware reset [proposed]; an e-paper found but not chosen is
+  put back in its deep sleep at once, so its drawing stays. A display counts as
+  fitted when found with its setting `on`; a setting `off` skips the detection.
+  L50 reports the result each window. Displays are plugged in or out with the
+  power off: one changed while a window runs is seen at the next window.
 - **FR-35.16** [Must] [user] On the OLED, the six lines shall be drawn in
   a 6 × 10 font generated by `bdf_to_c.py`, 42 characters a line across 252
   of its 256 pixels, so lines 1 – 5 (at most 33) fit whole and line 6 is cut
@@ -3816,6 +3829,8 @@ Bench rows run on SLOT2 with the Waveshare board (R-31 for coverage at the bench
 | FR-35.3, FR-35.18 | Operator: asleep 300 s, presses the off-board key; then mark pending, power-on | `web: wake cause=button` ≤ 3 s after the press; during the hold the key's LED flashes 1 Hz and a press ends it with L24 `by=key` | Waking only at the period's end; the LED dark during the hold | bench (operator) |
 | FR-35.23 (core) | Modem steps: a send done; a send failed; a GPS search with nothing due; `AT+CPOF` unanswered | `AT+CPOF` then the supply cut after each; the supply cut after the unanswered `AT+CPOF`; L46 on each attach | The supply left on after the boot's last send or search | host |
 | FR-35.23, FR-35.7 | `uplink` `cell`, an upload due each timer wake | L46 on every run; between runs GPIO 21 held low and the modem's NET LED dark | The modem's supply on in sleep | bench |
+| FR-35.25 (core) | L50 for each pair of states; the settings' defaults on a new board | `displays epaper=found oled=none` and the rest; `epaper=on&oled=on` | A state named wrongly | host |
+| FR-35.25 | Windows with the e-paper plugged in, then unplugged (power off between), the OLED's lead with and without its 10 kΩ | L50 `found` then `none` for each; with the e-paper gone the OLED drawn whatever the temperature | A missing display chosen, or a present one missed | bench |
 | FR-35.7 (core) | Modem wake decision: `uplink` `wifi` at a due upload; `cell` with nothing due on a timer wake; `cell` with an alert due; a window with the clock never set | No wake; no wake; wake; wake | The modem woken with `uplink` `wifi` | host |
 | FR-35.8, NFR-35.1 | Sleep test build, `uplink` `cell`, the user's ThingsBoard and ntfy, an upload and an alert due on the next timer wake | L41 `what=telemetry`, L39, `web: sleep` within 60 s of the wake; no WiFi start | WiFi on a timer wake; the panel lit; the mark moved without L41 | bench |
 | FR-35.9 (core) | Attach steps: registered at 59 s; not at 60 s; PPP up 9 s after registering; not within 10 s; with an upload, an alert and a summary due | Sends; L47 `register`; sends; L47 `ppp`; on each failure the mark kept, the alert as FR-31.6, the summary period advanced; modem off | A send after L47 | host |
@@ -3857,14 +3872,15 @@ built; optional, so a submission without it leaves the e-paper as it was.
 
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
-| `epaper` | an e-paper display is fitted: `on` or `off` | one of the two | the stored value; `off` when none is stored [user] |
+| `epaper` | the e-paper display, when plugged in (FR-35.25): `on` uses it, `off` never does | one of the two | the stored value; `on` when none is stored [proposed] |
 
 ### 36.3 Requirements
 
 - **FR-36.1** [Must] [user] The e-paper display shall be optional in both
   builds: with `epaper` `off`, or with no panel fitted, every other
   requirement is met as without this section, and nothing is drawn, driven or
-  logged for the e-paper.
+  logged for the e-paper, apart from FR-35.25's detection with `epaper` `on`
+  and its L50.
 - **FR-36.3** [Must] [user] On the cellular build the e-paper display shall
   be built in Phase 18 beside Phase 17, before the SSD1322 OLED; on the
   T-Display build after every other phase of that build. No other phase
@@ -4273,7 +4289,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.51.0
+fsd_version: 0.53.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4360,9 +4376,11 @@ change_history:
   - "0.49.2 2026-11-07 the first SLOT2 runs with the modem working (4G switch off, GPIO 21 high: registered on LTE, AT+CPOF silent in 3.5 s): R-37 the modem did not start with the 4G switch on; §35.2 the modem's start-up drops the USB console for about a second"
   - "0.50.0 2026-11-07 the user's choice after the OLED stand-in's page writes failed on SLOT2 with only the internal pull-ups (and worked with the CAM switch on): §35.2 Sensor bus row: two external 4.7 kΩ pull-ups to 3.3 V at the header, the CAM switch staying off; the Qwiic row counts them"
   - "0.51.0 2026-11-07 the user's choice to fit Waveshare's 4.2\" e-Paper Module (V2, Rev 2.2) on the cellular build now, before the SSD1322 arrives, and to keep development messages on it: FR-36.2 superseded by FR-36.3 (the e-paper built now on the cellular build); Phase 18 beside Phase 17; §35.2 the module's wiring on SPI2 (CS 3, BUSY 1, user; RST GPIO 20, proposed); the `oled` setting and FR-35.2's e-paper in every window with `oled` `off` (proposed); FR-35.24 the status block on the sleep screen (user; its rows, proposed)"
+  - "0.52.0 2026-11-08 the user's agreement to drive the OLED's reset from a GPIO, given the sensors keep their pins: §35.2 OLED row RES on GPIO 19 (proposed; the user's 3.12\" OLED Ver 2.1 shows no reset RC), its R5/R8 links for 4-wire SPI; Pins row GPIO 19 used, none left free"
+  - "0.53.0 2026-11-08 the user's choice to detect plugged-in displays at each window: FR-35.25 (user; method proposed): the OLED by a 10 kΩ from its CS to GND, the e-paper by its BUSY pulse after the software reset; FR-35.2 and FR-36.1 follow; §35.4 `oled` and §36.2 `epaper` mean use when found, `epaper` `on` when none is stored (proposed); §35.2 rows; L50; §35.6 rows"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
-  - "§35.2 the e-paper's RST on GPIO 20; §35.4 the `oled` setting (default on) and FR-35.2's e-paper in every window with `oled` `off`; FR-35.24 the status block's 10 rows, drawn only in the final full refresh, kept in RTC memory, and their content"
+  - "§35.2 the e-paper's RST on GPIO 20 and the OLED's RES on GPIO 19; FR-35.25 the detection method (CS resistor, BUSY pulse) and `epaper` `on` by default; §35.4 the `oled` setting (default on) and FR-35.2's e-paper in every window with `oled` `off`; FR-35.24 the status block's 10 rows, drawn only in the final full refresh, kept in RTC memory, and their content"
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
   - "§33.2 Wiring: direct wiring to the header pins GND, SDA and SCL with VIO unconnected; the LiPo optionally on VBAT and GND"
   - "FR-33.16 – FR-33.19: GPS search for the whole hold at 5 s asks, `fixed` mode after a fix, `latitude`/`longitude` ThingsBoard attributes, line 6 during the hold; `gps` default off and only with `uplink` `cell`"

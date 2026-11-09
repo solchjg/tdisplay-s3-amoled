@@ -32,6 +32,7 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 | [4 RS232 instrument](wiring-4-rs232.png) ([.fzz](wiring-4-rs232.fzz)) | Specified (FSD §30), circuit in [rs232-circuit.md](../rs232-circuit.md) | GPIO 11 TX, GPIO 12 RX, GPIO 13 transceiver supply, GND |
 | [5 Blues cellular uplink](wiring-5-blues-cellular.png) ([.fzz](wiring-5-blues-cellular.fzz)) | On main (FSD §33), hardware in [blues-cellular.md](../blues-cellular.md) | Qwiic GND, GPIO 43 SDA, GPIO 44 SCL (3V3 not connected) |
 | [6 Blues cellular, direct wiring](wiring-6-blues-cellular-direct.png) ([.fzz](wiring-6-blues-cellular-direct.fzz)) | On main (FSD §33.2, the alternative to sheet 5) | GND, GPIO 43 SDA, GPIO 44 SCL soldered to the Notecarrier-X header (VIO not connected) |
+| [7 Waveshare board, e-paper and OLED](wiring-7-ws-displays.png) ([.fzz](wiring-7-ws-displays.fzz)) | Specified (FSD §35.2, §36, FR-35.25), details in [ws-displays.md](../ws-displays.md); the board's GPIOs drawn in number order, not header order | GPIO 7 CLK, 8 MOSI, 10 DC shared; e-paper CS 3, BUSY 1, RST 20; OLED CS 9 (10 kΩ to GND), RES 19; 3V3, GND |
 
 The I2C devices on the board's bus share GPIO 43/44: the BME280 at 0x76, the
 water ADS1115 at 0x48 and the Notecard at 0x17. The loop ADS1115 (0x49) has its

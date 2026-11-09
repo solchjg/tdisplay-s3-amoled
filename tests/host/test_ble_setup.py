@@ -592,5 +592,5 @@ def test_modem_dump_and_form(bset):
     # §36.2, §35.4: the displays, last
     assert (dump["epaper"], dump["oled"]) == ("off", "on")
     assert rules["epaper"]["section"] == "Displays"
-    assert rules["epaper"]["options"].split(",") == ["off", "on"]
+    assert rules["epaper"]["options"].split(",") == ["on", "off"]
     assert rules["oled"]["options"].split(",") == ["on", "off"]

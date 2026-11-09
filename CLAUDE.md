@@ -83,8 +83,9 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   in 8 × 16; a full refresh first, partial ones at most every 5 s, sent by `lcd_flush` each
   tick), and the sleep screen (`lcd_final`) before the controller's deep sleep. `lcd_cell.c`
   draws a window on the panel `lcd_use` names; which one is `device_logic`'s
-  `dl_display_choose` (FR-35.2), from the `epaper` and `oled` settings kept with the modem's
-  in `uplink`.
+  `dl_display_choose` (FR-35.2), from the panels `lcd_detect` finds (FR-35.25: the e-paper by its
+  BUSY pulse, the OLED by a 10 kΩ on its CS) whose `epaper` and `oled` settings, kept with the
+  modem's in `uplink`, are `on`.
 - `shared/components/rm67162/` (L0) — board-agnostic RM67162 QSPI driver via `esp_lcd`'s
   SPI panel IO, configured by `rm67162_config_t`; `shared/components/tdisplay_s3_amoled/`
   (L0) holds the board's pin and panel constants; `shared/components/esp_try/` (L0) the `ESP_TRY` macro.

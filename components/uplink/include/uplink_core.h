@@ -61,8 +61,8 @@ void ul_report(const ul_settings_t *s, char *out, size_t cap);
 typedef struct {
     char apn[UL_APN_MAX + 1];    // empty: none stored
     char plmn[UL_PLMN_MAX + 1];  // empty: automatic choice
-    bool epaper;                 // §36.2 `epaper`: an e-paper is fitted
-    bool oled;                   // §35.4 `oled`: the SSD1322 OLED is fitted
+    bool epaper;                 // §36.2 `epaper`: the e-paper is used when found (FR-35.25)
+    bool oled;                   // §35.4 `oled`: the SSD1322 OLED is used when found
 } ul_modem_t;
 
 // The stored size of a ul_modem_t from before `epaper` and `oled`: such a

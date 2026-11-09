@@ -1580,16 +1580,21 @@ static void on_time_synced(void)
 }
 
 #if !BOARD_HAS_NOTECARD
-// FR-35.2: the display of this window, from the latest kept reading; L48 with
-// the e-paper fitted (FR-36.1: nothing logged for it otherwise).
+// FR-35.25, FR-35.2: the panels plugged in (L50), then the display of this
+// window from the latest kept reading; L48 with the e-paper found (FR-36.1:
+// nothing else logged for it otherwise).
 static void display_choose(void)
 {
     const ul_modem_t *m = uplink_modem();
+    bool epaper, oled;
+    lcd_detect(m->epaper, m->oled, &epaper, &oled);
+    web_log_displays(!m->epaper ? WL_DISPLAY_OFF : epaper ? WL_DISPLAY_FOUND : WL_DISPLAY_NONE,
+                     !m->oled ? WL_DISPLAY_OFF : oled ? WL_DISPLAY_FOUND : WL_DISPLAY_NONE);
     const wx_reading_t *r = weather_newest();
     float t_f = r ? (float)r->temp_centi_c / 100.0f * 9.0f / 5.0f + 32.0f : 0.0f;
-    show_on = dl_display_choose(show_on, m->epaper, m->oled, r != NULL, t_f);
+    show_on = dl_display_choose(show_on, epaper, oled, r != NULL, t_f);
     show_from_s = uptime_s();
-    if (m->epaper) {
+    if (epaper) {
         web_log_display(show_on == DL_SHOW_EPAPER ? "epaper" : "oled", r != NULL, t_f);  // L48
     }
     lcd_use(show_on == DL_SHOW_EPAPER ? LCD_PANEL_EPAPER

@@ -8,11 +8,14 @@
 
 #include "esp_err.h"
 
+// FR-35.25: whether the panel is plugged in, read before it starts.
+bool oled_present(void);
 esp_err_t oled_start(void);
 esp_err_t oled_draw_line(int line, const char *text);
 void oled_display(bool on);
 esp_err_t oled_sleep(void);
 
+// ESP_ERR_NOT_FOUND when no e-paper is plugged in (FR-35.25).
 esp_err_t epaper_start(void);
 esp_err_t epaper_draw_line(int line, const char *text);
 esp_err_t epaper_flush(void);

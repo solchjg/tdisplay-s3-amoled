@@ -104,7 +104,8 @@ void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m)
     ul_defaults(s);
     s->mail_route = true;  // §35.4: `cell_mail` `on` when none is stored
     memset(m, 0, sizeof *m);
-    m->oled = true;        // §35.4: `oled` `on` when none is stored; §36.2: `epaper` `off`
+    m->epaper = true;      // §36.2: `epaper` `on` when none is stored (FR-35.25: used when found)
+    m->oled = true;        // §35.4: `oled` `on` when none is stored
 }
 
 static bool apn_ok(const char *v, int n)

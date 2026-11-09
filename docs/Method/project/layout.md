@@ -187,6 +187,9 @@ before wiring, are in [`wiring/wiring.md`](wiring/wiring.md), with LilyGO's pino
 the board ([`wiring/lilygo-t-display-s3-amoled-pinout.jpg`](wiring/lilygo-t-display-s3-amoled-pinout.jpg)).
 The Notecard and Notecarrier chosen for the cellular uplink (FSD §33), with their
 power and data figures, are in [`blues-cellular.md`](blues-cellular.md).
+The cellular build's two displays on the Waveshare board (the SSD1322 OLED and the
+4.2" e-paper on one SPI bus), the OLED module's interface links and header and the
+e-paper's reset timing are in [`ws-displays.md`](ws-displays.md).
 
 ## Toolchain
 

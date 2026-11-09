@@ -444,6 +444,13 @@ void web_log_display(const char *panel, bool have, float temp_f)
     emit('I', line);  // L48
 }
 
+void web_log_displays(int epaper, int oled)
+{
+    char line[WL_LINE_MAX];
+    wl_fmt_displays(line, sizeof line, epaper, oled);
+    emit('I', line);  // L50
+}
+
 #if CONFIG_APP_BOARD_WS_SIM7670G
 int web_log_status_rows(const char *wake, const char *when, int mv, int pct,
                         char rows[WL_STATUS_ROWS][WL_STATUS_COLS + 1])

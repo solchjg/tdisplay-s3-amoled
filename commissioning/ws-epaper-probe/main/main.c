@@ -2,7 +2,8 @@
 // 8-pin board) on the Waveshare ESP32-S3-SIM7670G-4G (FSD §36, §35.2). Over
 // and over, every 30 s: a hardware reset, a full refresh of a frame and six
 // text lines, five partial refreshes of a counter on line 6, then the
-// controller's deep sleep. Each step's BUSY time is printed (`wsepaper:`;
+// controller's power off and deep sleep; every other run shows the
+// firmware's fonts instead (see app_main). Each step's BUSY time is printed (`wsepaper:`;
 // CHECK marks a result to look at). The modem's supply (GPIO 21) is held
 // low, so the USB console never drops. Before each reset it prints the
 // BUSY and RST levels and BUSY's voltage (`wsepaper: pins`). Never released.
@@ -17,6 +18,7 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
+#include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -140,15 +142,18 @@ static esp_err_t bus_start(void)
 }
 
 // Hardware reset (which also ends the deep sleep), software reset, setup.
-static long epd_init(void)
+// RST is low for low_us, then high for rst_high_us before the software reset,
+// both exact (busy waits, no tick rounding, no pin readings in between).
+static long epd_init(int low_us, int rst_high_us)
 {
     pins("before");
     gpio_set_level(PIN_RST, 0);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    pins("rst-low");
+    esp_rom_delay_us(low_us);
+    int busy_low = gpio_get_level(PIN_BUSY);
     gpio_set_level(PIN_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    pins("rst-high");
+    esp_rom_delay_us(rst_high_us);
+    printf("wsepaper: reset low %d us (busy=%d), high %d us (busy=%d)\n", low_us, busy_low, rst_high_us,
+           gpio_get_level(PIN_BUSY));
     epd_cmd(0x12, NULL, 0);  // software reset: BUSY high for a few ms
     long high_us = 0;
     int64_t t0 = esp_timer_get_time(), seen = -1;
@@ -204,9 +209,18 @@ static long epd_partial(void)
     return ms;
 }
 
-static void epd_sleep(void)
+// The analog block and the clock off (0x22 0x83, as Waveshare's and
+// GxEPD2's power-off do; a partial refresh's 0xFC leaves them on), then, if
+// asked, deep sleep mode 1, which RST ends.
+static long epd_sleep(bool deep)
 {
-    CMD(0x10, 0x01);  // deep sleep mode 1; RST ends it
+    CMD(0x22, 0x83);
+    epd_cmd(0x20, NULL, 0);
+    long ms = epd_wait();
+    if (deep) {
+        CMD(0x10, 0x01);
+    }
+    return ms;
 }
 
 static void px(int x, int y, bool black)
@@ -260,6 +274,49 @@ static void screen(int run, int count)
     draw(&text_font_large, 8, 230, s);
 }
 
+// The firmware's fonts on the panel, each with sample lines, so their
+// sizes can be judged at 4.2".
+static void font_page(int run)
+{
+    memset(fb, 0xFF, sizeof fb);
+    static const struct {
+        const text_font_t *f;
+        const char *name;
+        const char *lines[2];
+    } fonts[] = {
+        {&text_font_large, "16x32", {"21.4 C  45 %", "1013 hPa  12.0 mA"}},
+        {&text_font_small, "12x24", {"Temp 21.4 C  RH 45 %", "Loop 12.00 mA  Bat 3.92 V"}},
+        {&text_font_mini, "8x16", {"Temp 21.4 C  RH 45 %  1013.2 hPa", "Loop 12.00 mA  Bat 3.92 V  LTE -87 dBm"}},
+        {&text_font_tiny, "6x10", {"Temp 21.4 C  RH 45 %  1013.2 hPa  Loop 12.00 mA",
+                                   "Bat 3.92 V  LTE -87 dBm  last send 21:30  next 22:00"}},
+    };
+    int y = 4;
+    char s[48];
+    for (size_t i = 0; i < sizeof fonts / sizeof fonts[0]; i++) {
+        snprintf(s, sizeof s, "%s font:", fonts[i].name);
+        draw(&text_font_tiny, 4, y, s);
+        y += 12;
+        for (int k = 0; k < 2; k++) {
+            draw(fonts[i].f, 4, y, fonts[i].lines[k]);
+            y += fonts[i].f->h + 2;
+        }
+        y += 6;
+        for (int x = 0; x < EPD_W; x++) {
+            px(x, y - 4, true);
+        }
+    }
+    snprintf(s, sizeof s, "Font page, run %d", run);
+    draw(&text_font_tiny, 4, EPD_H - 12, s);
+}
+
+// The reset is an exact 2 ms low and 10 ms high: a low of 10 ms or more
+// leaves this module's refreshes hanging, while 0.2 to 5 ms works (the
+// bench sweep). Odd runs show the test screen and five partial refreshes,
+// even runs the font page; every run ends with the power off and the deep
+// sleep.
+#define RESET_LOW_US 2000
+#define RESET_HIGH_US 10000
+
 void app_main(void)
 {
     esp_err_t err = bus_start();
@@ -268,21 +325,34 @@ void app_main(void)
         return;
     }
     for (int run = 1;; run++) {
-        long ms = epd_init();
+        bool fonts = run % 2 == 0;
+        printf("wsepaper: run %d at %lld s since boot (%s)\n", run, esp_timer_get_time() / 1000000,
+               fonts ? "font page" : "test screen");
+        long ms = epd_init(RESET_LOW_US, RESET_HIGH_US);
         printf("wsepaper: run %d reset busy=%ld ms %s\n", run, ms, ms < 0 ? "CHECK (BUSY stuck high or unwired)" : "ok");
+        long full = -2;
+        int good = 0;
         if (ms >= 0) {
-            screen(run, 0);
-            ms = epd_full();
-            printf("wsepaper: full refresh %ld ms %s\n", ms, ms > 500 && ms < 6000 ? "ok" : "CHECK");
-            for (int i = 1; i <= 5; i++) {
+            if (fonts) {
+                font_page(run);
+            } else {
+                screen(run, 0);
+            }
+            full = epd_full();
+            printf("wsepaper: full refresh %ld ms %s\n", full, full > 500 && full < 6000 ? "ok" : "CHECK");
+            for (int i = 1; !fonts && i <= 5; i++) {
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 screen(run, i);
                 ms = epd_partial();
+                good += ms > 100 && ms < 3000;
                 printf("wsepaper: partial %d %ld ms %s\n", i, ms, ms > 100 && ms < 3000 ? "ok" : "CHECK");
             }
-            epd_sleep();
-            printf("wsepaper: controller asleep; next run in 30 s\n");
+            ms = epd_sleep(true);
+            printf("wsepaper: power off %ld ms %s; controller asleep; next run in 30 s\n", ms, ms >= 0 ? "ok" : "CHECK");
         }
+        printf("wsepaper: RESULT run %d (%s): full %ld ms, %d of %d partials ok -> %s\n", run,
+               fonts ? "font page" : "test screen", full, good, fonts ? 0 : 5,
+               full > 500 && full < 6000 && (fonts || good == 5) ? "GOOD" : "CHECK");
         vTaskDelay(pdMS_TO_TICKS(30000));
     }
 }

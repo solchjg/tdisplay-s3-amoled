@@ -36,6 +36,16 @@ void wl_fmt_display(char *buf, size_t len, const char *panel, bool have, float t
     }
 }
 
+static const char *display_state(int st)
+{
+    return st == WL_DISPLAY_FOUND ? "found" : st == WL_DISPLAY_NONE ? "none" : "off";
+}
+
+void wl_fmt_displays(char *buf, size_t len, int epaper, int oled)
+{
+    snprintf(buf, len, "displays epaper=%s oled=%s", display_state(epaper), display_state(oled));
+}
+
 void wl_fmt_alive(char *buf, size_t len, uint32_t n)
 {
     snprintf(buf, len, "alive %" PRIu32, n);

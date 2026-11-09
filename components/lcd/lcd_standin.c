@@ -95,6 +95,12 @@ static esp_err_t panel(void)
     return i2c_master_bus_add_device(bus, &dc, &dev);
 }
 
+// FR-35.22: the bench stand-in is always taken as plugged in.
+bool oled_present(void)
+{
+    return true;
+}
+
 esp_err_t oled_start(void)
 {
     esp_err_t err = dev == NULL ? panel() : ESP_OK;
