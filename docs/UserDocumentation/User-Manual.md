@@ -489,6 +489,44 @@ it where no WiFi reaches the device, or when it should not be on a network.
   Bluetooth page with the network name (and password if it changed), and save.
   The device restarts and connects.
 
+## 5j. Displays on the cellular board
+
+The Waveshare ESP32-S3-SIM7670G build drives up to two displays: a 3.12" OLED
+(256 × 64) and Waveshare's 4.2" e-Paper Module (V2, 400 × 300). Either one, both
+or neither may be plugged in. The wiring, the module settings and the pin table
+are in [ws-displays.md](../Method/project/ws-displays.md) and on Fritzing
+[sheet 7](../Method/project/wiring/wiring-7-ws-displays.png).
+
+- **Plugging in.** Plug or unplug a display only with the power off. Each
+  window the device looks for both and uses what it finds, with no setting
+  changed; a display plugged in while a window runs is seen at the next window.
+  The log says what it found: `web: displays epaper=found oled=none`, for
+  example.
+- **The OLED's two needs.** Its VCC goes to the board's **5 V**: on 3V3 the
+  panel stays dark. A **10 kΩ resistor** from its CS (header pin 16) to GND
+  (pin 1) tells the device it is plugged in; without it the OLED is never used.
+  The e-paper needs nothing extra.
+- **Which one shows.** With both plugged in, a window uses the e-paper when the
+  latest reading is above 40 °F and the OLED at 40 °F or below, or with no
+  reading at all. Once on the OLED it goes back to the e-paper only at 42 °F,
+  so a reading near 40 °F does not swap them every window. The log names the
+  choice when the e-paper is found: `web: display oled t=38.50`. With only one
+  plugged in, that one is always used.
+- **The OLED.** It shows the six lines while the window runs and turns off at
+  the end. It stays dark between windows.
+- **The e-paper.** A window starts with a full refresh, about 2 s with the
+  panel flashing. After that, changed lines are redrawn every 5 s at most. At the
+  end of the window it draws the last reading, `Asleep, key to wake`, and a
+  status block below the lines, then keeps that picture with no power while
+  the device sleeps. A timer wake never redraws it. The status block shows
+  the firmware version, the last reset and wake, the latest modem attach and
+  send results, the battery, and the latest four warnings or errors. It is the
+  first place to look when the device is out of reach.
+- **Turning one off.** The portal form and the Bluetooth page have
+  **4.2" e-paper, when plugged in** and **3.12" OLED, when plugged in**, each
+  `on` or `off`. With `off`, that display is never looked for or used, even
+  when plugged in. Both default to `on`.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |
@@ -497,6 +535,9 @@ it where no WiFi reaches the device, or when it should not be on a network.
 | Nothing (dark) | The display failed; the device keeps working on the network | Reset the board; the status page still answers |
 | Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
 | `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76; the rest of the device keeps working |
+| OLED dark on the cellular board, the log says `oled=none` | The 10 kΩ from the OLED's CS to GND is missing, or CS is on the wrong pin | Fit the resistor (section 5j) and check CS goes to GPIO 9 |
+| OLED dark on the cellular board, the log says `oled=found` | The OLED's VCC is on 3V3, or another display was chosen | Move its VCC to 5 V; with both displays plugged in, the e-paper shows above 40 °F (section 5j) |
+| E-paper unchanged after a window | It was not chosen, or the window was a timer wake; it keeps its last picture | See section 5j; the log's `displays` and `display` lines say what happened |
 | A screen that never changes | The device may be hung | It restarts itself within 15 s (watchdog); if not, unplug and replug |
 
 The device logs its state on the USB serial console (115200 baud), one line per
