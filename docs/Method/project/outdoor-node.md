@@ -6,7 +6,9 @@ without a long USB cable. The node is a second testbench: a Raspberry Pi in a
 weatherproof box next to the DUT, running the same Embedded AI Harness as the
 indoor bench, reached over one Ethernet cable that also powers it. Its
 acceptance tests are `ODN-01` … `ODN-13` below; a node passes all of them
-before it carries a test whose result counts.
+before it carries a test whose result counts. The build, step by step, is
+[`outdoor-node-build.md`](outdoor-node-build.md); its scripts are in
+[`tools/outdoor-node/`](../../../tools/outdoor-node/).
 
 ## Design
 
@@ -22,7 +24,7 @@ before it carries a test whose result counts.
                                                  │  watchdog, read-only root               │
                                                  │   ├─ USB ─► hub (per-port power, uhubctl)│
                                                  │   │          └─ port 1 ─► DUT USB-C     │
-                                                 │   └─ GPIO ─► DUT BOOT (GPIO 0), open drain│
+                                                 │   └─ GPIO ─► DUT EN, BOOT (1 kΩ each)    │
                                                  │ DUT + Notecarrier, on the DUT's battery │
                                                  └──┬───────────────┬──────────────────────┘
                                                     │ gland         │ gland
@@ -40,8 +42,9 @@ before it carries a test whose result counts.
 - **One cable carries power and data.** Outdoor-rated Cat6 runs 100 m, has no
   ground loop between buildings and is cheap to replace. At a site where no
   cable can be run, see [Other sites](#other-sites).
-- **The node is the DUT's access point.** The Pi's own radio runs the bench AP
-  `tds3-bench` with the indoor bench's password, so a DUT provisioned for the
+- **The node is the DUT's access point.** The harness runs the bench AP
+  `tds3-bench` on the Pi's own radio with the indoor bench's password (started
+  at boot by `odn-ap`), so a DUT provisioned for the
   bench is ONLINE outdoors unchanged, its UDP log (FSD §16) reaches the node on
   :5555 and its OTA downloads (FSD §15) come from the node's firmware route on
   :8080. The DUT never depends on the house WiFi reaching the garden.
@@ -73,19 +76,19 @@ before it carries a test whose result counts.
 1. Raspberry Pi OS Lite, the harness installed by the same `pi/update-bench.sh`
    as the indoor bench, with the DUT pinned:
    `sudo bash pi/update-bench.sh --pin SLOT1=48:27:E2:EA:48:3C`.
-2. `hostapd` serving `tds3-bench` on `wlan0`; the Ethernet port is the uplink.
-   WiFi power saving off: `sudo iw wlan0 set power_save off`.
+2. The harness owns `wlan0`; `odn-ap` asks it for the bench AP at boot and
+   `odn-health` brings it back after 30 min down. The Ethernet port is the
+   uplink. WiFi power saving off.
 3. The hardware watchdog: `RuntimeWatchdogSec=15` in `/etc/systemd/system.conf`.
-4. The read-only root with an overlay: `sudo raspi-config nonint enable_overlayfs`,
+4. The read-only root with an overlay: `sudo raspi-config nonint do_overlayfs 0`,
    after the harness and its settings are final. Logs and evidence go to a
    small writable data partition (or the SSD) mounted with `sync`, never the root.
 5. `bench-watch` (project files, `bench-watch/`) as a service, logging power,
    throttling, temperature, USB attach and detach.
 6. `uhubctl` installed; the DUT's hub port named in the harness slot config.
-7. The BOOT line: a Pi GPIO driving an N-channel MOSFET (2N7000) whose drain
-   is soldered to the DUT's BOOT button pad (GPIO 0), common ground. The pin
-   is an input at boot (pulled down in `config.txt`) so the DUT boots normally
-   whenever the Pi restarts.
+7. The EN and BOOT lines: the harness's GPIO pair (BCM 17 EN, BCM 18 BOOT),
+   each through 1 kΩ to the switched pad of the DUT's RESET and BOOT keys,
+   common ground. The harness uses them for download mode and flap recovery.
 8. Remote access from any location: a WireGuard tunnel (or Tailscale) from the
    node to the laptop, so the node keeps one address wherever it is.
 
@@ -98,7 +101,7 @@ Each step needs nothing from the step below it, and none needs someone outside.
 | 1 | OTA over the node's AP (`POST /ota`, FSD §15) | A running build with a fault |
 | 2 | esptool over USB on the node (`/api/flash`) | A build that boots far enough to enumerate USB |
 | 3 | `uhubctl -l <hub> -p <port> -a cycle` | A DUT wedged with USB gone; with the battery fitted, a cold start also needs the battery behind a MOSFET switch on a second Pi GPIO |
-| 4 | BOOT held low, then step 3, then esptool | A build whose USB never answers (a fast boot loop, the USB pins reused): the ROM download mode always does |
+| 4 | `POST /api/serial/recover`, or BOOT held low, then step 3, then esptool | A build whose USB never answers (a fast boot loop, the USB pins reused): the ROM download mode always does |
 | 5 | The Pi's watchdog | The node's kernel or harness hung |
 | 6 | The switch port's PoE turned off and on (managed switch, or the injector on a smart plug) | The node hung past its watchdog |
 

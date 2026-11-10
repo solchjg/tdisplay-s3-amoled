@@ -1,0 +1,13 @@
+[Unit]
+Description=Outdoor node: start the bench AP through the harness
+After=rfc2217-portal.service network-online.target
+Wants=rfc2217-portal.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/odn-ap.sh
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
