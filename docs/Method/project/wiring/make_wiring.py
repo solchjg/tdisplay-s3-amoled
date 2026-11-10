@@ -453,18 +453,18 @@ def build_parts(used):
                     left=["SCL", "SDA", "3V3", "GND"], w=1100, color="#5b2a86",
                     notes=["keeps its pull-ups"],
                     desc="BME280 breakout on Qwiic (I2C 0x76)"))
-    add(module_part("tds3a_rv8803_q", ["RV-8803 RTC", "Adafruit 6538, 0x32"], "specified",
-                    left=["SCL", "SDA", "3V3", "GND"], right=["CR1220"], w=1100,
-                    color="#1e5aa8", notes=["pull-up + LED jumpers cut"],
+    add(module_part("tds3a_rv8803_q", ["RV-8803 RTC", "Adafruit 6538, 0x32"], "built",
+                    left=["SCL", "SDA", "3V3", "GND"], right=["SCL ", "SDA ", "3V3 ", "GND "],
+                    w=1100, color="#1e5aa8", notes=["CR1220; pull-ups + LED cut"],
                     desc="Adafruit RV-8803 RTC breakout (6538) on STEMMA QT, I2C 0x32, CR1220 backup"))
     add(module_part("tds3a_notecarrier_q", ["Notecarrier-X", "+ Notecard MBGLW"],
                     "built", left=["SCL", "SDA", "3V3", "GND"], right=["BAT-", "BAT+"],
                     w=1300, color="#0d47a1", notes=["Qwiic, I2C 0x17"],
                     desc="Blues Notecarrier-X v1.3 with Notecard Cell+WiFi NOTE-MBGLW v2.5"))
-    add(module_part("tds3a_ads1115_water_s", ["ADS1115", "water 0x48"], "proposed",
-                    left=["ADDR", "GND", "SCL", "SDA", "VDD", "ALRT"],
+    add(module_part("tds3a_ads1115_water_q", ["ADS1115", "Qwiic, water 0x48"], "proposed",
+                    left=["SCL", "SDA", "3V3", "GND", "ADDR"],
                     right=["A0", "A1"], w=1000, notes=["pull-ups cut"],
-                    desc="ADS1115 for the water probe, address 0x48"))
+                    desc="ADS1115 on Qwiic for the water probe, address 0x48"))
     return P
 
 
@@ -1136,18 +1136,12 @@ def sheet_ws_key(S):
 def sheet_blues_bus(S):
     B = "Board"
     S.place(B, BOARD, 500, 500)
-    S.place("U9", "tds3a_ads1115_water_s", 2700, 625)
     S.place("J1", "tds3a_qwiic_star", 2600, 3600)
     S.place("U1", "tds3a_bme280_q", 4300, 3625)
     S.place("U13", "tds3a_rv8803_q", 4300, 4725)
+    S.place("U9", "tds3a_ads1115_water_q", 6000, 4725)
     S.place("U2", "tds3a_notecarrier_q", 4300, 5825)
     S.place("BT2", "tds3a_lipo_notecarrier", 6200, 6025)
-    # water ADS1115 on the header through its 6-pin socket (sheet 3), ADDR to GND for 0x48
-    S.wire((B, "GND R1"), ("U9", "GND"), "black")
-    S.wire(("U9", "ADDR"), ("U9", "GND"), "black", ("x", 2600))
-    S.wire((B, "IO44"), ("U9", "SCL"), "yellow", ("x", 2100))
-    S.wire((B, "IO43"), ("U9", "SDA"), "blue", ("x", 2200))
-    S.wire((B, "3V3 R1"), ("U9", "VDD"), "red", ("x", 2300))
     # the board's Qwiic connector to the star's input
     for bp, sp, c, y in (("Q SCL", "SCL", "yellow", 4000), ("Q SDA", "SDA", "blue", 4150),
                          ("Q 3V3", "3V3", "red", 4300), ("Q GND", "GND", "black", 4450)):
@@ -1158,17 +1152,21 @@ def sheet_blues_bus(S):
             if u == "U2" and n == "3V3":
                 continue
             S.wire(("J1", n + " " * (k + 1)), (u, n), c)
+    # the water ADS1115 chained from the RTC's second Qwiic socket, ADDR to GND for 0x48
+    for n, c in (("SCL", "yellow"), ("SDA", "blue"), ("3V3", "red"), ("GND", "black")):
+        S.wire(("U13", n + " "), ("U9", n), c)
+    S.wire(("U9", "ADDR"), ("U9", "GND"), "black", ("x", 5900))
     S.wire(("U2", "BAT-"), ("BT2", "-"), "black")
     S.wire(("U2", "BAT+"), ("BT2", "+"), "red")
     S.note(300, 7200, 7000, [
         "# Blues build: the sensor bus, GPIO 43 SDA / 44 SCL at 100 kHz (FSD 2.2, 23, 33, 39)",
         "The board's Qwiic connector feeds a Qwiic star; each Qwiic board plugs into a port:",
         "BME280 0x76, RV-8803 RTC 0x32, Notecarrier-X 0x17 (its red 3.3 V wire unconnected,",
-        "its own LiPo). The water probe's ADS1115 (0x48, ADDR to GND) joins the same bus",
-        "through its 6-pin socket; its probe side is sheet 3. The BME280's pull-ups and the",
-        "Notecard's 10k stay; cut the RTC's and the ADS1115's (bus at or above about 2.2 kOhm).",
-        "The RTC's CR1220 keeps the time while the board is unpowered. Plug or unplug only",
-        "with USB and the battery disconnected.",
+        "its own LiPo). The water probe's Qwiic ADS1115 (0x48, ADDR to GND) chains from the",
+        "RTC's second Qwiic socket; A0/A1 and the probe's boost (VSYS, GPIO 2) are sheet 3.",
+        "The BME280's pull-ups and the Notecard's 10k stay; cut the RTC's and the ADS1115's",
+        "(bus at or above about 2.2 kOhm). The RTC's CR1220 keeps the time while the board",
+        "is unpowered. Plug or unplug only with USB and the battery disconnected.",
         LEGEND,
     ])
 
@@ -1192,7 +1190,7 @@ SHEETS = [
     ("wiring-8-ws-key", "8  Waveshare board: off-board key and LED (FSD 35.2, FR-35.3)",
      (5600, 5100), {"3V3", "GND", "IO12", "IO13"}, sheet_ws_key),
     ("wiring-9-blues-sensor-bus", "9  Blues build: BME280, RTC, ADS1115 and Notecard on the Qwiic star",
-     (7600, 8300), {"Q", "IO43", "IO44", "3V3", "GND"}, sheet_blues_bus),
+     (7600, 8300), {"Q"}, sheet_blues_bus),
 ]
 
 
