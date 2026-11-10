@@ -1102,9 +1102,9 @@ tests:
     wave: 1
     fsd_phase: 2
     tier: host
-    verifies: [FR-7.9, FR-7.10, FR-7.17]
+    verifies: [FR-7.9, FR-7.10, FR-7.17, FR-7.35]
     needs: []
-    observable: "portal ssid=.. ip=192.168.4.1; provisioned ssid=..; online ip=.. rssi=..; retry in <ms> ms attempt=<n>"
+    observable: "portal ssid=.. ip=192.168.4.1; provisioned ssid=..; online ip=.. rssi=..; retry in <ms> ms attempt=<n> reason=<r>"
     impl: tests/host/test_web_log.py::test_connectivity_lines
     result: {status: successful, commit: e5d36e3, date: 2026-10-24, evidence: "host tests + lint run 40039426557 (tests/host: 106 passed)"}
 

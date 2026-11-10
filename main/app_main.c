@@ -2002,7 +2002,7 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
     }
     if (a & DL_C_ARM_RETRY) {
         uint32_t ms = dl_retry_delay_s(step.n) * 1000;
-        web_log_retry(ms, step.n);
+        web_log_retry(ms, step.n, wifi_net_last_reason());
         esp_timer_stop(retry_timer);
         esp_timer_start_once(retry_timer, (uint64_t)ms * 1000);
     }

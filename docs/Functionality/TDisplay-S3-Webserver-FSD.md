@@ -1083,7 +1083,7 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L3 | Entering PROVISIONING | `web: portal ssid=<SoftAP SSID> ip=192.168.4.1` | I |
 | L4 | T3 | `web: provisioned ssid=<SSID>` | I |
 | L5 | Entering ONLINE, and T9 | `web: online ip=<a.b.c.d> rssi=<dBm>` | I |
-| L6 | T6, T7 | `web: retry in <ms> ms attempt=<n>` | W |
+| L6 | T6, T7 | `web: retry in <ms> ms attempt=<n> reason=<r>` | W |
 | L7 | D4 | `web: lcd line<k>="<text>"` | I |
 | L8 | D2 | `web: lcd init failed: <ERR>` | E |
 | L9 | D5 | `web: lcd write failed: <ERR>` | E |
@@ -1168,6 +1168,10 @@ Each line requirement is one row of §7.2:
 - **FR-7.16** [Must] [derived from FR-5.21] T10 shall log L15 before restarting.
 - **FR-7.17** [Must] [derived from FR-5.18] T6 and T7 shall log L6 with the delay
   actually armed.
+- **FR-7.35** [Should] [proposed] L6 shall carry the reason the station gave for
+  its last lost link or failed attempt (ESP-IDF's `wifi_err_reason_t`, e.g. 201
+  no AP found, 15 handshake timeout; 0 before any), so a failed join can be told
+  apart from the log alone.
 - **FR-7.30** [Must] [user] The device shall log no line with the tag `hello`.
 
 ### 7.3a Testbench compatibility lines
@@ -4649,7 +4653,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.56.1
+fsd_version: 0.57.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4746,6 +4750,7 @@ change_history:
   - "0.55.2 2026-11-09 from the bench run where the RTC read back a frozen time with V2F clear (the cause was the driver's register map, fixed in the shared `rv8803`; the RESET check stays as a safeguard): FR-39.2 a valid time also needs the RESET bit clear, FR-39.9 a frozen time is `rtc lost`; a §39.4 core row"
   - "0.56.0 2026-11-09 the user's choice to keep an Adafruit BME280 at its default 0x77 unmodified: FR-23.1 the sensor at 0x76, else 0x77 (user)"
   - "0.56.1 2026-11-10 the user approved 0.55.2, 0.56.0 and the §39 proposals: the pull-ups and LED row, FR-39.5's 2 s, FR-39.6, FR-39.8 and NFR-39.1"
+  - "0.57.0 2026-11-10 from the bench run where the device stopped joining the bench AP with no cause in its log: FR-7.35 L6 carries the station's last disconnect reason (proposed)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
