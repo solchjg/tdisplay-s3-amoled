@@ -232,5 +232,7 @@ e-paper's reset timing are in [`ws-displays.md`](ws-displays.md).
 - A wake that sends a summary stays up long enough for that re-attach, so on the bench
   USB each summary covers only its boot's readings and has no table. A test of summaries
   across wakes runs with the board off the bench USB, its emails as the evidence.
+- Outdoors, the DUT runs on a second testbench next to it, the outdoor node, with its
+  acceptance tests ODN-01 … ODN-13: [`outdoor-node.md`](outdoor-node.md).
 - The DUT's station MAC is in eFuse and survives flashes and factory resets. The router
   reserves `192.168.40.150` for it on the `IOTID` network.
