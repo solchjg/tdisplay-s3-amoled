@@ -341,6 +341,13 @@ const char *ul_fail_reason(bool answered, const char *answer)
     return nc_err(answer, NULL, 0) ? "err" : NULL;
 }
 
+bool ul_io_retry(const char *answer, unsigned resent)
+{
+    char err[128];
+    return resent < UL_IO_RETRIES && answer != NULL && nc_err(answer, err, sizeof err) &&
+           strstr(err, "{io}") != NULL;
+}
+
 // --------------------------------------------------------------- the clock
 
 unsigned ul_time_step(ul_time_t *t, ul_time_ev_t ev, bool window, uint32_t now_s)

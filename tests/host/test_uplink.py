@@ -104,6 +104,17 @@ int main(int argc, char **argv)
     } else if (!strcmp(argv[1], "fail")) {
         const char *r = ul_fail_reason(atoi(argv[2]) != 0, argv[3]);
         printf("%s", r ? r : "ok");
+    } else if (!strcmp(argv[1], "resend")) {  // resend <answer>...: one per send
+        int sends = 0;
+        const char *r = "timeout";
+        for (int i = 2; i < argc; i++) {
+            sends++;
+            if (!ul_io_retry(argv[i], (unsigned)(i - 2))) {
+                r = ul_fail_reason(1, argv[i]);
+                break;
+            }
+        }
+        printf("%d %s", sends, r ? r : "ok");
     } else if (!strcmp(argv[1], "time")) {
         time_sim(atoi(argv[2]) != 0, atoi(argv[3]), (uint32_t)atoi(argv[4]));
     } else if (!strcmp(argv[1], "gps")) {
@@ -285,6 +296,21 @@ def test_mail_body(ul):
 ])
 def test_fail_reason(ul, answered, answer, want):
     assert ul("fail", answered, answer) == want
+
+
+# FR-33.10 (core): an {io} answer is sent again, at most twice; any other answer is final
+IO = '{"err":"cannot interpret JSON: \':\' expected near \'req\' {io}"}'
+
+
+@pytest.mark.parametrize("answers,want", [
+    ([IO, '{"version":"notecard-11.4.1"}'], "2 ok"),
+    ([IO, IO, IO, '{"total":1}'], "3 err"),
+    (['{"err":"product UID has not yet been specified {product-noexist}"}', '{"total":1}'],
+     "1 err"),
+    (['{"total":1}', '{"total":2}'], "1 ok"),
+])
+def test_io_answer_sent_again(ul, answers, want):
+    assert ul("resend", *answers) == want
 
 
 # FR-33.12 (core): the clock from the Notecard
