@@ -227,6 +227,11 @@ The Notecarrier needs its own supply that can deliver about 2 A, such as its LiP
 2 A USB charger. A USB hub port did not start the NOTE-NBGLWX on the bench: the
 Notecard never answered at 0x17, though the charger at 0x6A did.
 
+A request that fails on the bus, or whose answer's `err` carries `{io}` (the Notecard could not
+read the line, as the first `card.version` after a cold start once did on the bench), is sent
+again up to three times in all, 0.5 s apart; each failed attempt is printed with `retry`. The
+two batch notes are sent once only, so a retry can never add a note twice.
+
 Without a ProductUID the Notecard refuses every `note.add` (`{product-noexist}`), so
 the batch timing needs one. On the bench Notecard (capability `dut-notecard` in
 [`test-plan.yaml`](../../../testing/test-plan.yaml)) a note of 100 readings takes about
