@@ -21,6 +21,8 @@
 #define UL_NOTE_READINGS 100    // FR-33.7: readings per tb.qo note
 #define UL_LINE6_MAX 44         // FR-6.14: line 6 characters
 #define UL_ANSWER_S 2           // FR-33.4, FR-33.10: a request's answer within this
+#define UL_IO_RETRIES 2         // FR-33.10: resends after an {io} answer
+#define UL_IO_GAP_MS 250        // FR-33.10: ... this far apart
 #define UL_TIME_EVERY_S 5       // FR-33.12: card.time asks in a window
 #define UL_TIME_FOR_S 60        // FR-33.12: ... for this long
 #define UL_GPS_EVERY_S 5        // FR-33.16: card.location asks in the hold
@@ -170,6 +172,11 @@ size_t ul_mail_body(char *buf, size_t n, const char *to, const char *subject, co
 // answer: "timeout" (none), "full" (nc_err_full), "err" (any other "err");
 // NULL when it succeeded.
 const char *ul_fail_reason(bool answered, const char *answer);
+
+// FR-33.10: whether to send a request again. True only when the answer is an
+// "err" whose text holds {io} (the Notecard could not read the request) and
+// fewer than UL_IO_RETRIES resends were made; any other answer is final.
+bool ul_io_retry(const char *answer, unsigned resent);
 
 // FR-33.12: the clock from the Notecard. On a boot whose clock was never set,
 // the device asks card.time once and reports the answer; in a window, while

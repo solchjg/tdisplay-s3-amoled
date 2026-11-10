@@ -154,7 +154,9 @@ network, so nothing on the board switches it.
 What the firmware does with `uplink` `cell` (FSD §33.5):
 
 1. On each boot, install the Notecard's I2C device and ask `card.version`. No answer
-   within 2 s is L44, and that boot's sends fail (FR-33.4, FR-33.10).
+   within 2 s is L44, and that boot's sends fail (FR-33.4, FR-33.10). Any request
+   answered with an `{io}` error is sent again, at most twice, 250 ms apart: the first
+   request after the Notecard powers up can arrive garbled (FR-33.10).
 2. Send `hub.set` (`product`, `mode` `periodic`, `outbound` `cell_every`, `inbound`
    1440) only when the Notecard's stored values differ (FR-33.4).
 3. Set `card.transport` to `cell` when the Notecard reports another transport
@@ -220,6 +222,10 @@ forced sync and the GPS seek. Without a local toolchain, run the "Commissioning 
 workflow by hand: its `notecard_product`, `notecard_sync` and `notecard_gps` inputs set
 the same options in the `notecard-probe` artefact. Lines start with `notecardprobe:`; `CHECK` marks a result
 to look at.
+
+The Notecarrier needs its own supply that can deliver about 2 A, such as its LiPo or a
+2 A USB charger. A USB hub port did not start the NOTE-NBGLWX on the bench: the
+Notecard never answered at 0x17, though the charger at 0x6A did.
 
 Without a ProductUID the Notecard refuses every `note.add` (`{product-noexist}`), so
 the batch timing needs one. On the bench Notecard (capability `dut-notecard` in

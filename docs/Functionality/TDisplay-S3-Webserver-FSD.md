@@ -3366,6 +3366,11 @@ Sending:
   2 s, an `{err}` reply, a full Notefile) shall be logged as L44 and treated
   as that send's failure: a ThingsBoard batch stays after the mark (FR-32.11),
   an alert follows FR-31.6, an email follows §25's dropped send.
+  Before that, any Notecard request answered with an `{io}` error (the
+  Notecard could not read the request, so it did nothing) shall be sent
+  again, at most **2** more times, **250 ms** apart [proposed], and count
+  as failed only when the last answer is still one [user]. Any other
+  answer is final.
 - **FR-33.11** [Must] [derived] Each accepted note shall be logged as L43
   (§7.2).
 
@@ -3452,6 +3457,7 @@ Power and data:
 | FR-33.13 (core) | `uplink` `cell`, a summary due: `cell_mail` `route`; `off`; `off` then `route` at the next due time; `uplink` `wifi` with `off` | A `mail.qo` note; nothing due, the period advanced, mail settings kept; one note for the new period only; sent over WiFi as §25 | An email or note with `off` on cellular; a backlog of summaries | host |
 | FR-33.8, FR-33.9 (core) | Alert `t_high` and a summary with every token and password stored | `alert.qo` and `mail.qo` bodies as §33.4 with `sync:true`; no secret in any body | A token or password in a note | host |
 | FR-33.10 (core) | Answers: none, `{"err":"…"}`, `{"total":1}` | L44 `timeout`, L44 `err`, L43 | Success on an error reply | host |
+| FR-33.10 (core) | An `{io}` error answer, then a good one; three `{io}` answers; a `{product-noexist}` error | Sent again, then success; three sends, then L44 `err`; one send, L44 `err` | A fourth send; a resend after any other answer | host |
 | FR-33.6, FR-33.11, NFR-33.1 | Sleep test build, `uplink` `cell`, a Notecard on the bench (R-31), an upload due on the next timer wake | `web: wake cause=timer`, L21, L43 `tb.qo`, `web: sleep` within 10 s; the event on Notehub; no WiFi start | WiFi on a timer wake; the panel lit | target (R-31) |
 | FR-33.12 (core) | Window, clock never set: `card.time` answers no time, then a time on the 4th ask; never a time; timer wake with no time | One `hub.sync`, asks at 5 s steps, clock set on the 4th; asks stop at 60 s; one ask, no wait | A second `hub.sync`; waiting on a timer wake | host |
 | FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 within 60 s | A reading with `at=none` after L20 | target (R-31) |
@@ -4635,7 +4641,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.54.0
+fsd_version: 0.55.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4727,6 +4733,7 @@ change_history:
   - "0.52.0 2026-11-08 the user's agreement to drive the OLED's reset from a GPIO, given the sensors keep their pins: §35.2 OLED row RES on GPIO 19 (proposed; the user's 3.12\" OLED Ver 2.1 shows no reset RC), its R5/R8 links for 4-wire SPI; Pins row GPIO 19 used, none left free"
   - "0.53.0 2026-11-08 the user's choice to detect plugged-in displays at each window: FR-35.25 (user; method proposed): the OLED by a 10 kΩ from its CS to GND, the e-paper by its BUSY pulse after the software reset; FR-35.2 and FR-36.1 follow; §35.4 `oled` and §36.2 `epaper` mean use when found, `epaper` `on` when none is stored (proposed); §35.2 rows; L50; §35.6 rows"
   - "0.54.0 2026-11-09 the user's choice to show the e-paper when there is no reading: FR-35.2 with both displays fitted and no reading at all uses the e-paper (was the OLED)"
+  - "0.55.0 2026-11-09 from the user's bench run of the NOTE-NBGLWX, whose first card.version after power-up came back garbled (`cannot interpret JSON {io}`), and their approval of retries: FR-33.10 resends a request answered with an `{io}` error, at most 2 more times, 250 ms apart (proposed)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
@@ -4747,6 +4754,7 @@ open_decisions:
   - "FR-33.12: one hub.sync and card.time every 5 s for up to 60 s in a window; FR-33.7: 100 readings a note, else 50; NFR-33.2: tb.qo Notefile template"
   - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"
   - "FR-33.4, FR-33.10: 2 s Notecard answer limit; FR-33.5: Notecard never power-cycled"
+  - "FR-33.10: an `{io}` answer resent at most 2 more times, 250 ms apart"
   - "NFR-33.1: asleep within 10 s on a timer wake that sends notes; NFR-33.2: under 4 MB a month"
   - "FR-32.1 tb_token 1 – 64 characters and tb_every dividing 1440"
   - "FR-32.7 100 readings per request"

@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "board.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "notecard.h"
@@ -273,10 +275,15 @@ static char rsp[512];   // an answer (only short fields are read)
 static bool started, ready;
 static const char *start_why, *start_req;
 
-// One request; NULL on success, else the L44 reason.
+// One request, sent again after an {io} answer (FR-33.10); NULL on success,
+// else the L44 reason.
 static const char *ask(const char *req)
 {
     esp_err_t err = notecard_request(req, rsp, sizeof rsp);
+    for (unsigned resent = 0; err == ESP_OK && ul_io_retry(rsp, resent); resent++) {
+        vTaskDelay(pdMS_TO_TICKS(UL_IO_GAP_MS));
+        err = notecard_request(req, rsp, sizeof rsp);
+    }
     if (err == ESP_ERR_INVALID_SIZE) {
         err = ESP_OK;  // the start of a long answer is enough
     }
