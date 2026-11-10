@@ -221,6 +221,11 @@ workflow by hand: its `notecard_product`, `notecard_sync` and `notecard_gps` inp
 the same options in the `notecard-probe` artefact. Lines start with `notecardprobe:`; `CHECK` marks a result
 to look at.
 
+A request that fails on the bus, or whose answer's `err` carries `{io}` (the Notecard could not
+read the line, as the first `card.version` after a cold start once did on the bench), is sent
+again up to three times in all, 0.5 s apart; each failed attempt is printed with `retry`. The
+two batch notes are sent once only, so a retry can never add a note twice.
+
 Without a ProductUID the Notecard refuses every `note.add` (`{product-noexist}`), so
 the batch timing needs one. On the bench Notecard (capability `dut-notecard` in
 [`test-plan.yaml`](../../../testing/test-plan.yaml)) a note of 100 readings takes about

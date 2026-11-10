@@ -38,6 +38,8 @@
 #define GPS_ASK_S 5
 #define GPS_LIMIT_S (20 * 60)
 #define SYNC_LIMIT_S 300
+#define ASK_TRIES 3       // attempts per request (ask)
+#define ASK_RETRY_MS 500  // pause before a retry
 
 #ifdef CONFIG_PROBE_SYNC
 #define PROBE_SYNC 1
@@ -77,18 +79,32 @@ static void scan(void)
 }
 
 // Sends one request line, prints the answer and how long it took; true when
-// an answer without "err" came back.
+// an answer without "err" came back. A transport failure, or an answer whose
+// "err" carries {io} (the Notecard could not read the line, as the first
+// card.version after a cold start did on the bench), is retried up to
+// ASK_TRIES times in all; each failed attempt is printed with "retry".
 static bool ask(const char *what, const char *line)
 {
-    int64_t t0 = esp_timer_get_time();
-    esp_err_t err = notecard_request(line, rsp, sizeof rsp);
-    long ms = (long)((esp_timer_get_time() - t0) / 1000);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_SIZE) {
-        printf("notecardprobe: %s failed=%s ms=%ld\n", what, esp_err_to_name(err), ms);
-        return false;
+    for (int attempt = 1;; attempt++) {
+        int64_t t0 = esp_timer_get_time();
+        esp_err_t err = notecard_request(line, rsp, sizeof rsp);
+        long ms = (long)((esp_timer_get_time() - t0) / 1000);
+        bool sent = err == ESP_OK || err == ESP_ERR_INVALID_SIZE;
+        char e[192];
+        bool io = !sent || (nc_err(rsp, e, sizeof e) && strstr(e, "{io}") != NULL);
+        if (io && attempt < ASK_TRIES) {
+            printf("notecardprobe: %s ms=%ld %s retry %d\n", what, ms,
+                   sent ? rsp : esp_err_to_name(err), attempt);
+            vTaskDelay(pdMS_TO_TICKS(ASK_RETRY_MS));
+            continue;
+        }
+        if (!sent) {
+            printf("notecardprobe: %s failed=%s ms=%ld\n", what, esp_err_to_name(err), ms);
+            return false;
+        }
+        printf("notecardprobe: %s ms=%ld %s\n", what, ms, rsp);
+        return !nc_err(rsp, NULL, 0);
     }
-    printf("notecardprobe: %s ms=%ld %s\n", what, ms, rsp);
-    return !nc_err(rsp, NULL, 0);
 }
 
 static bool ask_name(const char *name)
