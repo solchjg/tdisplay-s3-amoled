@@ -38,7 +38,8 @@ int main(int argc, char **argv)
         wl_fmt_online(line, sizeof line, argv[2], atoi(argv[3]));
     } else if (strcmp(argv[1], "retry") == 0) {
         wl_fmt_retry(line, sizeof line, (uint32_t)strtoul(argv[2], NULL, 10),
-                     (uint32_t)strtoul(argv[3], NULL, 10));
+                     (uint32_t)strtoul(argv[3], NULL, 10),
+                     (uint16_t)strtoul(argv[4], NULL, 10));
     } else if (strcmp(argv[1], "ap_mode") == 0) {
         wl_fmt_ap_mode(line, sizeof line, argv[2]);
     } else if (strcmp(argv[1], "sta_mode") == 0) {
@@ -140,12 +141,12 @@ def test_state_line(fmt, state):
     assert fmt("state", state) == f"state={state}"
 
 
-# TC-LOG-16 · FR-7.9, FR-7.10 (core): L3, L4, L5, L6
+# TC-LOG-16 · FR-7.9, FR-7.10, FR-7.35 (core): L3, L4, L5, L6
 def test_connectivity_lines(fmt):
     assert fmt("portal", "TDS3-71C734") == "portal ssid=TDS3-71C734 ip=192.168.4.1"
     assert fmt("provisioned", "tds3-bench") == "provisioned ssid=tds3-bench"
     assert fmt("online", "192.168.4.6", "-59") == "online ip=192.168.4.6 rssi=-59"
-    assert fmt("retry", "4000", "3") == "retry in 4000 ms attempt=3"
+    assert fmt("retry", "4000", "3", "201") == "retry in 4000 ms attempt=3 reason=201"
 
 
 # TC-LOG-17 · FR-7.19, FR-7.22 (core): K2, K5 with their SSIDs

@@ -36,7 +36,7 @@ void web_log_sta_mode(const char *ssid);
 void web_log_online(const char *ip, int rssi);
 
 // T6 and T7: K7 and L6 with the delay actually armed (FR-7.24, FR-7.17).
-void web_log_retry(uint32_t ms, uint32_t n);
+void web_log_retry(uint32_t ms, uint32_t n, uint16_t reason);
 
 // Any other condition worth a line, at warning level.
 void web_log_warn(const char *what, esp_err_t err);

@@ -160,11 +160,11 @@ void web_log_online(const char *ip, int rssi)
     emit('I', line);              // L5
 }
 
-void web_log_retry(uint32_t ms, uint32_t n)
+void web_log_retry(uint32_t ms, uint32_t n, uint16_t reason)
 {
     char line[WL_LINE_MAX];
     emit('W', "STA disconnect, retry"); // K7
-    wl_fmt_retry(line, sizeof line, ms, n);
+    wl_fmt_retry(line, sizeof line, ms, n, reason);
     emit('W', line);              // L6
 }
 

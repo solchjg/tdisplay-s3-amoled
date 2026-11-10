@@ -44,8 +44,8 @@ void wl_fmt_provisioned(char *buf, size_t len, const char *ssid);
 // L5: "online ip=<a.b.c.d> rssi=<dBm>"
 void wl_fmt_online(char *buf, size_t len, const char *ip, int rssi);
 
-// L6: "retry in <ms> ms attempt=<n>"
-void wl_fmt_retry(char *buf, size_t len, uint32_t ms, uint32_t n);
+// L6: "retry in <ms> ms attempt=<n> reason=<r>", r the station's last disconnect reason
+void wl_fmt_retry(char *buf, size_t len, uint32_t ms, uint32_t n, uint16_t reason);
 
 // K2: "AP mode: SSID='<SSID>'" and K5: "STA mode, connecting to '<SSID>'"
 void wl_fmt_ap_mode(char *buf, size_t len, const char *ssid);

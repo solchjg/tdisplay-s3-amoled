@@ -71,9 +71,10 @@ void wl_fmt_online(char *buf, size_t len, const char *ip, int rssi)
     snprintf(buf, len, "online ip=%s rssi=%d", ip, rssi);
 }
 
-void wl_fmt_retry(char *buf, size_t len, uint32_t ms, uint32_t n)
+void wl_fmt_retry(char *buf, size_t len, uint32_t ms, uint32_t n, uint16_t reason)
 {
-    snprintf(buf, len, "retry in %" PRIu32 " ms attempt=%" PRIu32, ms, n);
+    snprintf(buf, len, "retry in %" PRIu32 " ms attempt=%" PRIu32 " reason=%u", ms, n,
+             (unsigned)reason);
 }
 
 void wl_fmt_ap_mode(char *buf, size_t len, const char *ssid)
