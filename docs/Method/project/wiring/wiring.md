@@ -34,7 +34,7 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 | [6 Blues cellular, direct wiring](wiring-6-blues-cellular-direct.png) ([.fzz](wiring-6-blues-cellular-direct.fzz)) | On main (FSD §33.2, the alternative to sheet 5) | GND, GPIO 43 SDA, GPIO 44 SCL soldered to the Notecarrier-X header (VIO not connected) |
 | [7 Waveshare board, e-paper and OLED](wiring-7-ws-displays.png) ([.fzz](wiring-7-ws-displays.fzz)) | Specified (FSD §35.2, §36, FR-35.25), details in [ws-displays.md](../ws-displays.md); the board's GPIOs drawn in number order, not header order | GPIO 7 CLK, 8 MOSI, 10 DC shared; e-paper CS 3, BUSY 1, RST 20; OLED CS 9 (10 kΩ to GND), RES 19; 3V3, GND |
 | [8 Waveshare board, off-board key and LED](wiring-8-ws-key.png) ([.fzz](wiring-8-ws-key.fzz)) | On main (FSD §35.2, FR-35.3, FR-35.18); the board's GPIOs drawn in number order, not header order | Key GPIO 12 to GND (10 kΩ to 3V3, 100 nF to GND, 1 kΩ in series); LED GPIO 13 through 150 Ω; 3V3, GND |
-| [9 Blues build, sensor bus on the Qwiic star](wiring-9-blues-sensor-bus.png) ([.fzz](wiring-9-blues-sensor-bus.fzz)) | BME280 and Notecarrier-X on main; RV-8803 RTC in the FSD (§39); the water ADS1115 proposed (sheet 3) | Qwiic GND, 3V3, GPIO 43 SDA, GPIO 44 SCL to the star; GPIO 43/44, 3V3, GND to the ADS1115 |
+| [9 Blues build, sensor bus on two Qwiic stars](wiring-9-blues-sensor-bus.png) ([.fzz](wiring-9-blues-sensor-bus.fzz)) | BME280, Notecarrier-X and RV-8803 RTC (§39) on main; the water ADS1115 on Qwiic, on the second star, proposed (its probe side is sheet 3) | Qwiic GND, 3V3, GPIO 43 SDA, GPIO 44 SCL to the star |
 
 The I2C devices on the board's bus share GPIO 43/44: the BME280 at 0x76, the
 water ADS1115 at 0x48, the Notecard at 0x17 and the

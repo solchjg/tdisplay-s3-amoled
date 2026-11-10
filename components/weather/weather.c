@@ -12,7 +12,8 @@
 // FSD §23.1 and C-23.1 (§35.2 on the cellular build): the sensor as wired, pins from board.h.
 #define SENSOR_SDA_GPIO BOARD_SENSOR_SDA
 #define SENSOR_SCL_GPIO BOARD_SENSOR_SCL
-#define SENSOR_ADDRESS 0x76
+#define SENSOR_ADDRESS 0x76      // SDO to GND
+#define SENSOR_ADDRESS_ALT 0x77  // SDO high: the default of Adafruit's breakout (FR-23.1)
 #define SENSOR_CLK_HZ 100000
 
 static const bme280_config_t sensor_cfg = {
@@ -33,6 +34,30 @@ static RTC_DATA_ATTR wx_stats_t stats;    // FR-25.12: since the last summary
 static uint32_t average_s = 60 * 60;
 
 static bool started;
+// FR-23.1: the address that last answered, tried first; kept through deep sleep.
+static RTC_DATA_ATTR uint8_t found_address = SENSOR_ADDRESS;
+
+// FR-23.1: the sensor at 0x76, or at 0x77 when nothing answers there. The
+// error of the 0x76 attempt is returned when neither answers.
+static esp_err_t sensor_start(void)
+{
+    const uint8_t order[2] = {found_address,
+                              found_address == SENSOR_ADDRESS ? SENSOR_ADDRESS_ALT : SENSOR_ADDRESS};
+    esp_err_t first = ESP_FAIL;
+    for (int i = 0; i < 2; i++) {
+        bme280_config_t cfg = sensor_cfg;
+        cfg.address = order[i];
+        esp_err_t err = bme280_start(&cfg);
+        if (err == ESP_OK) {
+            found_address = order[i];
+            return ESP_OK;
+        }
+        if (order[i] == SENSOR_ADDRESS) {
+            first = err;
+        }
+    }
+    return first;
+}
 static weather_note_cb_t note_cb;
 static wx_ext_cfg_t ext_cfg;          // §29.2: every add-on off until set
 static weather_ext_cb_t ext_cb;
@@ -40,7 +65,7 @@ static weather_ext_cb_t ext_cb;
 esp_err_t weather_sample(wx_reading_t *out)
 {
     if (!started) {
-        esp_err_t err = bme280_start(&sensor_cfg);
+        esp_err_t err = sensor_start();
         if (err != ESP_OK) {
             return err;
         }
