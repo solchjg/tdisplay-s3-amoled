@@ -142,7 +142,7 @@ reach it while it sleeps, press the user key (the button that is not BOOT): it
 wakes fully, with the screen, WiFi and status page, for at least 60 seconds,
 then runs the task and sleeps again. This firmware's task reads the BME280
 weather sensor (temperature, humidity, pressure; SDA on GPIO 43, SCL on GPIO 44,
-address 0x76) and sleeps until the next reading is due, every 10 minutes
+address 0x76, or 0x77 as Adafruit's board ships) and sleeps until the next reading is due, every 10 minutes
 unless you pick another setup on the setup page, plus one more at each power-on,
 reset or key wake. Unplugging or resetting the board clears the kept readings
 and averages.
@@ -564,7 +564,7 @@ drifts about a minute a year.
 | `Connecting` and then `WiFi lost` / `Retrying`, repeating | The stored network is unreachable or the password is wrong; the device retries every 1 – 15 s and never gives up | Check the access point; to enter new credentials, do chapter 5 |
 | Nothing (dark) | The display failed; the device keeps working on the network | Reset the board; the status page still answers |
 | Nothing (dark), and the board is not on USB | It is asleep between tasks (chapter 5a) | Press the user key to wake it |
-| `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76; the rest of the device keeps working |
+| `Sensor --` on the fourth line | No reading kept: the sensor did not answer (the log shows `bme280 failed:`) | Check the sensor's wiring and that its address is 0x76 or 0x77; the rest of the device keeps working |
 | OLED dark on the cellular board, the log says `oled=none` | The 10 kΩ from the OLED's CS to GND is missing, or CS is on the wrong pin | Fit the resistor (section 5j) and check CS goes to GPIO 9 |
 | OLED dark on the cellular board, the log says `oled=found` | The OLED's VCC is on 3V3, or another display was chosen | Move its VCC to 5 V; with both displays plugged in, the e-paper shows above 40 °F or with no reading (section 5j) |
 | E-paper unchanged after a window | It was not chosen, or the window was a timer wake; it keeps its last picture | See section 5j; the log's `displays` and `display` lines say what happened |

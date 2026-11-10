@@ -377,7 +377,7 @@ capabilities:
       Taken from Waveshare's examples and FAQ (testing/debugging-agenda.md);
       commissioning/ws-probe is its first run.
   dut-bme280:
-    what: A BME280 (chip ID 0x60) at 0x76 on SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1
+    what: A BME280 (chip ID 0x60) at 0x76 (or 0x77, FR-23.1) on SDA GPIO 43 / SCL GPIO 44 of the board in SLOT1
     available: unproven
     consequence: >
       Wired by the user (2026-10-30); not yet observed answering. TC-WX-10
@@ -438,7 +438,7 @@ capabilities:
       Not yet fitted. commissioning/rtc-probe is its first run (NFR-39.1 and
       the trim's direction); TC-RTC-10 and later need it.
   seam-sensor-fault-build:
-    what: "Test build that reads the sensor at 0x77, where nothing answers (FSD §23.4)"
+    what: "Test build that reads the sensor at an address where nothing answers, 0x76 and 0x77 both replaced (FSD §23.4, FR-23.1)"
     available: no
     consequence: >
       Not built yet; TC-WX-12 is blocked until it is.

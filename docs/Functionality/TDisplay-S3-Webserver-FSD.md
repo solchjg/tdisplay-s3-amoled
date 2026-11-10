@@ -1888,7 +1888,8 @@ kept readings as JSON. Built on the shared `bme280` component (pure
 compensation core, thin I2C layer); the logic layer decides when to read, the
 composition root performs the read and routes the result.
 
-The sensor is a genuine BME280 (chip ID `0x60`) on I2C at address **0x76**,
+The sensor is a genuine BME280 (chip ID `0x60`) on I2C at address **0x76**, or
+**0x77** where a board's default puts it there (Adafruit's breakout),
 SDA = GPIO 43, SCL = GPIO 44 (the board's UART0 pins; the console is the
 USB-Serial/JTAG, §2.2). It is read in forced mode with the Bosch "weather
 monitoring" settings: one measurement per reading, oversampling ×1 for
@@ -1929,7 +1930,9 @@ with 60 they run 00:00, 01:00, 02:00 and so on. These two fields are the
 
 - **FR-23.1** [Must] [user] Each time the task runs (§21, FR-21.4) it shall take
   one reading from the BME280 at 0x76 on SDA GPIO 43 / SCL GPIO 44, in forced
-  mode, oversampling ×1 for all three quantities, IIR filter off.
+  mode, oversampling ×1 for all three quantities, IIR filter off. When nothing
+  answers at 0x76 it shall use 0x77 (a board left at its default, e.g.
+  Adafruit's) [user], trying first the address that answered last.
 - **FR-23.17** [Must] [user] After its reading the task shall tell the
   device to sleep for the reading period of the normal setup (§28.1), or 30 s
   during `cycle` (FR-28.6) (FR-21.9). The portal and BLE shall refuse
@@ -4531,7 +4534,7 @@ Build-time constants:
 | Time zone | POSIX TZ string at build time, `EST5EDT,M3.2.0,M11.1.0` (US Eastern) | [user] |
 | Sync after entering ONLINE | ≤ 10 s | [user] |
 | Sleep current added by the key wake | ≤ 5 µA | [user] |
-| BME280 address / SDA / SCL | 0x76 / GPIO 43 / GPIO 44 | [user] |
+| BME280 address / SDA / SCL | 0x76, else 0x77 (FR-23.1) / GPIO 43 / GPIO 44 | [user] |
 | BME280 mode | forced, oversampling ×1 (T, P, H), filter off | [user] |
 | Task sleep period | `sample_min`, 1 – 60 min, default 10 | [user] |
 | Average period | `average_min`, default 60 min, dividing a day | [user] |
@@ -4646,7 +4649,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.55.2
+fsd_version: 0.56.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4741,6 +4744,7 @@ change_history:
   - "0.55.0 2026-11-09 from the user's bench run of the NOTE-NBGLWX, whose first card.version after power-up came back garbled (`cannot interpret JSON {io}`), and their approval of retries: FR-33.10 resends a request answered with an `{io}` error, at most 2 more times, 250 ms apart (proposed)"
   - "0.55.1 2026-11-09 from the bench run of the shipped build provisioned with uplink=cell, whose first reading had no time though the Notecard had one: FR-33.12 runs the Notecard setup and the clock step right after provisioning (T3, T16), which goes on without a restart"
   - "0.55.2 2026-11-09 from the bench run where a flat CR1220 left the RTC frozen at its last write with V2F clear: FR-39.2 a valid time also needs the RESET bit clear, FR-39.9 a frozen time is `rtc lost`; a §39.4 core row"
+  - "0.56.0 2026-11-09 the user's choice to keep an Adafruit BME280 at its default 0x77 unmodified: FR-23.1 the sensor at 0x76, else 0x77 (user)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"

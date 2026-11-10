@@ -449,7 +449,7 @@ def build_parts(used):
     add(de9_part())
     # sheet 9: the Blues build's sensor bus through the Qwiic star (FSD 2.2, 39.2)
     add(qwiic_star_part())
-    add(module_part("tds3a_bme280_q", ["BME280", "Qwiic, 0x76"], "built",
+    add(module_part("tds3a_bme280_q", ["BME280", "Qwiic, 0x76 or 0x77"], "built",
                     left=["SCL", "SDA", "3V3", "GND"], w=1100, color="#5b2a86",
                     notes=["keeps its pull-ups"],
                     desc="BME280 breakout on Qwiic (I2C 0x76)"))
