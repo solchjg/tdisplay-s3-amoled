@@ -4145,7 +4145,7 @@ unpowered.
 | Part | The Adafruit RV-8803 breakout (product 6538, STEMMA QT / Qwiic); any RV-8803-C7 board on the bus works the same | [user] |
 | Bus | Each build's sensor bus (I2C controller 0 at 100 kHz: GPIO 43/44 on the T-Display build, GPIO 15/16 on the cellular build), at the chip's fixed address 0x32, plugged into the Qwiic star (§2.2, §35.2); no other device on either build uses 0x32 | [user] |
 | Backup | A CR1220 coin cell in the breakout's holder; 240 nA at 3 V | [derived from the board] |
-| Pull-ups and LED | The breakout's I2C pull-ups cut as the Qwiic rows of §2.2 and §35.2 say; a power LED, if the board has one, cut by its jumper | [proposed] |
+| Pull-ups and LED | The breakout's I2C pull-ups cut as the Qwiic rows of §2.2 and §35.2 say; a power LED, if the board has one, cut by its jumper | [user] |
 
 ### 39.3 Requirements
 
@@ -4171,10 +4171,10 @@ unpowered.
 - **FR-39.5** [Must] [user] The BLE setup page shall send the phone's clock
   (`control` `time=<ms since 1970 UTC>`, §26) right after pairing, in any
   window. The device shall take it when its clock is not synced, or differs
-  from the phone's by more than **2 s** [proposed]: it sets the clock, marks it synced,
+  from the phone's by more than **2 s** [user]: it sets the clock, marks it synced,
   writes the RTC if one is fitted and logs L20 with `src=phone`. A time before 2024 is
   ignored.
-- **FR-39.6** [Must] [proposed] On the T-Display build with `uplink` `cell` and the clock
+- **FR-39.6** [Must] [user] On the T-Display build with `uplink` `cell` and the clock
   set by FR-39.2, in each window, after the Notecard setup, the device shall
   ask `hub.sync.status` and `card.time` once each, without a `hub.sync` or a
   wait. When the Notecard's last completed sync is at most **3600 s** old
@@ -4184,7 +4184,7 @@ unpowered.
 - **FR-39.7** [Must] [derived from FR-39.4] On the cellular build with an RTC, each attach
   that registers shall also take the network time (`AT+CCLK?`) and, when the
   network supplies one, count it as a network sync as FR-35.13 does.
-- **FR-39.8** [Should] [proposed] At each network sync with a valid RTC,
+- **FR-39.8** [Should] [user] At each network sync with a valid RTC,
   before writing it, the device shall measure the RTC's error against the
   network time and log L55 with the days since the RTC was last set from a
   network. When that measurement is precise to half a trim step, its
@@ -4200,7 +4200,7 @@ unpowered.
   answered at 0x32 but a transfer then failed.
 - **FR-39.10** [Must] [derived] The RTC shall be used only from the
   application task, which owns the sensor bus's other traffic.
-- **NFR-39.1** [Must] [proposed] The fitted RTC shall run within **±3 ppm** of
+- **NFR-39.1** [Must] [user] The fitted RTC shall run within **±3 ppm** of
   the bench clock at bench temperature over 24 h (the commissioning probe).
 
 ### 39.4 Verification contracts
@@ -4649,7 +4649,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.56.0
+fsd_version: 0.56.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4657,7 +4657,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-07
+last_updated: 2026-11-10
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -4743,8 +4743,9 @@ change_history:
   - "0.54.0 2026-11-09 the user's choice to show the e-paper when there is no reading: FR-35.2 with both displays fitted and no reading at all uses the e-paper (was the OLED)"
   - "0.55.0 2026-11-09 from the user's bench run of the NOTE-NBGLWX, whose first card.version after power-up came back garbled (`cannot interpret JSON {io}`), and their approval of retries: FR-33.10 resends a request answered with an `{io}` error, at most 2 more times, 250 ms apart (proposed)"
   - "0.55.1 2026-11-09 from the bench run of the shipped build provisioned with uplink=cell, whose first reading had no time though the Notecard had one: FR-33.12 runs the Notecard setup and the clock step right after provisioning (T3, T16), which goes on without a restart"
-  - "0.55.2 2026-11-09 from the bench run where a flat CR1220 left the RTC frozen at its last write with V2F clear: FR-39.2 a valid time also needs the RESET bit clear, FR-39.9 a frozen time is `rtc lost`; a §39.4 core row"
+  - "0.55.2 2026-11-09 from the bench run where the RTC read back a frozen time with V2F clear (the cause was the driver's register map, fixed in the shared `rv8803`; the RESET check stays as a safeguard): FR-39.2 a valid time also needs the RESET bit clear, FR-39.9 a frozen time is `rtc lost`; a §39.4 core row"
   - "0.56.0 2026-11-09 the user's choice to keep an Adafruit BME280 at its default 0x77 unmodified: FR-23.1 the sensor at 0x76, else 0x77 (user)"
+  - "0.56.1 2026-11-10 the user approved 0.55.2, 0.56.0 and the §39 proposals: the pull-ups and LED row, FR-39.5's 2 s, FR-39.6, FR-39.8 and NFR-39.1"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
