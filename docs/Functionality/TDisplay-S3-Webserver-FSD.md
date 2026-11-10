@@ -4151,7 +4151,7 @@ unpowered.
   section, and nothing is logged for it.
 - **FR-39.2** [Must] [user] On every boot, before the first reading and before
   the time steps of FR-33.12 and FR-35.13, the device shall read the RTC and,
-  when it holds a valid time (its V2F flag clear, a valid date, at or after
+  when it holds a valid time (its V2F flag and RESET bit clear, a valid date, at or after
   2024-01-01), set the clock from it to 1/100 s. That counts as a sync for
   FR-22.3 and FR-22.4: readings taken after it are marked synced. L20 with
   `src=rtc` is logged when the clock was not synced before (a power-on or a
@@ -4192,8 +4192,8 @@ unpowered.
   time sets the RTC but starts no measurement: the next network sync after
   it logs no L55.
 - **FR-39.9** [Must] [derived] L56 `rtc lost` shall be logged when the RTC
-  answers with no valid time (its cell ran out with the board unpowered, or
-  a new RTC) on each boot that is not a timer wake; L56 `rtc failed` when it
+  answers with no valid time (its cell ran out with the board unpowered, which
+  sets V2F or leaves the time frozen with RESET set, or a new RTC) on each boot that is not a timer wake; L56 `rtc failed` when it
   answered at 0x32 but a transfer then failed.
 - **FR-39.10** [Must] [derived] The RTC shall be used only from the
   application task, which owns the sensor bus's other traffic.
@@ -4205,6 +4205,7 @@ unpowered.
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |----|------------------------|----------------------|-----------------|------|
 | FR-39.2 (core) | `rv8803` core: registers for 2000-01-01, a leap day, 2099-12-31, with 1/100 s; 30 February; a second 60; BCD out of range | The times, to 10 ms; no time for the invalid ones | A 30 February taken as a time | host |
+| FR-39.2, FR-39.9 (core) | `rv8803` core: flag and control registers with V2F, V1F only, RESET, neither | Stale; valid; stale; valid | A frozen time (RESET set) taken as valid | host |
 | FR-39.2, FR-39.3 (core) | Boot choice: RTC valid on a power-on; valid on a timer wake; lost; absent; valid before 2024 | Clock set, L20 `rtc`; clock set, no L20; L56 `lost` (not on a timer wake), clock unset; nothing; L56 `lost` | L20 on a timer wake; a time before 2024 taken | host |
 | FR-39.5 (core) | Phone time with the clock unsynced; synced and 1.5 s apart; synced and 3 s apart; a time before 2024 | Taken; ignored; taken; ignored | A phone time taken within 2 s of a synced clock | host |
 | FR-39.6 (core) | `hub.sync.status` `completed` 120 s; 3600 s; 3601 s; absent | Taken; taken; not taken; not taken | A time from a Notecard that last synced over an hour ago | host |
@@ -4645,7 +4646,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.55.1
+fsd_version: 0.55.2
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4739,6 +4740,7 @@ change_history:
   - "0.54.0 2026-11-09 the user's choice to show the e-paper when there is no reading: FR-35.2 with both displays fitted and no reading at all uses the e-paper (was the OLED)"
   - "0.55.0 2026-11-09 from the user's bench run of the NOTE-NBGLWX, whose first card.version after power-up came back garbled (`cannot interpret JSON {io}`), and their approval of retries: FR-33.10 resends a request answered with an `{io}` error, at most 2 more times, 250 ms apart (proposed)"
   - "0.55.1 2026-11-09 from the bench run of the shipped build provisioned with uplink=cell, whose first reading had no time though the Notecard had one: FR-33.12 runs the Notecard setup and the clock step right after provisioning (T3, T16), which goes on without a restart"
+  - "0.55.2 2026-11-09 from the bench run where a flat CR1220 left the RTC frozen at its last write with V2F clear: FR-39.2 a valid time also needs the RESET bit clear, FR-39.9 a frozen time is `rtc lost`; a §39.4 core row"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"

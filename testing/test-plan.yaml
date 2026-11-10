@@ -3891,7 +3891,7 @@ tests:
     tier: host
     verifies: [FR-39.2, FR-39.8]
     needs: []
-    observable: "2000-01-01, a leap day, 2099-12-31 to registers with the weekday bit; round trip to 10 ms; 30 February, second 60, hour 24, non-BCD: no time; offset register to steps and back, clamped; trim from a measured rate"
+    observable: "2000-01-01, a leap day, 2099-12-31 to registers with the weekday bit; round trip to 10 ms; 30 February, second 60, hour 24, non-BCD: no time; offset register to steps and back, clamped; trim from a measured rate; V2F or RESET set: stale, V1F alone: not"
     impl: [shared/tests/host/test_rv8803.py]
     result: {status: not done}
 
