@@ -454,7 +454,7 @@ def build_parts(used):
                     notes=["keeps its pull-ups"],
                     desc="BME280 breakout on Qwiic (I2C 0x76)"))
     add(module_part("tds3a_rv8803_q", ["RV-8803 RTC", "Adafruit 6538, 0x32"], "built",
-                    left=["SCL", "SDA", "3V3", "GND"], right=["SCL ", "SDA ", "3V3 ", "GND "],
+                    left=["SCL", "SDA", "3V3", "GND"],
                     w=1100, color="#1e5aa8", notes=["CR1220; pull-ups + LED cut"],
                     desc="Adafruit RV-8803 RTC breakout (6538) on STEMMA QT, I2C 0x32, CR1220 backup"))
     add(module_part("tds3a_notecarrier_q", ["Notecarrier-X", "+ Notecard MBGLW"],
@@ -1139,34 +1139,36 @@ def sheet_blues_bus(S):
     S.place("J1", "tds3a_qwiic_star", 2600, 3600)
     S.place("U1", "tds3a_bme280_q", 4300, 3625)
     S.place("U13", "tds3a_rv8803_q", 4300, 4725)
-    S.place("U9", "tds3a_ads1115_water_q", 6000, 4725)
-    S.place("U2", "tds3a_notecarrier_q", 4300, 5825)
-    S.place("BT2", "tds3a_lipo_notecarrier", 6200, 6025)
-    # the board's Qwiic connector to the star's input
+    S.place("J2", "tds3a_qwiic_star", 4300, 5800)
+    S.place("U2", "tds3a_notecarrier_q", 6000, 5825)
+    S.place("BT2", "tds3a_lipo_notecarrier", 7900, 6025)
+    S.place("U9", "tds3a_ads1115_water_q", 6000, 6925)
+    # the board's Qwiic connector to the first star's input
     for bp, sp, c, y in (("Q SCL", "SCL", "yellow", 4000), ("Q SDA", "SDA", "blue", 4150),
                          ("Q 3V3", "3V3", "red", 4300), ("Q GND", "GND", "black", 4450)):
         S.wire((B, bp), ("J1", sp), c, ("y", y))
-    # one Qwiic cable from each port; the Notecarrier's red 3.3 V wire stays unconnected
-    for k, u in enumerate(("U1", "U13", "U2")):
-        for n, c in (("SCL", "yellow"), ("SDA", "blue"), ("3V3", "red"), ("GND", "black")):
+    wires = (("SCL", "yellow"), ("SDA", "blue"), ("3V3", "red"), ("GND", "black"))
+    # first star: BME280, RTC, and the second star on port 3
+    for k, u in enumerate(("U1", "U13", "J2")):
+        for n, c in wires:
+            S.wire(("J1", n + " " * (k + 1)), (u, n), c)
+    # second star: the Notecarrier (its red 3.3 V wire unconnected) and the water ADS1115
+    for k, u in enumerate(("U2", "U9")):
+        for n, c in wires:
             if u == "U2" and n == "3V3":
                 continue
-            S.wire(("J1", n + " " * (k + 1)), (u, n), c)
-    # the water ADS1115 chained from the RTC's second Qwiic socket, ADDR to GND for 0x48
-    for n, c in (("SCL", "yellow"), ("SDA", "blue"), ("3V3", "red"), ("GND", "black")):
-        S.wire(("U13", n + " "), ("U9", n), c)
+            S.wire(("J2", n + " " * (k + 1)), (u, n), c)
     S.wire(("U9", "ADDR"), ("U9", "GND"), "black", ("x", 5900))
     S.wire(("U2", "BAT-"), ("BT2", "-"), "black")
     S.wire(("U2", "BAT+"), ("BT2", "+"), "red")
-    S.note(300, 7200, 7000, [
+    S.note(300, 9400, 8600, [
         "# Blues build: the sensor bus, GPIO 43 SDA / 44 SCL at 100 kHz (FSD 2.2, 23, 33, 39)",
-        "The board's Qwiic connector feeds a Qwiic star; each Qwiic board plugs into a port:",
-        "BME280 0x76, RV-8803 RTC 0x32, Notecarrier-X 0x17 (its red 3.3 V wire unconnected,",
-        "its own LiPo). The water probe's Qwiic ADS1115 (0x48, ADDR to GND) chains from the",
-        "RTC's second Qwiic socket; A0/A1 and the probe's boost (VSYS, GPIO 2) are sheet 3.",
-        "The BME280's pull-ups and the Notecard's 10k stay; cut the RTC's and the ADS1115's",
-        "(bus at or above about 2.2 kOhm). The RTC's CR1220 keeps the time while the board",
-        "is unpowered. Plug or unplug only with USB and the battery disconnected.",
+        "Two Qwiic stars on one bus: the board's Qwiic connector feeds star 1 (BME280 0x76, RV-8803 RTC 0x32,",
+        "star 2 on port 3); star 2 takes the Notecarrier-X 0x17 (its red 3.3 V wire unconnected, its own LiPo)",
+        "and the water probe's Qwiic ADS1115 (0x48, ADDR to GND), with port 3 spare. The ADS1115's A0/A1 and",
+        "the probe's boost (VSYS, GPIO 2) are sheet 3. The BME280's pull-ups and the Notecard's 10k stay; cut",
+        "the RTC's and the ADS1115's (bus at or above about 2.2 kOhm). The RTC's CR1220 keeps the time while",
+        "the board is unpowered. Plug or unplug only with USB and the battery disconnected.",
         LEGEND,
     ])
 
@@ -1189,8 +1191,8 @@ SHEETS = [
      sheet_ws_displays),
     ("wiring-8-ws-key", "8  Waveshare board: off-board key and LED (FSD 35.2, FR-35.3)",
      (5600, 5100), {"3V3", "GND", "IO12", "IO13"}, sheet_ws_key),
-    ("wiring-9-blues-sensor-bus", "9  Blues build: BME280, RTC, ADS1115 and Notecard on the Qwiic star",
-     (7600, 8300), {"Q"}, sheet_blues_bus),
+    ("wiring-9-blues-sensor-bus", "9  Blues build: BME280, RTC, ADS1115 and Notecard on two Qwiic stars",
+     (9200, 10700), {"Q"}, sheet_blues_bus),
 ]
 
 
