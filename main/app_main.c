@@ -1933,6 +1933,11 @@ static void execute_conn(const app_event_t *e, dl_conn_step_t step)
             web_log_warn("uplink store", err);
         }
         web_log_provisioned(stored.ssid);
+#if BOARD_HAS_NOTECARD
+        // FR-33.12: T3 and T16 go on without a restart, so the Notecard
+        // setup and the clock step that boot did with `uplink` `wifi` run now.
+        cell_boot(true);
+#endif
     }
     if (a & DL_C_STORE_SETTINGS) {  // T14 (FR-26.7)
         esp_err_t err = ESP_OK;

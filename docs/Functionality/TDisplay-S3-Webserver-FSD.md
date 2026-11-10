@@ -3384,6 +3384,9 @@ Time:
   session), the device shall request one `hub.sync` and ask `card.time`
   again every **5 s** for up to **60 s** [proposed]; on a timer wake it asks
   once and does not wait.
+  Provisioning that stores `uplink` `cell` (T3, T16) goes on without a
+  restart, so it shall run the Notecard setup (FR-33.4, FR-33.14) and this
+  step as a window does, at once after storing [derived].
 
 Location (optional, during the setup check):
 
@@ -3461,6 +3464,7 @@ Power and data:
 | FR-33.6, FR-33.11, NFR-33.1 | Sleep test build, `uplink` `cell`, a Notecard on the bench (R-31), an upload due on the next timer wake | `web: wake cause=timer`, L21, L43 `tb.qo`, `web: sleep` within 10 s; the event on Notehub; no WiFi start | WiFi on a timer wake; the panel lit | target (R-31) |
 | FR-33.12 (core) | Window, clock never set: `card.time` answers no time, then a time on the 4th ask; never a time; timer wake with no time | One `hub.sync`, asks at 5 s steps, clock set on the 4th; asks stop at 60 s; one ask, no wait | A second `hub.sync`; waiting on a timer wake | host |
 | FR-33.12 | Power-on with `uplink` `cell`, the bench AP down | L20 with `src=cell` and a year ≥ 2026 within 60 s | A reading with `at=none` after L20 | target (R-31) |
+| FR-33.12 | Erased flash, a Notecard that has the time; portal provisioning with `uplink=cell` and the bench AP without internet | L20 with `src=cell` within 60 s of the 200, before the first reading | The first reading with `at=none` | target (R-31) |
 | FR-33.1, FR-33.15 (core) | Bodies: `gps=on` with `uplink` `wifi` stored; with `uplink=cell`; `gps=yes` | 400 `gps`; stored; 400 `gps` | `gps` `on` stored with `uplink` `wifi` |
 | FR-33.15, FR-33.16, FR-33.17 (core) | Hold with `gps` `on`: `card.location` answers no fix twice, then a fix; `gps` `off`; a timer wake | `continuous` once, asks at 5 s steps, then `fixed` with the place, the place stored, L45; no location request with `off` or on a timer wake | A location request outside the hold; the hold ended by the fix |
 | FR-33.16 (core) | `card.location` answers: the held location twice, then a newer GPS fix; with the clock set, a location older than the start, then a newer one; no location, then a fix; a newer cell tower location without `{gps}` | No fix, no fix, the fix; no fix, the fix; no fix, the fix; no fix | The held location taken as the fix |
@@ -4641,7 +4645,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.55.0
+fsd_version: 0.55.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4734,6 +4738,7 @@ change_history:
   - "0.53.0 2026-11-08 the user's choice to detect plugged-in displays at each window: FR-35.25 (user; method proposed): the OLED by a 10 kΩ from its CS to GND, the e-paper by its BUSY pulse after the software reset; FR-35.2 and FR-36.1 follow; §35.4 `oled` and §36.2 `epaper` mean use when found, `epaper` `on` when none is stored (proposed); §35.2 rows; L50; §35.6 rows"
   - "0.54.0 2026-11-09 the user's choice to show the e-paper when there is no reading: FR-35.2 with both displays fitted and no reading at all uses the e-paper (was the OLED)"
   - "0.55.0 2026-11-09 from the user's bench run of the NOTE-NBGLWX, whose first card.version after power-up came back garbled (`cannot interpret JSON {io}`), and their approval of retries: FR-33.10 resends a request answered with an `{io}` error, at most 2 more times, 250 ms apart (proposed)"
+  - "0.55.1 2026-11-09 from the bench run of the shipped build provisioned with uplink=cell, whose first reading had no time though the Notecard had one: FR-33.12 runs the Notecard setup and the clock step right after provisioning (T3, T16), which goes on without a restart"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
