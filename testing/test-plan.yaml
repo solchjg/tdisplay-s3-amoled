@@ -3564,6 +3564,19 @@ tests:
     impl: []
     result: {status: not done}
 
+  - id: TC-CELL-15
+    title: "The clock from the Notecard right after provisioning"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 15
+    tier: target
+    verifies: [FR-33.12]
+    needs: [dut-notecard, bench-flash, bench-wifi-ap, bench-serial-monitor, dut-amoled-slot1]
+    observable: "erased flash, shipped build, a Notecard that has the time; portal provisioning with the bench AP (no internet) and uplink=cell: L20 time synced ... src=cell within 60 s of the 200, before the first reading; that reading has at= a time, not none"
+    impl: []
+    result: {status: not done}
+
   # ── WiFi off (FSD §34, Phase 16) ───────────────────────────────────────
   - id: TC-WOFF-01
     title: "T15: WiFi off at boot starts neither the station nor the SoftAP"
