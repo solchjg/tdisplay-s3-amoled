@@ -465,6 +465,40 @@ def build_parts(used):
                     left=["SCL", "SDA", "3V3", "GND", "ADDR"],
                     right=["A0", "A1"], w=1000, notes=["pull-ups cut"],
                     desc="ADS1115 on Qwiic for the water probe, address 0x48"))
+    # sheet 10: the outdoor test node (docs/Method/project/outdoor-node.md), test rig only
+    add(module_part("odn_poe_injector", ["PoE+ injector", "TP-Link TL-PoE160S"], "proposed",
+                    left=["LAN"], right=["PoE+ out"], w=1100, color="#37474f",
+                    notes=["indoors, 802.3at 30 W"],
+                    desc="PoE+ injector, IEEE 802.3at, gigabit (TP-Link TL-PoE160S)"))
+    add(module_part("odn_surge", ["Surge protector", "Ubiquiti ETH-SP-G2"], "proposed",
+                    left=["in"], right=["out", "GND lug"], w=1000, color="#37474f",
+                    notes=["at the building entry"],
+                    desc="Shielded gigabit Ethernet surge protector with ground lug (Ubiquiti ETH-SP-G2)"))
+    add(module_part("odn_ground", ["House ground", "bonding conductor"], "proposed",
+                    right=["PE"], w=900, color="#4e342e",
+                    desc="The building's protective earth, where the surge protector is bonded"))
+    add(module_part("odn_poe_splitter", ["PoE+ splitter", "PLANET POE-162S"], "proposed",
+                    left=["PoE+ in"], right=["LAN out", "12 V +", "12 V -"], w=1200,
+                    color="#37474f", notes=["DIP switch: 12 V, 2 A max"],
+                    desc="802.3at PoE+ splitter, 12 V 2 A DC out, gigabit (PLANET POE-162S)"))
+    add(module_part("odn_buck", ["Buck 12 -> 5.1 V", "3 A, USB-C out"], "proposed",
+                    left=["VIN+", "VIN-"], right=["5.1 V out"], w=1000, color="#1e5aa8",
+                    notes=["set 5.1 V with a meter"],
+                    desc="Step-down converter 12 V to 5.1 V 3 A with a USB-C output lead"))
+    add(module_part("odn_pi4", ["Raspberry Pi 4 B", "harness, AP tds3-bench"], "proposed",
+                    left=["Ethernet", "USB-C power", "USB 3 port"],
+                    right=["pin 11 BCM 17", "pin 12 BCM 18", "pin 14 GND"], w=1300,
+                    color="#8a1538", notes=["hostname odn1"],
+                    desc="Raspberry Pi 4 Model B running the Embedded AI Harness (the outdoor node)"))
+    add(module_part("odn_mega4", ["UUGear MEGA4", "per-port power (uhubctl)"], "proposed",
+                    left=["USB-C power", "upstream"], right=["port 1", "port 2", "port 3", "port 4"],
+                    w=1100, color="#1e5aa8", notes=["mounts under the Pi"],
+                    desc="UUGear MEGA4 4-port USB 3.1 hub with per-port power switching"))
+    add(module_part("odn_dut", ["T-Display-S3 AMOLED", "DUT, SLOT1, battery fitted"], "built",
+                    left=["RESET key pad", "BOOT key pad", "GND", "USB-C"], w=1300,
+                    notes=["key pads: the side not on GND", "sensors and Notecard: sheets 1, 9"],
+                    desc="The DUT: LilyGO T-Display-S3 AMOLED on its carrier, wired to the node's "
+                         "RESET and BOOT key pads"))
     return P
 
 
@@ -1173,6 +1207,50 @@ def sheet_blues_bus(S):
     ])
 
 
+def sheet_outdoor_node(S):
+    S.place("PoE", "odn_poe_injector", 300, 900)
+    S.place("SP", "odn_surge", 2000, 900)
+    S.place("PE", "odn_ground", 2300, 2400)
+    S.place("SPL", "odn_poe_splitter", 3600, 900)
+    S.place("BA", "odn_buck", 5100, 2200)
+    S.place("BB", "odn_buck", 5100, 3400)
+    S.place("Pi", "odn_pi4", 6600, 900)
+    S.place("Hub", "odn_mega4", 6600, 3400)
+    S.place("R1", "tds3a_r1k_h", 8150, 1175)
+    S.place("R2", "tds3a_r1k_h", 8550, 1325)
+    S.place("DUT", "odn_dut", 9300, 900)
+    # one outdoor Cat6 carries data and 802.3at power
+    S.wire(("PoE", "PoE+ out"), ("SP", "in"), "green")
+    S.wire(("SP", "out"), ("SPL", "PoE+ in"), "green")
+    S.wire(("SP", "GND lug"), ("PE", "PE"), "brown", ("x", 3300), ("y", 2775))
+    S.wire(("SPL", "LAN out"), ("Pi", "Ethernet"), "green")
+    # 12 V to two converters: the Pi's rail and the hub's rail stay apart
+    S.wire(("SPL", "12 V +"), ("BA", "VIN+"), "red", ("x", 4980))
+    S.wire(("SPL", "12 V +"), ("BB", "VIN+"), "red", ("x", 4980))
+    S.wire(("SPL", "12 V -"), ("BA", "VIN-"), "black", ("x", 4880))
+    S.wire(("SPL", "12 V -"), ("BB", "VIN-"), "black", ("x", 4880))
+    S.wire(("BA", "5.1 V out"), ("Pi", "USB-C power"), "red", ("x", 6300))
+    S.wire(("BB", "5.1 V out"), ("Hub", "USB-C power"), "red")
+    S.wire(("Pi", "USB 3 port"), ("Hub", "upstream"), "blue", ("x", 6450))
+    S.wire(("Hub", "port 1"), ("DUT", "USB-C"), "blue", ("x", 9100))
+    # EN and BOOT through 1k each (the harness drives them push-pull), common ground
+    S.wire(("Pi", "pin 11 BCM 17"), ("R1", "1"), "orange")
+    S.wire(("R1", "2"), ("DUT", "RESET key pad"), "orange")
+    S.wire(("Pi", "pin 12 BCM 18"), ("R2", "1"), "yellow")
+    S.wire(("R2", "2"), ("DUT", "BOOT key pad"), "yellow")
+    S.wire(("Pi", "pin 14 GND"), ("DUT", "GND"), "black")
+    S.note(300, 4600, 10300, [
+        "# Outdoor test node (docs/Method/project/outdoor-node.md): test rig, not product wiring",
+        "Green: one outdoor shielded Cat6 (<= 100 m) with 802.3at power; the surge protector's lug on the house ground.",
+        "The splitter's 12 V feeds two 5.1 V converters: one for the Pi, one for the MEGA4, so DUT and modem bursts",
+        "stay off the Pi's rail. The MEGA4 switches each port's power (uhubctl): port 1 is the DUT's reset and detached mode.",
+        "Pi header pin 11 (BCM 17) -> 1k -> RESET key pad (EN); pin 12 (BCM 18) -> 1k -> BOOT key pad (GPIO 0); pin 14 GND.",
+        "The BME280 (radiation shield) and the Notecarrier are wired as on sheets 1 and 9; antennas outside the lid.",
+        "Build steps and checks: outdoor-node-build.md. " + LEGEND,
+        f"Generated by make_wiring.py, {DATE} (US Eastern).",
+    ])
+
+
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
@@ -1193,6 +1271,8 @@ SHEETS = [
      (5600, 5100), {"3V3", "GND", "IO12", "IO13"}, sheet_ws_key),
     ("wiring-9-blues-sensor-bus", "9  Blues build: BME280, RTC, ADS1115 and Notecard on two Qwiic stars",
      (9200, 10700), {"Q"}, sheet_blues_bus),
+    ("wiring-10-outdoor-node", "10  Outdoor test node: PoE, Pi harness, hub and DUT",
+     (10900, 5600), set(), sheet_outdoor_node),
 ]
 
 
