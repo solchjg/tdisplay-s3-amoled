@@ -15,7 +15,8 @@ check; do not start the next step until it holds.
 | 2 | microSD card | 32 GB, high-endurance class | One in the Pi, one imaged spare in the box lid |
 | 1 | PoE+ injector | IEEE 802.3at, 30 W per port, e.g. TP-Link TL-PoE160S | Or a PoE+ switch port; a managed switch also gives remote port power (ladder step 6) |
 | 1 | PoE+ splitter | 802.3at in, 12 V 2 A out, gigabit, −40 … 75 °C: PLANET POE-162S | DIP switch on 12 V before first power |
-| 2 | Buck converter | 12 V → 5.1 V, 3 A, USB-C output lead | One for the Pi, one for the MEGA4's USB-C power input |
+| 2 | DC-DC converter | Mean Well DDR-15G-5: 9 – 36 V in, 5 V 3 A out, trimmed to 5.1 V, −40 … 85 °C, isolated, DIN rail | One for the Pi, one for the MEGA4; budget alternative Envistia F23J5V3A1S-C (potted, USB-C lead, fixed 5.0 V, −25 … 60 °C) |
+| 2 | USB-C power lead | USB-C plug to bare wires, 0.3 m, 3 A | From each converter's screw terminals to the Pi and to the MEGA4's power input |
 | 1 | USB hub | UUGear MEGA4: 4 ports, per-port power switching (on the `uhubctl` list), USB-C power input, mounts under the Pi 4 | On the Pi's USB 3 port; `uhubctl` switches its USB 2 and USB 3 halves together |
 | 1 | USB-C cable | 0.3 m, data-rated | Hub to DUT |
 | 2 | Resistor | 1 kΩ, ¼ W | In series on the EN and BOOT lines |
