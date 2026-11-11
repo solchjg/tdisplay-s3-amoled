@@ -1,0 +1,7 @@
+[Unit]
+Description=Outdoor node: harness and AP health check
+After=rfc2217-portal.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/odn-health.sh

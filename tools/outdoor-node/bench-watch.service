@@ -1,0 +1,17 @@
+[Unit]
+Description=Testbench health log (USB, power, network)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/bench-watch.sh
+# Optional overrides, e.g. Environment=INTERVAL=15
+Environment=API_URL=http://127.0.0.1:8080/api/devices
+Environment=LOG_DIR=/data/bench-watch
+Restart=always
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
