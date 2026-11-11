@@ -132,7 +132,8 @@ The tunnel makes every variant look the same from the laptop.
 ## Acceptance tests
 
 Run in order on a new or rebuilt node, ODN-01 … ODN-11 at the bench table,
-ODN-12 and ODN-13 at the site. Evidence goes to the node's data partition and
+ODN-12 and ODN-13 at the site. ODN-01 … ODN-04 and ODN-06 … ODN-09 are automated
+in [`tools/outdoor-node/test_odn.py`](../../../tools/outdoor-node/test_odn.py). Evidence goes to the node's data partition and
 is copied to the run's `EVIDENCE_DIR`.
 
 | ID | Check | Method | Pass |
@@ -140,11 +141,11 @@ is copied to the run's `EVIDENCE_DIR`.
 | ODN-01 | Power | DUT and Notecard sending (sat-probe stage 2) for 10 min while `bench-watch` runs | `vcgencmd get_throttled` reads `0x0`; no `THROTTLE` line |
 | ODN-02 | Slot identity | `GET /api/slots` on the node | SLOT1 shows `detected_chip: esp32s3` and MAC `48:27:e2:ea:48:3c` |
 | ODN-03 | Flash | `/api/flash` with the shipped build (`flash_coldflash`) | A boot line with the new `fw=` within 30 s |
-| ODN-04 | Serial across sleep | `fw-sleep10` (`tests/target/sleep/`, `SLEEP_S=10`) for 30 min, then the shipped build sleeping 10 min for 2 h | Every wake's boot line captured: no gap longer than one period plus 30 s |
+| ODN-04 | Serial across sleep | The shipped build sleeping between wakes, 2 h | No silence on SLOT1's serial longer than one wake period plus 60 s |
 | ODN-05 | DUT on the node's AP | `TESTBENCH_URL=http://<node>:8080 pytest tests/bench/test_connectivity.py tests/bench/test_udp.py tests/bench/test_ota.py` | All pass (the DUT ONLINE on `tds3-bench`, UDP log received, OTA from the node's route) |
 | ODN-06 | Power-cycle recovery | `uhubctl … -a cycle` on the DUT's port, five times | USB back and a boot line each time within 15 s |
 | ODN-07 | ROM download recovery | BOOT low, power-cycle, `esptool chip_id` with no reset of its own, flash the shipped build, BOOT released, power-cycle | esptool reaches the ROM loader; the shipped build boots after the release |
-| ODN-08 | Detached mode | Sleep build with the port off for 1 h, port on | NVS boot history shows every wake with RTC memory kept; flash works after the port is back |
+| ODN-08 | Detached mode | Sleep build (`SLEEP_10_DIR`) with the port off for 3 min, port on | The NVS boot history shows both timer wakes as `reset=deepsleep wake=timer` (no USB reset between them); the shipped build flashes after the port is back |
 | ODN-09 | Node hang | `echo c | sudo tee /proc/sysrq-trigger` | Node back with the harness and SLOT1 within 3 min, unattended |
 | ODN-10 | Power loss | PoE off for 1 min, on; five times, one of them mid-flash | Node back each time; root unchanged (overlay); ODN-03 passes after the mid-flash cut |
 | ODN-11 | Bench suite | `TESTBENCH_URL=http://<node>:8080 pytest tests/bench -m journey` | JRN-01 passes |
