@@ -345,9 +345,15 @@ capabilities:
       The bench declares no current meter (R-17), so NFR-21.1 has no bench run.
   operator-multimeter:
     what: The operator measures the DUT's supply current in deep sleep with a handheld multimeter on its µA range, in series with the battery lead (docs/Method/project/sleep-current.md)
-    available: unproven
+    available: yes
+    observed: 2026-11-12
+    evidence: >
+      Fluke 189 on its µA range in the battery lead (4.07 V), USB unplugged,
+      a jumper across it while awake: steady readings of 451 µA in sleep
+      for both TC-SLP-12 builds; the shipped build 452 µA with the sensor bus
+      fitted, 380 µA with the Qwiic cable unplugged.
     consequence: >
-      NFR-21.1 is measured by hand (R-17's mitigation); TC-SLP-12 is its first run.
+      NFR-21.1 is measured by hand (R-17's mitigation), resolution 1 µA as read.
   bench-internet:
     what: The bench AP gives the DUT a route to the internet (pool.ntp.org, UDP 123)
     available: unproven
@@ -1967,7 +1973,7 @@ tests:
     needs: [seam-sleep-build, bench-flash, operator-at-bench, operator-multimeter, dut-user-key, dut-amoled-slot1]
     observable: "sleep current of sleep-300 minus that of sleep-300-nokey, each the mean of two readings, is <= 5 uA"
     impl: docs/Method/project/sleep-current.md
-    result: {status: not done, reason: "operator-multimeter unproven; awaits the operator's run"}
+    result: {status: successful, commit: 2fa2a21, firmware: "0.0.0-sleep-300 and 0.0.0-sleep-300-nokey (2fa2a21, Build Firmware run 43233970332)", date: 2026-11-12, evidence: "operator run per sleep-current.md on SLOT1 (MAC 48:27:e2:ea:48:3c), sensor bus fitted, 4.07 V: sleep-300 451 and 451 uA, key wake within 1 s; sleep-300-nokey 451 and 451 uA; difference 0 uA"}
 
   - id: TC-SLP-04
     title: "No task, so no sleep, before WiFi provisioning is complete"
