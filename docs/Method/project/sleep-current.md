@@ -68,6 +68,6 @@ through deep sleep, held only by its sleep-in command, and the six lines into it
 `sleep` also builds `sleep-300-hold` (`0.0.0-sleep-300-hold`): `sleep-300` with
 those lines held through each sleep, CS and RST high, the clock and data low,
 and released at the next boot. Measured as `sleep-300` above, with the key press,
-it draws 0.9 – 2 mA asleep, unsteady, against 451 µA with the lines floating: the
+it draws 2.04 mA asleep on both sleeps, against 451 µA with the lines floating: the
 powered panel's inputs sink current when driven, so the shipped build leaves them
 floating.
