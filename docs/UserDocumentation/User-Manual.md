@@ -397,9 +397,21 @@ whether the Notecard gets a signal once the board is in its enclosure.
 - Do not cut the combined LTE + GPS flexible antenna to place the two parts
   apart: both parts are tuned together on one strip. If you want them in
   different places, use two single flexible antennas, one per port.
+- **Active GPS antenna.** For a faster fix, or a GPS antenna outdoors, an
+  active GPS antenna (with its own amplifier, e.g. a magnetic GNSS puck) works
+  better. It needs power from the carrier: solder a 0 Ω 0603 jumper on the
+  Notecarrier-X's empty pads between `VGPS_OUT` and `VGPS_IN`. Once that
+  jumper is on, **never plug a passive antenna into `GPS`** (the flexible
+  ones are passive): it can short the supply and damage the Notecard. Mark the
+  board so the next person knows.
 - If the cable does not reach, a u.FL extension of up to about 20 cm is fine;
   longer runs lose signal. For an outdoor box, use an outdoor antenna on a
-  u.FL-to-SMA bulkhead cable.
+  short u.FL-to-SMA bulkhead cable through the wall.
+- **Higher-gain LTE antenna.** Where the signal stays weak, an outdoor LTE
+  antenna (an omni of about 4 dBi, mounted high outside) usually helps more
+  than anything inside the box; a directional antenna (about 11 dBi) helps only
+  when aimed at one known tower. Keep its cable short, and check the antenna
+  gain the Notecard's FCC certification allows before buying a high-gain one.
 - Check the signal with the enclosure closed: the signal bars go to ThingsBoard
   with the attributes (chapter 5d). If they drop compared with the open box,
   move the antenna.
