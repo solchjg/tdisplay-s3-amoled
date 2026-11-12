@@ -3283,7 +3283,7 @@ holds, the composition root performs it.
 | Wiring | One of two, chosen when building [user]: **Qwiic**, a Qwiic cable from the fan-out's Qwiic socket to the Notecarrier-X's Qwiic connector, its red 3.3 V wire unconnected; or **direct**, three wires soldered from the fan-out to the Notecarrier-X's 16-pin header pins `GND`, `SDA` and `SCL`, with `VIO` and every other header pin unconnected. With direct wiring the LiPo may also be soldered to the header's `VBAT` and `GND` instead of the JST-PH connector [proposed]. The firmware is the same for both | [user]; pins [proposed] |
 | Power | The Notecarrier-X's own LiPo (or its USB-C) supplies the Notecard and its modem peaks (up to about 2 A), a LiPo of at least **2000 mAh** [proposed]: at hourly syncs (`cell_every` 60) the Notecard uses about **10 mAh a day** (Blues' published sync and idle figures; real use depends on signal, and each `sync:true` alert or email adds a session), so 2000 mAh lasts about 6 months between charges; either wiring joins GND, SDA and SCL only, the Qwiic cable's 3.3 V wire and the header's `VIO` left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
 | ATTN | Not connected in the first build (the Qwiic cable carries no ATTN; the ESLOV connector and the header's `ATTN` pin would); the device polls the Notecard | [proposed] |
-| Antenna | LTE: one flexible LTE antenna on the Notecard's `MAIN` u.FL, required because the Notecarrier-X has no onboard antenna, mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: only with `gps` `on` (FR-33.15), a GPS antenna on the Notecard's `GPS` u.FL (the GPS part of Blues' combined LTE + GPS flexible antenna, or a single GPS antenna), placed with the best view of the sky the site allows, for the fix during the setup check; with `gps` `off` the port stays empty. WiFi: the Notecard's own WiFi is not used (FR-33.14), so its onboard WiFi antenna and `WIFI` u.FL need no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
+| Antenna | LTE: one flexible LTE antenna on the Notecard's `MAIN` u.FL, required because the Notecarrier-X has no onboard antenna, mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: only with `gps` `on` (FR-33.15), a GPS antenna on the Notecard's `GPS` u.FL, placed with the best view of the sky the site allows, for the fix during the setup check; with `gps` `off` the port stays empty. As shipped the Notecarrier-X puts no bias on `GPS`, so the antenna is passive (the GPS part of Blues' combined LTE + GPS flexible antenna, or a single flexible antenna). An active GPS antenna, for a faster or outdoor fix, needs the carrier's 0 Ω 0603 jumper between `VGPS_OUT` and `VGPS_IN` fitted (3.8 V on the centre conductor); with it fitted, no passive antenna is ever plugged into `GPS`, since one that is a DC short can damage the Notecard. WiFi: the Notecard's own WiFi is not used (FR-33.14), so its onboard WiFi antenna and `WIFI` u.FL need no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
 
 ### 33.3 Settings
 
@@ -4653,7 +4653,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.57.0
+fsd_version: 0.58.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4751,6 +4751,7 @@ change_history:
   - "0.56.0 2026-11-09 the user's choice to keep an Adafruit BME280 at its default 0x77 unmodified: FR-23.1 the sensor at 0x76, else 0x77 (user)"
   - "0.56.1 2026-11-10 the user approved 0.55.2, 0.56.0 and the §39 proposals: the pull-ups and LED row, FR-39.5's 2 s, FR-39.6, FR-39.8 and NFR-39.1"
   - "0.57.0 2026-11-10 from the bench run where the device stopped joining the bench AP with no cause in its log: FR-7.35 L6 carries the station's last disconnect reason (proposed)"
+  - "0.58.0 2026-11-11 from the user's note that GPS is needed for location and the request for higher-gain antenna options: §33.2 Antenna row gains the passive default of the Notecarrier-X GPS port and the active-antenna jumper (proposed)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
@@ -4768,6 +4769,7 @@ open_decisions:
   - "§33.3: cell_mail default off (email over cellular needs the user's mail service and route first)"
   - "§33.2: I2C 0x17 on GPIO 43/44 through Qwiic, the Notecarrier-X's own LiPo of at least 2000 mAh for modem peaks, ATTN not connected"
   - "§33.2: one vertical flexible LTE antenna on MAIN, 10 mm clearance, the combined antenna never cut, GPS and WiFi antennas unplaced"
+  - "§33.2: GPS passive by default; an active GPS antenna only with the VGPS_OUT–VGPS_IN jumper, and then never a passive one"
   - "FR-33.12: one hub.sync and card.time every 5 s for up to 60 s in a window; FR-33.7: 100 readings a note, else 50; NFR-33.2: tb.qo Notefile template"
   - "§33.3: uplink default wifi, nh_product 1 – 64 bytes, cell_every 10 – 1440 min (default 60)"
   - "FR-33.4, FR-33.10: 2 s Notecard answer limit; FR-33.5: Notecard never power-cycled"
