@@ -1168,7 +1168,7 @@ Each line requirement is one row of §7.2:
 - **FR-7.16** [Must] [derived from FR-5.21] T10 shall log L15 before restarting.
 - **FR-7.17** [Must] [derived from FR-5.18] T6 and T7 shall log L6 with the delay
   actually armed.
-- **FR-7.35** [Should] [proposed] L6 shall carry the reason the station gave for
+- **FR-7.35** [Should] [user] L6 shall carry the reason the station gave for
   its last lost link or failed attempt (ESP-IDF's `wifi_err_reason_t`, e.g. 201
   no AP found, 15 handshake timeout; 0 before any), so a failed join can be told
   apart from the log alone.
@@ -4653,7 +4653,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.58.1
+fsd_version: 0.58.2
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4753,6 +4753,7 @@ change_history:
   - "0.57.0 2026-11-10 from the bench run where the device stopped joining the bench AP with no cause in its log: FR-7.35 L6 carries the station's last disconnect reason (proposed)"
   - "0.58.0 2026-11-11 from the user's note that GPS is needed for location and the request for higher-gain antenna options: §33.2 Antenna row gains the passive default of the Notecarrier-X GPS port and the active-antenna jumper (proposed)"
   - "0.58.1 2026-11-12 from the rtc-probe bench run, which measured a positive RV-8803 trim step slowing the clock (+31 steps −6.2 ppm, −32 steps +7.7 ppm; the 24 h rate −0.99 ppm, NFR-39.1 met): the §39.4 FR-39.8 core row raises the trim of a fast clock; FR-39.8 itself is unchanged"
+  - "0.58.2 2026-11-12 the user approved FR-7.35 (L6 carries the station's last disconnect reason)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
