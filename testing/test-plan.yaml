@@ -3969,7 +3969,7 @@ tests:
     tier: bench
     verifies: [NFR-39.1, FR-39.8]
     needs: [bench-flash, bench-serial-monitor, dut-rtc, operator-at-bench]
-    observable: "commissioning/rtc-probe over 24 h: rate within ±3 ppm of the bench capture clock; phase trim=+31 faster than trim=+0, trim=-32 slower"
+    observable: "commissioning/rtc-probe over 24 h: rate within ±3 ppm of the bench capture clock; phase trim=+31 slower than trim=+0, trim=-32 faster (a positive step slows the RTC)"
     impl: commissioning/rtc-probe (operator run, recorded here)
     result: {status: not done}
 

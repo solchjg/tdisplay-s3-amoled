@@ -4216,7 +4216,7 @@ unpowered.
 | FR-39.2, FR-39.3 (core) | Boot choice: RTC valid on a power-on; valid on a timer wake; lost; absent; valid before 2024 | Clock set, L20 `rtc`; clock set, no L20; L56 `lost` (not on a timer wake), clock unset; nothing; L56 `lost` | L20 on a timer wake; a time before 2024 taken | host |
 | FR-39.5 (core) | Phone time with the clock unsynced; synced and 1.5 s apart; synced and 3 s apart; a time before 2024 | Taken; ignored; taken; ignored | A phone time taken within 2 s of a synced clock | host |
 | FR-39.6 (core) | `hub.sync.status` `completed` 120 s; 3600 s; 3601 s; absent | Taken; taken; not taken; not taken | A time from a Notecard that last synced over an hour ago | host |
-| FR-39.8 (core) | Network sync: 2 s fast after 30 days by SNTP; 1 s fast after 30 days by the Notecard; 100 ms after 3 days by SNTP; after a phone time; trim at +31 and still fast | L55 and the trim lowered by 3; L55, trim kept; L55, trim kept; no L55; trim kept at the limit | A trim from a measurement coarser than half a step | host |
+| FR-39.8 (core) | Network sync: 2 s fast after 30 days by SNTP; 1 s fast after 30 days by the Notecard; 100 ms after 3 days by SNTP; after a phone time; trim at +31 and still fast | L55 and the trim raised by 3 (a positive step slows the RTC); L55, trim kept; L55, trim kept; no L55; trim kept at the limit | A trim from a measurement coarser than half a step | host |
 | FR-39.5 (page) | The BLE page connecting to a simulated device | One `control` `time=<now in ms>` after the first reads | No time sent; a second | host |
 | FR-39.2, FR-39.3 | Shipped build, RTC fitted and set by an SNTP sync; bench AP stopped; a reset (a power cycle where the bench has one) | L20 `src=rtc`; L21 readings with `at=` a time, `synced=1` | `at=none`; a `hub.sync` or 60 s wait | target |
 | FR-39.1 | Shipped build with no RTC | Every log as before the phase; no L55, L56 | An `rtc` line | target |
@@ -4653,7 +4653,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.58.0
+fsd_version: 0.58.1
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -4661,7 +4661,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-10
+last_updated: 2026-11-12
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -4752,6 +4752,7 @@ change_history:
   - "0.56.1 2026-11-10 the user approved 0.55.2, 0.56.0 and the §39 proposals: the pull-ups and LED row, FR-39.5's 2 s, FR-39.6, FR-39.8 and NFR-39.1"
   - "0.57.0 2026-11-10 from the bench run where the device stopped joining the bench AP with no cause in its log: FR-7.35 L6 carries the station's last disconnect reason (proposed)"
   - "0.58.0 2026-11-11 from the user's note that GPS is needed for location and the request for higher-gain antenna options: §33.2 Antenna row gains the passive default of the Notecarrier-X GPS port and the active-antenna jumper (proposed)"
+  - "0.58.1 2026-11-12 from the rtc-probe bench run, which measured a positive RV-8803 trim step slowing the clock (+31 steps −6.2 ppm, −32 steps +7.7 ppm; the 24 h rate −0.99 ppm, NFR-39.1 met): the §39.4 FR-39.8 core row raises the trim of a fast clock; FR-39.8 itself is unchanged"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"

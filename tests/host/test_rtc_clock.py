@@ -89,8 +89,8 @@ def test_notecard_time_only_after_a_recent_sync(core, have, completed, taken):
 
 # TC-RTC-04 · FR-39.8
 @pytest.mark.parametrize("rtc_ms,net_ms,ref_s,res,trim,expected", [
-    # 2 s fast after 30 days by SNTP: 0.77 ppm, 3 steps
-    (NOW_MS + 2000, NOW_MS, NOW_S - 30 * DAY, 50, 0, "log=1 err=2000 days=300 trim=-3 trimmed=1"),
+    # 2 s fast after 30 days by SNTP: 0.77 ppm, slowed by 3 steps (a positive step slows)
+    (NOW_MS + 2000, NOW_MS, NOW_S - 30 * DAY, 50, 0, "log=1 err=2000 days=300 trim=3 trimmed=1"),
     # 1 s fast after 30 days by the Notecard: too coarse to trim
     (NOW_MS + 1000, NOW_MS, NOW_S - 30 * DAY, 1000, 0, "log=1 err=1000 days=300 trim=0 trimmed=0"),
     # 100 ms after 3 days by SNTP: under 7 days
@@ -98,11 +98,11 @@ def test_notecard_time_only_after_a_recent_sync(core, have, completed, taken):
     # after a phone time: no reference, nothing logged
     (NOW_MS + 900, NOW_MS, 0, 50, 0, "log=0 err=0 days=0 trim=0 trimmed=0"),
     # at the limit and still fast: kept at the limit
-    (NOW_MS - 20000, NOW_MS, NOW_S - 30 * DAY, 50, 31, "log=1 err=-20000 days=300 trim=31 trimmed=0"),
+    (NOW_MS + 20000, NOW_MS, NOW_S - 30 * DAY, 50, 31, "log=1 err=20000 days=300 trim=31 trimmed=0"),
     # 1 s slow after 100 days by the Notecard: precise enough, 0.116 ppm rounds to 0 steps
     (NOW_MS - 1000, NOW_MS, NOW_S - 100 * DAY, 1000, 0, "log=1 err=-1000 days=1000 trim=0 trimmed=0"),
-    # 10 s slow after 100 days by the modem: 1.16 ppm, +5 steps
-    (NOW_MS - 10000, NOW_MS, NOW_S - 100 * DAY, 1000, 0, "log=1 err=-10000 days=1000 trim=5 trimmed=1"),
+    # 10 s slow after 100 days by the modem: 1.16 ppm, sped up by 5 steps
+    (NOW_MS - 10000, NOW_MS, NOW_S - 100 * DAY, 1000, 0, "log=1 err=-10000 days=1000 trim=-5 trimmed=1"),
 ])
 def test_drift(core, rtc_ms, net_ms, ref_s, res, trim, expected):
     assert core("drift", rtc_ms, net_ms, ref_s, res, trim) == expected

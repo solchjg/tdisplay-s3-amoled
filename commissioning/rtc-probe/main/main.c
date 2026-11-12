@@ -7,8 +7,8 @@
 //      timer (its 40 MHz crystal). Over 24 h the RTC's elapsed time against
 //      the bench capture clock gives NFR-39.1's rate;
 //   3. in three 1 h phases, trim 0, +31 and -32 steps, prints the RTC's rate
-//      against the microsecond timer at the end of each: +31 must run faster
-//      than 0 and -32 slower (the sign rv8803_trim assumes, FR-39.8). The
+//      against the microsecond timer at the end of each: +31 must run slower
+//      than 0 and -32 faster (the sign rv8803_trim assumes, FR-39.8). The
 //      trim is put back to what it was after the third phase.
 // Lines start "rtc-probe:" for the bench serial monitor.
 
