@@ -306,7 +306,7 @@ capabilities:
       GPIO 0 reads active low on this board; FR-18.x tests can rely on an
       operator press.
   seam-sleep-build:
-    what: "Test build whose stand-in task asks for SLEEP_S s of deep sleep twice per power-on, then stays awake (FSD §21.3); SLEEP_S 10 and 300, and 300 with the key wake not armed (sleep-300-nokey, TC-SLP-12)"
+    what: "Test build whose stand-in task asks for SLEEP_S s of deep sleep twice per power-on, then stays awake (FSD §21.3); SLEEP_S 10 and 300, and 300 with the key wake not armed (sleep-300-nokey, TC-SLP-12) or with the panel's lines held (sleep-300-hold, docs/Method/project/sleep-current.md)"
     available: yes
     observed: 2026-10-30
     evidence: >
