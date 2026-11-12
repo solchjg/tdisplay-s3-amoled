@@ -1,0 +1,4 @@
+# Sleep test build without the key wake (FSD NFR-21.1, TC-SLP-12): the timer is
+# the only wake source, so its sleep current is the baseline the armed build is
+# compared against. Merged after sdkconfig.defaults; test artefact only.
+CONFIG_DEEP_SLEEP_WAKE_GPIO=-1

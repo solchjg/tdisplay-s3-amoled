@@ -24,7 +24,9 @@ set(EXTRA_COMPONENT_DIRS ${ROOT}/components/board ${ROOT}/components/device_logi
                          ${ROOT}/shared/components/tdisplay_s3_amoled ${ROOT}/shared/components/esp_try)
 # Distinct from every shipped version, so the bench can tell the boots apart.
 set(SLEEP_S 10 CACHE STRING "Sleep period the stand-in task asks for, in seconds")
-set(PROJECT_VER "0.0.0-sleep-${SLEEP_S}")
+# "-nokey" with sdkconfig.nokey merged: the timer is the only wake (TC-SLP-12).
+set(SLEEP_VARIANT "" CACHE STRING "Version suffix naming the build's variant")
+set(PROJECT_VER "0.0.0-sleep-${SLEEP_S}${SLEEP_VARIANT}")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(tdisplay_webserver_sleep)

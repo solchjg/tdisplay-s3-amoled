@@ -306,7 +306,7 @@ capabilities:
       GPIO 0 reads active low on this board; FR-18.x tests can rely on an
       operator press.
   seam-sleep-build:
-    what: "Test build whose stand-in task asks for SLEEP_S s of deep sleep twice per power-on, then stays awake (FSD §21.3); SLEEP_S 10 and 300"
+    what: "Test build whose stand-in task asks for SLEEP_S s of deep sleep twice per power-on, then stays awake (FSD §21.3); SLEEP_S 10 and 300, and 300 with the key wake not armed (sleep-300-nokey, TC-SLP-12)"
     available: yes
     observed: 2026-10-30
     evidence: >
@@ -343,6 +343,11 @@ capabilities:
     available: no
     consequence: >
       The bench declares no current meter (R-17), so NFR-21.1 has no bench run.
+  operator-multimeter:
+    what: The operator measures the DUT's supply current in deep sleep with a handheld multimeter on its µA range, in series with the battery lead (docs/Method/project/sleep-current.md)
+    available: unproven
+    consequence: >
+      NFR-21.1 is measured by hand (R-17's mitigation); TC-SLP-12 is its first run.
   bench-internet:
     what: The bench AP gives the DUT a route to the internet (pool.ntp.org, UDP 123)
     available: unproven
@@ -1959,10 +1964,10 @@ tests:
     fsd_phase: 4
     tier: bench
     verifies: [NFR-21.1]
-    needs: [bench-current-meter]
-    observable: "sleep current with and without the key wake armed differs by <= 5 uA"
-    impl: []
-    result: {status: not done, reason: "blocked by bench-current-meter = no (R-17)"}
+    needs: [seam-sleep-build, bench-flash, operator-at-bench, operator-multimeter, dut-user-key, dut-amoled-slot1]
+    observable: "sleep current of sleep-300 minus that of sleep-300-nokey, each the mean of two readings, is <= 5 uA"
+    impl: docs/Method/project/sleep-current.md
+    result: {status: not done, reason: "operator-multimeter unproven; awaits the operator's run"}
 
   - id: TC-SLP-04
     title: "No task, so no sleep, before WiFi provisioning is complete"
