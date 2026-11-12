@@ -181,6 +181,16 @@ static double num(const char *path)
     return nc_num(rsp, path, &v) ? v : -1;
 }
 
+// Notes waiting in the Notecard (file.stats "total", absent when none), or -1.
+static int queued(void)
+{
+    if (!ask_name("file.stats")) {
+        return -1;
+    }
+    double t = num("total");
+    return t < 0 ? 0 : (int)t;
+}
+
 static void show_signal(void)
 {
     if (!ask_name("card.wireless")) {
@@ -199,11 +209,10 @@ static void show_signal(void)
 
 static void sync_and_wait(int round)
 {
-    double notes0 = -1, bytes0 = -1;
-    if (ask_name("card.usage.get")) {
-        notes0 = num("notes_sent");
-        bytes0 = num("bytes_sent");
-    }
+    // The queue, not card.usage.get, tells what went out: the usage counters
+    // catch up minutes after a sync.
+    ask_name("card.usage.get");
+    int queued0 = queued();
     int64_t t0 = esp_timer_get_time();
     ask_name("hub.sync");
     bool ended = false;
@@ -239,11 +248,13 @@ static void sync_and_wait(int round)
     } else {
         screen_line(1, SCREEN_RED, "NO SYNC %d after %ld min", round, elapsed / 60);
     }
-    if (ask_name("card.usage.get") && notes0 >= 0 && bytes0 >= 0) {
-        screen_line(2, SCREEN_WHITE, "notes +%d bytes +%d", (int)(num("notes_sent") - notes0),
-                    (int)(num("bytes_sent") - bytes0));
+    ask_name("card.usage.get");
+    int queued1 = queued();
+    if (queued0 >= 0 && queued1 >= 0) {
+        screen_line(2, queued1 == 0 ? SCREEN_WHITE : SCREEN_YELLOW, "notes queued %d -> %d",
+                    queued0, queued1);
     } else {
-        screen_line(2, SCREEN_WHITE, "usage: see serial");
+        screen_line(2, SCREEN_WHITE, "queue: see serial");
     }
     printf("satprobe: now check Notehub events (day.qo), the route log and ThingsBoard\n");
 }
