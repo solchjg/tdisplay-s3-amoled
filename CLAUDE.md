@@ -191,7 +191,8 @@ Other builds sharing the components:
   packer of the compact `day.qo` note (24 hourly loop averages, 57 bytes), the Notehub route's
   `route.jsonata`, `tools/sat_ref.py` (reference decoder and sample-data generator, which also
   writes `main/sample_days.h`) and the program that sends those days through the Notecard over
-  `cell` or `ntn` (Skylo), held together by `tests/host/test_sat_day.py`;
+  `cell` or `ntn` (Skylo), showing each step on the AMOLED (the `ntn` build waits for a key
+  press before it sends, for a run on batteries outdoors), held together by `tests/host/test_sat_day.py`;
   `commissioning/rtc-probe/` — the hardware clock check (FSD §39: found, flags, rate over
   24 h, trim direction);
   `commissioning/loop-probe/` — the 4-20 mA loop hardware check (FSD §29, run before its
