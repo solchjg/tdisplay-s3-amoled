@@ -262,7 +262,8 @@ jobs:
         run: |
           . $IDF_PATH/export.sh >/dev/null
           DEFAULTS="$GITHUB_WORKSPACE/sdkconfig.defaults"
-          if [ -n "${{ matrix.key }}" ]; then DEFAULTS="$DEFAULTS;$PWD/sdkconfig${{ matrix.key }}"; fi
+          KEY="${{ matrix.key }}"
+          if [ -n "$KEY" ]; then DEFAULTS="$DEFAULTS;$PWD/sdkconfig.${KEY#-}"; fi
           ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig -DSLEEP_S=${{ matrix.period }} \
                 -DSLEEP_VARIANT=${{ matrix.key }} \
                 -DSDKCONFIG_DEFAULTS=$DEFAULTS"
