@@ -240,6 +240,14 @@ jobs:
     strategy:
       matrix:
         period: [10, 300]
+        key: [""]
+        include:
+          # TC-SLP-12 (NFR-21.1): the 300 s build with the key wake not armed
+          - period: 300
+            key: "-nokey"
+          # The panel's control lines held through each sleep (sleep-current.md)
+          - period: 300
+            key: "-hold"
     defaults:
       run:
         shell: bash
@@ -256,8 +264,12 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh >/dev/null
+          DEFAULTS="$GITHUB_WORKSPACE/sdkconfig.defaults"
+          KEY="${{ matrix.key }}"
+          if [ -f "sdkconfig.${KEY#-}" ]; then DEFAULTS="$DEFAULTS;$PWD/sdkconfig.${KEY#-}"; fi
           ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig -DSLEEP_S=${{ matrix.period }} \
-                -DSDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/sdkconfig.defaults"
+                -DSLEEP_VARIANT=${{ matrix.key }} \
+                -DSDKCONFIG_DEFAULTS=$DEFAULTS"
           idf.py $ARGS set-target esp32s3
           idf.py $ARGS build
       - name: Collect flash set from flash_args
@@ -269,7 +281,7 @@ jobs:
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: sleep-${{ matrix.period }}
+          name: sleep-${{ matrix.period }}${{ matrix.key }}
           path: tests/target/sleep/out/
 
   mail-fast:

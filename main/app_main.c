@@ -65,6 +65,10 @@
 #include "sdkconfig.h"
 #include "setup_check.h"
 #include "status_http.h"
+#ifdef TDS3_TEST_PIN_HOLD
+#include "driver/gpio.h"
+#include "tdisplay_s3_amoled.h"
+#endif
 #include "summary.h"
 #include "time_sync.h"
 #include "udp_log.h"
@@ -1723,6 +1727,48 @@ static void sleep_screen(void)
 }
 #endif
 
+#ifdef TDS3_TEST_PIN_HOLD
+// Test only (sleep-300-hold): the panel stays powered through deep sleep on the
+// non-touch board (GPIO 38 is its LED), so its control lines are held at fixed
+// levels instead of floating: CS and RST high, the clock and data low.
+static const int panel_data[] = TDISPLAY_S3_AMOLED_LCD_DATA;
+static const int panel_high[] = {TDISPLAY_S3_AMOLED_LCD_CS, TDISPLAY_S3_AMOLED_LCD_RST};
+
+static esp_err_t hold_line(int pin, int level)
+{
+    const gpio_config_t cfg = {.pin_bit_mask = 1ULL << pin, .mode = GPIO_MODE_OUTPUT};
+    esp_err_t err = gpio_config(&cfg);
+    if (err == ESP_OK) {
+        err = gpio_set_level(pin, level);
+    }
+    return err == ESP_OK ? gpio_hold_en(pin) : err;
+}
+
+static esp_err_t hold_panel_lines(void)
+{
+    esp_err_t err = hold_line(TDISPLAY_S3_AMOLED_LCD_SCK, 0);
+    for (size_t i = 0; err == ESP_OK && i < 4; i++) {
+        err = hold_line(panel_data[i], 0);
+    }
+    for (size_t i = 0; err == ESP_OK && i < 2; i++) {
+        err = hold_line(panel_high[i], 1);
+    }
+    return err;
+}
+
+// A wake keeps the pads held; the panel's bus needs them back.
+static void release_panel_lines(void)
+{
+    gpio_hold_dis(TDISPLAY_S3_AMOLED_LCD_SCK);
+    for (size_t i = 0; i < 4; i++) {
+        gpio_hold_dis(panel_data[i]);
+    }
+    for (size_t i = 0; i < 2; i++) {
+        gpio_hold_dis(panel_high[i]);
+    }
+}
+#endif
+
 static esp_err_t lcd_sleep_cb(void *arg)
 {
 #if !BOARD_HAS_NOTECARD
@@ -1731,7 +1777,12 @@ static esp_err_t lcd_sleep_cb(void *arg)
         esp_task_wdt_reset();  // the full refresh ran; lcd_sleep waits for it to end
     }
 #endif
+#ifdef TDS3_TEST_PIN_HOLD
+    esp_err_t err = lcd_sleep();  // FR-21.6
+    return err == ESP_OK ? hold_panel_lines() : err;
+#else
     return lcd_sleep();  // FR-21.6
+#endif
 }
 
 static esp_err_t wifi_stop_cb(void *arg)
@@ -2163,6 +2214,9 @@ void app_main(void)
     wake = boot_wake();
 #ifdef TDS3_TEST_SLEEP_S
     test_record_boot(wake);
+#endif
+#ifdef TDS3_TEST_PIN_HOLD
+    release_panel_lines();
 #endif
     if (wake != DL_WAKE_NONE) {
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19

@@ -144,7 +144,7 @@ What carries over, and how this firmware applies it:
   that wakes the device never puts it to sleep; GPIO 0 (BOOT) stays off the wake
   mask because it is a strapping pin.
 - Its whole-board figure (about 300 µA, with the battery-ADC supply off) is for
-  that board; this one's sleep current is unmeasured (R-17).
+  that board; this one draws 451 µA asleep from a 4.07 V battery with the sensor bus fitted and 380 µA without it, measured by hand (`sleep-current.md`, R-17).
 
 ## Test builds
 
