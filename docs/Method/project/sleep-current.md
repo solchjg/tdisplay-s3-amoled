@@ -67,6 +67,7 @@ through deep sleep, held only by its sleep-in command, and the six lines into it
 (CS, the clock, D0 – D3) and its reset float while the chip sleeps. The CI job
 `sleep` also builds `sleep-300-hold` (`0.0.0-sleep-300-hold`): `sleep-300` with
 those lines held through each sleep, CS and RST high, the clock and data low,
-and released at the next boot. Measured as `sleep-300` above, with the key press;
-a reading below `sleep-300`'s means the floating lines draw current, and the
-hold belongs in the shipped build.
+and released at the next boot. Measured as `sleep-300` above, with the key press,
+it draws 2.04 mA asleep on both sleeps, against 451 µA with the lines floating: the
+powered panel's inputs sink current when driven, so the shipped build leaves them
+floating.
