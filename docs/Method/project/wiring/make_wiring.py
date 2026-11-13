@@ -259,56 +259,64 @@ def ws_board_part(used):
                 "(not the physical order).")
 
 
-# The Unexpected Maker FeatherS3D (FSD 40.2): the pins this project uses, grouped by
-# use, not in header order. Names alike but for trailing spaces are one net: the
-# vertical STEMMA QT's GND is the board's GND, the horizontal one's 3V3 is LDO1.
-FS3_LEFT = ["RST", "IO0", "GND", "IO1", "3V3", "VBAT", "IO17", "IO18", "IO33",
-            "GND ", "LDO2", "SDA16", "SCL15"]
-FS3_RIGHT = ["IO5", "IO6", "IO7", "IO10", "IO11", "IO12", "IO14", "IO35", "IO36",
-             "GND  ", "3V3 ", "SDA8", "SCL9"]
-FS3_LABEL = {"IO0": "IO0 (BOOT)", "SDA16": "SDA IO16", "SCL15": "SCL IO15",
-             "SDA8": "SDA IO8", "SCL9": "SCL IO9", "LDO2": "3V3.2 (LDO2)",
-             "VBAT": "BAT", "3V3": "3V3.1 (LDO1)"}
+# The Unexpected Maker FeatherS3D (FSD 40.2) as it sits on the bench, USB-C at the top:
+# the long header (16 pins) on the left, the short one (12) on the right, aligned at the
+# bottom as on Unexpected Maker's pinout card; the two STEMMA QT sockets' pins on the
+# bottom edge and the LiPo socket's on the top. Names alike but for trailing spaces are
+# one net: header 3V3.2 is LDO2, the sockets' GND the board's GND, header SCL/SDA the
+# horizontal socket's.
+FS3_LEFT = ["RST", "3V3", "IO0", "GND", "IO17", "IO18", "IO14", "IO12", "IO6", "IO5",
+            "IO36", "IO35", "IO37", "IO44", "IO43", "LDO2 "]
+FS3_RIGHT = ["VBAT", "EN", "5V", "IO11", "IO10", "IO7", "IO3", "IO1", "IO38", "IO33",
+             "SCL9 ", "SDA8 "]
+FS3_SOCK2 = ["SCL15", "SDA16", "LDO2", "GND "]      # vertical STEMMA QT, I2C2, LDO2
+FS3_SOCK1 = ["SCL9", "SDA8", "3V3 ", "GND  "]       # horizontal STEMMA QT, I2C1, LDO1
+FS3_LABEL = {"IO0": "0 (BOOT)", "3V3": "3V3.1 (LDO1)", "LDO2": "3V3.2 (LDO2)", "VBAT": "BAT",
+             "EN": "En", "IO36": "SCK 36", "IO35": "MO 35", "IO37": "MI 37", "IO44": "RX 44",
+             "IO43": "TX 43", "SCL9": "SCL 9", "SDA8": "SDA 8"}
+FS3_SOCK_LABEL = {"SCL15": "15", "SDA16": "16", "LDO2": "3V3", "GND": "GND", "SCL9": "SCL",
+                  "SDA8": "SDA", "3V3": "3V3"}
 
 
 def fs3_board_part(used):
-    w, h = 1700, 650 + 100 * len(FS3_RIGHT) + 600
-    gl, gr = FS3_LEFT.index("GND "), FS3_RIGHT.index("GND  ")  # each STEMMA QT group
-    pins = [(n, 100, 650 + 100 * k + (150 if k >= gl else 0), "L") for k, n in enumerate(FS3_LEFT)]
-    pins += [(n, w - 100, 650 + 100 * k + (150 if k >= gr else 0), "R")
-             for k, n in enumerate(FS3_RIGHT)]
-    pins += [(n, 250 + 150 * k, h - 140, "B") for k, n in enumerate(["BAT-", "BAT+"])]
+    w, h, top, p = 1500, 3400, 550, 150
+    pins = [(n, 100, top + p * k, "L") for k, n in enumerate(FS3_LEFT)]
+    pins += [(n, w - 100, top + p * (k + 4), "R") for k, n in enumerate(FS3_RIGHT)]
+    pins += [(n, 200 + p * k, h - 100, "B") for k, n in enumerate(FS3_SOCK2)]
+    pins += [(n, 850 + p * k, h - 100, "B") for k, n in enumerate(FS3_SOCK1)]
+    pins += [(n, 1050 + p * k, 100, "T") for k, n in enumerate(["BAT-", "BAT+"])]
 
     def draw():
-        s = [f'<rect x="0" y="0" width="{w}" height="{h}" rx="60" fill="#3b1f5c" stroke="#000000" stroke-width="14"/>',
-             t(w / 2, 180, "Unexpected Maker", 70, "middle", "bold", "#ffffff"),
-             t(w / 2, 270, "FeatherS3D (ESP32-S3)", 60, "middle", fill="#ffffff"),
-             t(w / 2, 400, "pins grouped by use,", 46, "middle", fill="#bbbbbb"),
-             t(w / 2, 460, "not in header order", 46, "middle", "bold", "#ffffff"),
-             f'<rect x="40" y="{800 + 100 * gl - 60}" width="{w / 2 - 60}" height="420" rx="20" fill="none" stroke="#ffe24d" stroke-width="8" stroke-dasharray="30 20"/>',
-             t(60, 800 + 100 * gl - 85, "STEMMA QT vertical (LDO2)", 40, "start", fill="#ffe24d"),
-             f'<rect x="{w / 2 + 20}" y="{800 + 100 * gr - 60}" width="{w / 2 - 60}" height="420" rx="20" fill="none" stroke="#ffe24d" stroke-width="8" stroke-dasharray="30 20"/>',
-             t(w - 60, 800 + 100 * gr - 85, "STEMMA QT horizontal (LDO1)", 40, "end", fill="#ffe24d"),
-             f'<rect x="{w / 2 - 190}" y="{h - 260}" width="380" height="200" rx="20" fill="#f2f2f2" stroke="#999999" stroke-width="8"/>',
-             t(w / 2, h - 290, "BAT (JST PH)", 46, "middle", fill="#ffffff")]
+        s = [f'<rect x="0" y="0" width="{w}" height="{h}" rx="60" fill="#1c1c1c" stroke="#000000" stroke-width="14"/>',
+             '<rect x="300" y="-40" width="420" height="300" rx="40" fill="#b0b0b0" stroke="#666666" stroke-width="8"/>',
+             t(510, 330, "USB-C", 46, "middle", fill="#ffffff"),
+             '<rect x="960" y="170" width="380" height="220" rx="20" fill="#f2f2f2" stroke="#999999" stroke-width="8"/>',
+             t(1150, 430, "BAT (JST PH)", 40, "middle", fill="#ffffff"),
+             t(w / 2, 1150, "Unexpected Maker", 62, "middle", "bold", "#ffffff"),
+             t(w / 2, 1230, "FeatherS3D", 62, "middle", "bold", "#ffffff"),
+             t(w / 2, 1300, "header order, top view", 42, "middle", fill="#bbbbbb"),
+             f'<rect x="120" y="{h - 330}" width="560" height="300" rx="20" fill="none" stroke="#ffe24d" stroke-width="8" stroke-dasharray="30 20"/>',
+             t(400, h - 345, "I2C2 STEMMA (LDO2)", 36, "middle", fill="#ffe24d"),
+             f'<rect x="770" y="{h - 330}" width="560" height="300" rx="20" fill="none" stroke="#ffe24d" stroke-width="8" stroke-dasharray="30 20"/>',
+             t(1050, h - 345, "I2C1 STEMMA (LDO1)", 36, "middle", fill="#ffe24d")]
         for i, (n, x, y, side) in enumerate(pins):
             on = n.strip() in used
             fill = "#ffe24d" if on else "#9e9e9e"
             wt = "bold" if on else "normal"
-            lab = FS3_LABEL.get(n.strip(), n.strip())
             if side == "L":
-                s.append(t(x + 75, y + 20, lab, 50, "start", wt, fill))
+                s.append(t(x + 70, y + 18, FS3_LABEL.get(n.strip(), n.strip().replace("IO", "")), 48, "start", wt, fill))
             elif side == "R":
-                s.append(t(x - 75, y + 20, lab, 50, "end", wt, fill))
+                s.append(t(x - 70, y + 18, FS3_LABEL.get(n.strip(), n.strip().replace("IO", "")), 48, "end", wt, fill))
+            elif side == "B":
+                s.append(t(x, y - 70, FS3_SOCK_LABEL.get(n.strip(), n.strip()), 34, "middle", wt, fill))
             else:
-                s.append(t(x, y - 70, n[-1], 60, "middle", "bold"))
-            s.append(pin_svg(i, x, y, female=True))
+                s.append(t(x, y + 110, n[-1], 50, "middle", "bold", "#ffffff"))
+            s.append(pin_svg(i, x, y, female=side in "LR"))
         return "".join(s)
 
     return Part("fs3_um_feathers3", "Unexpected Maker FeatherS3D", w, h, pins, draw, "Board",
-                "Unexpected Maker FeatherS3D (ESP32-S3), the pins this project uses grouped by use, "
-                "with both STEMMA QT sockets; not the physical header order.")
-
+                "Unexpected Maker FeatherS3D (ESP32-S3), top view with USB-C up: both headers in "
+                "their physical order, the STEMMA QT sockets' pins at the bottom.")
 
 # The Raspberry Pi's 40-pin header as it sits on the board: pin 1 top left, odd pins in
 # the inner row (left here), even pins on the board's edge (right). Each pin's connector
@@ -624,7 +632,7 @@ def build_parts(used):
                 pins=("K", "A")))
     add(pi_header_part())
     add(module_part("fs3_user_key", ["User key", "momentary, NO"], "specified",
-                    right=["NO", "COM"], w=900, color="#8a1c1c",
+                    left=["NO", "COM"], w=900, color="#8a1c1c",
                     desc="Momentary user key, normally open"))
     add(module_part("fs3_rv8803", ["RV-8803 RTC", "Adafruit 6538, 0x32"], "built",
                     left=["SCL", "SDA", "3V3", "GND"], w=1300, color="#1e5aa8",
@@ -1441,95 +1449,94 @@ FS3 = "fs3_um_feathers3"
 
 def sheet_fs3_core(S):
     B = "Board"
-    S.place(B, FS3, 2500, 800)
-    S.place("J1", "fs3_bench_drivers", 100, 350)
-    S.place("SW1", "fs3_user_key", 300, 1700)
-    S.place("R1", "tds3a_r10k5_v", 1300, 1100)
-    S.place("BT1", "fs3_lipo_main", 3000, 3500)
-    S.place("U1", "fs3_bme280", 300, 2500)
-    S.place("U2", "fs3_analog_side1", 300, 3800)
-    S.place("U3", "fs3_rv8803", 5200, 1500)
-    S.place("U4", "fs3_notecarrier", 5200, 2800)
-    S.place("BT2", "tds3a_lipo_notecarrier", 6800, 3000)
-    # bench lines: RST and GPIO 0 through open-drain drivers (C-40.9)
-    S.wire(("J1", "RST"), (B, "RST"), "orange", ("x", 1700))
-    S.wire(("J1", "IO0"), (B, "IO0"), "yellow", ("x", 1800))
-    S.wire(("J1", "GND"), (B, "GND"), "black", ("x", 1900))
-    # user key on GPIO 1, 10k pull-up to 3V3
-    S.wire((B, "IO1"), ("R1", "2"), "green")
-    S.wire(("R1", "2"), ("SW1", "NO"), "green")
-    S.wire(("R1", "1"), (B, "3V3"), "red", ("y", 1000), ("x", 2000))
-    S.wire(("SW1", "COM"), (B, "GND"), "black", ("x", 1600))
-    # battery
-    S.wire(("BT1", "-"), (B, "BAT-"), "black", ("x", 2750))
-    S.wire(("BT1", "+"), (B, "BAT+"), "red", ("x", 2900))
-    # switched bus: vertical STEMMA QT, powered from LDO2
-    for bp, n1, n2, c, lane in (("GND ", "GND", "GND1", "black", 2300),
-                                ("LDO2", "3V3", "VCC1", "red", 2350),
-                                ("SDA16", "SDA", "SDA1", "blue", 2400),
-                                ("SCL15", "SCL", "SCL1", "yellow", 2450)):
-        S.wire((B, bp), ("U1", n1), c, ("x", lane))
-        S.wire((B, bp), ("U2", n2), c, ("x", lane))
-    # always-on bus: horizontal STEMMA QT on LDO1; the Notecarrier's 3V3 unconnected
-    for bp, n, c, lane in (("SCL9", "SCL", "yellow", 4300), ("SDA8", "SDA", "blue", 4400),
-                           ("3V3 ", "3V3", "red", 4500), ("GND  ", "GND", "black", 4600)):
-        S.wire((B, bp), ("U3", n), c, ("x", lane))
+    S.place(B, FS3, 3000, 900)
+    S.place("J1", "fs3_bench_drivers", 800, 1075)
+    S.place("BT1", "fs3_lipo_main", 4700, 300)
+    S.place("R1", "tds3a_r10k5_v", 4900, 3050)
+    S.place("SW1", "fs3_user_key", 5700, 2725)
+    S.place("U1", "fs3_bme280", 1500, 4900)
+    S.place("U2", "fs3_analog_side1", 1500, 6200)
+    S.place("U3", "fs3_rv8803", 5600, 4900)
+    S.place("U4", "fs3_notecarrier", 5600, 6200)
+    S.place("BT2", "tds3a_lipo_notecarrier", 7300, 6400)
+    # bench lines: RST and GPIO 0 (sheet 16 shows the diodes and the Pi's pins)
+    S.wire(("J1", "RST"), (B, "RST"), "orange")
+    S.wire(("J1", "IO0"), (B, "IO0"), "yellow", ("x", 2200))
+    S.wire(("J1", "GND"), (B, "GND"), "black", ("x", 2050))
+    # battery on the board's JST socket
+    S.wire(("BT1", "-"), (B, "BAT-"), "black", ("x", 4050))
+    S.wire(("BT1", "+"), (B, "BAT+"), "red", ("x", 4200))
+    # user key on GPIO 1, 10k pull-up to LDO1's 3.3 V
+    S.wire((B, "IO1"), ("R1", "1"), "green", ("x", 4700))
+    S.wire(("R1", "1"), ("SW1", "NO"), "green")
+    S.wire(("R1", "2"), (B, "3V3 "), "red", ("y", 4300), ("x", 4150))
+    S.wire(("SW1", "COM"), (B, "GND  "), "black", ("x", 5500), ("y", 4400), ("x", 4300))
+    # switched bus: the vertical STEMMA QT, powered from LDO2
+    for bp, n1, n2, c, ln in (("SCL15", "SCL", "SCL1", "yellow", 0), ("SDA16", "SDA", "SDA1", "blue", 1),
+                              ("LDO2", "3V3", "VCC1", "red", 2), ("GND ", "GND", "GND1", "black", 3)):
+        S.wire((B, bp), ("U1", n1), c, ("y", 5275 + 150 * ln))
+        S.wire((B, bp), ("U2", n2), c, ("y", 6575 + 150 * ln))
+    # always-on bus: the horizontal STEMMA QT on LDO1; the Notecarrier's 3V3 unconnected
+    for bp, n, c, ln in (("SCL9", "SCL", "yellow", 0), ("SDA8", "SDA", "blue", 1),
+                         ("3V3 ", "3V3", "red", 2), ("GND  ", "GND", "black", 3)):
+        S.wire((B, bp), ("U3", n), c, ("y", 5275 + 150 * ln))
         if n != "3V3":
-            S.wire((B, bp), ("U4", n), c, ("x", lane))
+            S.wire((B, bp), ("U4", n), c, ("y", 6575 + 150 * ln))
     S.wire(("U4", "BAT-"), ("BT2", "-"), "black")
     S.wire(("U4", "BAT+"), ("BT2", "+"), "red")
-    S.note(300, 5000, 7400, [
-        "# FeatherS3 build: power, both buses, key and bench lines (FSD 40.2)",
-        "Always-on bus (horizontal STEMMA QT, LDO1): RV-8803 0x32 and the Notecarrier-X 0x17,",
-        "its red 3.3 V wire unconnected and its own LiPo. Daisy-chain through the RTC's second port.",
-        "Switched bus (vertical STEMMA QT, LDO2, off in deep sleep): BME280 0x76 and the analog",
-        "board's isolator (sheet 13). On this socket SDA is GPIO 16 and SCL GPIO 15.",
-        "User key GPIO 1 to GND, 10k pull-up to 3V3. Bench RST and GPIO 0 through open-drain",
-        "drivers only (C-40.9). Each LiPo is charged by its own board's USB-C (C-40.11).",
+    S.note(300, 7600, 8000, [
+        "# FeatherS3D build: power, both buses, key and bench lines (FSD 40.2)",
+        "The board in its header order, USB-C up; the STEMMA QT sockets' pins are drawn on its bottom edge.",
+        "Always-on bus (I2C1 STEMMA, LDO1): the board's MAX17048 0x36, RV-8803 0x32 and the Notecarrier-X",
+        "0x17, its red 3.3 V wire unconnected and its own LiPo. Daisy-chain through the RTC's second port.",
+        "Switched bus (I2C2 STEMMA, LDO2, off in deep sleep): BME280 0x76 and the analog board's isolator",
+        "(sheet 13); SDA is GPIO 16, SCL GPIO 15. User key GPIO 1 to GND, 10k pull-up to 3V3.",
+        "Bench RST and GPIO 0 only through the diodes of sheet 16 (C-40.9). Each LiPo charges from its own USB-C.",
         LEGEND,
     ])
 
 
 def sheet_fs3_displays(S):
     B, EP, OL = "Board", "EPD", "OLED"
-    S.place(B, FS3, 500, 1100)
-    S.place(EP, "tds3a_ws_epaper", 4500, 600)
-    S.place(OL, "tds3a_oled_312", 4500, 2500)
-    S.place("R1", "tds3a_r10k5_v", 3900, 4300)
-    S.place("U1", "fs3_power_switch", 800, 4300)
-    S.place("U2", "fs3_boost_5v", 800, 5500)
-    # SPI from the right header
-    S.wire((B, "IO36"), (EP, "CLK"), "yellow", ("x", 2450))
-    S.wire((B, "IO36"), (OL, "SCLK"), "yellow", ("x", 2450))
-    S.wire((B, "IO35"), (EP, "DIN"), "blue", ("x", 2550))
-    S.wire((B, "IO35"), (OL, "SDIN"), "blue", ("x", 2550))
-    for bp, part, pin, c, x in (("IO5", EP, "CS", "orange", 2750), ("IO6", EP, "DC", "green", 2850),
-                                ("IO6", OL, "DC", "green", 2850), ("IO7", EP, "RST", "white", 2950),
-                                ("IO10", EP, "BUSY", "purple", 3050), ("IO11", OL, "CS", "orange", 3150),
-                                ("IO12", OL, "RES", "brown", 3250)):
-        S.wire((B, bp), (part, pin), c, ("x", x))
-    # display ground round the top of the board
-    for part, pin in ((EP, "GND"), (OL, "GND"), (OL, "GND ")):
-        S.wire((B, "GND"), (part, pin), "black", ("x", 450), ("y", 1050), ("x", 2650))
+    S.place(B, FS3, 1500, 600)
+    S.place(EP, "tds3a_ws_epaper", 4600, 600)
+    S.place(OL, "tds3a_oled_312", 4600, 2400)
+    S.place("R1", "tds3a_r10k5_v", 4250, 4300)
+    S.place("U1", "fs3_power_switch", 2400, 4800)
+    S.place("U2", "fs3_boost_5v", 2400, 6100)
+    # left-header lines run round the board's bottom, each in its own lane
+    left = (("IO35", ((EP, "DIN"), (OL, "SDIN")), "blue", 1450, 4100, 3300),
+            ("IO36", ((EP, "CLK"), (OL, "SCLK")), "yellow", 1400, 4150, 3200),
+            ("IO5", ((EP, "CS"),), "orange", 1350, 4200, 3400),
+            ("IO6", ((EP, "DC"), (OL, "DC")), "green", 1300, 4250, 3500),
+            ("IO12", ((OL, "RES"),), "brown", 1250, 4300, 3600),
+            ("GND", ((EP, "GND"), (OL, "GND"), (OL, "GND ")), "black", 1150, 4400, 4000))
+    for bp, ends, c, xl, yb, xr in left:
+        for part, pin in ends:
+            S.wire((B, bp), (part, pin), c, ("x", xl), ("y", yb), ("x", xr))
+    # right-header lines
+    for bp, part, pin, c, xr in (("IO7", EP, "RST", "white", 3700), ("IO10", EP, "BUSY", "purple", 3800),
+                                 ("IO11", OL, "CS", "orange", 3900)):
+        S.wire((B, bp), (part, pin), c, ("x", xr))
     # the OLED's 10k from CS to GND (FR-35.25)
-    S.wire((OL, "CS"), ("R1", "1"), "orange", ("x", 4000))
-    S.wire(("R1", "2"), (OL, "GND"), "black", ("y", 5100), ("x", 4300))
+    S.wire((OL, "CS"), ("R1", "1"), "orange", ("x", 4350))
+    S.wire(("R1", "2"), ("U1", "GND "), "black", ("y", 5475))
     # display supply: the power switch from LDO1, CTRL from GPIO 17
-    S.wire((B, "3V3"), ("U1", "VIN"), "red", ("x", 100), ("y", 4675))
-    S.wire((B, "GND"), ("U1", "GND"), "black", ("x", 450), ("y", 4825))
-    S.wire((B, "IO17"), ("U1", "CTRL"), "green", ("x", 300), ("y", 4200), ("x", 1900))
-    S.wire(("U1", "VOUT"), (EP, "VCC"), "red", ("x", 3500))
+    S.wire((B, "3V3"), ("U1", "VIN"), "red", ("x", 1100), ("y", 4450), ("x", 2300))
+    S.wire((B, "GND"), ("U1", "GND"), "black", ("x", 1150), ("y", 4400), ("x", 2250))
+    S.wire((B, "IO17"), ("U1", "CTRL"), "green", ("x", 1200), ("y", 4350), ("x", 3550))
+    S.wire(("U1", "VOUT"), (EP, "VCC"), "red", ("x", 4100))
     # the OLED's 5 V from a step-up on the switched 3.3 V
-    S.wire(("U1", "VOUT"), ("U2", "VIN"), "red", ("x", 1950), ("y", 5300), ("x", 700))
-    S.wire(("U1", "GND"), ("U2", "GND"), "black", ("x", 650))
-    S.wire(("U2", "VOUT"), (OL, "VCC"), "pink", ("x", 3650))
-    S.note(300, 6500, 7000, [
-        "# FeatherS3 build: e-paper and OLED on one switched supply (FSD 40.2, FR-40.4, FR-40.5)",
-        "SPI2: SCK GPIO 36, MOSI GPIO 35 and DC GPIO 6 to both displays. E-paper CS 5, RST 7, BUSY 10;",
-        "OLED CS 11 (10k to GND marks it fitted), RES 12. The Pololu switch takes LDO1's 3.3 V;",
-        "GPIO 17 high turns it on, low off, then floating. Before it turns off, every display line",
-        "is set to an input. The e-paper takes the switched 3.3 V; the OLED module needs 5 V on",
-        "VCC (ws-displays.md), from the U1V11F5 step-up after the switch.",
+    S.wire(("U1", "VOUT"), ("U2", "VIN"), "red", ("x", 3450), ("y", 5900), ("x", 2300))
+    S.wire(("U1", "GND"), ("U2", "GND"), "black", ("x", 2250))
+    S.wire(("U2", "VOUT"), (OL, "VCC"), "pink", ("x", 4200))
+    S.note(300, 7100, 7000, [
+        "# FeatherS3D build: e-paper and OLED on one switched supply (FSD 40.2, FR-40.4, FR-40.5)",
+        "The board in its header order, USB-C up. SPI2: SCK GPIO 36, MOSI GPIO 35 and DC GPIO 6 to both",
+        "displays. E-paper CS 5, RST 7, BUSY 10; OLED CS 11 (10k to GND marks it fitted), RES 12.",
+        "The Pololu switch takes LDO1's 3.3 V; GPIO 17 high turns it on, low off, then floating. Before it",
+        "turns off, every display line is set to an input. The e-paper takes the switched 3.3 V; the OLED",
+        "module needs 5 V on VCC (ws-displays.md), from the U1V11F5 step-up after the switch.",
         LEGEND,
     ])
 
@@ -1547,16 +1554,16 @@ def sheet_fs3_analog(S):
     S.place("U5", "tds3a_iso_ldo", 7400, 2200)
     S.place("U7", "tds3a_ads1115_loop", 9400, 510)
     S.place("U8", "tds3a_i2c_isolator", 11100, 510)
-    S.place("R1", "tds3a_r100k_v", 12300, 2800)
+    S.place("R1", "tds3a_r100k_v", 12100, 2750)
     S.place("P1", "fs3_level_probe", 4400, 2800)
     S.place("R3", "fs3_r15k_h", 7300, 3225)
     S.place("R4", "fs3_r10k_v", 8100, 3375)
     # GPIO 18 enables the supply, R1 holds it off
     S.wire((B, "IO18"), ("R1", "1"), "green")
-    S.wire(("R1", "2"), (B, "GND "), "black", ("y", 3600), ("x", 12750))
-    S.wire(("R1", "1"), ("U2", "ON"), "green", ("x", 12100), ("y", 4300), ("x", 1350))
+    S.wire(("R1", "2"), (B, "GND"), "black", ("y", 3500), ("x", 12750))
+    S.wire(("R1", "1"), ("U2", "ON"), "green", ("x", 11900), ("y", 4300), ("x", 1350))
     S.wire(("R1", "2"), ("U2", "GND"), "black", ("y", 4400), ("x", 1250))
-    S.wire((B, "VBAT"), ("U2", "VIN"), "orange", ("x", 12850), ("y", 4500), ("x", 1150))
+    S.wire((B, "VBAT"), ("U2", "VIN"), "orange", ("x", 14500), ("y", 5300), ("x", 1150))
     # supply chain to the isolated 24 V
     S.wire(("U2", "VOUT"), ("U3", "VIN"), "orange")
     S.wire(("U2", "GND "), ("U3", "GND"), "black")
@@ -1588,17 +1595,18 @@ def sheet_fs3_analog(S):
     S.wire(("R4", "2"), ("P1", "0V"), "grey", ("y", 4150), ("x", 5700))
     S.wire(("R4", "2"), ("U5", "GND "), "grey", ("y", 4150), ("x", 8500))
     # isolator side 1 on the switched bus (vertical STEMMA QT, LDO2)
-    S.wire(("U8", "VCC1"), (B, "LDO2"), "red", ("x", 12550))
-    S.wire(("U8", "SDA1"), (B, "SDA16"), "blue", ("x", 12600))
-    S.wire(("U8", "SCL1"), (B, "SCL15"), "yellow", ("x", 12650))
-    S.wire(("U8", "GND1"), (B, "GND "), "black", ("x", 12700))
-    S.note(300, 4800, 12400, [
-        "# FeatherS3 build: the analog board, 4-20 mA loop and 0-5 V level probe (FSD 29, 40.2, FR-40.9)",
+    for u, bp, c, xl, yl, sx in (("SCL1", "SCL15", "yellow", 12650, 4900, 13100),
+                                 ("SDA1", "SDA16", "blue", 12600, 4950, 13250),
+                                 ("VCC1", "LDO2", "red", 12550, 5000, 13400),
+                                 ("GND1", "GND ", "black", 12500, 5050, 13550)):
+        S.wire(("U8", u), (B, bp), c, ("x", xl), ("y", yl), ("x", sx))
+    S.note(300, 5500, 12400, [
+        "# FeatherS3D build: the analog board, 4-20 mA loop and 0-5 V level probe (FSD 29, 40.2, FR-40.9)",
         "GPIO 18 high switches the supply on from VBAT; the 100k holds it off through sleep and reset. The isolated",
         "24 V (2 W, 3 kV) feeds the loop through the 30 mA limit and the level probe; grey (0V iso) and purple (24 V)",
         "never touch the board's ground. Loop: A0 - A1 across the 100 R shunt. Probe: OUT -> 15k -> A2, 10k A2 to 0V iso",
         "(x 2.5, A2 single-ended at +/-2.048 V). One channel is read at a time (loop in or volt). The isolator's side 1",
-        "is on the switched bus (sheet 11). Field cables enter through the surge protectors of sheet 15.",
+        "is on the switched bus (the I2C2 STEMMA QT, sheet 11). Field cables enter through the surge protectors of sheet 15.",
         LEGEND,
     ])
 
@@ -1607,20 +1615,20 @@ def sheet_fs3_serial(S):
     B = "Board"
     S.place(B, FS3, 7000, 500)
     S.place("U3", "fs3_dig_isolator", 5000, 1000)
-    S.place("R1", "tds3a_r100k_v", 6700, 2100)
+    S.place("R1", "tds3a_r100k_v", 8950, 3050)
     S.place("U2", "tds3a_load_switch", 1000, 2400)
     S.place("U4", "fs3_iso_dcdc_5", 2400, 2400)
     S.place("S1", "fs3_maxbotix", 2600, 900)
-    # isolator side 1: VCC1 from GPIO 33, RX on GPIO 14
-    S.wire(("U3", "VCC1"), (B, "IO33"), "green", ("x", 6300))
-    S.wire(("U3", "OUTA"), (B, "IO14"), "blue", ("x", 6400), ("y", 350), ("x", 8800))
-    S.wire(("U3", "GND1"), (B, "GND"), "black", ("x", 6600))
+    # isolator side 1: VCC1 from GPIO 33 (over the board's top), RX on GPIO 14
+    S.wire(("U3", "VCC1"), (B, "IO33"), "green", ("x", 6300), ("y", 300), ("x", 8600))
+    S.wire(("U3", "OUTA"), (B, "IO14"), "blue", ("x", 6700))
+    S.wire(("U3", "GND1"), (B, "GND"), "black", ("x", 6550))
     # GPIO 33 also enables the 5 V supply; R1 holds it off
-    S.wire(("R1", "1"), (B, "IO33"), "green")
-    S.wire(("R1", "2"), (B, "GND "), "black", ("x", 6950))
-    S.wire((B, "IO33"), ("U2", "ON"), "green", ("x", 6250), ("y", 3400), ("x", 900))
-    S.wire(("R1", "2"), ("U2", "GND"), "black", ("y", 3500), ("x", 800))
-    S.wire((B, "VBAT"), ("U2", "VIN"), "orange", ("x", 6680), ("y", 3600), ("x", 700))
+    S.wire((B, "IO33"), ("R1", "1"), "green", ("x", 9050))
+    S.wire(("R1", "2"), (B, "GND "), "black", ("y", 4000), ("x", 7650))
+    S.wire((B, "IO33"), ("U2", "ON"), "green", ("x", 8650), ("y", 4100), ("x", 900))
+    S.wire(("R1", "2"), ("U2", "GND"), "black", ("y", 4200), ("x", 800))
+    S.wire((B, "VBAT"), ("U2", "VIN"), "orange", ("x", 8750), ("y", 4300), ("x", 700))
     S.wire(("U2", "VOUT"), ("U4", "+VIN"), "orange")
     S.wire(("U2", "GND "), ("U4", "-VIN"), "black")
     # isolated side: the sensor at 5 V, its serial out and ranging pin through the isolator
@@ -1630,12 +1638,12 @@ def sheet_fs3_serial(S):
     S.wire(("U4", "0V"), ("S1", "7 GND"), "grey", ("x", 4100))
     S.wire(("S1", "5 TX"), ("U3", "INA"), "white", ("x", 4400))
     S.wire(("S1", "4 range"), ("S1", "6 V+"), "purple", ("x", 3900))
-    S.note(300, 4000, 8600, [
-        "# FeatherS3 build: the isolated serial port and the MaxBotix MB7569-100 (FSD 40.2, FR-40.12)",
+    S.note(300, 4600, 8600, [
+        "# FeatherS3D build: the isolated serial port and the MaxBotix MB7569-100 (FSD 40.2, FR-40.12)",
         "GPIO 33 high switches the port's supply on and powers the isolator's side 1; the 100k holds it off.",
         "The 1 W isolated DC-DC (3 kV) gives the sensor 5 V. Its pin 5 serial output (9600 8N1, inverted",
         "levels) reaches UART 1 RX on GPIO 14, read inverted. Pin 4 is tied to the sensor's 5 V, so it",
-        "ranges whenever powered; GPIO 13 (the blue LED) stays unused. Logic levels only (C-40.4).",
+        "ranges whenever powered; GPIO 13 (the blue LED, not on the header) stays unused. Logic levels only (C-40.4).",
         LEGEND,
     ])
 
@@ -1651,7 +1659,7 @@ def sheet_fs3_entry(S):
     S.wire(("W1", "shield"), ("SP1", "EARTH"), "grey")
     S.wire(("SP1", "EARTH "), ("E1", "rod"), "green", ("x", 4300))
     S.note(300, 3300, 5800, [
-        "# FeatherS3 build: each field cable's entry (FSD C-40.5 - C-40.8)",
+        "# FeatherS3D build: each field cable's entry (FSD C-40.5 - C-40.8)",
         "Every field line (the loop pair, the probe's three wires, the MaxBotix's four) passes a",
         "protector at the enclosure wall: a gas discharge tube to earth, then a series resistor",
         "or PTC, then a TVS sized for its line (24 V supplies, 5 V signals). The protectors share",
@@ -1666,23 +1674,23 @@ def sheet_fs3_bench(S):
     S.place(B, FS3, 3700, 700)
     S.place("Pi", "pi_header_40", 300, 400)
     S.place("D1", "fs3_d1n5711_h", 2700, 1000)
-    S.place("D2", "fs3_d1n5711_h", 2700, 1310)
+    S.place("D2", "fs3_d1n5711_h", 2700, 1380)
     # pair 1 as the example: EN pin 11, BOOT pin 12, GND pin 14; each through a Schottky
     # diode, cathode at the Pi, so the Pi can pull low but never drive the board high
     S.wire(("Pi", "pin 11"), ("D1", "K"), "orange", ("x", 150), ("y", 280), ("x", 2600))
     S.wire(("D1", "A"), (B, "RST"), "orange", ("x", 3450))
     S.wire(("Pi", "pin 12"), ("D2", "K"), "yellow")
     S.wire(("D2", "A"), (B, "IO0"), "yellow", ("x", 3550))
-    S.wire(("Pi", "pin 14"), (B, "GND"), "black", ("x", 2650))
-    S.note(300, 3500, 6200, [
+    S.wire(("Pi", "pin 14"), (B, "GND"), "black", ("x", 2650), ("y", 1700))
+    S.note(300, 4300, 6200, [
         "# FeatherS3D: the bench's BOOT and RST lines (FSD C-40.9)",
-        "Pi side, drawn as on the board: pair 1 is EN pin 11 (BCM 17), BOOT pin 12 (BCM 18), GND pin 14.",
+        "Both drawn as on the boards. Pi: pair 1 is EN pin 11 (BCM 17), BOOT pin 12 (BCM 18), GND pin 14.",
         "For another slot move both wires to its pair: 2 = pins 15/16, 3 = pins 18/22, 4 = pins 37/13;",
         "the nearest GND is any grey pin. Never pins 3, 5, 29, 31, 32, 33 (the signal generator).",
-        "FeatherS3D side, long header: RST the first pin (beside 3V3.1), GPIO 0 the third (marked 0),",
-        "GND the fourth (white square). No wire to 3V3.1. D1, D2: 1N5711 or BAT43 Schottky, band",
-        "(cathode) at the Pi: Pi low pulls the pin to about 0.4 V, Pi high is blocked. Then set the",
-        "slot's gpio_en / gpio_boot, restart the portal and run the BOOT/EN test with the board awake.",
+        "FeatherS3D, long header: RST the first pin, 3V3.1 the second (no wire), GPIO 0 the third (0),",
+        "GND the fourth. D1, D2: 1N5711 or BAT43 Schottky, band (cathode) at the Pi: Pi low pulls the",
+        "pin to about 0.4 V, Pi high is blocked. Then set the slot's gpio_en / gpio_boot, restart the",
+        "portal and run the BOOT/EN test with the board awake.",
         LEGEND,
     ])
 
@@ -1708,20 +1716,20 @@ SHEETS = [
      (9200, 10700), {"Q"}, sheet_blues_bus),
     ("wiring-10-outdoor-node", "10  Outdoor test node: PoE, Pi harness, hub and DUT",
      (10900, 5600), set(), sheet_outdoor_node),
-    ("wiring-11-fs3-core", "11  FeatherS3: power, both buses, key and bench lines (FSD 40)",
-     (8000, 5900), {"RST", "IO0", "GND", "IO1", "3V3", "LDO2", "SDA16", "SCL15", "3V3", "SDA8",
+    ("wiring-11-fs3-core", "11  FeatherS3D: power, both buses, key and bench lines (FSD 40)",
+     (8800, 8700), {"RST", "IO0", "GND", "IO1", "3V3", "LDO2", "SDA16", "SCL15", "3V3", "SDA8",
                     "SCL9"}, sheet_fs3_core),
-    ("wiring-12-fs3-displays", "12  FeatherS3: e-paper and OLED (FSD 40.2, FR-40.4)",
-     (7500, 7400), {"GND", "3V3", "IO17", "IO5", "IO6", "IO7", "IO10", "IO11", "IO12", "IO35",
+    ("wiring-12-fs3-displays", "12  FeatherS3D: e-paper and OLED (FSD 40.2, FR-40.4)",
+     (7500, 8000), {"GND", "3V3", "IO17", "IO5", "IO6", "IO7", "IO10", "IO11", "IO12", "IO35",
                     "IO36"}, sheet_fs3_displays),
-    ("wiring-13-fs3-analog", "13  FeatherS3: analog board, 4-20 mA loop and 0-5 V probe (FSD 40)",
-     (15400, 5600), {"IO18", "VBAT", "GND", "LDO2", "SDA16", "SCL15"}, sheet_fs3_analog),
-    ("wiring-14-fs3-serial", "14  FeatherS3: isolated serial port and MaxBotix (FSD 40, FR-40.12)",
-     (9600, 4700), {"IO33", "IO14", "VBAT", "GND"}, sheet_fs3_serial),
-    ("wiring-15-fs3-entry", "15  FeatherS3: field cable entry, surge protection and earth (FSD 40)",
+    ("wiring-13-fs3-analog", "13  FeatherS3D: analog board, 4-20 mA loop and 0-5 V probe (FSD 40)",
+     (15400, 6600), {"IO18", "VBAT", "GND", "LDO2", "SDA16", "SCL15"}, sheet_fs3_analog),
+    ("wiring-14-fs3-serial", "14  FeatherS3D: isolated serial port and MaxBotix (FSD 40, FR-40.12)",
+     (9800, 5600), {"IO33", "IO14", "VBAT", "GND"}, sheet_fs3_serial),
+    ("wiring-15-fs3-entry", "15  FeatherS3D: field cable entry, surge protection and earth (FSD 40)",
      (6400, 4000), set(), sheet_fs3_entry),
     ("wiring-16-fs3-bench", "16  FeatherS3D: the bench's BOOT and RST lines (FSD C-40.9)",
-     (6700, 4600), {"RST", "IO0", "GND"}, sheet_fs3_bench),
+     (6700, 5400), {"RST", "IO0", "GND"}, sheet_fs3_bench),
 ]
 
 

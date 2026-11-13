@@ -9,11 +9,12 @@ power is applied. Phase 21's commissioning program confirms each pin (R-44).
 ## Sheets
 
 The Fritzing sheets come from [`wiring/make_wiring.py`](wiring/make_wiring.py).
-They draw the board's pins grouped by use, not in header order. Find each pin on
-Unexpected Maker's pinout card before wiring: on the FeatherS3D the long header
-runs RST, 3V3.1, 0, GND, 17, 18, 14, 12, 6, 5, SCK 36, MO 35, MI 37, RX 44,
-TX 43, 3V3.2 (LDO2), and the short one BAT, En, 5V, 11, 10, 7, 3, 1, 38, 33,
-SCL 9, SDA 8.
+They draw the board from the top, USB-C up, with its pins in header order as on
+Unexpected Maker's pinout card: the long header on the left runs RST, 3V3.1, 0, GND, 17, 18, 14, 12, 6, 5, SCK 36, MO 35, MI 37, RX 44,
+TX 43, 3V3.2 (LDO2), and the short one on the right, level with its lower end, BAT, En, 5V, 11,
+10, 7, 3, 1, 38, 33, SCL 9, SDA 8. The drawing puts the two STEMMA QT sockets along the bottom
+edge (the vertical one on LDO2, GPIO 15/16; the horizontal one on LDO1, GPIO 8/9)
+and the LiPo connector on the top edge.
 
 | Sheet | Draws |
 |-------|-------|
