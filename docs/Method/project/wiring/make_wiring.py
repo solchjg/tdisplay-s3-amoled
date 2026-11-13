@@ -1689,8 +1689,10 @@ def sheet_fs3_bench(S):
         "the nearest GND is any grey pin. Never pins 3, 5, 29, 31, 32, 33 (the signal generator).",
         "FeatherS3D, long header: RST the first pin, 3V3.1 the second (no wire), GPIO 0 the third (0),",
         "GND the fourth. D1, D2: 1N5711 or BAT43 Schottky, band (cathode) at the Pi: Pi low pulls the",
-        "pin to about 0.4 V, Pi high is blocked. Then set the slot's gpio_en / gpio_boot, restart the",
-        "portal and run the BOOT/EN test with the board awake.",
+        "pin to about 0.4 V, Pi high is blocked. The Pi's default 50k pull-down on BCM 17 holds the",
+        "board in reset through D1: add gpio=17,18=ip,pu to /boot/firmware/config.txt (that pair's",
+        "pins for another slot). Then set the slot's gpio_en / gpio_boot, restart the portal and run",
+        "the BOOT/EN test with the board awake.",
         LEGEND,
     ])
 

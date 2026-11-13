@@ -70,7 +70,10 @@ Pi (sheet 16). The Pi pulls RST or GPIO 0 to about 0.4 V; when it drives high
 the diode blocks, the board's own pull-up holds the pin, and the Pi never feeds
 the board, even unpowered. Solder a 4-pin header into RST, 3V3.1, 0 and GND (or
 wires into RST, 0 and GND) and leave 3V3.1 unconnected. Pick a free GPIO pair
-from the harness manual's table, set the slot's `gpio_en` and `gpio_boot`,
+from the harness manual's table and set both pins to inputs with pull-ups from
+power-on (`gpio=17,18=ip,pu` in `/boot/firmware/config.txt` for pair 1): the
+Pi's default pull-down of about 50k, through the diode, holds the FeatherS3D in
+reset, since its EN pull-up is weaker. Then set the slot's `gpio_en` and `gpio_boot`,
 restart the portal and run the BOOT/EN test with the board awake.
 
 ## To check before wiring
