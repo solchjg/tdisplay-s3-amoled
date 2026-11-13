@@ -63,6 +63,7 @@ reused.
 | 38 | ESP-NOW Link (optional) | L1 |
 | 39 | Hardware Clock (optional) | L1 |
 | 40 | Low-Power Build (FeatherS3) | cross-cutting |
+| 41 | Satellite Uplink (optional) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -535,6 +536,19 @@ testbench.
   bench slot is to be assigned. The probes' host cores and the §30 settings for the
   MB7569-100 can be checked before the board arrives.
 
+### 3.22 Phase 22: Satellite uplink
+
+- **Scope.** §41 on the T-Display and FeatherS3 builds: the Notecard for Skylo,
+  the §37 `day`, `al` and `st` messages over satellite, the monthly budget, and
+  remote settings by Notehub environment variables.
+- **Deliverables.** §41, L66, L67; the shared `pack` component of §37, if Phase 19 has not built it
+  and its Notehub decoders; the satellite rules in `uplink_core`; a ThingsBoard
+  rule chain forwarding the FR-41.10 attributes to Notehub, in the User Manual.
+- **Exit criteria.** The §41.6 host rows pass; an outdoor operator run shows the
+  messages in ThingsBoard and ntfy and a remote setup change taking effect.
+- **Dependencies.** §32's remote settings, §33, §37; a Notecard for Skylo and
+  Skylo coverage at the test site (R-49).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -586,6 +600,8 @@ testbench.
 | R-44 | The pins of §40.2 beyond the board's named functions (GPIO 1, 5 – 7, 10 – 14, 17, 18, 33) come from distributor pages, not the board's schematic, and GPIO 33 may be taken by the PSRAM | Possible | Medium | The Phase 21 commissioning program walks each pin; a pin found taken moves before any firmware uses it |
 | R-45 | No protector survives a direct strike, and a nearby one can still exceed C-40.7's ratings on a 100 ft cable | Possible | High | C-40.5 – C-40.8 limit the damage to the replaceable protector and field boards; the field boards plug in, so they are swapped, not repaired |
 | R-46 | A 0 – 5 V probe has no live zero: a broken signal wire reads 0 V, the same as an empty tank | Certain | Medium | Accepted for the EALLT-1 [user]; a 4-20 mA probe on the loop channel detects it (FR-29.4) |
+| R-48 | Satellite data costs by the byte, so a fault that adds messages (a flapping alert, a clock set wrong) could spend the month's data | Possible | Medium | FR-41.6 caps alerts a day and FR-41.9 caps the month's bytes; the count is on `st` and `GET /` |
+| R-49 | Skylo coverage, the Notecard for Skylo's availability and Blues' NTN rules (templates, environment variables over NTN) are taken from Blues' documents, not yet from a run of this firmware | Possible | Medium | The sat-probe trial's stage 3 and the §41.6 operator rows prove them before the section is relied on |
 | R-47 | The EALLT-1's supply current is not published and may not fit the isolated 24 V beside a shorted loop | Possible | Medium | Measured at commissioning; C-40.10 sizes the converter from it |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
@@ -1165,6 +1181,10 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L61 | Gateway passed a node's data on (FR-38.17, FR-38.18) | `web: espnow fwd node=<hostname> to=<tb\|ntfy> <ok\|failed: <connect\|tls\|auth\|refused\|timeout>> n=<readings, or 1>` | I or W |
 | L62 | Level probe value (FR-40.11) | `web: level volt=<V, 3 decimals> v=<value, 3 decimals> <loop_unit>` | I |
 | L63 | Level probe failed (FR-40.10) | `web: level failed: <over\|ERR> volt=<V, 3 decimals, or none>` | W |
+| L64 | Remote settings received (FR-32.19) | `web: tb remote applied=<keys, comma-separated, or none>` | I |
+| L66 | Satellite remote settings applied (FR-41.11) | `web: sat settings applied=<variables, comma-separated>` | I |
+| L67 | Satellite send or setting withheld (FR-41.2, FR-41.6, FR-41.9, FR-41.11) | `web: sat skipped: <nomodem\|alerts\|budget\|invalid=<variable>>[ used=<bytes this month>]` | W |
+| L65 | Remote settings refused or failed (FR-32.19, FR-32.21) | `web: tb remote failed: <invalid=<key>\|connect\|tls\|auth\|refused\|timeout>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -3163,6 +3183,7 @@ submission without them leaves ThingsBoard as it was (off on a new device).
 | `tb_url` | server base URL, e.g. `http://192.168.1.20:8080` or `https://tb.example.org` | `http://` or `https://`, then a host name or IPv4 address, an optional `:port`, no path, 1 – 128 bytes | the stored value |
 | `tb_token` | the access token of the device in ThingsBoard | 1 – 64 [proposed] letters, digits, `-` and `_` | the stored value (in a key-window BLE write an absent token keeps the stored one, as for the other secrets) |
 | `tb_every` | minutes between uploads | whole minutes, 1 – 1440, dividing 1440 [proposed] | 60 [user] |
+| `tb_remote` | settings from ThingsBoard's shared attributes (FR-32.16) `on` or `off` [user] | one of the two | the stored value; `off` when none is stored [user] |
 
 ### 32.3 Requests
 
@@ -3170,6 +3191,8 @@ submission without them leaves ThingsBoard as it was (off on a new device).
 |------|-----------------|---------------------------|
 | Telemetry | POST `<tb_url>/api/v1/<tb_token>/telemetry` | `[{"ts":<ms since the epoch>,"values":{"temp_f":<°F, 2 decimals>,"rh_pct":<%, 1 decimal>,"p_mbar":<mbar, 2 decimals>,"synced":<true\|false>}}, …]`, oldest first |
 | Attributes | POST `<tb_url>/api/v1/<tb_token>/attributes` | `{"hostname":"<FR-20.1>","fw_version":"<V>","ip":"<a.b.c.d>","rssi":<dBm>,"setup":"<normal id of §28.1>"}` |
+| Remote settings (FR-32.16) | GET `<tb_url>/api/v1/<tb_token>/attributes?sharedKeys=<the keys of FR-32.17, comma-separated>` | none; the answer is `{"shared":{"<key>":<value>, …}}` |
+| Remote settings result (FR-32.19) | POST `<tb_url>/api/v1/<tb_token>/attributes` | `{"remote_applied":"<keys, comma-separated, or empty>","remote_error":"<the first invalid key, or empty>","remote_ts":<ms since the epoch>}` |
 
 The values are those of the reading's history line (§27.1), so ThingsBoard
 shows what L21 and `/api/history` show.
@@ -3255,6 +3278,36 @@ Failures and limits:
 - **FR-32.13** [Must] [derived] Each accepted request shall be logged as L41,
   each failed one as L42 (§7.2).
 
+Remote settings (ThingsBoard shared attributes):
+
+- **FR-32.16** [Must] [user] With `tb_remote` `on`, after each upload whose
+  requests all succeed, the device shall ask the server for the shared attributes
+  of FR-32.17 (§32.3) in the same network session, so a remote change needs no
+  extra wake or WiFi start. With `tb_remote` `off`, or `tb` or `services` off,
+  no such request is sent.
+- **FR-32.17** [Must] [user] Only these settings shall be taken from shared
+  attributes: the sampling setup and its fields (§28: `setup`, `sample_min`,
+  `average_min`), `tb_every`, the alert limits of §31 (`alert_*`), `loop` and its `loop_*`
+  fields (§29, §40.4) and the `rs_*` fields of §30. Network credentials, server
+  addresses, tokens, `tb`, `tb_remote` and `services` are never taken, so a
+  remote change cannot cut the station off from the server.
+- **FR-32.18** [Must] [user] A shared attribute shall be applied only when
+  its value differs from the value the device last received for that key, so a
+  setting changed locally (portal or BLE) stays until the server's value
+  changes. The values received are checked together by the rules of a BLE
+  `settings` write (FR-26.7, §28 – §31); if any is invalid none is applied.
+  Accepted values are stored as at T3 and take effect from the next reading.
+- **FR-32.19** [Must] [user] After each remote settings request the device
+  shall post the result attributes of §32.3, so the dashboard shows what was
+  applied or refused, and log L64 or L65.
+- **FR-32.20** [Must] [user] On a build whose uplink is the Notecard
+  (`uplink` `cell`, §33), the request of FR-32.16 shall go through a Notehub
+  proxy route to the same ThingsBoard URL (`web.get`), at the sync that sends
+  the readings; every other rule of FR-32.16 – FR-32.19 applies unchanged.
+- **FR-32.21** [Must] [user] A failed remote settings request (FR-32.11's
+  failures) shall change no setting, be logged as L65, and not be retried on
+  that wake; the upload it followed stands.
+
 ### 32.5 Verification contracts
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
@@ -3271,6 +3324,9 @@ Failures and limits:
 | FR-32.8, FR-32.11 | Same build, ThingsBoard stopped for two uploads, then started | L42 twice, then one L41 carrying every reading taken meanwhile | A reading missing in ThingsBoard; a retry on the failing wake | target |
 | FR-32.6 | Reset; device reaches ONLINE | L41 within the window; the attributes of §32.3 on the ThingsBoard device | No upload in the window | target |
 | FR-32.9 | Operator's production server on `https://` with a Let's Encrypt certificate | L41; the readings on the operator's dashboard | A send to a server whose certificate fails | bench (operator) |
+| FR-32.17, FR-32.18 (core) | Remote attribute sets: `setup=fine`; `sample_min=7` with `average_min=15`; `tb_token=x`; the same `setup=fine` again after a local change to `std`; a set with one invalid key | Applied; refused, nothing applied; `tb_token` ignored; not applied (unchanged on the server); refused, nothing applied, the invalid key named | A credential taken; a partial set applied | host |
+| FR-32.16, FR-32.19 | ThingsBoard on the bench, `tb_remote` `on`; the shared attribute `setup` set to `fine` on the server; an upload due | L41, then L64 `applied=setup`; `remote_applied=setup` on the device's client attributes; the next readings at 1 minute | A remote request with `tb_remote` `off`; an extra WiFi start | target |
+| FR-32.21 | Same, the server stopped after the telemetry request | L65; the settings unchanged | A setting changed on a failed request | target |
 
 ---
 
@@ -4503,13 +4559,13 @@ checked by the commissioning program of Phase 21 (R-44).
 | Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery voltage on GPIO 2 (the board's divider), USB present on GPIO 34 | [derived from the board] |
 | Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
 | Always-on bus | The horizontal STEMMA QT socket, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins [derived from the board] |
-| Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user] |
-| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V, output to both displays; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds | [user]; GPIO 17 [user] |
+| Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 16, SCL GPIO 15 (the order of the board's Arduino and CircuitPython definitions), 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user]; the pin order [user] |
+| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's VCC directly and the OLED's VCC through a 5 V step-up (Pololu U1V11F5), since the OLED module's own regulator leaves the panel dark on 3.3 V (`docs/Method/project/ws-displays.md`) | [user]; GPIO 17 [user]; the step-up [user] |
 | Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [user] |
 | E-paper | Waveshare 4.2" e-Paper Module (V2), SSD1683, as §35.2: CS GPIO 5, DC GPIO 6, RST GPIO 7, BUSY GPIO 10 (internal pull-down, FR-35.25) | [user]; pins [user] |
 | OLED | 3.12" 256 × 64 SSD1322 module, as §35.2: CS GPIO 11 (10 kΩ to GND on its lead, FR-35.25), RES GPIO 12, DC shared with the e-paper's GPIO 6 | [user]; pins [user] |
 | Analog board | The §29 loop board with a second, voltage channel (FR-40.9): its supply enable on GPIO 18 (100 kΩ pull-down on the board), its 24 V from a 2 W isolated DC-DC, isolation of at least 3 kV (C-40.6); loop on A0 – A1 as §29, the probe's 0 – 5 V through a 15 kΩ / 10 kΩ divider (0.1 %) to A2, read single-ended at ±2.048 V | [user]; parts [user] |
-| Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a two-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14 and GPIO 13 to its trigger; its supply enable on GPIO 33 (100 kΩ pull-down) | [user] |
+| Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a one-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14; the sensor's ranging pin (4) tied high on the isolated side, so it ranges whenever powered, and GPIO 13 (the board's blue LED) left unused; its supply enable on GPIO 33 (100 kΩ pull-down) | [user]; the ranging pin [user] |
 | User key | A momentary key on GPIO 1 (an RTC GPIO), active low, external 10 kΩ pull-up | [user] |
 | BOOT key | GPIO 0, the board's BOOT button, as §18 | [derived from the board] |
 | Field entry | Each field cable (the loop pair, the probe's three wires, the serial sensor's four) through a surge protector at the enclosure wall, bonded to one earth rod (C-40.7) | [user] |
@@ -4622,8 +4678,8 @@ Serial sensor:
 
 - **FR-40.12** [Must] [user] On this build §30 shall read its instrument
   through the serial port of §40.2: GPIO 33 in place of GPIO 13 as the port's
-  supply, UART 1 RX on GPIO 14 with its input inverted, GPIO 13 in place of
-  GPIO 11; the port's settle is `rs_timeout_ms` alone, the sensor needing
+  supply, UART 1 RX on GPIO 14 with its input inverted, and no TX line (the
+  instrument needs no command, `rs` `listen`); the port's settle is `rs_timeout_ms` alone, the sensor needing
   about 2 s from power-on for its first reading. Every other part of §30
   applies.
 - **FR-40.13** [Should] [user] A line holding the MaxBotix no-target
@@ -4686,6 +4742,163 @@ Bench rows run on the slot that holds the FeatherS3 (not yet assigned);
 | C-40.9 | The slot's RST line pulled low for 100 ms; GPIO 0 held low through a reset; the board asleep, RST pulsed | A boot log; the ROM's download-mode banner; a boot log with a reset cause of the RST pin | The board powered from a bench line with its own supply off | bench |
 | C-40.10 | The probe's current measured at 24 V; the loop terminals shorted | The isolated 24 V stays within its rating with both, at least 20 % to spare | The DC-DC above its rated current | bench (operator) |
 | C-40.11 | Inspection, then operator: both cells part-charged, the Y cable from a 5 V 3 A source into both USB-C ports; a Notecard sync forced; then the bench data cable in the FeatherS3 with the Y cable's Feather leg removed | Both boards' charge LEDs on; the sync completes with no ESP32 reset (no boot line); the bench console and flashing work | A header wire to a charging source; the cells joined; two 5 V sources on the Feather's USB rail | bench (operator) |
+
+---
+
+## 41. Satellite Uplink (optional)
+
+### 41.1 Purpose & peers
+
+A station beyond cellular coverage keeps reporting over satellite: a Blues
+Notecard for Skylo in place of the §33 Notecard sends the §37 packed messages
+through Skylo's geostationary network when cellular is not available, and
+receives a few numeric settings back the same way [user]. Satellite carries
+only what a remote site needs between visits: a daily summary of the level,
+alerts, a weekly status, and remote changes to the sampling setup. Every
+reading is still kept in the history (§27), and the full readings go up over
+cellular or WiFi whenever either returns, from the §32 upload mark, so a
+satellite period leaves no gap in ThingsBoard.
+
+Satellite data is billed by the byte: 10 KB come with the Notecard, then about
+$0.75 per KB, each packet counted as at least 50 bytes and none larger than 256
+bytes (C-37.1) [derived from Blues' Starnote for Skylo datasheet]. This section
+holds the station to a monthly byte budget (FR-41.9). A packet takes minutes,
+not seconds, to reach Notehub.
+
+Peers: the Notecard for Skylo on the §33 bus; Notehub, which decodes the
+template notes and passes them to ThingsBoard and ntfy through the routes of
+§37 (the `day`, `al` and `st` decoders); ThingsBoard, whose rule chain forwards
+a changed shared attribute of FR-41.10 to Notehub's API as a device environment
+variable. The cellular build (§35) has no Notecard and does not take this
+section. The satellite trial (`commissioning/sat-probe`) proved the path with
+its own `day.qo`; this section uses §37's `day` in its place.
+
+### 41.2 Hardware
+
+| Item | Value | Source |
+|------|-------|--------|
+| Modem | Blues Notecard for Skylo (LTE Cat-1 bis with Skylo NTN) in the Notecarrier-X's M.2 socket in place of the NOTE-MBGLW; the same bus, address, power and wiring as §33.2 | [user]; the part [proposed] |
+| Antenna | The §33.2 LTE antenna on `MAIN` serves both cellular and Skylo (no satellite antenna); mounted with a clear view of the southern sky for the geostationary satellites, outside any metal enclosure | [derived from Blues' Starnote for Skylo datasheet]; placement [proposed] |
+| Location | Skylo needs the station's place before it transmits; the place stored by §33's GPS check (FR-33.18) is given to the Notecard as a fixed location, so no GPS fix is taken for each satellite session | [proposed] |
+
+### 41.3 Settings
+
+Added to the §13.2 form and the BLE `settings` write (§26); all optional.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `sat` | `off`, `fallback` (cellular first, satellite only when no cellular) or `only` | one of the three; not `off` needs `uplink` `cell` and a Notecard for Skylo (FR-41.2) | the stored value; `off` when none is stored [proposed] |
+| `sat_q` | the quantity of the daily `day` message: `temp`, `rh`, `p`, `slot1` or `slot2` (§37.3 `q`) | one of the five | the stored value; `slot2` (the loop or level probe) [proposed] |
+| `sat_budget` | bytes of satellite data a calendar month (UTC), counted as Skylo bills them | 500 – 100000 | 1500 [proposed] |
+| `sat_alerts` | alerts sent over satellite a day | 0 – 10 | 2 [proposed] |
+
+### 41.4 Messages and schedule
+
+Over satellite the device sends only §37 messages in the template encoding, each
+a Notefile with a compact template set up by FR-41.3:
+
+| Message | When over satellite | Bytes billed |
+|---------|---------------------|--------------|
+| `day` (`pday.qo`) | once a day, after local midnight, the 24 hourly averages of `sat_q` for the day before | 59 → 59 |
+| `al` (`pal.qo`) | at once, at most `sat_alerts` a day | 11 → 50 |
+| `st` version 2 (`pst.qo`) | once a week, and after remote settings are received (FR-41.11) | 11 → 50 |
+
+At the defaults this is about 30 × 59 + 4 × 50 = 1970 bytes a month without
+alerts, so `sat_budget` 1500 sends the daily message on about three days in four
+(FR-41.9); a budget of 2500 sends every day. `rd` is not sent over satellite.
+
+`st` version 2 (type 4, version 2) adds one field to §37.3's `st`, so ThingsBoard
+can show whether remote settings took effect [proposed]:
+
+| Field | Type | Holds | Hint |
+|-------|------|-------|------|
+| `cfg` | uint16 | the CRC-16/CCITT-FALSE of the FR-41.10 settings in use, in the order of that table, each as its template type | 22 |
+
+Remote settings arrive as Notehub environment variables, each with an
+environment variable template (Blues requires one for every variable received
+over NTN) [derived from Blues' Notecard for Skylo quickstart]:
+
+| Variable | Type | Setting |
+|----------|------|---------|
+| `s_setup` | uint8 | the normal setup, its row in §28.1 counted from 0 |
+| `s_sample` | uint8 | `sample_min` |
+| `s_average` | uint16 | `average_min` |
+| `s_lo`, `s_hi` | float32 | the low and high alert limits of slot 2 |
+
+### 41.5 Requirements
+
+Settings and setup:
+
+- **FR-41.1** [Must] [proposed] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry the fields of §41.3, valid per §41.3, stored, reported
+  by the `settings` read (FR-26.9) and erased by a factory reset as §33's.
+- **FR-41.2** [Must] [proposed] With `sat` not `off`, the device shall check at
+  each boot that the Notecard reports an NTN radio (`card.version`); without one,
+  it behaves as with `sat` `off` and logs L67 `nomodem` once a boot.
+- **FR-41.3** [Must] [proposed] With `sat` not `off`, at each boot where they
+  differ from the Notecard's, the device shall send the compact templates of
+  §41.4's messages and variables, set the fixed location of §41.2, and set
+  `card.transport` to `cell-ntn` (`fallback`) or `ntn` (`only`), replacing
+  FR-33.14's `cell`.
+
+Sending:
+
+- **FR-41.4** [Must] [proposed] While the Notecard is on satellite, only the
+  messages of §41.4 shall be sent; the §33.4 JSON notes (`tb.qo`, `tbattr.qo`,
+  `mail.qo`, and `alert.qo` in favour of `al`) are not added, and the §32
+  upload mark does not move, so those readings go up from the mark when
+  cellular or WiFi returns.
+- **FR-41.5** [Must] [proposed] The `day` message shall be added once a day at
+  the first wake after local midnight (FR-22.2), for `sat_q`'s hourly averages
+  of the 24 whole UTC hours before, as §37.3; with the clock never set
+  (FR-22.6), none is added.
+- **FR-41.6** [Must] [proposed] An alert of §31 that starts or ends while on
+  satellite shall be added as `al` with `sync:true`, up to `sat_alerts` a
+  local day; further alerts that day are logged as L67 `alerts` and not sent.
+- **FR-41.7** [Must] [proposed] The `st` message shall be added once a week,
+  at the first wake after local midnight on Monday, and after each change of
+  remote settings (FR-41.11).
+- **FR-41.8** [Must] [proposed] The device shall force no satellite sync
+  other than for an alert; the Notecard sends the queued messages at its own
+  outbound sync (`cell_every`, §33.3).
+
+Budget:
+
+- **FR-41.9** [Must] [proposed] The device shall count the bytes Skylo bills
+  for each message it adds for satellite (its template size, at least 50) in a
+  month counter kept in NVS, reset at the start of each UTC month. A message
+  that would take the count over `sat_budget` is not added, except an `al`,
+  and is logged as L67 `budget`; the count is reported in `st` and on `GET /`.
+
+Remote settings:
+
+- **FR-41.10** [Must] [proposed] Only the settings of §41.4's variable table
+  shall be taken over satellite: ThingsBoard's rule chain forwards a changed
+  shared attribute of FR-32.17 that has a variable here to Notehub as that
+  variable, and the other shared attributes wait for cellular or WiFi (FR-32.16).
+- **FR-41.11** [Must] [proposed] At each wake the device shall read the
+  variables of §41.4 from the Notecard (`env.get`); a variable whose value
+  differs from the one last received is applied by FR-32.18's rules, all or
+  none, logged as L66, and followed by an `st` whose `cfg` shows the settings
+  in use; an invalid set changes nothing and is logged as L67 `invalid=<variable>`.
+
+- **C-41.1** [Must] [derived from C-37.1] No message added for satellite shall
+  exceed 256 bytes in the template encoding.
+- **NFR-41.1** [Should] [proposed] At the defaults of §41.3, a month on
+  satellite shall stay within `sat_budget`, alerts aside.
+
+### 41.6 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-41.1 (core) | Form bodies: `sat=fallback` with `uplink` `wifi`; `sat=only` with `cell`; `sat_q=x`; `sat_budget` 499, 100001; `sat_alerts` 11 | `sat`; accepted; `sat_q`; `sat_budget` twice; `sat_alerts` | `sat` on without `cell` | host |
+| FR-41.4, FR-41.5, FR-41.7 (core) | `uplink_core` on satellite over 8 days: readings every 10 min, a Monday, one alert | 8 `day`, 1 `st`, 1 `al`; no `tb.qo`, `tbattr.qo` or `mail.qo`; the upload mark unchanged | A JSON note added on satellite | host |
+| FR-41.6 (core) | Five alerts in one day, `sat_alerts` 2 | Two `al`, three L67 `alerts` | A third `al` that day | host |
+| FR-41.9, NFR-41.1 (core) | A month at the defaults, then `sat_budget` 2500; an alert after the budget is spent | 1500 kept: `day` dropped once spent, L67 `budget`; 2500: every `day`; the alert sent; the counter reset on the 1st | The count over budget from a non-alert message | host |
+| FR-41.11 (core) | Variables `s_setup=1`; then the same again; then `s_sample=7` with `s_average=15`; then a local change to `std` | Applied, L66, `st` with the new `cfg`; nothing; refused, L67 `invalid=s_sample`; the local change kept | A partial set applied; a re-applied unchanged value | host |
+| FR-41.3, C-41.1 | Notecard for Skylo on the bench, `sat=only`; templates read back with `note.template` | Each template as §41.4, none over 256 bytes; `card.transport` `ntn` | A note without a template | target |
+| FR-41.4 – FR-41.8 | Operator, outdoors with sky view, `sat=only`, a day of readings, a limit crossed | The `day`, `al` and `st` events in Notehub; the decoded values in ThingsBoard and the alert in ntfy | A JSON note in Notehub from the satellite period | bench (operator) |
+| FR-41.10, FR-41.11 | Operator: a shared attribute `setup` changed on ThingsBoard during the satellite run | L66 at a later wake; ThingsBoard's `cfg` matching the new setup | The change applied twice | bench (operator) |
 
 ---
 
@@ -4915,7 +5128,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.58.2
+fsd_version: 0.60.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5016,6 +5229,8 @@ change_history:
   - "0.58.0 2026-11-11 from the user's note that GPS is needed for location and the request for higher-gain antenna options: §33.2 Antenna row gains the passive default of the Notecarrier-X GPS port and the active-antenna jumper (proposed)"
   - "0.58.1 2026-11-12 from the rtc-probe bench run, which measured a positive RV-8803 trim step slowing the clock (+31 steps −6.2 ppm, −32 steps +7.7 ppm; the 24 h rate −0.99 ppm, NFR-39.1 met): the §39.4 FR-39.8 core row raises the trim of a fast clock; FR-39.8 itself is unchanged"
   - "0.58.2 2026-11-12 the user approved FR-7.35 (L6 carries the station's last disconnect reason)"
+  - "0.59.0 2026-11-12 approved by the user: §40.2 takes the FeatherS3's board definitions (vertical STEMMA QT SDA GPIO 16, SCL GPIO 15), ties the MaxBotix's ranging pin high with a one-channel isolator so GPIO 13 (the blue LED) is unused (FR-40.12 without a TX line), and feeds the OLED from a 5 V step-up after the display switch; §32 remote settings from ThingsBoard shared attributes (`tb_remote`, FR-32.16 – FR-32.21, L64, L65)"
+  - "0.60.0 2026-11-12 draft for the user's review, from the user's question about remote settings over satellite: §41 Satellite Uplink (all proposed) sends §37's day, al and st (version 2 with cfg) over a Notecard for Skylo within a monthly byte budget and takes five numeric settings as Notehub environment variables; L66, L67, R-48, R-49, Phase 22"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"

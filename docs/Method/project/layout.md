@@ -192,6 +192,9 @@ power and data figures, are in [`blues-cellular.md`](blues-cellular.md).
 The cellular build's two displays on the Waveshare board (the SSD1322 OLED and the
 4.2" e-paper on one SPI bus), the OLED module's interface links and header and the
 e-paper's reset timing are in [`ws-displays.md`](ws-displays.md).
+The FeatherS3 build's wiring (FSD §40: its two STEMMA QT buses, the switched display
+supply, the isolated analog board and serial port, the field entry) and the checks before
+wiring are in [`feathers3-build.md`](feathers3-build.md).
 
 ## Toolchain
 

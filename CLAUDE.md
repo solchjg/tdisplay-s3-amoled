@@ -221,6 +221,9 @@ Other builds sharing the components:
   `failed`) are written by the runner, never by hand.
 - An unmet precondition (no bench, wrong DUT, no `FIRMWARE_DIR`) is
   `pytest.skip` → `not done`, never a failure. A not-yet-written module is `xfail`.
+- `tests/host/data/samples/` — real HOBO logger records (a 15-minute long-term set and a
+  1-minute set with two pump drawdowns), the sample data for the sampling-mode replays;
+  its README gives each file's format.
 - Gates: `testing/gates/` — a fresh checker reads the gate file + repo and
   returns OPEN/SHUT. `testing/debugging-agenda.md` tracks commissioning doubts.
 
