@@ -325,6 +325,24 @@ your project → *Routes* → *Create route* → *General HTTP/HTTPS Request/Res
 | ThingsBoard attributes | `tbattr.qo` | `https://tb.<your-fqdn>/api/v1/<tb_token>/attributes` | `Content-Type: application/json` | JSONata `body` |
 | ntfy alerts | `alert.qo` | `https://ntfy.<your-fqdn>/` | `Authorization: Bearer tk_…` | JSONata `body` |
 
+For remote settings (FR-32.20), add a route of type *Proxy for Device Web
+Requests* to `https://tb.<your-fqdn>/api/v1/<tb_token>`, named as the firmware
+expects when §32 is built. For remote sessions (§42) and satellite stations
+(§41), add:
+
+| Route | Notefiles | URL | Data |
+|-------|-----------|-----|------|
+| Session answers | `srsp.qo` | `https://tb.<your-fqdn>/api/v1/<tb_token>/attributes` | JSONata `{"session_answer": $string(body)}` |
+| History (`hist`, type *Proxy for Device Web Requests*) | — | the place the history CSV should land (open decision in the FSD), e.g. a WebDAV folder behind Caddy on this VM | — |
+| Satellite day records | `pday.qo` | `https://tb.<your-fqdn>/api/v1/<tb_token>/telemetry` | the §37 `day` decoder's 24 time-stamped points |
+| Satellite day status | `pday.qo` | `https://tb.<your-fqdn>/api/v1/<tb_token>/attributes` | the §37 `day` decoder's `flag_*`, battery and `cfg` |
+| Satellite critical alerts | `pal.qo` | `https://ntfy.<your-fqdn>/` | the §37 `al` decoder |
+
+The ThingsBoard rule chain sends session requests and satellite settings to
+Notehub's API with a Notehub API token (ThingsBoard Setup guide, sections 11
+and 12); create it in Notehub under your account's API settings and keep it
+only in the rule chain.
+
 Each route holds the token, never the board (FR-33.9). With several cellular
 boards, one route per board (or a JSONata expression that picks the token by
 device) is needed for ThingsBoard, since each ThingsBoard device has its own

@@ -569,6 +569,23 @@ drifts about a minute a year.
   the next network sync or phone connection; change the cell and set the
   time again.
 
+## 5l. Remote settings, sessions and satellite
+
+These are specified but not in this firmware yet; the server side can be
+prepared ahead with the [ThingsBoard Setup](ThingsBoard-Setup.md) guide.
+
+- **Remote settings** (FSD §32): with *Remote settings* `on`, the board takes
+  its sampling setup, alert limits and add-on settings from ThingsBoard at each
+  upload. Network settings and passwords never come from the server.
+  ThingsBoard Setup, section 10.
+- **Remote session** (FSD §42, proposed): book a time in ThingsBoard and a
+  cellular board stays connected for 1 – 12 hours, answering status, reading,
+  settings and history requests within about 30 seconds. The board's own web
+  pages are not reachable over cellular. ThingsBoard Setup, section 11.
+- **Satellite** (FSD §41): with a Notecard for Skylo, a board out of cellular
+  range sends one record a day with the day's status, a critical alert at once,
+  and takes a few settings back. ThingsBoard Setup, section 12.
+
 ## 6. Troubleshooting
 
 | Display shows | Meaning | What to do |

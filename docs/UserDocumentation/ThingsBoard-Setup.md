@@ -2,14 +2,19 @@
 
 How to set up a self-hosted ThingsBoard server so the device's readings appear
 on ThingsBoard dashboards, how to enter the server's details on the device,
-how to check that uploads arrive, and how to move the server to `https://`.
+how to check that uploads arrive, how to move the server to `https://`, and how
+to change a station's settings, open a remote session and run a satellite
+station from ThingsBoard.
 
 **Status: specified, not yet built.** This guide follows FSD
 [§32 ThingsBoard Telemetry](../Functionality/TDisplay-S3-Webserver-FSD.md)
-(settings §32.2, requests §32.3, log lines L41/L42 in §7.2). Until the firmware
-carries §32, the server side (sections 1 – 4 and 7) can be prepared and tested
-with `curl`; the device side (sections 5 and 6) waits for the build. Where this
-guide and the FSD differ, the FSD is right.
+(settings §32.2, requests §32.3, log lines L41/L42 in §7.2), with
+[§42 Remote Session](../Functionality/TDisplay-S3-Webserver-FSD.md) and
+[§41 Satellite Uplink](../Functionality/TDisplay-S3-Webserver-FSD.md) for
+sections 11 and 12. Until the firmware carries them, the server side (sections
+1 – 4, 7 and the ThingsBoard parts of 10 – 12) can be prepared and tested with
+`curl`; the device side waits for the build. §42 is still a proposal, so its
+names may change. Where this guide and the FSD differ, the FSD is right.
 
 The examples use the LAN test server `http://192.168.2.37:8080`. Replace it
 with your own server's address.
@@ -174,6 +179,7 @@ leaves ThingsBoard as it was, which on a new board is off.
 | Server URL (`tb_url`) | `http://192.168.2.37:8080` | `http://` or `https://`, a host name or IPv4 address, an optional `:port`, **no path and no trailing `/`**, up to 128 characters |
 | Access token (`tb_token`) | the token from section 2 | 1 – 64 letters, digits, `-`, `_` |
 | Upload every (`tb_every`) | `60` | Minutes, 1 – 1440, and must divide 1440 evenly (e.g. 5, 10, 15, 20, 30, 60, 120, 240, 360, 720, 1440) |
+| Remote settings (`tb_remote`) | `on` to take settings and session times from ThingsBoard (section 10) | `on` or `off`; `off` when never set |
 
 To upload to ThingsBoard without ntfy alerts, keep *Services* `on`, set ntfy
 `off` and ThingsBoard `on`.
@@ -360,6 +366,135 @@ history still holds them.
   ThingsBoard settings and the upload mark with everything else. To stop a
   board you no longer have from writing, delete its device in ThingsBoard or
   change its token.
+
+## 10. Changing settings from ThingsBoard
+
+With Remote settings (`tb_remote`) `on`, the board asks ThingsBoard for its
+**shared attributes** right after each upload that succeeds (FSD FR-32.16), so a
+change reaches it at its next upload, with no extra wake. On a cellular board
+the request goes through Notehub (Cloud Server guide, section 6).
+
+1. Open the device → *Attributes* → *Shared attributes* → **+**.
+2. Add the key and value, e.g. `sample_min` `5`, and save. To change several
+   settings that only make sense together (`sample_min` and `average_min`), add
+   them before the board's next upload, since it applies all or none.
+
+Only these keys are taken: `setup`, `sample_min`, `average_min`, `tb_every`,
+the `alert_*` limits, `loop` and the `loop_*` fields, and the `rs_*` fields.
+Network settings, server addresses, tokens, `tb`, `tb_remote` and `services`
+are never taken, so a mistake here cannot cut the board off. A value is applied
+only when it differs from the one the board last received, so a setting
+changed on the board itself (setup page or Bluetooth) stays until you change
+the shared attribute again.
+
+After each request the board posts three client attributes:
+
+| Key | Holds |
+|-----|-------|
+| `remote_applied` | the keys it applied, comma-separated, or empty |
+| `remote_error` | the first key it refused, or empty; nothing was applied then |
+| `remote_ts` | when it asked, in ms since 1970 |
+
+Put them on the dashboard (an *Entities table* or *Attributes card*) to see that
+a change took effect. The serial log shows `tb remote applied=...` or
+`tb remote failed: ...`.
+
+## 11. Remote sessions (cellular boards)
+
+A cellular board can stay connected for a few hours at a time you choose, so
+you can check it, change its settings, take a reading now and fetch its
+history without a site visit (FSD §42). Between sessions it sleeps as usual.
+The board's own web pages are not reachable over cellular; the session works
+through Notehub and ThingsBoard instead. Prepare Notehub first (Cloud Server
+guide, section 6: the `sreq.qi` rule chain call, the `srsp.qo` route and the
+`hist` route).
+
+**Booking a session.** Add two shared attributes (section 10):
+
+| Key | Value | Rule |
+|-----|-------|------|
+| `session_at` | the start in UTC, e.g. `2026-11-20T14:00Z` | in the future, at most 30 days ahead |
+| `session_h` | hours to stay connected | 1 – 12 (2 when left out) |
+
+The board picks them up at its next upload and wakes for the start. Its
+client attribute `session_state` shows `scheduled <start>`, then
+`open until <end>`, then `ended ...` or `failed nocell` (no cellular signal
+within 10 minutes of the start). For a board on satellite, book it the same way;
+the rule chain of section 12 passes the time on.
+
+**Sending requests.** A request is a JSON object with an `id` of your choice
+and a `req`. The simplest way to send one is a shared attribute
+`session_req` holding the JSON, which the rule chain turns into a Notehub note
+(below). Put an *Update shared string attribute* widget for it on the
+dashboard.
+
+| Request | Example | The answer |
+|---------|---------|------------|
+| Status | `{"id":1,"req":"status"}` | firmware, signal, setup, battery, the session's end |
+| Reading now | `{"id":2,"req":"reading"}` | a reading taken at once; it also appears in the telemetry |
+| Settings | `{"id":3,"req":"settings"}` | the board's settings, without passwords or tokens |
+| Change settings | `{"id":4,"req":"set","sample_min":5}` | `remote_applied` / `remote_error`, as section 10 |
+| History | `{"id":5,"req":"history","from":"2025-11-01","to":"2026-10-31"}` | lines, bytes and MD5 of the CSV sent to the `hist` route |
+| Longer | `{"id":6,"req":"extend","h":2}` | the new end (12 hours at most in all) |
+| End | `{"id":7,"req":"end"}` | the session ends and the board goes back to sleep |
+
+Answers arrive within about 30 seconds as the client attribute
+`session_answer` (the answer's JSON, with your `id`). The history arrives as
+the same CSV the board serves at `/api/history`, ready for the workbook
+importer; a year at 10-minute readings is about 3.5 MB and takes up to half an
+hour.
+
+**The rule chain.** In *Rule chains* → *Root Rule Chain*, add after the
+*Message Type Switch*'s `Attributes Updated` output:
+
+1. A *Script* filter node: `return metadata.scope === 'SHARED_SCOPE' && msg.session_req !== undefined;`
+2. A *REST API Call* node: method `POST`, URL
+   `https://api.notefile.net/v1/projects/<projectUID>/devices/<deviceUID>/notes/sreq.qi`,
+   header `Authorization: Bearer <Notehub API token>`, body
+   `{"body": ${session_req}}` (a *Script* transform before it can build this
+   from `msg.session_req`).
+
+Keep the Notehub token in the node only. Store each board's Notehub device UID
+(`dev:…`) as a server attribute so one rule chain serves every board.
+
+**What it costs.** About 13 mAh of the Notecarrier's battery an hour, a few KB
+of cellular data an hour, two Notehub events per request, and about 4 event
+credits for a year's history (Notehub's free tier is 5,000 events a month).
+
+## 12. Satellite stations
+
+A station with a Notecard for Skylo (FSD §41) sends, over satellite, one
+64-byte record a day: 24 hourly averages of one quantity and the day's status.
+Its other readings wait in the board and go up when cellular or WiFi returns.
+Notehub decodes the records (Cloud Server guide, section 6) into:
+
+- **Telemetry**: the 24 hourly values, named as the quantity's usual key.
+- **Attributes** `flag_<name>` true or false for the day: `t_high`, `t_low`,
+  `rh_high`, `rh_low`, `p_high`, `p_low`, `sensor`, `rs232`, `loop`, `history`,
+  `test_fail`, `nosync`, `remote`, `remote_bad`, `budget`, `crit`; also the
+  battery and `cfg`, a checksum of the settings in use.
+- **Critical alerts**, sent at once to ntfy when the quantity passes
+  `sat_crit_lo` or `sat_crit_hi`; ordinary alerts show only as the day's flags.
+
+Use the flags in the device profile's alarm rules (section 7), e.g. an alarm
+when `flag_loop` is true.
+
+**Settings over satellite.** Only a few settings travel by satellite, as
+Notehub environment variables: `s_setup`, `s_sample`, `s_average`, `s_lo`,
+`s_hi`, and the session time `s_session`, `s_hours`. Add a second *REST API
+Call* node to the rule chain of section 11 for changed shared attributes
+`setup`, `sample_min`, `average_min` and the session keys: method `PUT`, URL
+`https://api.notefile.net/v1/projects/<projectUID>/devices/<deviceUID>/environment_variables`,
+body `{"environment_variables":{"s_sample":"5"}}` with the names of the table
+above (`session_at` as seconds since 1970 in `s_session`). The board reads them
+at its next wake; the next day's record shows `flag_remote` true and a new
+`cfg`, or `flag_remote_bad` if a value was refused. Other settings wait for
+cellular or WiFi (section 10).
+
+**Budget.** Each record costs 64 bytes, a critical alert 50. At the default
+budget of 2,500 bytes a month every daily record is sent, about 24 KB a year,
+or about $18 at Blues' published rate after the 10 KB that comes with the
+Notecard. `flag_budget` turns true when 80 % of the month's budget is used.
 
 [^fqdn]: `<your-fqdn>` stands for your **fully qualified domain name**, the
     complete domain under which the server's name is registered, e.g.
