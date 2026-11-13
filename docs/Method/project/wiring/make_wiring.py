@@ -310,6 +310,65 @@ def fs3_board_part(used):
                 "with both STEMMA QT sockets; not the physical header order.")
 
 
+# The Raspberry Pi's 40-pin header as it sits on the board: pin 1 top left, odd pins in
+# the inner row (left here), even pins on the board's edge (right). Each pin's connector
+# is on the drawing's edge level with it, so wires leave the drawing, not the header.
+PI_HDR = {1: "3V3", 2: "5V", 3: "BCM 2", 4: "5V", 5: "BCM 3", 6: "GND", 7: "BCM 4",
+          8: "BCM 14", 9: "GND", 10: "BCM 15", 11: "BCM 17", 12: "BCM 18", 13: "BCM 27",
+          14: "GND", 15: "BCM 22", 16: "BCM 23", 17: "3V3", 18: "BCM 24", 19: "BCM 10",
+          20: "GND", 21: "BCM 9", 22: "BCM 25", 23: "BCM 11", 24: "BCM 8", 25: "GND",
+          26: "BCM 7", 27: "ID_SD", 28: "ID_SC", 29: "BCM 5", 30: "GND", 31: "BCM 6",
+          32: "BCM 12", 33: "BCM 13", 34: "GND", 35: "BCM 19", 36: "BCM 16", 37: "BCM 26",
+          38: "BCM 20", 39: "GND", 40: "BCM 21"}
+# the harness's slot pairs (Harness-User-Manual, GPIO): pin -> role
+PI_ROLE = {11: "pair 1 EN", 12: "pair 1 BOOT", 15: "pair 2 EN", 16: "pair 2 BOOT",
+           18: "pair 3 EN", 22: "pair 3 BOOT", 37: "pair 4 EN", 13: "pair 4 BOOT",
+           3: "siggen", 5: "siggen", 29: "siggen", 31: "siggen", 32: "siggen", 33: "siggen"}
+
+
+def pi_header_part():
+    w, head, pitch = 2300, 420, 120
+    h = head + 20 * pitch + 120
+    pins = []
+    for n in range(1, 41):
+        y = head + pitch * ((n - 1) // 2) + 60
+        pins.append((f"pin {n}", 0 if n % 2 else w, y, "L" if n % 2 else "R"))
+
+    def draw():
+        s = [f'<rect x="0" y="0" width="{w}" height="{h}" rx="40" fill="#14361a" stroke="#111111" stroke-width="12"/>',
+             t(w / 2, 110, "Raspberry Pi 4: 40-pin header", 70, "middle", "bold", "#ffffff"),
+             t(w / 2, 200, "seen from above, pin 1 at the end", 52, "middle", fill="#ffffff"),
+             t(w / 2, 270, "away from the USB and Ethernet ports", 52, "middle", fill="#ffffff"),
+             t(w / 2, 350, "odd: inner row      even: board edge", 46, "middle", fill="#d0f0d0"),
+             f'<rect x="{w / 2 - 150}" y="{head - 20}" width="300" height="{20 * pitch + 40}" fill="#1a1a1a" rx="20"/>']
+        for i, (name, x, y, side) in enumerate(pins):
+            n = int(name.split()[1])
+            role = PI_ROLE.get(n, "")
+            fn = PI_HDR[n]
+            col = {"EN": "#ff9800", "BOOT": "#ffe24d"}.get(role.split()[-1] if role else "", None)
+            if fn == "GND":
+                col = "#9e9e9e"
+            if role == "siggen":
+                col = "#80cbc4"
+            cx = w / 2 - 55 if side == "L" else w / 2 + 55
+            dot = (f'<rect x="{cx - 35}" y="{y - 35}" width="70" height="70" fill="#d4af37"/>' if n == 1
+                   else f'<circle cx="{cx}" cy="{y}" r="35" fill="#d4af37"/>')
+            s.append(f'<line x1="{x}" y1="{y}" x2="{cx}" y2="{y}" stroke="#3f6b45" stroke-width="6"/>')
+            s.append(dot)
+            s.append(t(cx, y + 14, str(n), 40, "middle", "bold"))
+            lab = f"{fn}  {role}" if role else fn
+            if side == "L":
+                s.append(t(cx - 60, y + 20, lab, 54, "end", "bold" if col else "normal", col or "#ffffff"))
+            else:
+                s.append(t(cx + 60, y + 20, lab, 54, "start", "bold" if col else "normal", col or "#ffffff"))
+            s.append(pin_svg(i, x, y))
+        return "".join(s)
+
+    return Part("pi_header_40", "Raspberry Pi 40-pin header", w, h, pins, draw, "J",
+                "Raspberry Pi 4 40-pin GPIO header in its physical layout, with the testbench's "
+                "slot GPIO pairs marked")
+
+
 def lipo_part(mid, title, side, top="-"):
     """LiPo cell with its two leads on the left or right edge, 150 mils apart."""
     w, h = 1000, 500
@@ -563,6 +622,7 @@ def build_parts(used):
                     desc="The testbench Pi's EN and BOOT GPIOs for the slot (harness manual, GPIO pairs)"))
     add(two_pin("fs3_d1n5711_h", "diode", "1N5711", False, "D", "Schottky diode",
                 pins=("K", "A")))
+    add(pi_header_part())
     add(module_part("fs3_user_key", ["User key", "momentary, NO"], "specified",
                     right=["NO", "COM"], w=900, color="#8a1c1c",
                     desc="Momentary user key, normally open"))
@@ -1603,27 +1663,28 @@ def sheet_fs3_entry(S):
 
 def sheet_fs3_bench(S):
     B = "Board"
-    S.place(B, FS3, 3000, 300)
-    S.place("Pi", "fs3_bench_pi", 200, 425)
-    S.place("D1", "fs3_d1n5711_h", 1800, 550)
-    S.place("D2", "fs3_d1n5711_h", 1800, 900)
-    # each Pi output through a Schottky diode, cathode at the Pi: it can pull low, never high
-    S.wire(("Pi", "EN (gpio_en)"), ("D1", "K"), "orange", ("x", 1600))
-    S.wire(("D1", "A"), (B, "RST"), "orange", ("x", 2700))
-    S.wire(("Pi", "BOOT (gpio_boot)"), ("D2", "K"), "yellow", ("x", 1650))
-    S.wire(("D2", "A"), (B, "IO0"), "yellow", ("x", 2800))
-    S.wire(("Pi", "GND"), (B, "GND"), "black", ("x", 1700))
-    S.note(200, 3100, 4600, [
+    S.place(B, FS3, 3700, 700)
+    S.place("Pi", "pi_header_40", 300, 400)
+    S.place("D1", "fs3_d1n5711_h", 2700, 1000)
+    S.place("D2", "fs3_d1n5711_h", 2700, 1310)
+    # pair 1 as the example: EN pin 11, BOOT pin 12, GND pin 14; each through a Schottky
+    # diode, cathode at the Pi, so the Pi can pull low but never drive the board high
+    S.wire(("Pi", "pin 11"), ("D1", "K"), "orange", ("x", 150), ("y", 280), ("x", 2600))
+    S.wire(("D1", "A"), (B, "RST"), "orange", ("x", 3450))
+    S.wire(("Pi", "pin 12"), ("D2", "K"), "yellow")
+    S.wire(("D2", "A"), (B, "IO0"), "yellow", ("x", 3550))
+    S.wire(("Pi", "pin 14"), (B, "GND"), "black", ("x", 2650))
+    S.note(300, 3500, 6200, [
         "# FeatherS3D: the bench's BOOT and RST lines (FSD C-40.9)",
-        "On the board's long header: RST is the first pin (beside 3V3.1), GPIO 0 the third",
-        "(marked 0, the BOOT button's line), GND the fourth (white square). No wire to 3V3.1.",
-        "D1, D2: 1N5711 (or BAT43) Schottky, band (cathode) at the Pi. Pi low pulls the pin",
-        "to about 0.4 V; Pi high is blocked, so the board's pull-up holds the pin and the Pi",
-        "never powers the board. Pi pairs: 1 BCM 17/18 (pins 11/12), 2 BCM 22/23 (15/16),",
-        "3 BCM 24/25 (18/22), 4 BCM 26/27 (37/13); GND pin 14. Then run the BOOT/EN test.",
+        "Pi side, drawn as on the board: pair 1 is EN pin 11 (BCM 17), BOOT pin 12 (BCM 18), GND pin 14.",
+        "For another slot move both wires to its pair: 2 = pins 15/16, 3 = pins 18/22, 4 = pins 37/13;",
+        "the nearest GND is any grey pin. Never pins 3, 5, 29, 31, 32, 33 (the signal generator).",
+        "FeatherS3D side, long header: RST the first pin (beside 3V3.1), GPIO 0 the third (marked 0),",
+        "GND the fourth (white square). No wire to 3V3.1. D1, D2: 1N5711 or BAT43 Schottky, band",
+        "(cathode) at the Pi: Pi low pulls the pin to about 0.4 V, Pi high is blocked. Then set the",
+        "slot's gpio_en / gpio_boot, restart the portal and run the BOOT/EN test with the board awake.",
         LEGEND,
     ])
-
 
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
@@ -1660,7 +1721,7 @@ SHEETS = [
     ("wiring-15-fs3-entry", "15  FeatherS3: field cable entry, surge protection and earth (FSD 40)",
      (6400, 4000), set(), sheet_fs3_entry),
     ("wiring-16-fs3-bench", "16  FeatherS3D: the bench's BOOT and RST lines (FSD C-40.9)",
-     (5000, 4300), {"RST", "IO0", "GND"}, sheet_fs3_bench),
+     (6700, 4600), {"RST", "IO0", "GND"}, sheet_fs3_bench),
 ]
 
 
