@@ -63,6 +63,7 @@ reused.
 | 38 | ESP-NOW Link (optional) | L1 |
 | 39 | Hardware Clock (optional) | L1 |
 | 40 | Low-Power Build (FeatherS3) | cross-cutting |
+| 41 | Satellite Uplink (optional) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -535,6 +536,19 @@ testbench.
   bench slot is to be assigned. The probes' host cores and the §30 settings for the
   MB7569-100 can be checked before the board arrives.
 
+### 3.22 Phase 22: Satellite uplink
+
+- **Scope.** §41 on the T-Display and FeatherS3 builds: the Notecard for Skylo,
+  the §37 `day`, `al` and `st` messages over satellite, the monthly budget, and
+  remote settings by Notehub environment variables.
+- **Deliverables.** §41, L66, L67; the shared `pack` component of §37, if Phase 19 has not built it
+  and its Notehub decoders; the satellite rules in `uplink_core`; a ThingsBoard
+  rule chain forwarding the FR-41.10 attributes to Notehub, in the User Manual.
+- **Exit criteria.** The §41.6 host rows pass; an outdoor operator run shows the
+  messages in ThingsBoard and ntfy and a remote setup change taking effect.
+- **Dependencies.** §32's remote settings, §33, §37; a Notecard for Skylo and
+  Skylo coverage at the test site (R-49).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -586,6 +600,8 @@ testbench.
 | R-44 | The pins of §40.2 beyond the board's named functions (GPIO 1, 5 – 7, 10 – 14, 17, 18, 33) come from distributor pages, not the board's schematic, and GPIO 33 may be taken by the PSRAM | Possible | Medium | The Phase 21 commissioning program walks each pin; a pin found taken moves before any firmware uses it |
 | R-45 | No protector survives a direct strike, and a nearby one can still exceed C-40.7's ratings on a 100 ft cable | Possible | High | C-40.5 – C-40.8 limit the damage to the replaceable protector and field boards; the field boards plug in, so they are swapped, not repaired |
 | R-46 | A 0 – 5 V probe has no live zero: a broken signal wire reads 0 V, the same as an empty tank | Certain | Medium | Accepted for the EALLT-1 [user]; a 4-20 mA probe on the loop channel detects it (FR-29.4) |
+| R-48 | Satellite data costs by the byte, so a fault that adds messages (a flapping alert, a clock set wrong) could spend the month's data | Possible | Medium | FR-41.6 caps alerts a day and FR-41.9 caps the month's bytes; the count is on `st` and `GET /` |
+| R-49 | Skylo coverage, the Notecard for Skylo's availability and Blues' NTN rules (templates, environment variables over NTN) are taken from Blues' documents, not yet from a run of this firmware | Possible | Medium | The sat-probe trial's stage 3 and the §41.6 operator rows prove them before the section is relied on |
 | R-47 | The EALLT-1's supply current is not published and may not fit the isolated 24 V beside a shorted loop | Possible | Medium | Measured at commissioning; C-40.10 sizes the converter from it |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
@@ -1166,6 +1182,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L62 | Level probe value (FR-40.11) | `web: level volt=<V, 3 decimals> v=<value, 3 decimals> <loop_unit>` | I |
 | L63 | Level probe failed (FR-40.10) | `web: level failed: <over\|ERR> volt=<V, 3 decimals, or none>` | W |
 | L64 | Remote settings received (FR-32.19) | `web: tb remote applied=<keys, comma-separated, or none>` | I |
+| L66 | Satellite remote settings applied (FR-41.11) | `web: sat settings applied=<variables, comma-separated>` | I |
+| L67 | Satellite send or setting withheld (FR-41.2, FR-41.6, FR-41.9, FR-41.11) | `web: sat skipped: <nomodem\|alerts\|budget\|invalid=<variable>>[ used=<bytes this month>]` | W |
 | L65 | Remote settings refused or failed (FR-32.19, FR-32.21) | `web: tb remote failed: <invalid=<key>\|connect\|tls\|auth\|refused\|timeout>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
@@ -4727,6 +4745,163 @@ Bench rows run on the slot that holds the FeatherS3 (not yet assigned);
 
 ---
 
+## 41. Satellite Uplink (optional)
+
+### 41.1 Purpose & peers
+
+A station beyond cellular coverage keeps reporting over satellite: a Blues
+Notecard for Skylo in place of the §33 Notecard sends the §37 packed messages
+through Skylo's geostationary network when cellular is not available, and
+receives a few numeric settings back the same way [user]. Satellite carries
+only what a remote site needs between visits: a daily summary of the level,
+alerts, a weekly status, and remote changes to the sampling setup. Every
+reading is still kept in the history (§27), and the full readings go up over
+cellular or WiFi whenever either returns, from the §32 upload mark, so a
+satellite period leaves no gap in ThingsBoard.
+
+Satellite data is billed by the byte: 10 KB come with the Notecard, then about
+$0.75 per KB, each packet counted as at least 50 bytes and none larger than 256
+bytes (C-37.1) [derived from Blues' Starnote for Skylo datasheet]. This section
+holds the station to a monthly byte budget (FR-41.9). A packet takes minutes,
+not seconds, to reach Notehub.
+
+Peers: the Notecard for Skylo on the §33 bus; Notehub, which decodes the
+template notes and passes them to ThingsBoard and ntfy through the routes of
+§37 (the `day`, `al` and `st` decoders); ThingsBoard, whose rule chain forwards
+a changed shared attribute of FR-41.10 to Notehub's API as a device environment
+variable. The cellular build (§35) has no Notecard and does not take this
+section. The satellite trial (`commissioning/sat-probe`) proved the path with
+its own `day.qo`; this section uses §37's `day` in its place.
+
+### 41.2 Hardware
+
+| Item | Value | Source |
+|------|-------|--------|
+| Modem | Blues Notecard for Skylo (LTE Cat-1 bis with Skylo NTN) in the Notecarrier-X's M.2 socket in place of the NOTE-MBGLW; the same bus, address, power and wiring as §33.2 | [user]; the part [proposed] |
+| Antenna | The §33.2 LTE antenna on `MAIN` serves both cellular and Skylo (no satellite antenna); mounted with a clear view of the southern sky for the geostationary satellites, outside any metal enclosure | [derived from Blues' Starnote for Skylo datasheet]; placement [proposed] |
+| Location | Skylo needs the station's place before it transmits; the place stored by §33's GPS check (FR-33.18) is given to the Notecard as a fixed location, so no GPS fix is taken for each satellite session | [proposed] |
+
+### 41.3 Settings
+
+Added to the §13.2 form and the BLE `settings` write (§26); all optional.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `sat` | `off`, `fallback` (cellular first, satellite only when no cellular) or `only` | one of the three; not `off` needs `uplink` `cell` and a Notecard for Skylo (FR-41.2) | the stored value; `off` when none is stored [proposed] |
+| `sat_q` | the quantity of the daily `day` message: `temp`, `rh`, `p`, `slot1` or `slot2` (§37.3 `q`) | one of the five | the stored value; `slot2` (the loop or level probe) [proposed] |
+| `sat_budget` | bytes of satellite data a calendar month (UTC), counted as Skylo bills them | 500 – 100000 | 1500 [proposed] |
+| `sat_alerts` | alerts sent over satellite a day | 0 – 10 | 2 [proposed] |
+
+### 41.4 Messages and schedule
+
+Over satellite the device sends only §37 messages in the template encoding, each
+a Notefile with a compact template set up by FR-41.3:
+
+| Message | When over satellite | Bytes billed |
+|---------|---------------------|--------------|
+| `day` (`pday.qo`) | once a day, after local midnight, the 24 hourly averages of `sat_q` for the day before | 59 → 59 |
+| `al` (`pal.qo`) | at once, at most `sat_alerts` a day | 11 → 50 |
+| `st` version 2 (`pst.qo`) | once a week, and after remote settings are received (FR-41.11) | 11 → 50 |
+
+At the defaults this is about 30 × 59 + 4 × 50 = 1970 bytes a month without
+alerts, so `sat_budget` 1500 sends the daily message on about three days in four
+(FR-41.9); a budget of 2500 sends every day. `rd` is not sent over satellite.
+
+`st` version 2 (type 4, version 2) adds one field to §37.3's `st`, so ThingsBoard
+can show whether remote settings took effect [proposed]:
+
+| Field | Type | Holds | Hint |
+|-------|------|-------|------|
+| `cfg` | uint16 | the CRC-16/CCITT-FALSE of the FR-41.10 settings in use, in the order of that table, each as its template type | 22 |
+
+Remote settings arrive as Notehub environment variables, each with an
+environment variable template (Blues requires one for every variable received
+over NTN) [derived from Blues' Notecard for Skylo quickstart]:
+
+| Variable | Type | Setting |
+|----------|------|---------|
+| `s_setup` | uint8 | the normal setup, its row in §28.1 counted from 0 |
+| `s_sample` | uint8 | `sample_min` |
+| `s_average` | uint16 | `average_min` |
+| `s_lo`, `s_hi` | float32 | the low and high alert limits of slot 2 |
+
+### 41.5 Requirements
+
+Settings and setup:
+
+- **FR-41.1** [Must] [proposed] The portal form (§13.2) and a BLE `settings`
+  write (§26) shall carry the fields of §41.3, valid per §41.3, stored, reported
+  by the `settings` read (FR-26.9) and erased by a factory reset as §33's.
+- **FR-41.2** [Must] [proposed] With `sat` not `off`, the device shall check at
+  each boot that the Notecard reports an NTN radio (`card.version`); without one,
+  it behaves as with `sat` `off` and logs L67 `nomodem` once a boot.
+- **FR-41.3** [Must] [proposed] With `sat` not `off`, at each boot where they
+  differ from the Notecard's, the device shall send the compact templates of
+  §41.4's messages and variables, set the fixed location of §41.2, and set
+  `card.transport` to `cell-ntn` (`fallback`) or `ntn` (`only`), replacing
+  FR-33.14's `cell`.
+
+Sending:
+
+- **FR-41.4** [Must] [proposed] While the Notecard is on satellite, only the
+  messages of §41.4 shall be sent; the §33.4 JSON notes (`tb.qo`, `tbattr.qo`,
+  `mail.qo`, and `alert.qo` in favour of `al`) are not added, and the §32
+  upload mark does not move, so those readings go up from the mark when
+  cellular or WiFi returns.
+- **FR-41.5** [Must] [proposed] The `day` message shall be added once a day at
+  the first wake after local midnight (FR-22.2), for `sat_q`'s hourly averages
+  of the 24 whole UTC hours before, as §37.3; with the clock never set
+  (FR-22.6), none is added.
+- **FR-41.6** [Must] [proposed] An alert of §31 that starts or ends while on
+  satellite shall be added as `al` with `sync:true`, up to `sat_alerts` a
+  local day; further alerts that day are logged as L67 `alerts` and not sent.
+- **FR-41.7** [Must] [proposed] The `st` message shall be added once a week,
+  at the first wake after local midnight on Monday, and after each change of
+  remote settings (FR-41.11).
+- **FR-41.8** [Must] [proposed] The device shall force no satellite sync
+  other than for an alert; the Notecard sends the queued messages at its own
+  outbound sync (`cell_every`, §33.3).
+
+Budget:
+
+- **FR-41.9** [Must] [proposed] The device shall count the bytes Skylo bills
+  for each message it adds for satellite (its template size, at least 50) in a
+  month counter kept in NVS, reset at the start of each UTC month. A message
+  that would take the count over `sat_budget` is not added, except an `al`,
+  and is logged as L67 `budget`; the count is reported in `st` and on `GET /`.
+
+Remote settings:
+
+- **FR-41.10** [Must] [proposed] Only the settings of §41.4's variable table
+  shall be taken over satellite: ThingsBoard's rule chain forwards a changed
+  shared attribute of FR-32.17 that has a variable here to Notehub as that
+  variable, and the other shared attributes wait for cellular or WiFi (FR-32.16).
+- **FR-41.11** [Must] [proposed] At each wake the device shall read the
+  variables of §41.4 from the Notecard (`env.get`); a variable whose value
+  differs from the one last received is applied by FR-32.18's rules, all or
+  none, logged as L66, and followed by an `st` whose `cfg` shows the settings
+  in use; an invalid set changes nothing and is logged as L67 `invalid=<variable>`.
+
+- **C-41.1** [Must] [derived from C-37.1] No message added for satellite shall
+  exceed 256 bytes in the template encoding.
+- **NFR-41.1** [Should] [proposed] At the defaults of §41.3, a month on
+  satellite shall stay within `sat_budget`, alerts aside.
+
+### 41.6 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-41.1 (core) | Form bodies: `sat=fallback` with `uplink` `wifi`; `sat=only` with `cell`; `sat_q=x`; `sat_budget` 499, 100001; `sat_alerts` 11 | `sat`; accepted; `sat_q`; `sat_budget` twice; `sat_alerts` | `sat` on without `cell` | host |
+| FR-41.4, FR-41.5, FR-41.7 (core) | `uplink_core` on satellite over 8 days: readings every 10 min, a Monday, one alert | 8 `day`, 1 `st`, 1 `al`; no `tb.qo`, `tbattr.qo` or `mail.qo`; the upload mark unchanged | A JSON note added on satellite | host |
+| FR-41.6 (core) | Five alerts in one day, `sat_alerts` 2 | Two `al`, three L67 `alerts` | A third `al` that day | host |
+| FR-41.9, NFR-41.1 (core) | A month at the defaults, then `sat_budget` 2500; an alert after the budget is spent | 1500 kept: `day` dropped once spent, L67 `budget`; 2500: every `day`; the alert sent; the counter reset on the 1st | The count over budget from a non-alert message | host |
+| FR-41.11 (core) | Variables `s_setup=1`; then the same again; then `s_sample=7` with `s_average=15`; then a local change to `std` | Applied, L66, `st` with the new `cfg`; nothing; refused, L67 `invalid=s_sample`; the local change kept | A partial set applied; a re-applied unchanged value | host |
+| FR-41.3, C-41.1 | Notecard for Skylo on the bench, `sat=only`; templates read back with `note.template` | Each template as §41.4, none over 256 bytes; `card.transport` `ntn` | A note without a template | target |
+| FR-41.4 – FR-41.8 | Operator, outdoors with sky view, `sat=only`, a day of readings, a limit crossed | The `day`, `al` and `st` events in Notehub; the decoded values in ThingsBoard and the alert in ntfy | A JSON note in Notehub from the satellite period | bench (operator) |
+| FR-41.10, FR-41.11 | Operator: a shared attribute `setup` changed on ThingsBoard during the satellite run | L66 at a later wake; ThingsBoard's `cfg` matching the new setup | The change applied twice | bench (operator) |
+
+---
+
 ## 11. Operational Procedures
 
 Reading path: connect the board by USB-C (§2.2) → build per §10 → flash via
@@ -4953,7 +5128,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.58.2
+fsd_version: 0.60.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5054,6 +5229,8 @@ change_history:
   - "0.58.0 2026-11-11 from the user's note that GPS is needed for location and the request for higher-gain antenna options: §33.2 Antenna row gains the passive default of the Notecarrier-X GPS port and the active-antenna jumper (proposed)"
   - "0.58.1 2026-11-12 from the rtc-probe bench run, which measured a positive RV-8803 trim step slowing the clock (+31 steps −6.2 ppm, −32 steps +7.7 ppm; the 24 h rate −0.99 ppm, NFR-39.1 met): the §39.4 FR-39.8 core row raises the trim of a fast clock; FR-39.8 itself is unchanged"
   - "0.58.2 2026-11-12 the user approved FR-7.35 (L6 carries the station's last disconnect reason)"
+  - "0.59.0 2026-11-12 approved by the user: §40.2 takes the FeatherS3's board definitions (vertical STEMMA QT SDA GPIO 16, SCL GPIO 15), ties the MaxBotix's ranging pin high with a one-channel isolator so GPIO 13 (the blue LED) is unused (FR-40.12 without a TX line), and feeds the OLED from a 5 V step-up after the display switch; §32 remote settings from ThingsBoard shared attributes (`tb_remote`, FR-32.16 – FR-32.21, L64, L65)"
+  - "0.60.0 2026-11-12 draft for the user's review, from the user's question about remote settings over satellite: §41 Satellite Uplink (all proposed) sends §37's day, al and st (version 2 with cfg) over a Notecard for Skylo within a monthly byte budget and takes five numeric settings as Notehub environment variables; L66, L67, R-48, R-49, Phase 22"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
