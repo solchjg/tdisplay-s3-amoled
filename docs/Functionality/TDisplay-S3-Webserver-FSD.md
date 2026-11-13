@@ -62,6 +62,7 @@ reused.
 | 37 | Packed Messages | L1 |
 | 38 | ESP-NOW Link (optional) | L1 |
 | 39 | Hardware Clock (optional) | L1 |
+| 40 | Low-Power Build (FeatherS3) | cross-cutting |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -512,6 +513,28 @@ testbench.
 - **Dependencies.** §22 (time), §26 (BLE setup), §33 and §35 (the cellular
   times). It waits for neither Phase 18 nor Phase 19.
 
+### 3.21 Phase 21: Low-power build (FeatherS3)
+
+- **Scope.** The FeatherS3 build of §40: the board, the switched supplies of the
+  sensor bus, the displays and the field boards, the e-paper and OLED on the new
+  pins, the 0 – 5 V level channel, the isolated serial port for the ultrasonic
+  sensor, the surge-protected field entry, and the bench slot's RST and BOOT lines.
+- **Deliverables.** §40, L62, L63; `CONFIG_APP_BOARD_FEATHERS3` and its `board.h`
+  pins; the voltage channel in `loop` and its pure core; the serial port's RX
+  inversion in `serial_port`; a commissioning program `commissioning/feathers3-probe`
+  (the board's pins and buses, LDO2, the display supply and backfeed, the OLED's
+  start-up time, the RST and BOOT lines, the sleep current part by part, the
+  EALLT-1's supply current); a Method note for the analog board's voltage channel
+  and the serial port; a User Manual section for the build.
+- **Exit criteria.** On its bench slot the build passes the §40.6 contracts; the
+  sleep current is recorded and accepted as NFR-40.1's limit; the other builds are
+  unchanged.
+- **Dependencies.** §29, §30, §35's display rules (Phase 18), §39; the hardware:
+  the MB7569-100 and the EALLT-1 are on hand [user]; the FeatherS3, the displays'
+  switch, the isolated converters and the surge protectors are awaited, and a
+  bench slot is to be assigned. The probes' host cores and the §30 settings for the
+  MB7569-100 can be checked before the board arrives.
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -559,6 +582,11 @@ testbench.
 | R-40 | Notehub's routes offer JSONata only, so a `raw` message reaching Notehub could not be decoded there, and Notehub leaves zero fields out of a body | Certain | Medium | Notecard links use the template encoding (§37.2), which Notehub decodes; every decoder reads an absent field as 0 (§37.2, FR-37.4 contract) |
 | R-41 | A gateway listens without sleeping, about 80 – 100 mA on an ESP32-S3 (an approximate figure, not yet measured) | Certain | Medium | A gateway is powered from USB or mains [user]; commissioning measures the draw (Phase 19) |
 | R-42 | Range and airtime of ESP-NOW, and of its LR mode, on these boards' on-board antennas are only the vendor's figures (about 100 – 200 m normal, up to about 1 km LR) | Likely | Medium | `espnow_lr` stays `off` by default; the FR-38.7 range test records the delivered share at 100 m, 300 m and 1 km |
+| R-43 | Unexpected Maker publishes no sleep current for the FeatherS3, so the build's gain over the T-Display build is not yet known | Certain | Medium | NFR-40.1 measures it part by part at commissioning; the limit is set from that figure [user] |
+| R-44 | The pins of §40.2 beyond the board's named functions (GPIO 1, 5 – 7, 10 – 14, 17, 18, 33) come from distributor pages, not the board's schematic, and GPIO 33 may be taken by the PSRAM | Possible | Medium | The Phase 21 commissioning program walks each pin; a pin found taken moves before any firmware uses it |
+| R-45 | No protector survives a direct strike, and a nearby one can still exceed C-40.7's ratings on a 100 ft cable | Possible | High | C-40.5 – C-40.8 limit the damage to the replaceable protector and field boards; the field boards plug in, so they are swapped, not repaired |
+| R-46 | A 0 – 5 V probe has no live zero: a broken signal wire reads 0 V, the same as an empty tank | Certain | Medium | Accepted for the EALLT-1 [proposed]; a 4-20 mA probe on the loop channel detects it (FR-29.4) |
+| R-47 | The EALLT-1's supply current is not published and may not fit the isolated 24 V beside a shorted loop | Possible | Medium | Measured at commissioning; C-40.10 sizes the converter from it |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
 
@@ -1135,6 +1163,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L59 | Gateway accepted a frame (FR-38.16) | `web: espnow rx node=<hostname> what=<rd\|al\|st> n=<readings, or 1> rssi=<dBm>` | I |
 | L60 | Gateway dropped a frame (FR-38.16) | `web: espnow dropped: <tag\|replay\|version\|full> mac=<aa:bb:cc:dd:ee:ff>` | W |
 | L61 | Gateway passed a node's data on (FR-38.17, FR-38.18) | `web: espnow fwd node=<hostname> to=<tb\|ntfy> <ok\|failed: <connect\|tls\|auth\|refused\|timeout>> n=<readings, or 1>` | I or W |
+| L62 | Level probe value (FR-40.11) | `web: level volt=<V, 3 decimals> v=<value, 3 decimals> <loop_unit>` | I |
+| L63 | Level probe failed (FR-40.10) | `web: level failed: <over\|ERR> volt=<V, 3 decimals, or none>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -4424,6 +4454,229 @@ Logs:
 | FR-38.7 | SLOT1 in LR as node; the peer as a gateway in LR, then in normal mode; then SLOT1 normal, the peer LR | Delivered; not delivered; delivered | An LR node heard by a normal gateway | bench |
 | FR-38.7 (range) | Two boards outdoors, line of sight, 100 m, 300 m and 1 km, normal and LR at 250 kbit/s | The delivered share at each distance recorded in `espnow.md` | — | bench (operator) |
 | FR-38.15 | SLOT1 as gateway, sampling `std` | No `web: sleep` for 2 h; a reading at each period; a key press opens a window without L1 | A deep sleep; a restart on the key | target |
+
+---
+
+## 40. Low-Power Build (FeatherS3)
+
+### 40.1 Purpose & peers
+
+A third product build of this firmware runs on the Unexpected Maker FeatherS3
+(ESP32-S3) [user], for a station that sleeps on a battery at a far lower current
+than the T-Display build (measured at 380 µA alone and 451 µA with the sensor bus,
+`docs/Method/project/sleep-current.md`). Its board keeps nothing but the clock's
+bus powered in deep sleep: the sensors, the displays and the field inputs are
+each on a supply the firmware switches off (FR-40.3 – FR-40.6). It has the
+features of the T-Display build wherever the board allows (§40.3). It draws
+the §5.4 lines on the e-paper display and the 3.12" OLED of the cellular
+build, chosen by temperature as §35 says (FR-40.7). Its field inputs, a 4-20 mA
+loop, a 0 – 5 V level probe and an ultrasonic level sensor, enter through a
+surge protector and an isolation barrier, because their cables run 15 – 100 ft
+over open ground [user] (C-40.5 – C-40.8).
+
+Peers: the Blues Notecard of §33 on its own LiPo, the BME280, the RV-8803
+(§39), the e-paper display, the OLED, the 4-20 mA transmitter (§29), the
+0 – 5 V level probe (FR-40.9), the ultrasonic sensor on the serial port
+(FR-40.12), the user key, and the testbench's RST and BOOT lines (C-40.9).
+The T-Display build and the cellular build are unchanged by this section.
+
+The first field probes, in the order they are tested [user]:
+
+| Order | Probe | Input on this build |
+|-------|-------|---------------------|
+| 1 | MaxBotix MB7569-100 (SCXL-MaxSonar-WRM) ultrasonic sensor, 300 – 4999 mm, 2.7 – 5.5 V, about 34 mA at 3.3 V and 68 mA at 5 V, serial 9600 8N1 `R<four digits mm><CR>` at inverted logic levels | The isolated serial port, §30 add-on slot 1 (FR-40.12) |
+| 2 | Earu EALLT-1 submersible level transmitter, 0 – 5 m, 0 – 5 V output, 10 – 30 V supply, vented cable (no barometric correction); its supply current is not published and is measured at commissioning | The analog board's voltage channel, §29.2 slot 2 with `loop` `volt` (FR-40.9) |
+| 3 | A level transmitter with a 4-20 mA output and a 24 V supply | The analog board's loop channel, §29 unchanged, slot 2 with `loop` `in` |
+
+Its verification contracts are §40.6.
+
+### 40.2 Hardware
+
+The board facts below come from Unexpected Maker's FeatherS3 datasheet and are
+checked by the commissioning program of Phase 21 (R-44).
+
+| Item | Value | Source |
+|------|-------|--------|
+| Board | Unexpected Maker FeatherS3 (P7 or later: its two STEMMA QT sockets on separate buses) | [user]; P7 [derived from the board] |
+| MCU | ESP32-S3, 16 MB flash, 8 MB QSPI PSRAM (unused) | [derived from the board] |
+| Console | The ESP32-S3's native USB-Serial/JTAG, which also flashes it and resets it into download mode | [derived from the board] |
+| Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery voltage on GPIO 2 (the board's divider), USB present on GPIO 34 | [derived from the board] |
+| Always-on bus | The horizontal STEMMA QT socket, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins [derived from the board] |
+| Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [proposed] |
+| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V, output to both displays; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds | [user]; GPIO 17 [proposed] |
+| Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [proposed] |
+| E-paper | Waveshare 4.2" e-Paper Module (V2), SSD1683, as §35.2: CS GPIO 5, DC GPIO 6, RST GPIO 7, BUSY GPIO 10 (internal pull-down, FR-35.25) | [user]; pins [proposed] |
+| OLED | 3.12" 256 × 64 SSD1322 module, as §35.2: CS GPIO 11 (10 kΩ to GND on its lead, FR-35.25), RES GPIO 12, DC shared with the e-paper's GPIO 6 | [user]; pins [proposed] |
+| Analog board | The §29 loop board with a second, voltage channel (FR-40.9): its supply enable on GPIO 18 (100 kΩ pull-down on the board), its 24 V from a 2 W isolated DC-DC, isolation of at least 3 kV (C-40.6); loop on A0 – A1 as §29, the probe's 0 – 5 V through a 15 kΩ / 10 kΩ divider (0.1 %) to A2, read single-ended at ±2.048 V | [user]; parts [proposed] |
+| Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a two-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14 and GPIO 13 to its trigger; its supply enable on GPIO 33 (100 kΩ pull-down) | [proposed] |
+| User key | A momentary key on GPIO 1 (an RTC GPIO), active low, external 10 kΩ pull-up | [proposed] |
+| BOOT key | GPIO 0, the board's BOOT button, as §18 | [derived from the board] |
+| Field entry | Each field cable (the loop pair, the probe's three wires, the serial sensor's four) through a surge protector at the enclosure wall, bonded to one earth rod (C-40.7) | [proposed] |
+| Bench slot | Not yet assigned [user]; its RST and GPIO 0 wired to the bench (C-40.9) | [user] |
+
+### 40.3 Feature parity
+
+| Feature | § | On this build |
+|---------|---|---------------|
+| Connectivity states, WiFi portal, status page and API, HTTP OTA, UDP log, mDNS, BOOT key, factory reset | 5, 13 – 18 | Same |
+| Panel and its six lines | 5.4, 6 | The e-paper or the OLED by temperature, as on the cellular build (FR-40.7) |
+| Serial log | 7 | Same, plus L50, L62 and L63 |
+| Watchdog, identity, deep sleep, time, hardware clock | 19 – 22, 39 | Same; the user key on GPIO 1 |
+| Weather sensor, setup check, reading history, sampling setups | 23, 24, 27, 28 | Same; the BME280 on the switched bus. FR-24.9's LED is not fitted |
+| Summary email, push alerts, ThingsBoard, BLE setup | 25, 26, 31, 32 | Same |
+| 4-20 mA loop | 29 | Same, on the analog board's pins of §40.2 |
+| 0 – 5 V level probe | — | New on this build, in §29.2 slot 2 (FR-40.9, FR-40.10) |
+| RS232 input | 30 | Same settings and rules on the isolated logic-level port (FR-40.12, C-40.4) |
+| Cellular uplink (Notecard) | 33 | Same, the Notecard on the always-on bus |
+| WiFi off, packed messages, ESP-NOW | 34, 37, 38 | Same |
+| Modem, microSD settings, fuel gauge of the cellular build | 35 | Not on this build |
+
+### 40.4 Settings
+
+The §29.1 field `loop` gains a third value on this build; every other field is
+as its own section says.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `loop` | `off`, `in` (the 4-20 mA channel, §29) or `volt` (the 0 – 5 V channel, FR-40.9) | one of the three; `volt` only on this build | `off` |
+| `loop_lo`, `loop_hi` | With `volt`: the value at 0 V and at 5 V | as §29.1 | 0 and 5 (the value is the voltage) [proposed] |
+
+With `loop` `volt`, `loop_unit` empty or absent means `V` [proposed]. The two
+channels share slot 2 of §29.2, so one is read at a time and the reading and
+history record sizes do not change [proposed]. The ultrasonic sensor is set up
+through §30's fields; the User Manual gives its values: `rs` `listen`,
+`rs_baud` 9600, `rs_format` `8N1`, `rs_timeout_ms` 3000, `rs_field` 1, and,
+for the water level in metres, `rs_scale` −0.001 with `rs_offset` the sensor's
+height above the reference in metres.
+
+### 40.5 Requirements
+
+Build:
+
+- **FR-40.1** [Must] [user] The low-power build shall come from the same
+  source tree as the other builds, the board chosen at build time
+  (`CONFIG_APP_BOARD_FEATHERS3`); the other builds' images and behaviour do
+  not change, and its image fits a 4 MB application slot (C-10.7) with the
+  same partition table, including the 2 MB `history` partition.
+- **FR-40.2** [Must] [derived from FR-35.6] Every feature §40.3 lists as the
+  same shall meet its own section on this build, with the same log lines;
+  where §40.3 names a change, this section's requirement replaces the named
+  part only.
+
+Power in sleep:
+
+- **FR-40.3** [Must] [user] Before deep sleep the device shall disable LDO2
+  (GPIO 39 low), so the switched bus and everything on it is unpowered; it
+  enables LDO2 at each boot, window and wake before the first BME280 reading,
+  and waits **10 ms** [proposed] before addressing the bus.
+- **FR-40.4** [Must] [user] The display supply shall be on only within a
+  window: switched on before FR-35.25's detection and off after FR-35.15's
+  final refresh and the e-paper's deep sleep command, and never on a timer
+  wake.
+- **FR-40.5** [Must] [derived] Before the display supply is switched off,
+  every display line of §40.2 (SCK, MOSI, both CS, DC, both resets) shall be
+  set to an input without pulls, so no line powers a panel through its input
+  protection.
+- **FR-40.6** [Must] [derived from C-29.2] The analog board's supply (GPIO 18)
+  and the serial port's supply (GPIO 33) shall be off through deep sleep,
+  reset and power-on, and on only while their add-on is read.
+- **NFR-40.1** [Should] [user] Asleep between windows, the board's current
+  from the battery shall be measured at commissioning (the board alone, then
+  with the always-on bus, the switched bus, the displays and the field boards
+  added in turn) and recorded here and in the User Manual; the figure becomes
+  this requirement's limit once the user accepts it.
+
+Displays:
+
+- **FR-40.7** [Must] [user] FR-35.2, FR-35.15, FR-35.16, FR-35.17, FR-35.24
+  and FR-35.25, and the `epaper` and `oled` settings, shall apply on this
+  build with the pins of §40.2; FR-35.24's modem and fuel-gauge rows show
+  `modem off` and the GPIO 2 battery voltage.
+- **FR-40.8** [Must] [derived] After the display supply turns on, the device
+  shall wait **100 ms** [proposed] before FR-35.25's detection, so the OLED's
+  boost has started; commissioning measures the start-up time (Phase 21).
+
+Level probe (0 – 5 V):
+
+- **FR-40.9** [Must] [user] With `loop` `volt`, at each reading (FR-23.1,
+  FR-23.3, §28 tests) the device shall, after the BME280 reading, turn the
+  analog board's supply on, wait `loop_warm_ms`, take the mean of **4**
+  single-shot conversions of A2 against the isolated ground at ±2.048 V and
+  128 SPS, and turn the supply off. The probe voltage is the A2 voltage × 2.5
+  (the divider of §40.2), and the value
+  `loop_lo + volts / 5 × (loop_hi − loop_lo)`, unclamped.
+- **FR-40.10** [Must] [derived from FR-29.4] A probe voltage above **5.10 V**
+  [proposed], an ADS1115 that does not answer, or a failed transfer shall be
+  a level fault: no value is kept and L63 is logged. A 0 – 5 V output has no
+  live zero, so 0 V is a valid reading and an open signal wire is not
+  detected (R-46). A fault stops neither the BME280 reading, the window nor
+  sleep, and is not retried within the same task run.
+- **FR-40.11** [Must] [derived from FR-29.5] Each level value shall be logged
+  as L62 and held in §29.2 slot 2 as the loop's value is, under `loop_name`.
+- **NFR-40.2** [Must] [proposed] The probe voltage of FR-40.9 shall be within
+  **±0.25 % of span** (12.5 mV) of a reference voltage from 0 to 5 V, at room
+  temperature.
+
+Serial sensor:
+
+- **FR-40.12** [Must] [user] On this build §30 shall read its instrument
+  through the serial port of §40.2: GPIO 33 in place of GPIO 13 as the port's
+  supply, UART 1 RX on GPIO 14 with its input inverted, GPIO 13 in place of
+  GPIO 11; the port's settle is `rs_timeout_ms` alone, the sensor needing
+  about 2 s from power-on for its first reading. Every other part of §30
+  applies.
+- **FR-40.13** [Should] [proposed] A line holding the MaxBotix no-target
+  code (`R5000`) shall be a value fault, logged as L38 `nonum`, so a missing
+  echo is not stored as a level.
+
+Field protection and isolation:
+
+- **C-40.4** [Must] [derived] This build's serial port carries logic levels
+  only; an instrument with true ±12 V RS232 output needs §30's MAX3232
+  board, not this port.
+- **C-40.5** [Must] [user] Every field input (the loop, the level probe and
+  the serial sensor) shall be galvanically isolated from the board's ground,
+  including its supply, as C-29.1 says of the loop.
+- **C-40.6** [Must] [proposed] Each isolation barrier of C-40.5 (the
+  DC-DC converters and the I2C and serial isolators) shall be rated for at
+  least **3 kV** for 1 minute.
+- **C-40.7** [Must] [proposed] Each field cable shall enter through a surge
+  protector (a gas discharge tube to earth, a series resistance, then a TVS
+  diode sized for each line: the 24 V supplies and the 5 V signals) at the
+  enclosure wall, bonded to one earth rod by a short conductor, before any
+  isolated board.
+- **C-40.8** [Should] [proposed] Field cables shall be shielded twisted pair,
+  the shield bonded to earth at the station end only, laid in buried conduit
+  where the site allows.
+- **C-40.9** [Must] [user] The bench slot holding this build shall wire the
+  board's RST and GPIO 0 to bench GPIOs through open-drain drivers, so the
+  bench can reset the board, start its download mode and wake it from deep
+  sleep without USB, and never powers the board through those lines.
+- **C-40.10** [Must] [derived] The analog board's isolated 24 V shall supply
+  a shorted loop (30 mA), its 3.3 V regulator (11 mA) and the level probe at
+  its measured current together, with 20 % [proposed] to spare.
+
+### 40.6 Verification contracts
+
+Bench rows run on the slot that holds the FeatherS3 (not yet assigned);
+`(core)` rows drive the pure cores on the host.
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-40.1 | All three builds from one commit | Each builds; the FeatherS3 image under 4 MB with the same partition table; the other images' sizes and `sdkconfig` unchanged from a build without this section | One build's sources edited to build another | host (build) |
+| FR-40.3, FR-40.4, FR-40.6 (core) | Power steps for a window, a timer wake and the sleep that follows each | LDO2 on before the BME280, off before sleep; the display supply on for the window only, after the lines set to inputs; GPIO 18 and 33 low in sleep | The display supply on in a timer wake; LDO2 on in sleep | host |
+| FR-40.3, FR-40.4, FR-40.5, FR-40.6 | Operator: the build asleep between windows; a meter on LDO2's output, the display supply's output, and GPIO 18 and 33 | All at 0 V; each display line at 0 V | A powered rail or a line high in sleep | bench (operator) |
+| NFR-40.1 | Operator: a meter in the battery lead, USB unplugged, the build asleep; the board alone, then each part added in turn | Each current recorded in this section and the User Manual | — | bench (operator) |
+| FR-40.7, FR-40.8 | Operator: both displays fitted, windows above 42 °F and below 40 °F (a cold pack on the BME280) | L50 `epaper=found oled=found`; the lines on the e-paper, then on the OLED, as FR-35.2 | A missed display; the OLED dark after FR-40.8's wait | bench (operator) |
+| FR-40.9, FR-40.10 (core) | Level core with A2 at 0.000, 1.000, 2.000 and 2.045 V, `loop_lo` 0 and `loop_hi` 5 (metres); an ADS1115 error | Values 0.000, 2.500, 5.000, then a fault (5.11 V); a fault with the error | A value kept with a fault | host |
+| FR-40.9, FR-40.11, NFR-40.2 | `loop` `volt`; a reference voltage on the probe input at 0, 1.25, 2.5, 3.75 and 5 V | L62 with `volt=` within 12.5 mV of each; the value on line 6, the page, `ext`, the CSV and the summary | No L62; the supply on in sleep | bench (operator) |
+| FR-40.10 | A reference at 5.5 V, then the ADS1115 unplugged | L63 `over volt=5.500`; L63 with `ESP_ERR_TIMEOUT`; the window and sleep as usual | A restart; a value kept | bench (operator) |
+| FR-40.12 (core) | §30 listen core with the lines `R1234`, `R0300`, `R5000` and `rs_scale` −0.001, `rs_offset` 4.000 | 2.766, 3.700, then a fault for `R5000` (with FR-40.13) | `R5000` stored as a level | host |
+| FR-40.12, FR-40.13 | The MB7569-100 aimed at a board 1.00 m away, `rs` `listen` as §40.4 | L37 within 0.02 m of the expected level; with the board removed beyond range, L38 `nonum` | A garbled line; the sensor powered in sleep | bench (operator) |
+| C-40.5, C-40.6 | Operator: a 500 V insulation tester between the board's ground and each field terminal | Over 100 MΩ for each | Continuity between the board's ground and a field terminal | bench (operator) |
+| C-40.6, C-40.7, C-40.8 | Inspection of the parts' datasheets and the installed entry | Each isolator and DC-DC rated at 3 kV or more for 1 minute; each field cable through a protector bonded to the earth rod; shields bonded at the station end only | A field cable reaching a board without a protector | inspection |
+| C-40.9 | The slot's RST line pulled low for 100 ms; GPIO 0 held low through a reset; the board asleep, RST pulsed | A boot log; the ROM's download-mode banner; a boot log with a reset cause of the RST pin | The board powered from a bench line with its own supply off | bench |
+| C-40.10 | The probe's current measured at 24 V; the loop terminals shorted | The isolated 24 V stays within its rating with both, at least 20 % to spare | The DC-DC above its rated current | bench (operator) |
 
 ---
 
