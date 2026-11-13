@@ -3165,7 +3165,7 @@ submission without them leaves ThingsBoard as it was (off on a new device).
 | `tb_url` | server base URL, e.g. `http://192.168.1.20:8080` or `https://tb.example.org` | `http://` or `https://`, then a host name or IPv4 address, an optional `:port`, no path, 1 – 128 bytes | the stored value |
 | `tb_token` | the access token of the device in ThingsBoard | 1 – 64 [proposed] letters, digits, `-` and `_` | the stored value (in a key-window BLE write an absent token keeps the stored one, as for the other secrets) |
 | `tb_every` | minutes between uploads | whole minutes, 1 – 1440, dividing 1440 [proposed] | 60 [user] |
-| `tb_remote` | settings from ThingsBoard's shared attributes (FR-32.16) `on` or `off` [proposed] | one of the two | the stored value; `off` when none is stored [proposed] |
+| `tb_remote` | settings from ThingsBoard's shared attributes (FR-32.16) `on` or `off` [user] | one of the two | the stored value; `off` when none is stored [user] |
 
 ### 32.3 Requests
 
@@ -3262,31 +3262,31 @@ Failures and limits:
 
 Remote settings (ThingsBoard shared attributes):
 
-- **FR-32.16** [Must] [proposed] With `tb_remote` `on`, after each upload whose
+- **FR-32.16** [Must] [user] With `tb_remote` `on`, after each upload whose
   requests all succeed, the device shall ask the server for the shared attributes
   of FR-32.17 (§32.3) in the same network session, so a remote change needs no
   extra wake or WiFi start. With `tb_remote` `off`, or `tb` or `services` off,
   no such request is sent.
-- **FR-32.17** [Must] [proposed] Only these settings shall be taken from shared
+- **FR-32.17** [Must] [user] Only these settings shall be taken from shared
   attributes: the sampling setup and its fields (§28: `setup`, `sample_min`,
   `average_min`), `tb_every`, the alert limits of §31 (`alert_*`), `loop` and its `loop_*`
   fields (§29, §40.4) and the `rs_*` fields of §30. Network credentials, server
   addresses, tokens, `tb`, `tb_remote` and `services` are never taken, so a
   remote change cannot cut the station off from the server.
-- **FR-32.18** [Must] [proposed] A shared attribute shall be applied only when
+- **FR-32.18** [Must] [user] A shared attribute shall be applied only when
   its value differs from the value the device last received for that key, so a
   setting changed locally (portal or BLE) stays until the server's value
   changes. The values received are checked together by the rules of a BLE
   `settings` write (FR-26.7, §28 – §31); if any is invalid none is applied.
   Accepted values are stored as at T3 and take effect from the next reading.
-- **FR-32.19** [Must] [proposed] After each remote settings request the device
+- **FR-32.19** [Must] [user] After each remote settings request the device
   shall post the result attributes of §32.3, so the dashboard shows what was
   applied or refused, and log L64 or L65.
-- **FR-32.20** [Must] [proposed] On a build whose uplink is the Notecard
+- **FR-32.20** [Must] [user] On a build whose uplink is the Notecard
   (`uplink` `cell`, §33), the request of FR-32.16 shall go through a Notehub
   proxy route to the same ThingsBoard URL (`web.get`), at the sync that sends
   the readings; every other rule of FR-32.16 – FR-32.19 applies unchanged.
-- **FR-32.21** [Must] [proposed] A failed remote settings request (FR-32.11's
+- **FR-32.21** [Must] [user] A failed remote settings request (FR-32.11's
   failures) shall change no setting, be logged as L65, and not be retried on
   that wake; the upload it followed stands.
 
