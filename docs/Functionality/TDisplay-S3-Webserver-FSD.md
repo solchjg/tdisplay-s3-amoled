@@ -64,6 +64,7 @@ reused.
 | 39 | Hardware Clock (optional) | L1 |
 | 40 | Low-Power Build (FeatherS3) | cross-cutting |
 | 41 | Satellite Uplink (optional) | L1 |
+| 42 | Remote Session (optional) | L1 |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -549,6 +550,19 @@ testbench.
 - **Dependencies.** §32's remote settings, §33, §37; a Notecard for Skylo and
   Skylo coverage at the test site (R-49).
 
+### 3.23 Phase 23: Remote session
+
+- **Scope.** §42 on the Notecard builds: scheduling from ThingsBoard and
+  satellite, the continuous session, its requests and the history upload.
+- **Deliverables.** §42, L68, L69; the session rules in `uplink_core` (pure);
+  the ThingsBoard widget and rule chain that add requests to Notehub, and the
+  `hist` proxy route, in the User Manual.
+- **Exit criteria.** The §42.4 host rows pass; an operator session answers in
+  ThingsBoard and delivers a year's history to the route (NFR-42.1), within
+  NFR-42.2's battery use.
+- **Dependencies.** §32's remote settings, §33; §41 only for FR-42.2; an
+  endpoint for the `hist` route (open decision).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -602,6 +616,8 @@ testbench.
 | R-46 | A 0 – 5 V probe has no live zero: a broken signal wire reads 0 V, the same as an empty tank | Certain | Medium | Accepted for the EALLT-1 [user]; a 4-20 mA probe on the loop channel detects it (FR-29.4) |
 | R-48 | Satellite data costs by the byte, so a fault that adds messages (a flapping alert, a clock set wrong) could spend the month's data | Possible | Medium | FR-41.6 sends only critical alerts, capped a day, and FR-41.9 caps the month's bytes; the count is on `GET /` and the `day` flag `budget` |
 | R-49 | Skylo coverage, the Notecard for Skylo's availability and Blues' NTN rules (templates, environment variables over NTN) are taken from Blues' documents, not yet from a run of this firmware | Possible | Medium | The sat-probe trial's stage 3 and the §41.6 operator rows prove them before the section is relied on |
+| R-50 | §42's power, data and transfer times come from Blues' published figures for another duty cycle, and the I2C rate to the Notecard's binary buffer is unmeasured, so a year's history may take longer than NFR-42.1 allows | Possible | Medium | NFR-42.1 and NFR-42.2 are measured in the §42.4 operator rows; a slow transfer moves the history to a packed form, defined as a new requirement first |
+| R-51 | Anyone who can send requests through ThingsBoard or Notehub can change a station's setup in a session | Possible | Medium | A session can change only FR-32.17's settings (FR-42.7, C-42.1), as a shared attribute can; ThingsBoard and Notehub accounts are the access control |
 | R-47 | The EALLT-1's supply current is not published and may not fit the isolated 24 V beside a shorted loop | Possible | Medium | Measured at commissioning; C-40.10 sizes the converter from it |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
@@ -1184,6 +1200,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L64 | Remote settings received (FR-32.19) | `web: tb remote applied=<keys, comma-separated, or none>` | I |
 | L66 | Satellite remote settings applied (FR-41.11) | `web: sat settings applied=<variables, comma-separated>` | I |
 | L67 | Satellite send or setting withheld (FR-41.2, FR-41.6, FR-41.9, FR-41.11) | `web: sat skipped: <nomodem\|alerts\|budget\|invalid=<variable>>[ used=<bytes this month>]` | W |
+| L68 | Remote session scheduled, opened or ended (FR-42.1, FR-42.4, FR-42.9) | `web: session <scheduled <start>\|open until <end>\|ended <end\|request\|battery>>` | I |
+| L69 | Remote session refused or failed (FR-42.1, FR-42.5) | `web: session failed: <invalid\|nocell>` | W |
 | L65 | Remote settings refused or failed (FR-32.19, FR-32.21) | `web: tb remote failed: <invalid=<key>\|connect\|tls\|auth\|refused\|timeout>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
@@ -4753,8 +4771,9 @@ A station beyond cellular coverage keeps reporting over satellite: a Blues
 Notecard for Skylo in place of the §33 Notecard sends the §37 packed messages
 through Skylo's geostationary network when cellular is not available, and
 receives a few numeric settings back the same way [user]. Satellite carries
-only what a remote site needs between visits: a daily summary of the level,
-alerts, a weekly status, and remote changes to the sampling setup. Every
+only what a remote site needs between visits: a daily summary of the level
+with the day's status, critical alerts, remote changes to the sampling setup
+and the time of a remote session (§42). Every
 reading is still kept in the history (§27), and the full readings go up over
 cellular or WiFi whenever either returns, from the §32 upload mark, so a
 satellite period leaves no gap in ThingsBoard.
@@ -4828,7 +4847,7 @@ attribute `flag_<name>` true and each clear bit into false [proposed]:
 | 10 | `test_fail` | a §28 test ended `FAIL` |
 | 11 | `nosync` | the clock had no network or RTC sync (FR-22.3) |
 | 12 | `remote` | remote settings were applied (FR-41.11) |
-| 13 | `remote_bad` | remote settings were refused as invalid (FR-41.11) |
+| 13 | `remote_bad` | remote settings were refused as invalid (FR-41.11), or a remote session failed (FR-42.5) |
 | 14 | `budget` | the month's count passed 80 % of `sat_budget` |
 | 15 | `crit` | a critical alert was on (FR-41.6) |
 
@@ -4847,6 +4866,7 @@ over NTN) [derived from Blues' Notecard for Skylo quickstart]:
 | `s_sample` | uint8 | `sample_min` |
 | `s_average` | uint16 | `average_min` |
 | `s_lo`, `s_hi` | float32 | the low and high alert limits of slot 2 |
+| `s_session`, `s_hours` | uint32, uint8 | a remote session's start and hours (§42, FR-42.2) |
 
 ### 41.5 Requirements
 
@@ -4927,6 +4947,151 @@ Remote settings:
 | FR-41.3, C-41.1 | Notecard for Skylo on the bench, `sat=only`; templates read back with `note.template` | Each template as §41.4, none over 256 bytes; `card.transport` `ntn` | A note without a template | target |
 | FR-41.4 – FR-41.8 | Operator, outdoors with sky view, `sat=only`, a day of readings, a §31 limit and a critical limit crossed | The `day` and `al` events in Notehub; the decoded values and flags in ThingsBoard and the critical alert in ntfy | A JSON note in Notehub from the satellite period | bench (operator) |
 | FR-41.10, FR-41.11 | Operator: a shared attribute `setup` changed on ThingsBoard during the satellite run | L66 at a later wake; ThingsBoard's `cfg` matching the new setup | The change applied twice | bench (operator) |
+
+---
+
+## 42. Remote Session (optional)
+
+### 42.1 Purpose & options
+
+An operator away from the site sometimes needs the station live for a while:
+to check it, change its setup, take a reading now or fetch its stored history.
+A remote session keeps a station on the Notecard uplink (§33) connected for a
+set number of hours from a time set in ThingsBoard, and answers requests sent
+from ThingsBoard through Notehub in seconds [proposed]. Between sessions the
+station sleeps as before.
+
+The station cannot serve its own web pages (§14) over cellular: carriers give
+devices private addresses behind their NAT, so nothing outside can open a
+connection to the station, and the Notecard carries only Notehub's traffic, not
+IP to the ESP32-S3. The options weighed [proposed]:
+
+| Option | Reach | Builds | Running cost | Weighed |
+|--------|-------|--------|--------------|---------|
+| A. Session through Notehub (this section) | Status, settings, a reading now, the history as CSV; a request answered in seconds | Every Notecard build (T-Display with §33, FeatherS3) | Notecard data (500 MB included), Notehub events (5,000 a month included), about 13 mAh an hour at the Notecard | **Chosen**: no new server, no inbound port, works through any carrier |
+| B. The device's own pages through a reverse tunnel | All of §14, as on the LAN | Only a PPP build (§35, the SIM7670G), which holds an IP link | A relay server (a small cloud machine, about $5 a month), the modem on for the session | Needs a server to run and secure, and the §35 board is kept for another application |
+| C. A public or static address on a private APN | All of §14 | Only a PPP build | A carrier fee each month; the station open to the internet | Exposes the station to every scanner; carrier-specific |
+| D. ThingsBoard RPC over MQTT | Requests from ThingsBoard, as A | Only a PPP build | As B, without the relay | A second remote path beside A; the Notecard speaks no MQTT |
+| E. Session over satellite | None live: a packet takes minutes and holds 256 bytes; a year of history packed (about 470 KB) is about $350 and some 1,850 packets | §41 | | Satellite only schedules a session (FR-42.2); the session itself needs cellular |
+| F. Site visit | Everything, the history by WiFi (`GET /api/history`) or BLE (§26) | Every build | Travel | Stays the way to reach a station with no cellular at all |
+
+A session on a Notecard build costs, by Blues' published figures [derived from
+Blues' low-power and low-bandwidth design guides]: the Notecard Cell+WiFi
+(MBGLW) in continuous mode uses about 13 mAh an hour and, idle with
+`sync:true`, about 2.5 KB an hour; each request and each answer is one Notehub
+event; the history goes up through a proxy route at one event credit a
+megabyte. A year of readings at 10 minutes (about 52,600 lines of
+`GET /api/history` CSV, about 3.5 MB) is about 1 % of the Notecard's 500 MB
+and 4 event credits. The ESP32-S3 waits in light sleep between requests.
+
+Peers: ThingsBoard, where the operator sets the session time and sends
+requests (a dashboard widget whose rule chain adds each request to Notehub
+through its API) and sees the answers; Notehub, which passes requests to the
+Notecard and answers and the history to ThingsBoard and the history route; for
+a §41 station, the satellite variables of FR-42.2.
+
+### 42.2 Settings and messages
+
+The session time is set as ThingsBoard shared attributes, read with those of
+FR-32.17 by FR-32.16's request; they are not settings of the form or of BLE
+[proposed]:
+
+| Attribute | Format | Valid | Empty or absent |
+|-----------|--------|-------|-----------------|
+| `session_at` | the start, UTC, `YYYY-MM-DDThh:mmZ` | after the time received, at most 30 days ahead | no session scheduled |
+| `session_h` | hours the session stays open | 1 – 12 | 2 |
+
+Over satellite (§41) the same two travel as the variables `s_session`
+(uint32, the start in seconds since the epoch, 0 for none) and `s_hours`
+(uint8), added to §41.4's variable table [proposed].
+
+The device reports the session as the client attribute `session_state`
+(`scheduled <start>`, `open until <end>`, `ended <end|request|battery>`,
+`failed <nocell|invalid>`) [proposed].
+
+Requests arrive as inbound notes in `sreq.qi`, each a JSON body with an `id`
+that the answer repeats; answers go out as `srsp.qo` notes with `sync:true`,
+routed to ThingsBoard [proposed]:
+
+| `req` | Fields | Answer |
+|-------|--------|--------|
+| `status` | — | the §32.3 client attributes, the session's end, battery mV |
+| `reading` | — | a reading taken at once, as a §32.3 telemetry entry, also kept in the history (§27) |
+| `settings` | — | the `settings` read of FR-26.9, without secrets |
+| `set` | the keys of FR-32.17 with values | applied by FR-32.18's rules, all or none; `remote_applied` and `remote_error` as §32.3 |
+| `history` | `from`, `to` (`YYYY-MM-DD`, as FR-27.10) | the CSV of FR-27.10 for those dates posted to the proxy route `hist`; the answer gives its lines, bytes and MD5 |
+| `extend` | `h`, 1 – 12 | the end moved by `h` hours, the session at most 12 hours in all |
+| `end` | — | the session ends |
+
+### 42.3 Requirements
+
+Scheduling:
+
+- **FR-42.1** [Must] [proposed] With `uplink` `cell` and `tb_remote` `on`,
+  FR-32.16's request shall also ask for `session_at` and `session_h`; a valid
+  start that differs from the one last received schedules a session, logged as
+  L68 `scheduled`, and is reported in `session_state`; an invalid one changes
+  nothing and is logged as L69 `invalid`.
+- **FR-42.2** [Must] [proposed] With `sat` not `off` (§41), the variables
+  `s_session` and `s_hours` shall schedule a session by FR-42.1's rules, read
+  by FR-41.11 at each wake.
+- **FR-42.3** [Must] [proposed] With a session scheduled, the device's timer
+  wake shall be the earlier of its next reading (§21) and the session's start,
+  so the session opens within a minute of `session_at`.
+
+Session:
+
+- **FR-42.4** [Must] [proposed] At the start the device shall set the
+  Notecard to `hub.set` `mode` `continuous`, `sync` `true`, `outbound` 1 and
+  `inbound` 1, with `card.transport` `cell` whatever `sat` says, and stay out of
+  deep sleep until the session ends; it logs L68 `open` and reports
+  `session_state` `open until <end>`.
+- **FR-42.5** [Must] [proposed] With no Notehub connection 10 minutes after
+  the start, the session shall end as failed: L69 `nocell`, `session_state`
+  `failed nocell`, and on a §41 station the next `day`'s flag `remote_bad`.
+- **FR-42.6** [Must] [proposed] During the session the device shall take its
+  readings on the setup's schedule and add them as §33 notes, which go up at
+  the next one-minute sync; between readings and requests it waits in light
+  sleep and asks the Notecard for `sreq.qi` notes at least every 5 seconds.
+- **FR-42.7** [Must] [proposed] Each request of §42.2 shall be answered once,
+  in the order received, with its `id`; a request it does not know, or invalid
+  fields, gets an answer with `error` and changes nothing. A `set` follows
+  FR-32.17 and FR-32.18 exactly, so a session can change nothing a shared
+  attribute could not.
+- **FR-42.8** [Must] [proposed] A `history` request shall stream the CSV
+  through the Notecard's binary buffer in chunks of at most 64 KB, each posted
+  with `web.post` (`binary`, `offset`, `total`, its MD5 as `status`) to the
+  route `hist`; a chunk that fails is read again from the history and posted
+  again up to 3 times, after which the answer gives the error; readings keep
+  being taken while it runs.
+- **FR-42.9** [Must] [proposed] The session shall end at its end time, at an
+  `end` request, or when the battery falls below 3.50 V (where the board
+  measures it); the device then restores FR-33.4's `hub.set` and FR-41.3's
+  transport, logs L68 `ended <reason>`, reports `session_state`, and returns to
+  its timer wakes.
+
+- **C-42.1** [Must] [proposed] No secret shall leave the device in a session:
+  answers carry FR-26.9's read, never passwords or tokens, and no request
+  changes network credentials, server addresses, tokens, `tb`, `tb_remote` or
+  `services` (FR-32.17).
+- **NFR-42.1** [Should] [proposed] A request shall be answered in ThingsBoard
+  within 30 seconds of being sent, and a year of history (about 3.5 MB) shall
+  reach the route within 30 minutes.
+- **NFR-42.2** [Should] [proposed] A two-hour session shall use at most
+  40 mAh of the Notecarrier's battery.
+
+### 42.4 Verification contracts
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-42.1, FR-42.3 (core) | Shared attributes: `session_at` 3 days ahead, `session_h` 4; the same again; one in the past; one 31 days ahead; `session_h` 13 | Scheduled, L68, the timer wake at the start; nothing; L69 `invalid` three times | A session scheduled from an invalid value; a second schedule from an unchanged value | host |
+| FR-42.2 (core) | §41 variables `s_session` a start, `s_hours` 2 | Scheduled as FR-42.1 | | host |
+| FR-42.4, FR-42.6, FR-42.9 (core) | A session of 2 h with readings every 10 min; then a battery of 3.45 V an hour into another | The `hub.set` of FR-42.4 at the start; 12 readings as notes; FR-33.4's `hub.set` after 2 h, L68 `ended end`; the second ended at 3.45 V, `ended battery` | Deep sleep during a session | host |
+| FR-42.7, C-42.1 (core) | Requests `status`, `settings`, `set` with `sample_min` 7 and `average_min` 15, `set` with `tb_token`, `x`, in that order | Answers in order with their `id`s; no secret in `settings`; the `set` refused whole; `tb_token` refused; `x` an `error` | A partial set applied; a secret in an answer | host |
+| FR-42.8 (core) | `history` over 400 days of readings with chunks of 64 KB; the second post fails twice | Chunks with `offset`, `total` and MD5 adding up to the CSV of FR-27.10; the second sent three times; the answer's MD5 that of the whole CSV | A chunk over 64 KB; a gap in the offsets | host |
+| FR-42.4 – FR-42.9, NFR-42.1 | Operator, a Notecard station on cellular, `session_at` set 10 minutes ahead in ThingsBoard | The session opens; `status`, `reading` and `set` answered in ThingsBoard within 30 s; a year's `history` at the route within 30 minutes; the station asleep after the end | Requests lost or answered twice | bench (operator) |
+| FR-42.5 | Operator, the Notecard's antenna removed before the start | L69 `nocell`, `session_state` `failed nocell` after 10 minutes, the station back on its timer wakes | The station left awake | bench (operator) |
+| NFR-42.2 | Operator, a Mojo or meter on the Notecarrier's battery through a two-hour session | At most 40 mAh | | bench (operator) |
 
 ---
 
@@ -5156,7 +5321,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.61.0
+fsd_version: 0.62.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5261,8 +5426,10 @@ change_history:
   - "0.60.0 2026-11-12 draft for the user's review, from the user's question about remote settings over satellite: §41 Satellite Uplink (all proposed) sends §37's day, al and st (version 2 with cfg) over a Notecard for Skylo within a monthly byte budget and takes five numeric settings as Notehub environment variables; L66, L67, R-48, R-49, Phase 22"
   - "0.60.1 2026-11-12 the user approved §41 Satellite Uplink with a daily `day` message and `sat_budget` 2500 by default (every daily message sent, about 24 KB a year)"
   - "0.61.0 2026-11-12 the user's choice to send status in the daily satellite record: §41 sends `day` version 2 (64 bytes: the hourly averages with `flg`, 16 condition bits, `mb` battery and `cfg`) and no `st`; §31 alerts become `day` flags, only a critical limit of `sat_q` (`sat_crit_lo`, `sat_crit_hi`, `al` version 2 events 12 and 13) is sent at once, `sat_alerts` 1 by default; the flag assignment proposed"
+  - "0.62.0 2026-11-13 draft for the user's review, from the user's question about turning on remote access at a set time: §42 Remote Session (all proposed) keeps a Notecard station connected for set hours from ThingsBoard's `session_at` (or §41's `s_session`), answers requests through Notehub and uploads the history CSV to a proxy route, with the options weighed; L68, L69, R-50, R-51, Phase 23; §41.1 and the `remote_bad` flag follow"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
+  - "§42 Remote Session, the whole section: the Notehub session over the other options, `session_at`/`session_h` and `s_session`/`s_hours`, the requests, 1-minute syncs and 5 s polling, 64 KB history chunks to the `hist` route and that route's endpoint (a file store the user chooses), the 10-minute connect limit, the 3.50 V cut-off, NFR-42.1 and NFR-42.2"
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
   - "§35.2 the e-paper's RST on GPIO 20 and the OLED's RES on GPIO 19; FR-35.25 the detection method (CS resistor, BUSY pulse) and `epaper` `on` by default; §35.4 the `oled` setting (default on) and FR-35.2's e-paper in every window with `oled` `off`; FR-35.24 the status block's 10 rows, drawn only in the final full refresh, kept in RTC memory, and their content"
   - "§37 Packed Messages, the whole section: the rd, day, al and st messages, their fields, units, Notefiles and ports, the two encodings, FR-37.1 – FR-37.7, C-37.1, NFR-37.1"
