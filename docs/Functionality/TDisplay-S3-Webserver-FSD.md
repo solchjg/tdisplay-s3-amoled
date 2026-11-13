@@ -585,7 +585,7 @@ testbench.
 | R-43 | Unexpected Maker publishes no sleep current for the FeatherS3, so the build's gain over the T-Display build is not yet known | Certain | Medium | NFR-40.1 measures it part by part at commissioning; the limit is set from that figure [user] |
 | R-44 | The pins of §40.2 beyond the board's named functions (GPIO 1, 5 – 7, 10 – 14, 17, 18, 33) come from distributor pages, not the board's schematic, and GPIO 33 may be taken by the PSRAM | Possible | Medium | The Phase 21 commissioning program walks each pin; a pin found taken moves before any firmware uses it |
 | R-45 | No protector survives a direct strike, and a nearby one can still exceed C-40.7's ratings on a 100 ft cable | Possible | High | C-40.5 – C-40.8 limit the damage to the replaceable protector and field boards; the field boards plug in, so they are swapped, not repaired |
-| R-46 | A 0 – 5 V probe has no live zero: a broken signal wire reads 0 V, the same as an empty tank | Certain | Medium | Accepted for the EALLT-1 [proposed]; a 4-20 mA probe on the loop channel detects it (FR-29.4) |
+| R-46 | A 0 – 5 V probe has no live zero: a broken signal wire reads 0 V, the same as an empty tank | Certain | Medium | Accepted for the EALLT-1 [user]; a 4-20 mA probe on the loop channel detects it (FR-29.4) |
 | R-47 | The EALLT-1's supply current is not published and may not fit the isolated 24 V beside a shorted loop | Possible | Medium | Measured at commissioning; C-40.10 sizes the converter from it |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
@@ -4502,16 +4502,16 @@ checked by the commissioning program of Phase 21 (R-44).
 | Console | The ESP32-S3's native USB-Serial/JTAG, which also flashes it and resets it into download mode | [derived from the board] |
 | Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery voltage on GPIO 2 (the board's divider), USB present on GPIO 34 | [derived from the board] |
 | Always-on bus | The horizontal STEMMA QT socket, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins [derived from the board] |
-| Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [proposed] |
-| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V, output to both displays; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds | [user]; GPIO 17 [proposed] |
-| Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [proposed] |
-| E-paper | Waveshare 4.2" e-Paper Module (V2), SSD1683, as §35.2: CS GPIO 5, DC GPIO 6, RST GPIO 7, BUSY GPIO 10 (internal pull-down, FR-35.25) | [user]; pins [proposed] |
-| OLED | 3.12" 256 × 64 SSD1322 module, as §35.2: CS GPIO 11 (10 kΩ to GND on its lead, FR-35.25), RES GPIO 12, DC shared with the e-paper's GPIO 6 | [user]; pins [proposed] |
-| Analog board | The §29 loop board with a second, voltage channel (FR-40.9): its supply enable on GPIO 18 (100 kΩ pull-down on the board), its 24 V from a 2 W isolated DC-DC, isolation of at least 3 kV (C-40.6); loop on A0 – A1 as §29, the probe's 0 – 5 V through a 15 kΩ / 10 kΩ divider (0.1 %) to A2, read single-ended at ±2.048 V | [user]; parts [proposed] |
-| Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a two-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14 and GPIO 13 to its trigger; its supply enable on GPIO 33 (100 kΩ pull-down) | [proposed] |
-| User key | A momentary key on GPIO 1 (an RTC GPIO), active low, external 10 kΩ pull-up | [proposed] |
+| Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user] |
+| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V, output to both displays; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds | [user]; GPIO 17 [user] |
+| Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [user] |
+| E-paper | Waveshare 4.2" e-Paper Module (V2), SSD1683, as §35.2: CS GPIO 5, DC GPIO 6, RST GPIO 7, BUSY GPIO 10 (internal pull-down, FR-35.25) | [user]; pins [user] |
+| OLED | 3.12" 256 × 64 SSD1322 module, as §35.2: CS GPIO 11 (10 kΩ to GND on its lead, FR-35.25), RES GPIO 12, DC shared with the e-paper's GPIO 6 | [user]; pins [user] |
+| Analog board | The §29 loop board with a second, voltage channel (FR-40.9): its supply enable on GPIO 18 (100 kΩ pull-down on the board), its 24 V from a 2 W isolated DC-DC, isolation of at least 3 kV (C-40.6); loop on A0 – A1 as §29, the probe's 0 – 5 V through a 15 kΩ / 10 kΩ divider (0.1 %) to A2, read single-ended at ±2.048 V | [user]; parts [user] |
+| Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a two-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14 and GPIO 13 to its trigger; its supply enable on GPIO 33 (100 kΩ pull-down) | [user] |
+| User key | A momentary key on GPIO 1 (an RTC GPIO), active low, external 10 kΩ pull-up | [user] |
 | BOOT key | GPIO 0, the board's BOOT button, as §18 | [derived from the board] |
-| Field entry | Each field cable (the loop pair, the probe's three wires, the serial sensor's four) through a surge protector at the enclosure wall, bonded to one earth rod (C-40.7) | [proposed] |
+| Field entry | Each field cable (the loop pair, the probe's three wires, the serial sensor's four) through a surge protector at the enclosure wall, bonded to one earth rod (C-40.7) | [user] |
 | Bench slot | Not yet assigned [user]; its RST and GPIO 0 wired to the bench (C-40.9) | [user] |
 
 ### 40.3 Feature parity
@@ -4539,11 +4539,11 @@ as its own section says.
 | Field | Format | Valid | Empty or absent |
 |-------|--------|-------|-----------------|
 | `loop` | `off`, `in` (the 4-20 mA channel, §29) or `volt` (the 0 – 5 V channel, FR-40.9) | one of the three; `volt` only on this build | `off` |
-| `loop_lo`, `loop_hi` | With `volt`: the value at 0 V and at 5 V | as §29.1 | 0 and 5 (the value is the voltage) [proposed] |
+| `loop_lo`, `loop_hi` | With `volt`: the value at 0 V and at 5 V | as §29.1 | 0 and 5 (the value is the voltage) [user] |
 
-With `loop` `volt`, `loop_unit` empty or absent means `V` [proposed]. The two
+With `loop` `volt`, `loop_unit` empty or absent means `V` [user]. The two
 channels share slot 2 of §29.2, so one is read at a time and the reading and
-history record sizes do not change [proposed]. The ultrasonic sensor is set up
+history record sizes do not change [user]. The ultrasonic sensor is set up
 through §30's fields; the User Manual gives its values: `rs` `listen`,
 `rs_baud` 9600, `rs_format` `8N1`, `rs_timeout_ms` 3000, `rs_field` 1, and,
 for the water level in metres, `rs_scale` −0.001 with `rs_offset` the sensor's
@@ -4568,7 +4568,7 @@ Power in sleep:
 - **FR-40.3** [Must] [user] Before deep sleep the device shall disable LDO2
   (GPIO 39 low), so the switched bus and everything on it is unpowered; it
   enables LDO2 at each boot, window and wake before the first BME280 reading,
-  and waits **10 ms** [proposed] before addressing the bus.
+  and waits **10 ms** [user] before addressing the bus.
 - **FR-40.4** [Must] [user] The display supply shall be on only within a
   window: switched on before FR-35.25's detection and off after FR-35.15's
   final refresh and the e-paper's deep sleep command, and never on a timer
@@ -4593,7 +4593,7 @@ Displays:
   build with the pins of §40.2; FR-35.24's modem and fuel-gauge rows show
   `modem off` and the GPIO 2 battery voltage.
 - **FR-40.8** [Must] [derived] After the display supply turns on, the device
-  shall wait **100 ms** [proposed] before FR-35.25's detection, so the OLED's
+  shall wait **100 ms** [user] before FR-35.25's detection, so the OLED's
   boost has started; commissioning measures the start-up time (Phase 21).
 
 Level probe (0 – 5 V):
@@ -4606,14 +4606,14 @@ Level probe (0 – 5 V):
   (the divider of §40.2), and the value
   `loop_lo + volts / 5 × (loop_hi − loop_lo)`, unclamped.
 - **FR-40.10** [Must] [derived from FR-29.4] A probe voltage above **5.10 V**
-  [proposed], an ADS1115 that does not answer, or a failed transfer shall be
+  [user], an ADS1115 that does not answer, or a failed transfer shall be
   a level fault: no value is kept and L63 is logged. A 0 – 5 V output has no
   live zero, so 0 V is a valid reading and an open signal wire is not
   detected (R-46). A fault stops neither the BME280 reading, the window nor
   sleep, and is not retried within the same task run.
 - **FR-40.11** [Must] [derived from FR-29.5] Each level value shall be logged
   as L62 and held in §29.2 slot 2 as the loop's value is, under `loop_name`.
-- **NFR-40.2** [Must] [proposed] The probe voltage of FR-40.9 shall be within
+- **NFR-40.2** [Must] [user] The probe voltage of FR-40.9 shall be within
   **±0.25 % of span** (12.5 mV) of a reference voltage from 0 to 5 V, at room
   temperature.
 
@@ -4625,7 +4625,7 @@ Serial sensor:
   GPIO 11; the port's settle is `rs_timeout_ms` alone, the sensor needing
   about 2 s from power-on for its first reading. Every other part of §30
   applies.
-- **FR-40.13** [Should] [proposed] A line holding the MaxBotix no-target
+- **FR-40.13** [Should] [user] A line holding the MaxBotix no-target
   code (`R5000`) shall be a value fault, logged as L38 `nonum`, so a missing
   echo is not stored as a level.
 
@@ -4637,15 +4637,15 @@ Field protection and isolation:
 - **C-40.5** [Must] [user] Every field input (the loop, the level probe and
   the serial sensor) shall be galvanically isolated from the board's ground,
   including its supply, as C-29.1 says of the loop.
-- **C-40.6** [Must] [proposed] Each isolation barrier of C-40.5 (the
+- **C-40.6** [Must] [user] Each isolation barrier of C-40.5 (the
   DC-DC converters and the I2C and serial isolators) shall be rated for at
   least **3 kV** for 1 minute.
-- **C-40.7** [Must] [proposed] Each field cable shall enter through a surge
+- **C-40.7** [Must] [user] Each field cable shall enter through a surge
   protector (a gas discharge tube to earth, a series resistance, then a TVS
   diode sized for each line: the 24 V supplies and the 5 V signals) at the
   enclosure wall, bonded to one earth rod by a short conductor, before any
   isolated board.
-- **C-40.8** [Should] [proposed] Field cables shall be shielded twisted pair,
+- **C-40.8** [Should] [user] Field cables shall be shielded twisted pair,
   the shield bonded to earth at the station end only, laid in buried conduit
   where the site allows.
 - **C-40.9** [Must] [user] The bench slot holding this build shall wire the
@@ -4654,7 +4654,7 @@ Field protection and isolation:
   sleep without USB, and never powers the board through those lines.
 - **C-40.10** [Must] [derived] The analog board's isolated 24 V shall supply
   a shorted loop (30 mA), its 3.3 V regulator (11 mA) and the level probe at
-  its measured current together, with 20 % [proposed] to spare.
+  its measured current together, with 20 % [user] to spare.
 
 ### 40.6 Verification contracts
 
