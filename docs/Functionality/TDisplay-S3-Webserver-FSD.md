@@ -4501,6 +4501,7 @@ checked by the commissioning program of Phase 21 (R-44).
 | MCU | ESP32-S3, 16 MB flash, 8 MB QSPI PSRAM (unused) | [derived from the board] |
 | Console | The ESP32-S3's native USB-Serial/JTAG, which also flashes it and resets it into download mode | [derived from the board] |
 | Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery voltage on GPIO 2 (the board's divider), USB present on GPIO 34 | [derived from the board] |
+| Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
 | Always-on bus | The horizontal STEMMA QT socket, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins [derived from the board] |
 | Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user] |
 | Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V, output to both displays; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds | [user]; GPIO 17 [user] |
@@ -4655,6 +4656,13 @@ Field protection and isolation:
 - **C-40.10** [Must] [derived] The analog board's isolated 24 V shall supply
   a shorted loop (30 mA), its 3.3 V regulator (11 mA) and the level probe at
   its measured current together, with 20 % [user] to spare.
+- **C-40.11** [Must] [user] The FeatherS3 and the Notecarrier-X shall
+  each keep their own cell, charged only through their own USB-C port; no
+  header pin of either board is wired to a charging source, the cells are
+  never joined, and the FeatherS3's USB rail has one 5 V source at a time
+  (the field's Y cable or the bench's data cable, never both). The shared
+  5 V source shall be rated for at least **3 A**, so the modem's 2 A start
+  and the FeatherS3's charging are carried together.
 
 ### 40.6 Verification contracts
 
@@ -4677,6 +4685,7 @@ Bench rows run on the slot that holds the FeatherS3 (not yet assigned);
 | C-40.6, C-40.7, C-40.8 | Inspection of the parts' datasheets and the installed entry | Each isolator and DC-DC rated at 3 kV or more for 1 minute; each field cable through a protector bonded to the earth rod; shields bonded at the station end only | A field cable reaching a board without a protector | inspection |
 | C-40.9 | The slot's RST line pulled low for 100 ms; GPIO 0 held low through a reset; the board asleep, RST pulsed | A boot log; the ROM's download-mode banner; a boot log with a reset cause of the RST pin | The board powered from a bench line with its own supply off | bench |
 | C-40.10 | The probe's current measured at 24 V; the loop terminals shorted | The isolated 24 V stays within its rating with both, at least 20 % to spare | The DC-DC above its rated current | bench (operator) |
+| C-40.11 | Inspection, then operator: both cells part-charged, the Y cable from a 5 V 3 A source into both USB-C ports; a Notecard sync forced; then the bench data cable in the FeatherS3 with the Y cable's Feather leg removed | Both boards' charge LEDs on; the sync completes with no ESP32 reset (no boot line); the bench console and flashing work | A header wire to a charging source; the cells joined; two 5 V sources on the Feather's USB rail | bench (operator) |
 
 ---
 
