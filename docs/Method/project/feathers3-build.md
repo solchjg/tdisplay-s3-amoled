@@ -9,11 +9,12 @@ power is applied. Phase 21's commissioning program confirms each pin (R-44).
 ## Sheets
 
 The Fritzing sheets come from [`wiring/make_wiring.py`](wiring/make_wiring.py).
-They draw the board's pins grouped by use, not in header order. Find each pin on
-Unexpected Maker's pinout card before wiring: on the FeatherS3D the long header
-runs RST, 3V3.1, 0, GND, 17, 18, 14, 12, 6, 5, SCK 36, MO 35, MI 37, RX 44,
-TX 43, 3V3.2 (LDO2), and the short one BAT, En, 5V, 11, 10, 7, 3, 1, 38, 33,
-SCL 9, SDA 8.
+They draw the board from the top, USB-C up, with its pins in header order as on
+Unexpected Maker's pinout card: the long header on the left runs RST, 3V3.1, 0, GND, 17, 18, 14, 12, 6, 5, SCK 36, MO 35, MI 37, RX 44,
+TX 43, 3V3.2 (LDO2), and the short one on the right, level with its lower end, BAT, En, 5V, 11,
+10, 7, 3, 1, 38, 33, SCL 9, SDA 8. The drawing puts the two STEMMA QT sockets along the bottom
+edge (the vertical one on LDO2, GPIO 15/16; the horizontal one on LDO1, GPIO 8/9)
+and the LiPo connector on the top edge.
 
 | Sheet | Draws |
 |-------|-------|
@@ -69,7 +70,10 @@ Pi (sheet 16). The Pi pulls RST or GPIO 0 to about 0.4 V; when it drives high
 the diode blocks, the board's own pull-up holds the pin, and the Pi never feeds
 the board, even unpowered. Solder a 4-pin header into RST, 3V3.1, 0 and GND (or
 wires into RST, 0 and GND) and leave 3V3.1 unconnected. Pick a free GPIO pair
-from the harness manual's table, set the slot's `gpio_en` and `gpio_boot`,
+from the harness manual's table and set both pins to inputs with pull-ups from
+power-on (`gpio=17,18=ip,pu` in `/boot/firmware/config.txt` for pair 1): the
+Pi's default pull-down of about 50k, through the diode, holds the FeatherS3D in
+reset, since its EN pull-up is weaker. Then set the slot's `gpio_en` and `gpio_boot`,
 restart the portal and run the BOOT/EN test with the board awake.
 
 ## To check before wiring
