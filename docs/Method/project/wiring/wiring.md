@@ -1,8 +1,8 @@
 # Wiring diagrams (Fritzing)
 
 Fritzing sketches of what is wired to the LilyGO T-Display-S3 AMOLED 1.91" (sheets
-1 – 6, 9, 10), the Waveshare SIM7670G board (7, 8) and the Unexpected Maker FeatherS3
-(11 – 15), one sheet per subsystem. Each `.fzz` opens in Fritzing 1.0 or later with no extra
+1 – 6, 9, 10), the Waveshare SIM7670G board (7, 8) and the Unexpected Maker FeatherS3D
+(11 – 16), one sheet per subsystem. Each `.fzz` opens in Fritzing 1.0 or later with no extra
 parts library: every part is a simple custom part embedded in the sketch, and
 it lands in the "Temp" bin when the sketch opens. Wires are drawn in the
 breadboard view. The schematic and PCB views show only ratsnest lines, so route
@@ -42,6 +42,7 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 | [13 FeatherS3: analog board](wiring-13-fs3-analog.png) ([.fzz](wiring-13-fs3-analog.fzz)) | Specified (FSD §29, §40.2, FR-40.9) | GPIO 18 supply enable, VBAT; isolator side 1 on the vertical STEMMA QT |
 | [14 FeatherS3: isolated serial port, MaxBotix](wiring-14-fs3-serial.png) ([.fzz](wiring-14-fs3-serial.fzz)) | Specified (FSD §40.2, FR-40.12) | GPIO 33 supply enable, GPIO 14 RX, VBAT, GND |
 | [15 FeatherS3: field entry](wiring-15-fs3-entry.png) ([.fzz](wiring-15-fs3-entry.fzz)) | Specified (FSD C-40.5 – C-40.8) | None: field side only |
+| [16 FeatherS3D: bench BOOT and RST](wiring-16-fs3-bench.png) ([.fzz](wiring-16-fs3-bench.fzz)) | Specified (FSD C-40.9), the diodes proposed | RST, GPIO 0 through Schottky diodes from the Pi's EN and BOOT GPIOs; GND |
 
 The I2C devices on the board's bus share GPIO 43/44: the BME280 at 0x76, the
 water ADS1115 at 0x48, the Notecard at 0x17 and the

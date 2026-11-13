@@ -611,7 +611,7 @@ testbench.
 | R-41 | A gateway listens without sleeping, about 80 – 100 mA on an ESP32-S3 (an approximate figure, not yet measured) | Certain | Medium | A gateway is powered from USB or mains [user]; commissioning measures the draw (Phase 19) |
 | R-42 | Range and airtime of ESP-NOW, and of its LR mode, on these boards' on-board antennas are only the vendor's figures (about 100 – 200 m normal, up to about 1 km LR) | Likely | Medium | `espnow_lr` stays `off` by default; the FR-38.7 range test records the delivered share at 100 m, 300 m and 1 km |
 | R-43 | Unexpected Maker publishes no sleep current for the FeatherS3, so the build's gain over the T-Display build is not yet known | Certain | Medium | NFR-40.1 measures it part by part at commissioning; the limit is set from that figure [user] |
-| R-44 | The pins of §40.2 beyond the board's named functions (GPIO 1, 5 – 7, 10 – 14, 17, 18, 33) come from distributor pages, not the board's schematic, and GPIO 33 may be taken by the PSRAM | Possible | Medium | The Phase 21 commissioning program walks each pin; a pin found taken moves before any firmware uses it |
+| R-44 | The pins of §40.2 beyond the board's named functions (GPIO 1, 5 – 7, 10 – 12, 14, 17, 18, 33) come from the FeatherS3D's pinout card, not its schematic, and GPIO 33 may be taken by the PSRAM | Possible | Medium | The Phase 21 commissioning program walks each pin; a pin found taken moves before any firmware uses it |
 | R-45 | No protector survives a direct strike, and a nearby one can still exceed C-40.7's ratings on a 100 ft cable | Possible | High | C-40.5 – C-40.8 limit the damage to the replaceable protector and field boards; the field boards plug in, so they are swapped, not repaired |
 | R-46 | A 0 – 5 V probe has no live zero: a broken signal wire reads 0 V, the same as an empty tank | Certain | Medium | Accepted for the EALLT-1 [user]; a 4-20 mA probe on the loop channel detects it (FR-29.4) |
 | R-48 | Satellite data costs by the byte, so a fault that adds messages (a flapping alert, a clock set wrong) could spend the month's data | Possible | Medium | FR-41.6 sends only critical alerts, capped a day, and FR-41.9 caps the month's bytes; the count is on `GET /` and the `day` flag `budget` |
@@ -4535,8 +4535,8 @@ Logs:
 
 ### 40.1 Purpose & peers
 
-A third product build of this firmware runs on the Unexpected Maker FeatherS3
-(ESP32-S3) [user], for a station that sleeps on a battery at a far lower current
+A third product build of this firmware runs on the Unexpected Maker FeatherS3D
+(ESP32-S3, 2025) [user], for a station that sleeps on a battery at a far lower current
 than the T-Display build (measured at 380 µA alone and 451 µA with the sensor bus,
 `docs/Method/project/sleep-current.md`). Its board keeps nothing but the clock's
 bus powered in deep sleep: the sensors, the displays and the field inputs are
@@ -4566,17 +4566,18 @@ Its verification contracts are §40.6.
 
 ### 40.2 Hardware
 
-The board facts below come from Unexpected Maker's FeatherS3 datasheet and are
-checked by the commissioning program of Phase 21 (R-44).
+The board facts below come from Unexpected Maker's FeatherS3D pinout card and
+the FeatherS3's datasheet and board definitions, and are checked by the
+commissioning program of Phase 21 (R-44).
 
 | Item | Value | Source |
 |------|-------|--------|
-| Board | Unexpected Maker FeatherS3 (P7 or later: its two STEMMA QT sockets on separate buses) | [user]; P7 [derived from the board] |
+| Board | Unexpected Maker FeatherS3D (2025): its two STEMMA QT sockets on separate buses, the header of the FeatherS3 | [user] |
 | MCU | ESP32-S3, 16 MB flash, 8 MB QSPI PSRAM (unused) | [derived from the board] |
 | Console | The ESP32-S3's native USB-Serial/JTAG, which also flashes it and resets it into download mode | [derived from the board] |
-| Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery voltage on GPIO 2 (the board's divider), USB present on GPIO 34 | [derived from the board] |
+| Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery's voltage and charge from the board's MAX17048 fuel gauge (0x36) on the always-on bus, its alert on GPIO 2 (unused); USB present on GPIO 34 | [derived from the board] |
 | Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
-| Always-on bus | The horizontal STEMMA QT socket, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins [derived from the board] |
+| Always-on bus | The horizontal STEMMA QT socket, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the board's MAX17048 (0x36), the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins and the gauge [derived from the board] |
 | Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 16, SCL GPIO 15 (the order of the board's Arduino and CircuitPython definitions), 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user]; the pin order [user] |
 | Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's VCC directly and the OLED's VCC through a 5 V step-up (Pololu U1V11F5), since the OLED module's own regulator leaves the panel dark on 3.3 V (`docs/Method/project/ws-displays.md`) | [user]; GPIO 17 [user]; the step-up [user] |
 | Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [user] |
@@ -4586,8 +4587,9 @@ checked by the commissioning program of Phase 21 (R-44).
 | Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a one-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14; the sensor's ranging pin (4) tied high on the isolated side, so it ranges whenever powered, and GPIO 13 (the board's blue LED) left unused; its supply enable on GPIO 33 (100 kΩ pull-down) | [user]; the ranging pin [user] |
 | User key | A momentary key on GPIO 1 (an RTC GPIO), active low, external 10 kΩ pull-up | [user] |
 | BOOT key | GPIO 0, the board's BOOT button, as §18 | [derived from the board] |
+| Other board parts | An ambient light sensor on GPIO 4, the RGB LED's data on GPIO 40 and the antenna select on GPIO 41 (high the u.FL socket, low the chip antenna), none on the header; the firmware leaves GPIO 4 and 40 unused and GPIO 41 low | [derived from the board]; the use [proposed] |
 | Field entry | Each field cable (the loop pair, the probe's three wires, the serial sensor's four) through a surge protector at the enclosure wall, bonded to one earth rod (C-40.7) | [user] |
-| Bench slot | Not yet assigned [user]; its RST and GPIO 0 wired to the bench (C-40.9) | [user] |
+| Bench slot | Not yet assigned [user]; its RST and GPIO 0 wired to the bench (C-40.9) from the header's first and third pins, GND from the fourth, each bench line through a Schottky diode (1N5711 or BAT43) with its cathode at the bench GPIO, since the bench drives its lines push-pull: the bench pulls a pin to about 0.4 V and never drives it high | [user]; the diodes [proposed] |
 
 ### 40.3 Feature parity
 
@@ -4604,7 +4606,8 @@ checked by the commissioning program of Phase 21 (R-44).
 | RS232 input | 30 | Same settings and rules on the isolated logic-level port (FR-40.12, C-40.4) |
 | Cellular uplink (Notecard) | 33 | Same, the Notecard on the always-on bus |
 | WiFi off, packed messages, ESP-NOW | 34, 37, 38 | Same |
-| Modem, microSD settings, fuel gauge of the cellular build | 35 | Not on this build |
+| Fuel gauge | 35 | Same, the board's MAX17048 on the always-on bus: FR-35.10's battery mV and `battery_pct` with `uplink` `cell` |
+| Modem, microSD settings | 35 | Not on this build |
 
 ### 40.4 Settings
 
@@ -4666,7 +4669,7 @@ Displays:
 - **FR-40.7** [Must] [user] FR-35.2, FR-35.15, FR-35.16, FR-35.17, FR-35.24
   and FR-35.25, and the `epaper` and `oled` settings, shall apply on this
   build with the pins of §40.2; FR-35.24's modem and fuel-gauge rows show
-  `modem off` and the GPIO 2 battery voltage.
+  `modem off` and the MAX17048's voltage and charge.
 - **FR-40.8** [Must] [derived] After the display supply turns on, the device
   shall wait **100 ms** [user] before FR-35.25's detection, so the OLED's
   boost has started; commissioning measures the start-up time (Phase 21).
@@ -5321,7 +5324,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.62.0
+fsd_version: 0.63.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5427,6 +5430,7 @@ change_history:
   - "0.60.1 2026-11-12 the user approved §41 Satellite Uplink with a daily `day` message and `sat_budget` 2500 by default (every daily message sent, about 24 KB a year)"
   - "0.61.0 2026-11-12 the user's choice to send status in the daily satellite record: §41 sends `day` version 2 (64 bytes: the hourly averages with `flg`, 16 condition bits, `mb` battery and `cfg`) and no `st`; §31 alerts become `day` flags, only a critical limit of `sat_q` (`sat_crit_lo`, `sat_crit_hi`, `al` version 2 events 12 and 13) is sent at once, `sat_alerts` 1 by default; the flag assignment proposed"
   - "0.62.0 2026-11-13 draft for the user's review, from the user's question about turning on remote access at a set time: §42 Remote Session (all proposed) keeps a Notecard station connected for set hours from ThingsBoard's `session_at` (or §41's `s_session`), answers requests through Notehub and uploads the history CSV to a proxy route, with the options weighed; L68, L69, R-50, R-51, Phase 23; §41.1 and the `remote_bad` flag follow"
+  - "0.63.0 2026-11-13 the board that arrived is the FeatherS3D: §40 names it, the battery read from its MAX17048 (0x36) on the always-on bus (GPIO 2 its alert, unused) in place of a divider, FR-35.10's gauge attributes on this build, its light sensor, RGB LED and antenna select left unused (proposed), and the bench's RST and GPIO 0 lines each through a Schottky diode (proposed)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§42 Remote Session, the whole section: the Notehub session over the other options, `session_at`/`session_h` and `s_session`/`s_hours`, the requests, 1-minute syncs and 5 s polling, 64 KB history chunks to the `hist` route and that route's endpoint (a file store the user chooses), the 10-minute connect limit, the 3.50 V cut-off, NFR-42.1 and NFR-42.2"

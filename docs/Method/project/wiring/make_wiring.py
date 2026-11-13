@@ -259,16 +259,16 @@ def ws_board_part(used):
                 "(not the physical order).")
 
 
-# The Unexpected Maker FeatherS3 (FSD 40.2): the pins this project uses, grouped by
+# The Unexpected Maker FeatherS3D (FSD 40.2): the pins this project uses, grouped by
 # use, not in header order. Names alike but for trailing spaces are one net: the
 # vertical STEMMA QT's GND is the board's GND, the horizontal one's 3V3 is LDO1.
 FS3_LEFT = ["RST", "IO0", "GND", "IO1", "3V3", "VBAT", "IO17", "IO18", "IO33",
             "GND ", "LDO2", "SDA16", "SCL15"]
-FS3_RIGHT = ["IO5", "IO6", "IO7", "IO10", "IO11", "IO12", "IO13", "IO14", "IO35", "IO36",
+FS3_RIGHT = ["IO5", "IO6", "IO7", "IO10", "IO11", "IO12", "IO14", "IO35", "IO36",
              "GND  ", "3V3 ", "SDA8", "SCL9"]
-FS3_LABEL = {"IO0": "IO0 (BOOT)", "SDA16": "SDA IO16", "SCL15": "SCL IO15", "LDO2": "LDO2 3V3",
-             "SDA8": "SDA IO8", "SCL9": "SCL IO9", "IO13": "IO13 (blue LED)",
-             "VBAT": "VBAT", "3V3": "3V3 (LDO1)"}
+FS3_LABEL = {"IO0": "IO0 (BOOT)", "SDA16": "SDA IO16", "SCL15": "SCL IO15",
+             "SDA8": "SDA IO8", "SCL9": "SCL IO9", "LDO2": "3V3.2 (LDO2)",
+             "VBAT": "BAT", "3V3": "3V3.1 (LDO1)"}
 
 
 def fs3_board_part(used):
@@ -282,7 +282,7 @@ def fs3_board_part(used):
     def draw():
         s = [f'<rect x="0" y="0" width="{w}" height="{h}" rx="60" fill="#3b1f5c" stroke="#000000" stroke-width="14"/>',
              t(w / 2, 180, "Unexpected Maker", 70, "middle", "bold", "#ffffff"),
-             t(w / 2, 270, "FeatherS3 (ESP32-S3)", 60, "middle", fill="#ffffff"),
+             t(w / 2, 270, "FeatherS3D (ESP32-S3)", 60, "middle", fill="#ffffff"),
              t(w / 2, 400, "pins grouped by use,", 46, "middle", fill="#bbbbbb"),
              t(w / 2, 460, "not in header order", 46, "middle", "bold", "#ffffff"),
              f'<rect x="40" y="{800 + 100 * gl - 60}" width="{w / 2 - 60}" height="420" rx="20" fill="none" stroke="#ffe24d" stroke-width="8" stroke-dasharray="30 20"/>',
@@ -305,8 +305,8 @@ def fs3_board_part(used):
             s.append(pin_svg(i, x, y, female=True))
         return "".join(s)
 
-    return Part("fs3_um_feathers3", "Unexpected Maker FeatherS3", w, h, pins, draw, "Board",
-                "Unexpected Maker FeatherS3 (ESP32-S3), the pins this project uses grouped by use, "
+    return Part("fs3_um_feathers3", "Unexpected Maker FeatherS3D", w, h, pins, draw, "Board",
+                "Unexpected Maker FeatherS3D (ESP32-S3), the pins this project uses grouped by use, "
                 "with both STEMMA QT sockets; not the physical header order.")
 
 
@@ -553,10 +553,16 @@ def build_parts(used):
     # sheets 11 - 15: the FeatherS3 build (FSD 40, docs/Method/project/feathers3-build.md)
     add(fs3_board_part(used))
     add(lipo_part("fs3_lipo_main", "FeatherS3 LiPo", "L"))
-    add(module_part("fs3_bench_drivers", ["Bench lines", "open-drain drivers"], "specified",
+    add(module_part("fs3_bench_drivers", ["Bench lines", "via Schottky diodes"], "specified",
                     right=["RST", "IO0", "GND"], w=1000, color="#37474f",
-                    notes=["never drive high"],
-                    desc="The bench slot's RST and GPIO 0 lines, each through an open-drain driver (FSD C-40.9)"))
+                    notes=["pull low only: sheet 16"],
+                    desc="The bench slot's RST and GPIO 0 lines, each through a Schottky diode (FSD C-40.9, sheet 16)"))
+    add(module_part("fs3_bench_pi", ["Testbench Pi", "the slot's GPIO pair"], "built",
+                    right=["EN (gpio_en)", "BOOT (gpio_boot)", "GND"], w=1200, color="#8a1538",
+                    notes=["push-pull outputs"],
+                    desc="The testbench Pi's EN and BOOT GPIOs for the slot (harness manual, GPIO pairs)"))
+    add(two_pin("fs3_d1n5711_h", "diode", "1N5711", False, "D", "Schottky diode",
+                pins=("K", "A")))
     add(module_part("fs3_user_key", ["User key", "momentary, NO"], "specified",
                     right=["NO", "COM"], w=900, color="#8a1c1c",
                     desc="Momentary user key, normally open"))
@@ -1595,6 +1601,30 @@ def sheet_fs3_entry(S):
     ])
 
 
+def sheet_fs3_bench(S):
+    B = "Board"
+    S.place(B, FS3, 3000, 300)
+    S.place("Pi", "fs3_bench_pi", 200, 425)
+    S.place("D1", "fs3_d1n5711_h", 1800, 550)
+    S.place("D2", "fs3_d1n5711_h", 1800, 900)
+    # each Pi output through a Schottky diode, cathode at the Pi: it can pull low, never high
+    S.wire(("Pi", "EN (gpio_en)"), ("D1", "K"), "orange", ("x", 1600))
+    S.wire(("D1", "A"), (B, "RST"), "orange", ("x", 2700))
+    S.wire(("Pi", "BOOT (gpio_boot)"), ("D2", "K"), "yellow", ("x", 1650))
+    S.wire(("D2", "A"), (B, "IO0"), "yellow", ("x", 2800))
+    S.wire(("Pi", "GND"), (B, "GND"), "black", ("x", 1700))
+    S.note(200, 3100, 4600, [
+        "# FeatherS3D: the bench's BOOT and RST lines (FSD C-40.9)",
+        "On the board's long header: RST is the first pin (beside 3V3.1), GPIO 0 the third",
+        "(marked 0, the BOOT button's line), GND the fourth (white square). No wire to 3V3.1.",
+        "D1, D2: 1N5711 (or BAT43) Schottky, band (cathode) at the Pi. Pi low pulls the pin",
+        "to about 0.4 V; Pi high is blocked, so the board's pull-up holds the pin and the Pi",
+        "never powers the board. Pi pairs: 1 BCM 17/18 (pins 11/12), 2 BCM 22/23 (15/16),",
+        "3 BCM 24/25 (18/22), 4 BCM 26/27 (37/13); GND pin 14. Then run the BOOT/EN test.",
+        LEGEND,
+    ])
+
+
 SHEETS = [
     ("wiring-1-board-bme280-notecard", "1  Board, battery, BME280 and Notecard",
      (6700, 6000), {"IO44", "IO43", "3V3", "GND"}, sheet_core),
@@ -1629,6 +1659,8 @@ SHEETS = [
      (9600, 4700), {"IO33", "IO14", "VBAT", "GND"}, sheet_fs3_serial),
     ("wiring-15-fs3-entry", "15  FeatherS3: field cable entry, surge protection and earth (FSD 40)",
      (6400, 4000), set(), sheet_fs3_entry),
+    ("wiring-16-fs3-bench", "16  FeatherS3D: the bench's BOOT and RST lines (FSD C-40.9)",
+     (5000, 4300), {"RST", "IO0", "GND"}, sheet_fs3_bench),
 ]
 
 
