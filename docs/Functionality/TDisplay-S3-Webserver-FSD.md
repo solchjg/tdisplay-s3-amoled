@@ -1165,6 +1165,8 @@ bench. Transport: ESP-IDF log over USB-Serial/JTAG (C-10.5). Tag: `web`.
 | L61 | Gateway passed a node's data on (FR-38.17, FR-38.18) | `web: espnow fwd node=<hostname> to=<tb\|ntfy> <ok\|failed: <connect\|tls\|auth\|refused\|timeout>> n=<readings, or 1>` | I or W |
 | L62 | Level probe value (FR-40.11) | `web: level volt=<V, 3 decimals> v=<value, 3 decimals> <loop_unit>` | I |
 | L63 | Level probe failed (FR-40.10) | `web: level failed: <over\|ERR> volt=<V, 3 decimals, or none>` | W |
+| L64 | Remote settings received (FR-32.19) | `web: tb remote applied=<keys, comma-separated, or none>` | I |
+| L65 | Remote settings refused or failed (FR-32.19, FR-32.21) | `web: tb remote failed: <invalid=<key>\|connect\|tls\|auth\|refused\|timeout>` | W |
 | L17 | End of startup | `Init complete, running event-driven` (any tag) | I |
 
 ### 7.3 Requirements
@@ -3163,6 +3165,7 @@ submission without them leaves ThingsBoard as it was (off on a new device).
 | `tb_url` | server base URL, e.g. `http://192.168.1.20:8080` or `https://tb.example.org` | `http://` or `https://`, then a host name or IPv4 address, an optional `:port`, no path, 1 – 128 bytes | the stored value |
 | `tb_token` | the access token of the device in ThingsBoard | 1 – 64 [proposed] letters, digits, `-` and `_` | the stored value (in a key-window BLE write an absent token keeps the stored one, as for the other secrets) |
 | `tb_every` | minutes between uploads | whole minutes, 1 – 1440, dividing 1440 [proposed] | 60 [user] |
+| `tb_remote` | settings from ThingsBoard's shared attributes (FR-32.16) `on` or `off` [proposed] | one of the two | the stored value; `off` when none is stored [proposed] |
 
 ### 32.3 Requests
 
@@ -3170,6 +3173,8 @@ submission without them leaves ThingsBoard as it was (off on a new device).
 |------|-----------------|---------------------------|
 | Telemetry | POST `<tb_url>/api/v1/<tb_token>/telemetry` | `[{"ts":<ms since the epoch>,"values":{"temp_f":<°F, 2 decimals>,"rh_pct":<%, 1 decimal>,"p_mbar":<mbar, 2 decimals>,"synced":<true\|false>}}, …]`, oldest first |
 | Attributes | POST `<tb_url>/api/v1/<tb_token>/attributes` | `{"hostname":"<FR-20.1>","fw_version":"<V>","ip":"<a.b.c.d>","rssi":<dBm>,"setup":"<normal id of §28.1>"}` |
+| Remote settings (FR-32.16) | GET `<tb_url>/api/v1/<tb_token>/attributes?sharedKeys=<the keys of FR-32.17, comma-separated>` | none; the answer is `{"shared":{"<key>":<value>, …}}` |
+| Remote settings result (FR-32.19) | POST `<tb_url>/api/v1/<tb_token>/attributes` | `{"remote_applied":"<keys, comma-separated, or empty>","remote_error":"<the first invalid key, or empty>","remote_ts":<ms since the epoch>}` |
 
 The values are those of the reading's history line (§27.1), so ThingsBoard
 shows what L21 and `/api/history` show.
@@ -3255,6 +3260,36 @@ Failures and limits:
 - **FR-32.13** [Must] [derived] Each accepted request shall be logged as L41,
   each failed one as L42 (§7.2).
 
+Remote settings (ThingsBoard shared attributes):
+
+- **FR-32.16** [Must] [proposed] With `tb_remote` `on`, after each upload whose
+  requests all succeed, the device shall ask the server for the shared attributes
+  of FR-32.17 (§32.3) in the same network session, so a remote change needs no
+  extra wake or WiFi start. With `tb_remote` `off`, or `tb` or `services` off,
+  no such request is sent.
+- **FR-32.17** [Must] [proposed] Only these settings shall be taken from shared
+  attributes: the sampling setup and its fields (§28: `setup`, `sample_min`,
+  `average_min`), `tb_every`, the alert limits of §31 (`alert_*`), `loop` and its `loop_*`
+  fields (§29, §40.4) and the `rs_*` fields of §30. Network credentials, server
+  addresses, tokens, `tb`, `tb_remote` and `services` are never taken, so a
+  remote change cannot cut the station off from the server.
+- **FR-32.18** [Must] [proposed] A shared attribute shall be applied only when
+  its value differs from the value the device last received for that key, so a
+  setting changed locally (portal or BLE) stays until the server's value
+  changes. The values received are checked together by the rules of a BLE
+  `settings` write (FR-26.7, §28 – §31); if any is invalid none is applied.
+  Accepted values are stored as at T3 and take effect from the next reading.
+- **FR-32.19** [Must] [proposed] After each remote settings request the device
+  shall post the result attributes of §32.3, so the dashboard shows what was
+  applied or refused, and log L64 or L65.
+- **FR-32.20** [Must] [proposed] On a build whose uplink is the Notecard
+  (`uplink` `cell`, §33), the request of FR-32.16 shall go through a Notehub
+  proxy route to the same ThingsBoard URL (`web.get`), at the sync that sends
+  the readings; every other rule of FR-32.16 – FR-32.19 applies unchanged.
+- **FR-32.21** [Must] [proposed] A failed remote settings request (FR-32.11's
+  failures) shall change no setting, be logged as L65, and not be retried on
+  that wake; the upload it followed stands.
+
 ### 32.5 Verification contracts
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
@@ -3271,6 +3306,9 @@ Failures and limits:
 | FR-32.8, FR-32.11 | Same build, ThingsBoard stopped for two uploads, then started | L42 twice, then one L41 carrying every reading taken meanwhile | A reading missing in ThingsBoard; a retry on the failing wake | target |
 | FR-32.6 | Reset; device reaches ONLINE | L41 within the window; the attributes of §32.3 on the ThingsBoard device | No upload in the window | target |
 | FR-32.9 | Operator's production server on `https://` with a Let's Encrypt certificate | L41; the readings on the operator's dashboard | A send to a server whose certificate fails | bench (operator) |
+| FR-32.17, FR-32.18 (core) | Remote attribute sets: `setup=fine`; `sample_min=7` with `average_min=15`; `tb_token=x`; the same `setup=fine` again after a local change to `std`; a set with one invalid key | Applied; refused, nothing applied; `tb_token` ignored; not applied (unchanged on the server); refused, nothing applied, the invalid key named | A credential taken; a partial set applied | host |
+| FR-32.16, FR-32.19 | ThingsBoard on the bench, `tb_remote` `on`; the shared attribute `setup` set to `fine` on the server; an upload due | L41, then L64 `applied=setup`; `remote_applied=setup` on the device's client attributes; the next readings at 1 minute | A remote request with `tb_remote` `off`; an extra WiFi start | target |
+| FR-32.21 | Same, the server stopped after the telemetry request | L65; the settings unchanged | A setting changed on a failed request | target |
 
 ---
 
@@ -4503,13 +4541,13 @@ checked by the commissioning program of Phase 21 (R-44).
 | Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery voltage on GPIO 2 (the board's divider), USB present on GPIO 34 | [derived from the board] |
 | Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
 | Always-on bus | The horizontal STEMMA QT socket, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins [derived from the board] |
-| Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 15, SCL GPIO 16, 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user] |
-| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V, output to both displays; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds | [user]; GPIO 17 [user] |
+| Switched bus | The vertical STEMMA QT socket, I2C controller 1, SDA GPIO 16, SCL GPIO 15 (the order of the board's Arduino and CircuitPython definitions), 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user]; the pin order [user] |
+| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's VCC directly and the OLED's VCC through a 5 V step-up (Pololu U1V11F5), since the OLED module's own regulator leaves the panel dark on 3.3 V (`docs/Method/project/ws-displays.md`) | [user]; GPIO 17 [user]; the step-up [user] |
 | Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [user] |
 | E-paper | Waveshare 4.2" e-Paper Module (V2), SSD1683, as §35.2: CS GPIO 5, DC GPIO 6, RST GPIO 7, BUSY GPIO 10 (internal pull-down, FR-35.25) | [user]; pins [user] |
 | OLED | 3.12" 256 × 64 SSD1322 module, as §35.2: CS GPIO 11 (10 kΩ to GND on its lead, FR-35.25), RES GPIO 12, DC shared with the e-paper's GPIO 6 | [user]; pins [user] |
 | Analog board | The §29 loop board with a second, voltage channel (FR-40.9): its supply enable on GPIO 18 (100 kΩ pull-down on the board), its 24 V from a 2 W isolated DC-DC, isolation of at least 3 kV (C-40.6); loop on A0 – A1 as §29, the probe's 0 – 5 V through a 15 kΩ / 10 kΩ divider (0.1 %) to A2, read single-ended at ±2.048 V | [user]; parts [user] |
-| Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a two-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14 and GPIO 13 to its trigger; its supply enable on GPIO 33 (100 kΩ pull-down) | [user] |
+| Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a one-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14; the sensor's ranging pin (4) tied high on the isolated side, so it ranges whenever powered, and GPIO 13 (the board's blue LED) left unused; its supply enable on GPIO 33 (100 kΩ pull-down) | [user]; the ranging pin [user] |
 | User key | A momentary key on GPIO 1 (an RTC GPIO), active low, external 10 kΩ pull-up | [user] |
 | BOOT key | GPIO 0, the board's BOOT button, as §18 | [derived from the board] |
 | Field entry | Each field cable (the loop pair, the probe's three wires, the serial sensor's four) through a surge protector at the enclosure wall, bonded to one earth rod (C-40.7) | [user] |
@@ -4622,8 +4660,8 @@ Serial sensor:
 
 - **FR-40.12** [Must] [user] On this build §30 shall read its instrument
   through the serial port of §40.2: GPIO 33 in place of GPIO 13 as the port's
-  supply, UART 1 RX on GPIO 14 with its input inverted, GPIO 13 in place of
-  GPIO 11; the port's settle is `rs_timeout_ms` alone, the sensor needing
+  supply, UART 1 RX on GPIO 14 with its input inverted, and no TX line (the
+  instrument needs no command, `rs` `listen`); the port's settle is `rs_timeout_ms` alone, the sensor needing
   about 2 s from power-on for its first reading. Every other part of §30
   applies.
 - **FR-40.13** [Should] [user] A line holding the MaxBotix no-target

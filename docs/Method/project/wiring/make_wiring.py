@@ -579,7 +579,7 @@ def build_parts(used):
                     left=["VIN", "GND"], right=["VOUT", "CTRL", "GND "], w=1000, color="#1e5aa8",
                     notes=["CTRL: high on, low off"],
                     desc="Pololu Mini Pushbutton Power Switch LV (#2808), the display supply"))
-    add(module_part("fs3_boost_5v", ["Step-up 5 V", "Pololu U1V11F5"], "proposed",
+    add(module_part("fs3_boost_5v", ["Step-up 5 V", "Pololu U1V11F5"], "specified",
                     left=["VIN", "GND"], right=["VOUT", "GND "], w=1000, color="#1e5aa8",
                     notes=["the OLED's 5 V"],
                     desc="Pololu U1V11F5 5 V step-up regulator for the OLED module's VCC"))
@@ -596,10 +596,10 @@ def build_parts(used):
                     desc="Earu EALLT-1 submersible level transmitter, 0 - 5 m, 0 - 5 V, 10 - 30 V supply"))
     add(two_pin("fs3_r15k_h", "res", "15k 0.1%", False, "R", "Resistor"))
     add(two_pin("fs3_r10k_v", "res", "10k 0.1%", True, "R", "Resistor"))
-    add(module_part("fs3_dig_isolator", ["Digital isolator", "2 ch, 3 kV  side 2 | side 1"], "specified",
-                    left=["VCC2", "INA", "OUTB", "GND2"], right=["VCC1", "OUTA", "INB", "GND1"],
+    add(module_part("fs3_dig_isolator", ["Digital isolator", "1 ch, 3 kV  side 2 | side 1"], "specified",
+                    left=["VCC2", "INA", "GND2"], right=["VCC1", "OUTA", "GND1"],
                     w=1200, color="#37474f",
-                    desc="Two-channel digital isolator, one channel each way, at least 3 kV (FSD 40.2)"))
+                    desc="One-channel digital isolator, sensor to board, at least 3 kV (FSD 40.2)"))
     add(module_part("fs3_maxbotix", ["MaxBotix MB7569-100", "SCXL-MaxSonar-WRM"], "specified",
                     right=["4 range", "5 TX", "6 V+", "7 GND"], w=1200, color="#6d4c41",
                     desc="MaxBotix MB7569-100 ultrasonic level sensor, serial output on pin 5"))
@@ -1417,7 +1417,7 @@ def sheet_fs3_core(S):
         "Always-on bus (horizontal STEMMA QT, LDO1): RV-8803 0x32 and the Notecarrier-X 0x17,",
         "its red 3.3 V wire unconnected and its own LiPo. Daisy-chain through the RTC's second port.",
         "Switched bus (vertical STEMMA QT, LDO2, off in deep sleep): BME280 0x76 and the analog",
-        "board's isolator (sheet 13). The board's sources give SDA = IO16, SCL = IO15 on this socket.",
+        "board's isolator (sheet 13). On this socket SDA is GPIO 16 and SCL GPIO 15.",
         "User key GPIO 1 to GND, 10k pull-up to 3V3. Bench RST and GPIO 0 through open-drain",
         "drivers only (C-40.9). Each LiPo is charged by its own board's USB-C (C-40.11).",
         LEGEND,
@@ -1462,8 +1462,8 @@ def sheet_fs3_displays(S):
         "SPI2: SCK GPIO 36, MOSI GPIO 35 and DC GPIO 6 to both displays. E-paper CS 5, RST 7, BUSY 10;",
         "OLED CS 11 (10k to GND marks it fitted), RES 12. The Pololu switch takes LDO1's 3.3 V;",
         "GPIO 17 high turns it on, low off, then floating. Before it turns off, every display line",
-        "is set to an input. The OLED module needs 5 V on VCC (ws-displays.md): the step-up",
-        "is proposed, and FSD 40.2 says 3.3 V to both displays until that is amended.",
+        "is set to an input. The e-paper takes the switched 3.3 V; the OLED module needs 5 V on",
+        "VCC (ws-displays.md), from the U1V11F5 step-up after the switch.",
         LEGEND,
     ])
 
@@ -1545,10 +1545,9 @@ def sheet_fs3_serial(S):
     S.place("U2", "tds3a_load_switch", 1000, 2400)
     S.place("U4", "fs3_iso_dcdc_5", 2400, 2400)
     S.place("S1", "fs3_maxbotix", 2600, 900)
-    # isolator side 1: VCC1 from GPIO 33, RX on GPIO 14, the trigger from GPIO 13
+    # isolator side 1: VCC1 from GPIO 33, RX on GPIO 14
     S.wire(("U3", "VCC1"), (B, "IO33"), "green", ("x", 6300))
     S.wire(("U3", "OUTA"), (B, "IO14"), "blue", ("x", 6400), ("y", 350), ("x", 8800))
-    S.wire(("U3", "INB"), (B, "IO13"), "yellow", ("x", 6500), ("y", 300), ("x", 8900))
     S.wire(("U3", "GND1"), (B, "GND"), "black", ("x", 6600))
     # GPIO 33 also enables the 5 V supply; R1 holds it off
     S.wire(("R1", "1"), (B, "IO33"), "green")
@@ -1564,13 +1563,13 @@ def sheet_fs3_serial(S):
     S.wire(("U4", "0V"), ("U3", "GND2"), "grey", ("x", 4700))
     S.wire(("U4", "0V"), ("S1", "7 GND"), "grey", ("x", 4100))
     S.wire(("S1", "5 TX"), ("U3", "INA"), "white", ("x", 4400))
-    S.wire(("U3", "OUTB"), ("S1", "4 range"), "brown", ("x", 4300))
+    S.wire(("S1", "4 range"), ("S1", "6 V+"), "purple", ("x", 3900))
     S.note(300, 4000, 8600, [
         "# FeatherS3 build: the isolated serial port and the MaxBotix MB7569-100 (FSD 40.2, FR-40.12)",
         "GPIO 33 high switches the port's supply on and powers the isolator's side 1; the 100k holds it off.",
         "The 1 W isolated DC-DC (3 kV) gives the sensor 5 V. Its pin 5 serial output (9600 8N1, inverted",
-        "levels) reaches UART 1 RX on GPIO 14, read inverted; GPIO 13 drives pin 4 (ranging on).",
-        "GPIO 13 is also the board's blue LED: it lights while the port runs. Logic levels only (C-40.4).",
+        "levels) reaches UART 1 RX on GPIO 14, read inverted. Pin 4 is tied to the sensor's 5 V, so it",
+        "ranges whenever powered; GPIO 13 (the blue LED) stays unused. Logic levels only (C-40.4).",
         LEGEND,
     ])
 
@@ -1627,7 +1626,7 @@ SHEETS = [
     ("wiring-13-fs3-analog", "13  FeatherS3: analog board, 4-20 mA loop and 0-5 V probe (FSD 40)",
      (15400, 5600), {"IO18", "VBAT", "GND", "LDO2", "SDA16", "SCL15"}, sheet_fs3_analog),
     ("wiring-14-fs3-serial", "14  FeatherS3: isolated serial port and MaxBotix (FSD 40, FR-40.12)",
-     (9600, 4700), {"IO33", "IO13", "IO14", "VBAT", "GND"}, sheet_fs3_serial),
+     (9600, 4700), {"IO33", "IO14", "VBAT", "GND"}, sheet_fs3_serial),
     ("wiring-15-fs3-entry", "15  FeatherS3: field cable entry, surge protection and earth (FSD 40)",
      (6400, 4000), set(), sheet_fs3_entry),
 ]

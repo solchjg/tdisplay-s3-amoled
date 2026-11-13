@@ -17,7 +17,7 @@ Unexpected Maker's pinout card before wiring.
 | [11 Power, buses, key and bench lines](wiring/wiring-11-fs3-core.png) ([.fzz](wiring/wiring-11-fs3-core.fzz)) | The LiPo; the always-on bus (RV-8803, Notecarrier-X); the switched bus (BME280, the analog board's isolator); the user key; the bench's RST and GPIO 0 |
 | [12 E-paper and OLED](wiring/wiring-12-fs3-displays.png) ([.fzz](wiring/wiring-12-fs3-displays.fzz)) | SPI2 to both displays, the Pololu #2808 display supply, the OLED's 5 V step-up |
 | [13 Analog board](wiring/wiring-13-fs3-analog.png) ([.fzz](wiring/wiring-13-fs3-analog.fzz)) | The isolated 24 V, the 4-20 mA loop channel (as sheet 2), the 0 – 5 V probe channel on A2 |
-| [14 Serial port](wiring/wiring-14-fs3-serial.png) ([.fzz](wiring/wiring-14-fs3-serial.fzz)) | The isolated 5 V, the two-channel isolator, the MaxBotix MB7569-100 |
+| [14 Serial port](wiring/wiring-14-fs3-serial.png) ([.fzz](wiring/wiring-14-fs3-serial.fzz)) | The isolated 5 V, the one-channel isolator, the MaxBotix MB7569-100 with its ranging pin tied high |
 | [15 Field entry](wiring/wiring-15-fs3-entry.png) ([.fzz](wiring/wiring-15-fs3-entry.fzz)) | One field cable through its surge protector to an isolated board, the earth rod |
 
 ## Pins
@@ -29,7 +29,7 @@ Unexpected Maker's pinout card before wiring.
 | GPIO 2 | Battery voltage (the board's divider), not wired | — |
 | GPIO 5, 6, 7, 10 | E-paper CS, DC (shared), RST, BUSY | 12 |
 | GPIO 11, 12 | OLED CS (10 kΩ to GND), RES | 12 |
-| GPIO 13 | The serial sensor's ranging line, through the isolator; also the board's blue LED | 14 |
+| GPIO 13 | The board's blue LED; not wired (the sensor's ranging pin is tied high on the isolated side) | — |
 | GPIO 14 | UART 1 RX, inverted, through the isolator | 14 |
 | GPIO 17 | The display switch's CTRL | 12 |
 | GPIO 18 | The analog board's supply enable, 100 kΩ pull-down | 13 |
@@ -39,27 +39,18 @@ Unexpected Maker's pinout card before wiring.
 | Horizontal STEMMA QT | GPIO 8 SDA, GPIO 9 SCL, LDO1 3.3 V: RV-8803 0x32, Notecarrier-X 0x17 | 11 |
 | Vertical STEMMA QT | GPIO 16 SDA, GPIO 15 SCL, LDO2 3.3 V: BME280 0x76, the analog board's ISO1540 | 11, 13 |
 
-## Differences from FSD §40.2 to resolve
+## Board facts behind §40.2
 
-The board's own pin definitions and the OLED module's supply differ from §40.2
-in three places. The sheets draw the working wiring; the FSD changes need the
-user's approval.
-
-1. **Vertical STEMMA QT SDA and SCL.** The Arduino and CircuitPython board files
-   for the FeatherS3 give SDA on GPIO 16 and SCL on GPIO 15; §40.2 gives SDA 15,
-   SCL 16. The sheets follow the board files. The firmware's pins for this bus
-   take the board files' order.
-2. **GPIO 13 is the blue LED.** Both board files name GPIO 13 as the board's
-   LED. The ranging line still works, but the LED lights while the serial port
-   runs and adds its current. The MB7569 free-runs with its pin 4 open or high,
-   so the line can be left out, freeing GPIO 13, or moved to a spare pin.
-3. **The OLED needs 5 V.** The 3.12" module's own regulator leaves the panel
-   dark on 3.3 V ([ws-displays.md](ws-displays.md#supply)). Sheet 12 adds a
-   Pololu U1V11F5 step-up after the display switch for the OLED's VCC; the
-   e-paper stays on the switched 3.3 V. §40.2 gives 3.3 V to both.
-
-GPIO 33 is a header pin (D5) in both board files, and the FeatherS3's PSRAM is
-QSPI, so GPIO 33 – 37 are free (R-44).
+- **Vertical STEMMA QT.** The FeatherS3's Arduino and CircuitPython board
+  definitions both give SDA on GPIO 16 and SCL on GPIO 15; §40.2 follows them.
+- **GPIO 13.** Both definitions name it the board's blue LED, so no field line
+  uses it: the MB7569 ranges continuously with its pin 4 high, and its supply is
+  switched off between readings anyway.
+- **The OLED's 5 V.** The 3.12" module's own regulator leaves the panel dark on
+  3.3 V ([ws-displays.md](ws-displays.md#supply)), so a U1V11F5 step-up after
+  the display switch feeds its VCC; it is unpowered whenever the switch is off.
+- **GPIO 33.** A header pin (D5) in both definitions, and the FeatherS3's PSRAM
+  is QSPI, so GPIO 33 – 37 are free (R-44).
 
 ## To check before wiring
 
