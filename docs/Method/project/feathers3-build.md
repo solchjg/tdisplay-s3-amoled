@@ -124,10 +124,12 @@ From the FeatherS3D's LiPo, the probe asleep with LDO2 held off, USB out,
 | I2C2: RV-8803, ADS1115 and BME280 on a star | 49 µA |
 | I2C2: ADS1115 and BME280; I2C1: RV-8803 | 43 µA |
 | As above, plus the Notecarrier-X on I2C1, powered from its own LiPo | 35 µA |
+| As above, plus SparkFun's Qwiic Button (V10, ATtiny84A, 0x6F) on I2C1 | 2.6 mA |
 
 I2C1's 3V3 holds 3.3 V throughout. A Notecarrier-X that is unpowered or whose
 LiPo is flat raises the figure to 332 µA: the FeatherS3D's I2C1 pull-ups feed
-it through SDA and SCL. Still to add: the user key, the displays and their
+it through SDA and SCL. The Qwiic Button's microcontroller and power LED run
+whenever I2C1 is powered. Still to add: the user key, the displays and their
 switch, and the analog and serial field boards.
 
 ## Measuring the sleep current
