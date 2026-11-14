@@ -76,6 +76,14 @@ Pi's default pull-down of about 50k, through the diode, holds the FeatherS3D in
 reset, since its EN pull-up is weaker. Then set the slot's `gpio_en` and `gpio_boot`,
 restart the portal and run the BOOT/EN test with the board awake.
 
+Flashing on the bench: firmware whose USB is not the chip's own USB-Serial/JTAG
+(CircuitPython, TinyUSB) ignores esptool's reset into the ROM, so `/api/flash`
+alone fails with a write timeout. Put the board in download mode first
+(`/api/serial/recover`, which holds GPIO 0 low across an EN pulse), wait for it to
+report download mode, flash, then `/api/serial/release` to boot the new image.
+Once this project's firmware or a probe runs, the board's USB is the
+USB-Serial/JTAG (its serial the MAC) and `/api/flash` resets it directly.
+
 ## To check before wiring
 
 1. **Board.** A FeatherS3D (2025), or a FeatherS3 P7 or later; both have the
