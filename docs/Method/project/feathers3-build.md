@@ -111,7 +111,26 @@ current on a LiPo with USB out:
 | Pin walk | GPIO 17, 18, 14, 12, 6, 5, 36, 35 on the long header and 11, 10, 7, 1, 33 on the short one each toggle at their place on the pinout card (a meter, 8 s a pin) |
 | User key (GPIO 1) | Not checked: no key wired |
 | Switched bus (GPIO 16/15) | With the star in and LDO2 on: the RV-8803 (0x32), the ADS1115 (0x48) and the BME280 (0x77, id 0x60); with LDO2 off, nothing |
-| Sleep current (NFR-40.1, R-43) | From the LiPo in deep sleep, LDO2 held off, USB out: 46 µA with nothing on either socket; 49 µA with the switched bus's star (RV-8803, ADS1115, BME280) in the I2C2 socket ([measured so](#measuring-the-sleep-current)) |
+| Sleep current (NFR-40.1, R-43) | 35 – 49 µA with the parts fitted so far; part by part [below](#sleep-current-part-by-part) |
+
+### Sleep current, part by part
+
+From the FeatherS3D's LiPo, the probe asleep with LDO2 held off, USB out,
+[measured so](#measuring-the-sleep-current). The spread between runs is a few µA.
+
+| Fitted | Asleep |
+|--------|--------|
+| Nothing on either socket | 46 µA |
+| I2C2: RV-8803, ADS1115 and BME280 on a star | 49 µA |
+| I2C2: ADS1115 and BME280; I2C1: RV-8803 | 43 µA |
+| As above, plus the Notecarrier-X on I2C1, powered from its own LiPo | 35 µA |
+| As above, plus SparkFun's Qwiic Button (V10, ATtiny84A, 0x6F) on I2C1 | 2.6 mA |
+
+I2C1's 3V3 holds 3.3 V throughout. A Notecarrier-X that is unpowered or whose
+LiPo is flat raises the figure to 332 µA: the FeatherS3D's I2C1 pull-ups feed
+it through SDA and SCL. The Qwiic Button's microcontroller and power LED run
+whenever I2C1 is powered. Still to add: the user key, the displays and their
+switch, and the analog and serial field boards.
 
 ## Measuring the sleep current
 
