@@ -3,11 +3,11 @@
 // power-on, after 5 s for the host to open the USB console, it
 //   1. prints the chip, its flash size, MAC (the bench pins SLOT11 to it) and
 //      whether the package carries PSRAM, and which kind: octal PSRAM in the
-//      package takes GPIO 33 - 37 (R-44), so those pins leave the walk;
-//   2. scans the always-on bus (I2C1: the horizontal STEMMA QT, SDA 8, SCL 9,
+//      package takes GPIO 33 - 37, so those pins leave the walk;
+//   2. scans the always-on bus (the STEMMA QT marked I2C1, SDA 8, SCL 9,
 //      LDO1) and reads the board's MAX17048 at 0x36;
-//   3. switches LDO2 on (GPIO 39 high) and scans the switched bus (I2C2: the
-//      vertical STEMMA QT, SDA 16, SCL 15), reading the BME280's chip id; then
+//   3. switches LDO2 on (GPIO 39 high) and scans the switched bus (the
+//      STEMMA QT marked I2C2, SDA 16, SCL 15), reading the BME280's chip id; then
 //      LDO2 off and the same scan, which should find nothing; LDO2 stays off,
 //      then on, CONFIG_PROBE_LDO2_HOLD_S each, for a meter on that socket's 3V3;
 //   4. watches the user key on GPIO 1 (low when pressed), the blue LED on
@@ -172,7 +172,7 @@ static void always_on_bus(void)
         return;
     }
     bool seen[128] = {0};
-    scan(b, "i2c1 (horizontal, LDO1; 0x36 gauge, 0x32 RV-8803, 0x17 Notecard)", seen);
+    scan(b, "i2c1 (socket I2C1, LDO1; 0x36 gauge, 0x32 RV-8803, 0x17 Notecard)", seen);
     if (!seen[GAUGE_ADDR]) {
         say("gauge none at 0x36 CHECK");
     } else {
@@ -213,10 +213,10 @@ static void switched_bus(void)
     i2c_master_bus_handle_t b = bus_open(1, PIN_I2C2_SDA, PIN_I2C2_SCL, true);
     if (b) {
         bool seen[128] = {0};
-        int n = scan(b, "i2c2 on (vertical, LDO2; 0x32 RV-8803, 0x48 ADS1115, 0x76/0x77 BME280)",
+        int n = scan(b, "i2c2 on (socket I2C2, LDO2; 0x32 RV-8803, 0x48 ADS1115, 0x76/0x77 BME280)",
                      seen);
         if (n == 0) {
-            say("i2c2 on: nothing answered CHECK (star plugged in the vertical socket?)");
+            say("i2c2 on: nothing answered CHECK (star plugged in socket I2C2?)");
         }
         for (int a = BME_ADDR_A; a <= BME_ADDR_B; a++) {
             if (seen[a]) {
@@ -244,12 +244,12 @@ static void switched_bus(void)
     bus_pins_float();
 
     if (CONFIG_PROBE_LDO2_HOLD_S) {
-        printf("fs3probe: ldo2 OFF for %d s: the vertical socket's 3V3 should read 0 V now\n",
+        printf("fs3probe: ldo2 OFF for %d s: socket I2C2's 3V3 should read 0 V now\n",
                CONFIG_PROBE_LDO2_HOLD_S);
         fflush(stdout);
         wait_ms(CONFIG_PROBE_LDO2_HOLD_S * 1000);
         ldo2(true);
-        printf("fs3probe: ldo2 ON for %d s: the vertical socket's 3V3 should read 3.3 V now\n",
+        printf("fs3probe: ldo2 ON for %d s: socket I2C2's 3V3 should read 3.3 V now\n",
                CONFIG_PROBE_LDO2_HOLD_S);
         fflush(stdout);
         wait_ms(CONFIG_PROBE_LDO2_HOLD_S * 1000);

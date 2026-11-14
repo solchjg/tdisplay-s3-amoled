@@ -13,7 +13,7 @@ They draw the board from the top, USB-C up, with its pins in header order as on
 Unexpected Maker's pinout card: the long header on the left runs RST, 3V3.1, 0, GND, 17, 18, 14, 12, 6, 5, SCK 36, MO 35, MI 37, RX 44,
 TX 43, 3V3.2 (LDO2), and the short one on the right, level with its lower end, BAT, En, 5V, 11,
 10, 7, 3, 1, 38, 33, SCL 9, SDA 8. The drawing puts the two STEMMA QT sockets along the bottom
-edge (the vertical one on LDO2, GPIO 15/16; the horizontal one on LDO1, GPIO 8/9)
+edge (both vertical, marked on the board: I2C2 on LDO2, GPIO 15/16; I2C1 on LDO1, GPIO 8/9)
 and the LiPo connector on the top edge.
 
 | Sheet | Draws |
@@ -42,16 +42,16 @@ and the LiPo connector on the top edge.
 | GPIO 33 | The serial port's supply enable and the isolator's side 1, 100 kΩ pull-down | 14 |
 | GPIO 35, 36 | SPI2 MOSI, SCK | 12 |
 | GPIO 39 | LDO2 enable, on the board, not wired | — |
-| Horizontal STEMMA QT (I2C1) | GPIO 8 SDA, GPIO 9 SCL, LDO1 3.3 V: the board's MAX17048 0x36, RV-8803 0x32, Notecarrier-X 0x17 | 11 |
-| Vertical STEMMA QT (I2C2) | GPIO 16 SDA, GPIO 15 SCL, LDO2 3.3 V: BME280 0x76, the analog board's ISO1540 | 11, 13 |
+| STEMMA QT I2C1 | GPIO 8 SDA, GPIO 9 SCL, LDO1 3.3 V: the board's MAX17048 0x36, RV-8803 0x32, Notecarrier-X 0x17 | 11 |
+| STEMMA QT I2C2 | GPIO 16 SDA, GPIO 15 SCL, LDO2 3.3 V: BME280 0x76, the analog board's ISO1540 | 11, 13 |
 
 ## Board facts behind §40.2
 
 - **FeatherS3D.** The 2025 board keeps the FeatherS3's header and adds a
-  MAX17048 fuel gauge on the horizontal STEMMA QT's bus (0x36, alert on GPIO 2)
+  MAX17048 fuel gauge on the I2C1 STEMMA QT's bus (0x36, alert on GPIO 2)
   in place of the battery divider, an ambient light sensor on GPIO 4, an RGB
   LED on GPIO 40 and an antenna select on GPIO 41 (from its pinout card).
-- **Vertical STEMMA QT.** The FeatherS3's Arduino and CircuitPython board
+- **STEMMA QT I2C2.** The FeatherS3's Arduino and CircuitPython board
   definitions both give SDA on GPIO 16 and SCL on GPIO 15; §40.2 follows them.
 - **GPIO 13.** Both definitions name it the board's blue LED, so no field line
   uses it: the MB7569 ranges continuously with its pin 4 high, and its supply is
@@ -88,7 +88,7 @@ USB-Serial/JTAG (its serial the MAC) and `/api/flash` resets it directly.
 
 1. **Board.** A FeatherS3D (2025), or a FeatherS3 P7 or later; both have the
    two STEMMA QT sockets on separate buses (§40.2).
-2. **LDO2.** With GPIO 39 low, the vertical socket's 3.3 V reads 0 V.
+2. **LDO2.** With GPIO 39 low, the I2C2 socket's 3.3 V reads 0 V.
 3. **Notecarrier 3.3 V.** The Qwiic cable's red wire stays unconnected at the
    Notecarrier end, as on sheet 9.
 4. **Pull-ups.** On the always-on bus, cut the RV-8803's pull-ups; the
@@ -107,11 +107,11 @@ current on a LiPo with USB out:
 | Chip | ESP32-S3 rev 0.2, two cores, 16 MB flash, MAC `44:1B:F6:DC:A3:78` |
 | PSRAM | None in the package (eFuse PSRAM capacity 0), so GPIO 33 – 37 are free |
 | Always-on bus (GPIO 8/9) | The MAX17048 answers at 0x36; with no LiPo its reading means nothing |
-| LDO2 (GPIO 39) | The vertical socket's 3V3 reads 3.3 V on; off, about 0.5 V and then 0.3 V with the star in, fed through its I2C lines |
+| LDO2 (GPIO 39) | The I2C2 socket's 3V3 reads 3.3 V on; off, about 0.5 V and then 0.3 V with the star in, fed through its I2C lines |
 | Pin walk | GPIO 17, 18, 14, 12, 6, 5, 36, 35 on the long header and 11, 10, 7, 1, 33 on the short one each toggle at their place on the pinout card (a meter, 8 s a pin) |
 | User key (GPIO 1) | Not checked: no key wired |
 | Switched bus (GPIO 16/15) | With the star in and LDO2 on: the RV-8803 (0x32), the ADS1115 (0x48) and the BME280 (0x77, id 0x60); with LDO2 off, nothing |
-| Sleep current (NFR-40.1, R-43) | From the LiPo in deep sleep, LDO2 held off, USB out: 46 µA with nothing on either socket; 49 µA with the switched bus's star (RV-8803, ADS1115, BME280) in the vertical socket ([measured so](#measuring-the-sleep-current)) |
+| Sleep current (NFR-40.1, R-43) | From the LiPo in deep sleep, LDO2 held off, USB out: 46 µA with nothing on either socket; 49 µA with the switched bus's star (RV-8803, ADS1115, BME280) in the I2C2 socket ([measured so](#measuring-the-sleep-current)) |
 
 ## Measuring the sleep current
 
@@ -137,17 +137,17 @@ between its windows instead.
    doesn't break the circuit.
 6. **Refit the jumper before it wakes**, by about 3:20.
 7. **Part by part.** Repeat with nothing on either socket, then with each part
-   added (the switched bus's star in the vertical socket, then the always-on
+   added (the switched bus's star in the I2C2 socket, then the always-on
    bus's parts, the displays and the field boards).
 
 To check that a run on the battery is running at all, put a voltmeter on the
-vertical socket's 3V3 and GND: after the reset it reads 3.3 V (LDO2 on, the
+I2C2 socket's 3V3 and GND: after the reset it reads 3.3 V (LDO2 on, the
 scan), about 0.5 V (off, 10 s), 3.3 V (on, 10 s), then stays low.
 
 ## Sources
 
 - [Unexpected Maker FeatherS3 datasheet](https://www.mouser.com/datasheet/2/1362/Unexpected_Maker_Datasheet_FeatherS3-3395032.pdf):
-  the vertical STEMMA QT on IO15 and IO16 powered by LDO2, LDO2's enable on IO39.
+  the second STEMMA QT (I2C2) on IO15 and IO16 powered by LDO2, LDO2's enable on IO39.
 - [Arduino board file `um_feathers3`](https://github.com/espressif/arduino-esp32/blob/master/variants/um_feathers3/pins_arduino.h):
   SDA 8, SCL 9, SDA1 16, SCL1 15, the LED on 13, VBAT sense 2, VBUS sense 34, LDO2 39.
 - [CircuitPython board file `unexpectedmaker_feathers3`](https://github.com/adafruit/circuitpython/blob/main/ports/espressif/boards/unexpectedmaker_feathers3/pins.c):

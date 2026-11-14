@@ -264,13 +264,13 @@ def ws_board_part(used):
 # bottom as on Unexpected Maker's pinout card; the two STEMMA QT sockets' pins on the
 # bottom edge and the LiPo socket's on the top. Names alike but for trailing spaces are
 # one net: header 3V3.2 is LDO2, the sockets' GND the board's GND, header SCL/SDA the
-# horizontal socket's.
+# I2C1 socket's.
 FS3_LEFT = ["RST", "3V3", "IO0", "GND", "IO17", "IO18", "IO14", "IO12", "IO6", "IO5",
             "IO36", "IO35", "IO37", "IO44", "IO43", "LDO2 "]
 FS3_RIGHT = ["VBAT", "EN", "5V", "IO11", "IO10", "IO7", "IO3", "IO1", "IO38", "IO33",
              "SCL9 ", "SDA8 "]
-FS3_SOCK2 = ["SCL15", "SDA16", "LDO2", "GND "]      # vertical STEMMA QT, I2C2, LDO2
-FS3_SOCK1 = ["SCL9", "SDA8", "3V3 ", "GND  "]       # horizontal STEMMA QT, I2C1, LDO1
+FS3_SOCK2 = ["SCL15", "SDA16", "LDO2", "GND "]      # STEMMA QT I2C2, LDO2
+FS3_SOCK1 = ["SCL9", "SDA8", "3V3 ", "GND  "]       # STEMMA QT I2C1, LDO1
 FS3_LABEL = {"IO0": "0 (BOOT)", "3V3": "3V3.1 (LDO1)", "LDO2": "3V3.2 (LDO2)", "VBAT": "BAT",
              "EN": "En", "IO36": "SCK 36", "IO35": "MO 35", "IO37": "MI 37", "IO44": "RX 44",
              "IO43": "TX 43", "SCL9": "SCL 9", "SDA8": "SDA 8"}
@@ -1471,12 +1471,12 @@ def sheet_fs3_core(S):
     S.wire(("R1", "1"), ("SW1", "NO"), "green")
     S.wire(("R1", "2"), (B, "3V3 "), "red", ("y", 4300), ("x", 4150))
     S.wire(("SW1", "COM"), (B, "GND  "), "black", ("x", 5500), ("y", 4400), ("x", 4300))
-    # switched bus: the vertical STEMMA QT, powered from LDO2
+    # switched bus: the I2C2 STEMMA QT, powered from LDO2
     for bp, n1, n2, c, ln in (("SCL15", "SCL", "SCL1", "yellow", 0), ("SDA16", "SDA", "SDA1", "blue", 1),
                               ("LDO2", "3V3", "VCC1", "red", 2), ("GND ", "GND", "GND1", "black", 3)):
         S.wire((B, bp), ("U1", n1), c, ("y", 5275 + 150 * ln))
         S.wire((B, bp), ("U2", n2), c, ("y", 6575 + 150 * ln))
-    # always-on bus: the horizontal STEMMA QT on LDO1; the Notecarrier's 3V3 unconnected
+    # always-on bus: the I2C1 STEMMA QT on LDO1; the Notecarrier's 3V3 unconnected
     for bp, n, c, ln in (("SCL9", "SCL", "yellow", 0), ("SDA8", "SDA", "blue", 1),
                          ("3V3 ", "3V3", "red", 2), ("GND  ", "GND", "black", 3)):
         S.wire((B, bp), ("U3", n), c, ("y", 5275 + 150 * ln))
@@ -1594,7 +1594,7 @@ def sheet_fs3_analog(S):
     S.wire(("R3", "2"), ("U7", "A2"), "white", ("x", 9300))
     S.wire(("R4", "2"), ("P1", "0V"), "grey", ("y", 4150), ("x", 5700))
     S.wire(("R4", "2"), ("U5", "GND "), "grey", ("y", 4150), ("x", 8500))
-    # isolator side 1 on the switched bus (vertical STEMMA QT, LDO2)
+    # isolator side 1 on the switched bus (the I2C2 STEMMA QT, LDO2)
     for u, bp, c, xl, yl, sx in (("SCL1", "SCL15", "yellow", 12650, 4900, 13100),
                                  ("SDA1", "SDA16", "blue", 12600, 4950, 13250),
                                  ("VCC1", "LDO2", "red", 12550, 5000, 13400),
