@@ -99,17 +99,24 @@ USB-Serial/JTAG (its serial the MAC) and `/api/flash` resets it directly.
 
 ## Commissioning results
 
-`commissioning/feathers3-probe` on SLOT11, the board on USB with no LiPo:
+`commissioning/feathers3-probe` on SLOT11, the board on USB, and for the sleep
+current on a LiPo with USB out:
 
 | Check | Result |
 |-------|--------|
 | Chip | ESP32-S3 rev 0.2, two cores, 16 MB flash, MAC `44:1B:F6:DC:A3:78` |
 | PSRAM | None in the package (eFuse PSRAM capacity 0), so GPIO 33 – 37 are free (R-44) |
 | Always-on bus (GPIO 8/9) | The MAX17048 answers at 0x36; with no LiPo its reading means nothing |
-| LDO2 (GPIO 39) | The vertical socket's 3V3 reads 3.3 V on and about 0.5 V off with the star's boards on that bus |
+| LDO2 (GPIO 39) | The vertical socket's 3V3 reads 3.3 V on; off, about 0.5 V and then 0.3 V with the star in, fed through its I2C lines |
 | Pin walk | GPIO 17, 18, 14, 12, 6, 5, 36, 35 on the long header and 11, 10, 7, 1, 33 on the short one each toggle at their place on the pinout card (a meter, 8 s a pin) |
 | User key (GPIO 1) | Not checked: no key wired |
-| Sleep current (NFR-40.1, R-43) | Not yet measured: a LiPo with a meter in series during the probe's 60 s sleep |
+| Switched bus (GPIO 16/15) | With the star in and LDO2 on: the RV-8803 (0x32), the ADS1115 (0x48) and the BME280 (0x77, id 0x60); with LDO2 off, nothing |
+| Sleep current (NFR-40.1, R-43) | From the LiPo in deep sleep, LDO2 held off, USB out: 46 µA with nothing on either socket; 49 µA with the switched bus's star (RV-8803, ADS1115, BME280) in the vertical socket |
+
+To read the sleep current, short the meter with a jumper while the board boots
+and runs, and lift the jumper only once it sleeps: on its mA and µA ranges the
+meter's own drop stops the board when LDO2 switches the star on, and it
+never reaches the sleep. Put the jumper back before it wakes.
 
 ## Sources
 
