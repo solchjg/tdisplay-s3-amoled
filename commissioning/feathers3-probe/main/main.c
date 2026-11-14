@@ -47,8 +47,10 @@
 #define BME_ADDR_A 0x76
 #define BME_ADDR_B 0x77
 
-// §40.2's header pins (GPIO 8/9 and 15/16 are the buses, GPIO 0 the bench's BOOT).
-static const int WALK[] = {1, 5, 6, 7, 10, 11, 12, 14, 17, 18, 33, 35, 36};
+// §40.2's header pins in header order, top view with USB-C up, so a meter probe
+// slides down each header: the long one (17 ... 35; GPIO 0 is the bench's BOOT,
+// 37/44/43 unused), then the short one (11 ... 33; 3 and 38 unused, 8/9 the bus).
+static const int WALK[] = {17, 18, 14, 12, 6, 5, 36, 35, 11, 10, 7, 1, 33};
 
 static RTC_DATA_ATTR int stage;  // 0 power-on, 1 after the sleep
 static RTC_DATA_ATTR char recap[3072];
@@ -296,7 +298,9 @@ static void walk(void)
             say("walk gpio%d skipped: octal PSRAM CHECK (R-44: move it)", p);
             continue;
         }
-        printf("fs3probe: walk gpio%d toggling %d s\n", p, CONFIG_PROBE_WALK_S);
+        printf("fs3probe: walk %d/%d gpio%d (%s header) toggling %d s\n", (int)i + 1,
+               (int)(sizeof(WALK) / sizeof(WALK[0])), p, i < 8 ? "long" : "short",
+               CONFIG_PROBE_WALK_S);
         fflush(stdout);
         gpio_config_t c = {.pin_bit_mask = 1ULL << p, .mode = GPIO_MODE_OUTPUT};
         gpio_config(&c);

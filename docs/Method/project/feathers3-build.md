@@ -4,7 +4,7 @@ How the low-power build of FSD §40 is wired: the Unexpected Maker FeatherS3D,
 its two STEMMA QT buses, the displays on a switched supply, the isolated analog
 board, the isolated serial port and the field entry. The FSD gives the pins and
 the rules (§40.2, §40.5); this page gives the wiring and what to check before
-power is applied. Phase 21's commissioning program confirms each pin (R-44).
+power is applied. Phase 21's commissioning program confirms each pin ([results](#commissioning-results)).
 
 ## Sheets
 
@@ -59,8 +59,8 @@ and the LiPo connector on the top edge.
 - **The OLED's 5 V.** The 3.12" module's own regulator leaves the panel dark on
   3.3 V ([ws-displays.md](ws-displays.md#supply)), so a U1V11F5 step-up after
   the display switch feeds its VCC; it is unpowered whenever the switch is off.
-- **GPIO 33.** A header pin (D5) in both definitions, and the FeatherS3's PSRAM
-  is QSPI, so GPIO 33 – 37 are free (R-44).
+- **GPIO 33.** A header pin (D5) in both definitions; the FeatherS3D has no
+  PSRAM in its package, so GPIO 33 – 37 are free.
 
 ## The bench lines
 
@@ -96,6 +96,53 @@ USB-Serial/JTAG (its serial the MAC) and `/api/flash` resets it directly.
 5. **Isolation.** Measure over 100 MΩ at 500 V between the board's ground and
    every field terminal (C-40.5) before the first field cable is fitted.
 6. **Charging.** Each LiPo charges only through its own board's USB-C (C-40.11).
+
+## Commissioning results
+
+`commissioning/feathers3-probe` on SLOT11, the board on USB, and for the sleep
+current on a LiPo with USB out:
+
+| Check | Result |
+|-------|--------|
+| Chip | ESP32-S3 rev 0.2, two cores, 16 MB flash, MAC `44:1B:F6:DC:A3:78` |
+| PSRAM | None in the package (eFuse PSRAM capacity 0), so GPIO 33 – 37 are free |
+| Always-on bus (GPIO 8/9) | The MAX17048 answers at 0x36; with no LiPo its reading means nothing |
+| LDO2 (GPIO 39) | The vertical socket's 3V3 reads 3.3 V on; off, about 0.5 V and then 0.3 V with the star in, fed through its I2C lines |
+| Pin walk | GPIO 17, 18, 14, 12, 6, 5, 36, 35 on the long header and 11, 10, 7, 1, 33 on the short one each toggle at their place on the pinout card (a meter, 8 s a pin) |
+| User key (GPIO 1) | Not checked: no key wired |
+| Switched bus (GPIO 16/15) | With the star in and LDO2 on: the RV-8803 (0x32), the ADS1115 (0x48) and the BME280 (0x77, id 0x60); with LDO2 off, nothing |
+| Sleep current (NFR-40.1, R-43) | From the LiPo in deep sleep, LDO2 held off, USB out: 46 µA with nothing on either socket; 49 µA with the switched bus's star (RV-8803, ADS1115, BME280) in the vertical socket ([measured so](#measuring-the-sleep-current)) |
+
+## Measuring the sleep current
+
+NFR-40.1's figure is the current from the LiPo while the board sleeps, the
+board alone first and then each part added in turn. With `feathers3-probe` the
+board is awake for about 2 min 25 s after a reset (about 30 mA), sleeps 60 s
+with LDO2 held off, wakes, prints `done` and stays awake; the build sleeps
+between its windows instead.
+
+1. **Flash first, then unplug USB.** With USB in, the board runs from 5 V and
+   its charger pushes current into the LiPo (about 140 mA into a half-full
+   cell), so the battery lead shows charge current, not the board's draw.
+2. **Meter in the battery lead.** Break the LiPo's red lead at the JST plug and
+   put the meter in series, on the µA range.
+3. **Jumper across the meter.** Clip a lead across the meter's terminals. The
+   meter's own drop on its mA and µA ranges stops the board while it runs
+   with the star in, so it never reaches the sleep (the meter stays near
+   30 mA); with the jumper fitted it runs normally.
+4. **Press RST on the board** and note the time. With USB out the bench's
+   EN pulse was not seen to restart it.
+5. **Lift the jumper once it sleeps**, about 2 min 35 s after the press (the
+   sleep runs from about 2:25 to 3:25), and read the steady value. Lifting it
+   doesn't break the circuit.
+6. **Refit the jumper before it wakes**, by about 3:20.
+7. **Part by part.** Repeat with nothing on either socket, then with each part
+   added (the switched bus's star in the vertical socket, then the always-on
+   bus's parts, the displays and the field boards).
+
+To check that a run on the battery is running at all, put a voltmeter on the
+vertical socket's 3V3 and GND: after the reset it reads 3.3 V (LDO2 on, the
+scan), about 0.5 V (off, 10 s), 3.3 V (on, 10 s), then stays low.
 
 ## Sources
 
