@@ -135,7 +135,7 @@ plain key on GPIO 1 to GND (§40.2).
 The build itself (`sdkconfig.feathers3`, provisioned, setup `std`) with the
 same parts as the 35 µA row (no Qwiic Button, no displays), asleep between
 readings (`web: sleep s=600`) with LDO2, GPIO 18 and GPIO 33 held low and the
-display lines released: **40 µA**. Measured with the meter left off and its
+display lines released: **36 µA**, settling from 40 µA in the first minute. Measured with the meter left off and its
 jumper fitted, USB unplugged after the first sleep, then the meter switched on
 and the jumper lifted for the reading and refitted well before the next wake.
 
