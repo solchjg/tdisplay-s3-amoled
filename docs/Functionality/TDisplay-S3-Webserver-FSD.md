@@ -4663,6 +4663,17 @@ Power in sleep:
   added in turn) and recorded here and in the User Manual; the figure becomes
   this requirement's limit once the user accepts it.
 
+  Measured so far, from the LiPo with USB unplugged [user]:
+
+  | Fitted | Asleep |
+  |--------|--------|
+  | The board alone | 46 µA |
+  | The always-on bus (RV-8803, the Notecarrier-X on its own battery) and the switched bus (BME280, ADS1115), `feathers3-probe` asleep | 35 µA |
+  | The same, this build asleep between readings (setup `std`) | 36 µA |
+
+  The displays, their supply and the field boards are not yet fitted, so no
+  limit is set; the figures are confirmed with the full equipment.
+
 Displays:
 
 - **FR-40.7** [Must] [user] FR-35.2, FR-35.15, FR-35.16, FR-35.17, FR-35.24
@@ -5323,7 +5334,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.64.1
+fsd_version: 0.64.2
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5331,7 +5342,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-12
+last_updated: 2026-11-14
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -5432,6 +5443,7 @@ change_history:
   - "0.63.0 2026-11-13 the board that arrived is the FeatherS3D: §40 names it, the battery read from its MAX17048 (0x36) on the always-on bus (GPIO 2 its alert, unused) in place of a divider, FR-35.10's gauge attributes on this build, its light sensor, RGB LED and antenna select left unused (proposed), and the bench's RST and GPIO 0 lines each through a Schottky diode (proposed)"
   - "0.64.0 2026-11-14 Phase 21 on the FeatherS3D (SLOT11): no PSRAM in its package (eFuse), so §40.2's MCU row says GPIO 33 – 37 are free; every header pin of §40.2 toggles where the pinout card puts it, so R-44 is closed"
   - "0.64.1 2026-11-14 the user's note from the board: both STEMMA QT sockets are vertical, marked I2C1 (always on) and I2C2 (switched); §40.2 names them so"
+  - "0.64.2 2026-11-14 NFR-40.1: the sleep currents measured so far (board alone 46 µA; both buses with the RV-8803, Notecarrier-X, BME280 and ADS1115: 35 µA with the probe, 36 µA with the build), recorded without a limit until the displays and field boards are measured"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§42 Remote Session, the whole section: the Notehub session over the other options, `session_at`/`session_h` and `s_session`/`s_hours`, the requests, 1-minute syncs and 5 s polling, 64 KB history chunks to the `hist` route and that route's endpoint (a file store the user chooses), the 10-minute connect limit, the 3.50 V cut-off, NFR-42.1 and NFR-42.2"
