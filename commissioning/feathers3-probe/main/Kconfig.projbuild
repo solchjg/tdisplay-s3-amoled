@@ -12,7 +12,7 @@ config PROBE_KEY_S
 
 config PROBE_WALK_S
     int "Seconds each header pin toggles in the pin walk (0: no walk)"
-    default 4
+    default 8
     range 0 30
 
 config PROBE_SLEEP_S
