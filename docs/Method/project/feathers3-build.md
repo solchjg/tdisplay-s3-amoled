@@ -97,6 +97,20 @@ USB-Serial/JTAG (its serial the MAC) and `/api/flash` resets it directly.
    every field terminal (C-40.5) before the first field cable is fitted.
 6. **Charging.** Each LiPo charges only through its own board's USB-C (C-40.11).
 
+## Commissioning results
+
+`commissioning/feathers3-probe` on SLOT11, the board on USB with no LiPo:
+
+| Check | Result |
+|-------|--------|
+| Chip | ESP32-S3 rev 0.2, two cores, 16 MB flash, MAC `44:1B:F6:DC:A3:78` |
+| PSRAM | None in the package (eFuse PSRAM capacity 0), so GPIO 33 – 37 are free (R-44) |
+| Always-on bus (GPIO 8/9) | The MAX17048 answers at 0x36; with no LiPo its reading means nothing |
+| LDO2 (GPIO 39) | The vertical socket's 3V3 reads 3.3 V on and about 0.5 V off with the star's boards on that bus |
+| Pin walk | GPIO 17, 18, 14, 12, 6, 5, 36, 35 on the long header and 11, 10, 7, 1, 33 on the short one each toggle at their place on the pinout card (a meter, 8 s a pin) |
+| User key (GPIO 1) | Not checked: no key wired |
+| Sleep current (NFR-40.1, R-43) | Not yet measured: a LiPo with a meter in series during the probe's 60 s sleep |
+
 ## Sources
 
 - [Unexpected Maker FeatherS3 datasheet](https://www.mouser.com/datasheet/2/1362/Unexpected_Maker_Datasheet_FeatherS3-3395032.pdf):
