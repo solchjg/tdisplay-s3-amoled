@@ -121,11 +121,17 @@ esp_err_t loop_erase(void)
 }
 
 // C-29.2: no pull and no drive on the loop bus while the isolator is unpowered.
+// On the FeatherS3D the loop shares the switched bus with the BME280, which
+// keeps it open between readings; LDO2 unpowers the whole bus in sleep (FR-40.3).
 static esp_err_t float_bus(void)
 {
+#if BOARD_LOOP_PORT == BOARD_SENSOR_PORT
+    return ESP_OK;
+#else
     gpio_config_t io = {.pin_bit_mask = (1ULL << ADC_SDA_GPIO) | (1ULL << ADC_SCL_GPIO),
                         .mode = GPIO_MODE_INPUT};
     return gpio_config(&io);
+#endif
 }
 
 esp_err_t loop_init(void)

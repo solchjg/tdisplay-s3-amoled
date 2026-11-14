@@ -4229,3 +4229,15 @@ tests:
     observable: "lcd_detect switches CTRL high and waits 100 ms before reading the OLED's CS; lcd_sleep sends the e-paper's deep sleep, then sets SCK, MOSI, both CS, DC and both resets to inputs without pulls before CTRL low; display_choose looks for no panel on a timer wake"
     impl: tests/host/test_feathers3.py::test_display_supply_steps
     result: {status: not done}
+  - id: TC-FS3-04
+    title: "The analog and serial supplies low from boot and held through sleep; the loop leaves the shared bus routed"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 21
+    tier: host
+    verifies: [FR-40.6]
+    needs: []
+    observable: "board.h's FeatherS3D block has the analog supply on GPIO 18 and the serial supply on GPIO 33; app_main releases their hold and drives both low before addons_setup, and the deep-sleep step drives both low and holds them before gpio_deep_sleep_hold_en; the loop's float_bus leaves GPIO 15/16 alone when the loop shares the BME280's bus"
+    impl: [tests/host/test_feathers3.py::test_field_supplies_off_in_sleep, tests/host/test_feathers3.py::test_loop_keeps_the_shared_bus]
+    result: {status: not done}

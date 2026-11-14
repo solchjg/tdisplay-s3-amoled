@@ -103,3 +103,25 @@ def test_display_supply_steps():
     assert sleep.index("epaper_sleep()") < sleep.index("supply_off()")
     choose = body("main/app_main.c", "static void display_choose(void)")
     assert "wake != DL_WAKE_TIMER" in choose
+
+
+# TC-FS3-04 · FR-40.6: the analog (GPIO 18) and serial (GPIO 33) supplies low
+# from boot, before the loop is set up, and held low through deep sleep
+def test_field_supplies_off_in_sleep():
+    assert board("BOARD_LOOP_SUPPLY") == 18 and board("BOARD_SERIAL_SUPPLY") == 33
+    main = body("main/app_main.c", "void app_main(void)")
+    assert main.index("field_supplies_off();") < main.index("addons_setup();")
+    boot = body("main/app_main.c", "static void field_supplies_off(void)")
+    assert boot.index("gpio_hold_dis(") < boot.index("gpio_set_level(FIELD_SUPPLY[i], 0)")
+    src = (ROOT / "main/app_main.c").read_text()
+    assert "FIELD_SUPPLY[] = {BOARD_LOOP_SUPPLY, BOARD_SERIAL_SUPPLY}" in src
+    off = body("main/app_main.c", "static esp_err_t sensor_supply_off_cb(void *arg)")
+    assert off.index("gpio_set_level(FIELD_SUPPLY[i], 0)") < off.index("gpio_hold_en(FIELD_SUPPLY[i])")
+    assert off.index("gpio_hold_en(FIELD_SUPPLY[i])") < off.index("gpio_deep_sleep_hold_en()")
+
+
+# TC-FS3-04 · FR-40.3: the loop shares the switched bus with the BME280 here,
+# so a loop reading leaves the bus's pins with the I2C controller
+def test_loop_keeps_the_shared_bus():
+    fb = body("components/loop/loop.c", "static esp_err_t float_bus(void)")
+    assert fb.index("#if BOARD_LOOP_PORT == BOARD_SENSOR_PORT") < fb.index("return ESP_OK;") < fb.index("gpio_config(")
