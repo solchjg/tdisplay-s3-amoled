@@ -1,7 +1,7 @@
 menu "FeatherS3D probe"
 
 config PROBE_LDO2_HOLD_S
-    int "Seconds LDO2 stays off, then on, for the meter on the vertical socket's 3V3"
+    int "Seconds LDO2 stays off, then on, for the meter on socket I2C2's 3V3"
     default 10
     range 0 60
 
