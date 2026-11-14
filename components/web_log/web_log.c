@@ -23,7 +23,7 @@
 
 static const char *TAG = "web";
 
-#if CONFIG_APP_BOARD_WS_SIM7670G
+#if CONFIG_APP_BOARD_WS_SIM7670G || CONFIG_APP_BOARD_FEATHERS3
 // FR-35.24: what the lines leave for the e-paper's status block, kept through
 // deep sleep so a timer wake's results show at the next window.
 // RTC fast memory: the slow segment is full (the readings of §23 fill it), and
@@ -42,7 +42,7 @@ static void emit(char level, const char *line)
     } else {
         ESP_LOGI(TAG, "%s", line);
     }
-#if CONFIG_APP_BOARD_WS_SIM7670G
+#if CONFIG_APP_BOARD_WS_SIM7670G || CONFIG_APP_BOARD_FEATHERS3
     taskENTER_CRITICAL(&status_lock);
     wl_status_note(&status, level, line);
     taskEXIT_CRITICAL(&status_lock);
@@ -465,7 +465,7 @@ void web_log_displays(int epaper, int oled)
     emit('I', line);  // L50
 }
 
-#if CONFIG_APP_BOARD_WS_SIM7670G
+#if CONFIG_APP_BOARD_WS_SIM7670G || CONFIG_APP_BOARD_FEATHERS3
 int web_log_status_rows(const char *wake, const char *when, int mv, int pct,
                         char rows[WL_STATUS_ROWS][WL_STATUS_COLS + 1])
 {

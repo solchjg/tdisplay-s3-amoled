@@ -16,9 +16,10 @@
 #define KEY_WIFI_OFF "wifi_off"  // FR-34.1: its own key, so the settings blob keeps its size
 #define KEY_MODEM "modem"        // §35.4: the modem's fields, likewise their own key
 
-// FSD §33.2: the Notecard on the BME280's bus (C-23.1).
-#define NC_I2C_PORT 0
+// FSD §33.2: the Notecard on the BME280's bus (C-23.1); on the always-on bus
+// on the FeatherS3D (§40.2).
 #if BOARD_HAS_NOTECARD
+#define NC_I2C_PORT BOARD_NOTECARD_PORT
 #define NC_SDA_GPIO BOARD_NOTECARD_SDA
 #define NC_SCL_GPIO BOARD_NOTECARD_SCL
 #endif
@@ -45,6 +46,10 @@ static void defaults(void)
 {
 #if BOARD_HAS_NOTECARD
     ul_defaults(&settings);
+#if BOARD_CELL_DISPLAY
+    ul_settings_t s;
+    ul_modem_defaults(&s, &modem);  // FR-40.7: the displays' `epaper` and `oled` defaults
+#endif
 #else
     ul_modem_defaults(&settings, &modem);
 #endif

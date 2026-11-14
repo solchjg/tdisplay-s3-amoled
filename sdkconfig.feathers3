@@ -1,0 +1,8 @@
+# FSD §40: the Unexpected Maker FeatherS3D low-power build, layered on sdkconfig.defaults:
+#   idf.py -B build-fs3 -DSDKCONFIG=$PWD/build-fs3/sdkconfig \
+#          -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.feathers3" build
+CONFIG_APP_BOARD_FEATHERS3=y
+# §40.2: the user key on GPIO 1 (an RTC GPIO, external pull-up) ends the hold
+# and wakes the chip; the BOOT key (GPIO 0) ends the hold as well.
+CONFIG_SETUP_CHECK_KEY_GPIO=1
+CONFIG_DEEP_SLEEP_WAKE_GPIO=1

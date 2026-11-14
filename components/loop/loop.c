@@ -16,7 +16,7 @@
 
 // §29.1 (§35.2 on the cellular build): the loop side as wired, pins from board.h.
 #define SUPPLY_GPIO BOARD_LOOP_SUPPLY  // active high, pulled low on the board; also the isolator's VCC1
-#define ADC_I2C_PORT 1         // the loop's own bus, opened and closed by the ads1115 driver
+#define ADC_I2C_PORT BOARD_LOOP_PORT  // its own bus, or the sensor bus it joins (§40.2)
 #define ADC_SDA_GPIO BOARD_LOOP_SDA
 #define ADC_SCL_GPIO BOARD_LOOP_SCL
 #define ADC_ADDRESS 0x49

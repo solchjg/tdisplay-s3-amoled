@@ -129,7 +129,8 @@ From the FeatherS3D's LiPo, the probe asleep with LDO2 held off, USB out,
 I2C1's 3V3 holds 3.3 V throughout. A Notecarrier-X that is unpowered or whose
 LiPo is flat raises the figure to 332 µA: the FeatherS3D's I2C1 pull-ups feed
 it through SDA and SCL. The Qwiic Button's microcontroller and power LED run
-whenever I2C1 is powered. Still to add: the user key, the displays and their
+whenever I2C1 is powered, so the build does not use it: the user key is a
+plain key on GPIO 1 to GND (§40.2). Still to add: the user key, the displays and their
 switch, and the analog and serial field boards.
 
 ## Measuring the sleep current

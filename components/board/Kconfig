@@ -12,6 +12,9 @@ menu "Board"
         config APP_BOARD_WS_SIM7670G
             bool "Waveshare ESP32-S3-SIM7670G-4G (FSD §35)"
 
+        config APP_BOARD_FEATHERS3
+            bool "Unexpected Maker FeatherS3D, the low-power build (FSD §40)"
+
     endchoice
 
     config APP_OLED_STANDIN

@@ -4193,3 +4193,39 @@ tests:
     observable: "ATE0, AT+CMEE=2, AT+CGDCONT=1,\"IP\",\"hologram\"; a bad APN or PLMN refused; +CCLK \"26/11/07,01:11:17-20\" read as 01:11:17 UTC (the zone not applied); a clock before 2024 or from 2070 not taken; +CGMR's revision read"
     impl: [shared/tests/host/test_sim7670.py::test_attach_script, shared/tests/host/test_sim7670.py::test_attach_script_refuses_bad_settings, shared/tests/host/test_sim7670.py::test_cclk_is_utc, shared/tests/host/test_sim7670.py::test_cclk_unset_or_bad, shared/tests/host/test_sim7670.py::test_cgmr_as_seen_on_slot2]
     result: {status: not done}
+  - id: TC-FS3-01
+    title: "The FeatherS3D build chosen at build time, with §40.2's buses, display pins and key"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 21
+    tier: host
+    verifies: [FR-40.1]
+    needs: []
+    observable: "sdkconfig.defaults with sdkconfig.feathers3 sets CONFIG_APP_BOARD_FEATHERS3 and the user key and wake on GPIO 1, sdkconfig.defaults alone does not; board.h's FeatherS3D block puts the clock, Notecard and gauge on I2C1 (GPIO 8/9, port 0) and the BME280 and loop on I2C2 (GPIO 16/15, port 1, LDO2 on GPIO 39, 10 ms), the analog supply on GPIO 18, SPI2 on 36/35, OLED CS 11, DC 6, RST 12, e-paper CS 5, BUSY 10, RST 7, the display CTRL on 17, the antenna select on 41 and no LED"
+    impl: [tests/host/test_feathers3.py::test_board_chosen_and_key_on_gpio_1, tests/host/test_feathers3.py::test_buses, tests/host/test_feathers3.py::test_display_pins]
+    result: {status: not done}
+  - id: TC-FS3-02
+    title: "LDO2 on before the clock and the first reading, off and held before deep sleep"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 21
+    tier: host
+    verifies: [FR-40.3]
+    needs: []
+    observable: "app_main switches GPIO 39 high and waits BOARD_SENSOR_SUPPLY_MS before rtc_boot and take_reading, and registers a deep-sleep step that sets GPIO 39 low, then holds it through sleep"
+    impl: tests/host/test_feathers3.py::test_switched_bus_on_before_readings_off_in_sleep
+    result: {status: not done}
+  - id: TC-FS3-03
+    title: "The display supply on for the detection after 100 ms, its lines inputs before it goes off, never on a timer wake"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 21
+    tier: host
+    verifies: [FR-40.4, FR-40.5, FR-40.8]
+    needs: []
+    observable: "lcd_detect switches CTRL high and waits 100 ms before reading the OLED's CS; lcd_sleep sends the e-paper's deep sleep, then sets SCK, MOSI, both CS, DC and both resets to inputs without pulls before CTRL low; display_choose looks for no panel on a timer wake"
+    impl: tests/host/test_feathers3.py::test_display_supply_steps
+    result: {status: not done}
