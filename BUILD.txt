@@ -1,0 +1,9 @@
+run: https://github.com/solchjg/tdisplay-s3-amoled/actions/runs/43593279817
+commit: 748eff807d7c01afa9957ce8e56e0d5caf933308
+inputs: {
+  "notecard_sync": false,
+  "notecard_gps": false,
+  "sat_transport": "cell",
+  "modem_apn": "iot.1nce.net",
+  "modem_every": "0"
+}
