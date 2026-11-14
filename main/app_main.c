@@ -1810,10 +1810,37 @@ static void sensor_supply_on(void)
     vTaskDelay(pdMS_TO_TICKS(BOARD_SENSOR_SUPPLY_MS));
 }
 
+#ifdef BOARD_SERIAL_SUPPLY
+// FR-40.6: the analog board's and the serial port's supplies low from boot
+// (their 100 kOhm pull-downs hold them through reset and power-on), each
+// driven high only while its add-on is read.
+static const int FIELD_SUPPLY[] = {BOARD_LOOP_SUPPLY, BOARD_SERIAL_SUPPLY};
+
+static void field_supplies_off(void)
+{
+    for (size_t i = 0; i < sizeof FIELD_SUPPLY / sizeof FIELD_SUPPLY[0]; i++) {
+        gpio_hold_dis(FIELD_SUPPLY[i]);  // held low through the last deep sleep
+        gpio_set_level(FIELD_SUPPLY[i], 0);
+        gpio_config_t io = {.pin_bit_mask = 1ULL << FIELD_SUPPLY[i], .mode = GPIO_MODE_OUTPUT,
+                            .pull_down_en = GPIO_PULLDOWN_ENABLE};
+        gpio_config(&io);
+        gpio_set_level(FIELD_SUPPLY[i], 0);
+    }
+}
+#endif
+
+// FR-40.3, FR-40.6: LDO2 and the field supplies low and held through deep sleep.
 static esp_err_t sensor_supply_off_cb(void *arg)
 {
     gpio_set_level(BOARD_SENSOR_SUPPLY, 0);
     esp_err_t err = gpio_hold_en(BOARD_SENSOR_SUPPLY);
+#ifdef BOARD_SERIAL_SUPPLY
+    for (size_t i = 0; i < sizeof FIELD_SUPPLY / sizeof FIELD_SUPPLY[0]; i++) {
+        gpio_set_level(FIELD_SUPPLY[i], 0);
+        esp_err_t e = gpio_hold_en(FIELD_SUPPLY[i]);
+        err = err != ESP_OK ? err : e;
+    }
+#endif
     gpio_deep_sleep_hold_en();
     return err;
 }
@@ -2258,6 +2285,9 @@ void app_main(void)
 #ifdef BOARD_ANTENNA_SELECT
     gpio_set_direction(BOARD_ANTENNA_SELECT, GPIO_MODE_OUTPUT);
     gpio_set_level(BOARD_ANTENNA_SELECT, 0);  // §40.2: the chip antenna
+#endif
+#ifdef BOARD_SERIAL_SUPPLY
+    field_supplies_off();  // FR-40.6: before loop_init, which leaves the analog supply low
 #endif
 #ifdef BOARD_SENSOR_SUPPLY
     sensor_supply_on();  // FR-40.3: before the first reading
