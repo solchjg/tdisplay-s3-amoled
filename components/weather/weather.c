@@ -17,7 +17,7 @@
 #define SENSOR_CLK_HZ 100000
 
 static const bme280_config_t sensor_cfg = {
-    .i2c_port = 0,  // the loop ADS1115 joins this bus (§29.1)
+    .i2c_port = BOARD_SENSOR_PORT,
     .sda_gpio = SENSOR_SDA_GPIO,
     .scl_gpio = SENSOR_SCL_GPIO,
     .address = SENSOR_ADDRESS,

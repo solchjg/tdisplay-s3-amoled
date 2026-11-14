@@ -25,6 +25,9 @@ idf.py -B build -DSDKCONFIG=$PWD/build/sdkconfig build
 # Waveshare ESP32-S3-SIM7670G-4G build (FSD §35); add ;sdkconfig.standin for the 1.3" OLED bench stand-in
 idf.py -B build-ws -DSDKCONFIG=$PWD/build-ws/sdkconfig \
        -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ws7670g" build
+# FeatherS3D low-power build (FSD §40)
+idf.py -B build-fs3 -DSDKCONFIG=$PWD/build-fs3/sdkconfig \
+       -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.feathers3" build
 
 # Lint + host tests (what ci.yml runs)
 ruff check .
@@ -135,7 +138,10 @@ higher ones — use callbacks registered in `app_main` if the need seems to inve
   L20 `src=phone`), its drift logged and trimmed (L55); `rtc_clock_core.c` is the pure core.
   With no RTC answering, nothing changes and nothing is logged.
 - `components/board/` (L0) — the build-time board choice (`CONFIG_APP_BOARD_*`, FSD §35,
-  FR-35.5) and `board.h`, the pins this app wires on each board.
+  FR-35.5, §40, FR-40.1) and `board.h`, the pins and buses this app wires on each board. On the
+  FeatherS3D the BME280 and the loop share the switched bus (I2C2, LDO2 on GPIO 39, FR-40.3) and the
+  RTC, the Notecard and the board's MAX17048 the always-on bus (I2C1); it shows its lines on the
+  cellular build's e-paper or OLED through a switched supply (FR-40.4, in `lcd_cell.c`).
 - `components/modem_link/` (L1) — the cellular build's link over the Waveshare board's SIM7670G
   (FSD §35): the shared `sim7670`, its supply switched on by GPIO 21 (the board's 4G switch off),
   an attach with the network lock (LTE Cat-1 has no PSM), PPP as the default route for the
@@ -250,7 +256,7 @@ Other builds sharing the components:
 ## CI
 
 - `ci.yml` — ruff + host tests; builds the devcontainer and checks IDF v6.0.2.
-- `build.yml` — the firmware and the test builds (lcd-fault, no-network, hang, sleep,
+- `build.yml` — the firmware, the Waveshare and FeatherS3D builds and the test builds (lcd-fault, no-network, hang, sleep,
   mail-fast) on push and on pull requests; on `v*.*.*` tags, flashes the
   built bytes and runs the journey on the self-hosted `testbench` runner (from
   `.devcontainer/`), and releases only if that passes.

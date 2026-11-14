@@ -49,9 +49,14 @@
 #include "lcd.h"
 #include "loop.h"
 #include "mdns_name.h"
-#if !BOARD_HAS_NOTECARD
+#if BOARD_GAUGE
 #include "max17048.h"
+#endif
+#if BOARD_HAS_MODEM
 #include "modem_link.h"
+#endif
+#ifdef BOARD_SENSOR_SUPPLY
+#include "driver/gpio.h"
 #endif
 #include "notify.h"
 #include "ota_rx.h"
@@ -204,7 +209,7 @@ static volatile int32_t ble_passkey = -1;  // shown on line 5 while pairing (FR-
 static dl_disp_t disp = DL_LCD_START;
 
 static char shown[DL_LINES][DL_LINE_MAX];  // what the panel shows now
-#if !BOARD_HAS_NOTECARD
+#if BOARD_CELL_DISPLAY
 static RTC_DATA_ATTR dl_show_t show_on;  // FR-35.2: the display chosen, kept for the next window
 static uint32_t show_from_s;             // the uptime its window started at (FR-35.24)
 #endif
@@ -1663,7 +1668,7 @@ static void on_time_synced(void)
     post(&e);
 }
 
-#if !BOARD_HAS_NOTECARD
+#if BOARD_CELL_DISPLAY
 // FR-35.25, FR-35.2: the panels plugged in (L50), then the display of this
 // window from the latest kept reading; L48 with the e-paper found (FR-36.1:
 // nothing else logged for it otherwise).
@@ -1671,7 +1676,13 @@ static void display_choose(void)
 {
     const ul_modem_t *m = uplink_modem();
     bool epaper, oled;
-    lcd_detect(m->epaper, m->oled, &epaper, &oled);
+#ifdef BOARD_DISPLAY_SUPPLY
+    // FR-40.4: the display supply never on a timer wake, even one a test keeps awake
+    const bool look = wake != DL_WAKE_TIMER;
+#else
+    const bool look = true;
+#endif
+    lcd_detect(look && m->epaper, look && m->oled, &epaper, &oled);
     web_log_displays(!m->epaper ? WL_DISPLAY_OFF : epaper ? WL_DISPLAY_FOUND : WL_DISPLAY_NONE,
                      !m->oled ? WL_DISPLAY_OFF : oled ? WL_DISPLAY_FOUND : WL_DISPLAY_NONE);
     const wx_reading_t *r = weather_newest();
@@ -1698,8 +1709,8 @@ static void sleep_screen(void)
         strftime(when, sizeof when, "%Y-%m-%d %H:%M", &tm);
     }
     int mv = -1, pct = 0;
-    const max17048_config_t gauge = {.i2c_port = 0, .sda_gpio = BOARD_SENSOR_SDA,
-                                     .scl_gpio = BOARD_SENSOR_SCL, .clk_hz = 100000,
+    const max17048_config_t gauge = {.i2c_port = BOARD_GAUGE_PORT, .sda_gpio = BOARD_GAUGE_SDA,
+                                     .scl_gpio = BOARD_GAUGE_SCL, .clk_hz = 100000,
                                      .internal_pullup = true};
     max17048_reading_t b;
     if (max17048_start(&gauge) == ESP_OK) {
@@ -1771,7 +1782,7 @@ static void release_panel_lines(void)
 
 static esp_err_t lcd_sleep_cb(void *arg)
 {
-#if !BOARD_HAS_NOTECARD
+#if BOARD_CELL_DISPLAY
     if (show_on == DL_SHOW_EPAPER && wake != DL_WAKE_TIMER) {
         sleep_screen();  // FR-35.15: a timer wake never draws on the e-paper
         esp_task_wdt_reset();  // the full refresh ran; lcd_sleep waits for it to end
@@ -1784,6 +1795,29 @@ static esp_err_t lcd_sleep_cb(void *arg)
     return lcd_sleep();  // FR-21.6
 #endif
 }
+
+#ifdef BOARD_SENSOR_SUPPLY
+// FR-40.3: the switched bus (LDO2) on at each boot, window and wake before
+// the first BME280 reading, after which the bus waits 10 ms; off before deep
+// sleep, held low through it.
+static void sensor_supply_on(void)
+{
+    gpio_hold_dis(BOARD_SENSOR_SUPPLY);
+    gpio_set_level(BOARD_SENSOR_SUPPLY, 1);
+    gpio_config_t io = {.pin_bit_mask = 1ULL << BOARD_SENSOR_SUPPLY, .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&io);
+    gpio_set_level(BOARD_SENSOR_SUPPLY, 1);
+    vTaskDelay(pdMS_TO_TICKS(BOARD_SENSOR_SUPPLY_MS));
+}
+
+static esp_err_t sensor_supply_off_cb(void *arg)
+{
+    gpio_set_level(BOARD_SENSOR_SUPPLY, 0);
+    esp_err_t err = gpio_hold_en(BOARD_SENSOR_SUPPLY);
+    gpio_deep_sleep_hold_en();
+    return err;
+}
+#endif
 
 static esp_err_t wifi_stop_cb(void *arg)
 {
@@ -1844,7 +1878,7 @@ static dl_disp_t disp_tick(dl_disp_t disp)
     }
     dl_disp_step_t step = dl_disp_step(disp, DL_EV_TICK, changed, err == ESP_OK);
     execute_disp(step.actions, err);
-#if !BOARD_HAS_NOTECARD
+#if BOARD_CELL_DISPLAY
     esp_err_t ferr = lcd_flush();  // FR-35.15: the e-paper's refresh, when one is due
     if (ferr != ESP_OK) {
         web_log_warn("epaper refresh", ferr);
@@ -2221,8 +2255,18 @@ void app_main(void)
     if (wake != DL_WAKE_NONE) {
         web_log_wake(wake == DL_WAKE_TIMER ? "timer" : "button");  // L19
     }
+#ifdef BOARD_ANTENNA_SELECT
+    gpio_set_direction(BOARD_ANTENNA_SELECT, GPIO_MODE_OUTPUT);
+    gpio_set_level(BOARD_ANTENNA_SELECT, 0);  // §40.2: the chip antenna
+#endif
+#ifdef BOARD_SENSOR_SUPPLY
+    sensor_supply_on();  // FR-40.3: before the first reading
+#endif
     rtc_boot(wake == DL_WAKE_TIMER);  // FR-39.2: before any reading and cell_boot (FR-39.3)
     deep_sleep_on_prepare(lcd_sleep_cb, NULL);
+#ifdef BOARD_SENSOR_SUPPLY
+    deep_sleep_on_prepare(sensor_supply_off_cb, NULL);
+#endif
     uint8_t mac[6];
     wifi_net_base_mac(mac);
     id_softap_ssid(CONFIG_IDENTITY_SOFTAP_SSID_PREFIX, mac, softap_ssid);
@@ -2287,7 +2331,7 @@ void app_main(void)
     // D1/D2: start, clear, and the first draw of the BOOT screen.
     char want[DL_LINES][DL_LINE_MAX];
     dl_screen(&view, want);
-#if !BOARD_HAS_NOTECARD
+#if BOARD_CELL_DISPLAY
     display_choose();  // FR-35.2: before the panel starts
 #endif
     esp_err_t err = lcd_start();

@@ -36,7 +36,7 @@ def config(*fragments):
 
 def board_led():
     h = (ROOT / "components/board/include/board.h").read_text()
-    ws = h.split("#if CONFIG_APP_BOARD_WS_SIM7670G", 1)[1].split("#else", 1)[0]
+    ws = h.split("#elif CONFIG_APP_BOARD_WS_SIM7670G", 1)[1].split("#else", 1)[0]
     return int(re.search(r"#define BOARD_LED (\d+)", ws).group(1))
 
 

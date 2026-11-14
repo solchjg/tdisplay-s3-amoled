@@ -12,11 +12,12 @@
 #include "rv8803.h"
 #include "time_sync.h"
 
-// §39.2: the sensor bus, as the BME280 uses it (§23.1, §35.2).
+// §39.2: the sensor bus, as the BME280 uses it (§23.1, §35.2); the always-on
+// bus on the FeatherS3D (§40.2).
 static const rv8803_config_t rtc_cfg = {
-    .i2c_port = 0,
-    .sda_gpio = BOARD_SENSOR_SDA,
-    .scl_gpio = BOARD_SENSOR_SCL,
+    .i2c_port = BOARD_CLOCK_PORT,
+    .sda_gpio = BOARD_CLOCK_SDA,
+    .scl_gpio = BOARD_CLOCK_SCL,
     .clk_hz = 100000,
     .internal_pullup = true,
 };

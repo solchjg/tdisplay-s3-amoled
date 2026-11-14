@@ -5,7 +5,7 @@ set(cell "lcd_cell.c" "lcd_epaper.c" "lcd_epaper_layout.c" "lcd_layout.c" "lcd_o
 if(CONFIG_APP_OLED_STANDIN)
     # FR-35.22: the bench stand-in instead of the SSD1322.
     set(srcs ${cell} "lcd_standin.c" "lcd_standin_core.c")
-elseif(CONFIG_APP_BOARD_WS_SIM7670G)
+elseif(CONFIG_APP_BOARD_WS_SIM7670G OR CONFIG_APP_BOARD_FEATHERS3)
     set(srcs ${cell} "lcd_oled.c")
 else()
     set(srcs "lcd.c" "lcd_layout.c")
