@@ -1,0 +1,23 @@
+menu "FeatherS3D probe"
+
+config PROBE_LDO2_HOLD_S
+    int "Seconds LDO2 stays off, then on, for the meter on the vertical socket's 3V3"
+    default 10
+    range 0 60
+
+config PROBE_KEY_S
+    int "Seconds to watch the user key on GPIO 1 (0: skip)"
+    default 10
+    range 0 60
+
+config PROBE_WALK_S
+    int "Seconds each header pin toggles in the pin walk (0: no walk)"
+    default 4
+    range 0 30
+
+config PROBE_SLEEP_S
+    int "Seconds of deep sleep for the current measurement (0: no sleep)"
+    default 60
+    range 0 600
+
+endmenu

@@ -1,0 +1,7 @@
+# The Unexpected Maker FeatherS3D (16 MB flash), one app, console on the
+# ESP32-S3's own USB-Serial/JTAG (FSD §40.2). PSRAM is left off: the probe
+# reads from eFuse whether the chip carries octal PSRAM on GPIO 33 - 37 (R-44)
+# rather than starting it.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
