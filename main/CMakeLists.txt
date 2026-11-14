@@ -8,6 +8,6 @@ idf_component_register(SRCS "app_main.c"
 if(CONFIG_APP_BOARD_WS_SIM7670G)
     target_link_libraries(${COMPONENT_LIB} PRIVATE idf::modem_link idf::settings_card idf::max17048)
 elseif(CONFIG_APP_BOARD_FEATHERS3)
-    # FSD §40.3: the board's fuel gauge, without the modem.
-    target_link_libraries(${COMPONENT_LIB} PRIVATE idf::max17048)
+    # FSD §40.3: the board's fuel gauge, without the modem; GPIO for LDO2 (FR-40.3).
+    target_link_libraries(${COMPONENT_LIB} PRIVATE idf::max17048 idf::esp_driver_gpio)
 endif()
