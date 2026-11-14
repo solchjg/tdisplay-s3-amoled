@@ -4,7 +4,7 @@ How the low-power build of FSD §40 is wired: the Unexpected Maker FeatherS3D,
 its two STEMMA QT buses, the displays on a switched supply, the isolated analog
 board, the isolated serial port and the field entry. The FSD gives the pins and
 the rules (§40.2, §40.5); this page gives the wiring and what to check before
-power is applied. Phase 21's commissioning program confirms each pin (R-44).
+power is applied. Phase 21's commissioning program confirms each pin ([results](#commissioning-results)).
 
 ## Sheets
 
@@ -59,8 +59,8 @@ and the LiPo connector on the top edge.
 - **The OLED's 5 V.** The 3.12" module's own regulator leaves the panel dark on
   3.3 V ([ws-displays.md](ws-displays.md#supply)), so a U1V11F5 step-up after
   the display switch feeds its VCC; it is unpowered whenever the switch is off.
-- **GPIO 33.** A header pin (D5) in both definitions, and the FeatherS3's PSRAM
-  is QSPI, so GPIO 33 – 37 are free (R-44).
+- **GPIO 33.** A header pin (D5) in both definitions; the FeatherS3D has no
+  PSRAM in its package, so GPIO 33 – 37 are free.
 
 ## The bench lines
 
@@ -105,7 +105,7 @@ current on a LiPo with USB out:
 | Check | Result |
 |-------|--------|
 | Chip | ESP32-S3 rev 0.2, two cores, 16 MB flash, MAC `44:1B:F6:DC:A3:78` |
-| PSRAM | None in the package (eFuse PSRAM capacity 0), so GPIO 33 – 37 are free (R-44) |
+| PSRAM | None in the package (eFuse PSRAM capacity 0), so GPIO 33 – 37 are free |
 | Always-on bus (GPIO 8/9) | The MAX17048 answers at 0x36; with no LiPo its reading means nothing |
 | LDO2 (GPIO 39) | The vertical socket's 3V3 reads 3.3 V on; off, about 0.5 V and then 0.3 V with the star in, fed through its I2C lines |
 | Pin walk | GPIO 17, 18, 14, 12, 6, 5, 36, 35 on the long header and 11, 10, 7, 1, 33 on the short one each toggle at their place on the pinout card (a meter, 8 s a pin) |
