@@ -134,7 +134,11 @@ Lines start with `modemprobe:`; `CHECK` marks a result to look at. The run summa
 
 Proposed pass marks: attach within 60 s, at least 95% of records arrive, under 1 mAh
 a run, a GPS fix within 2 min. On the bench this board sits in SLOT3; SLOT1 holds the
-T-Display.
+T-Display. The bench's GPIO pair 1 (BCM 17 EN, 18 BOOT) now belongs to the FeatherS3D in
+SLOT11, so SLOT3 has no `gpio_en`/`gpio_boot`. Before the next run on this board, wire it to
+a free pair (2 = BCM 22/23, 3 = BCM 24/25, 4 = BCM 26/27, harness manual "GPIO wiring"),
+give SLOT3 that pair in `/etc/rfc2217/testbench.json`, add the pins to the `gpio=…=ip,pu`
+line in `/boot/firmware/config.txt`, and rerun the BOOT/EN test.
 
 ## Results
 
