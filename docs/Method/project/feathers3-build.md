@@ -127,9 +127,9 @@ between its windows instead.
 2. **Meter in the battery lead.** Break the LiPo's red lead at the JST plug and
    put the meter in series, on the µA range.
 3. **Jumper across the meter.** Clip a lead across the meter's terminals. The
-   meter's own drop on its mA and µA ranges stops the board when LDO2 switches
-   the star on, so it never reaches the sleep; the board runs normally with the
-   jumper fitted.
+   meter's own drop on its mA and µA ranges stops the board while it runs
+   with the star in, so it never reaches the sleep (the meter stays near
+   30 mA); with the jumper fitted it runs normally.
 4. **Press RST on the board** and note the time. With USB out the bench's
    EN pulse was not seen to restart it.
 5. **Lift the jumper once it sleeps**, about 2 min 35 s after the press (the
