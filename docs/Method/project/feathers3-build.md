@@ -111,12 +111,38 @@ current on a LiPo with USB out:
 | Pin walk | GPIO 17, 18, 14, 12, 6, 5, 36, 35 on the long header and 11, 10, 7, 1, 33 on the short one each toggle at their place on the pinout card (a meter, 8 s a pin) |
 | User key (GPIO 1) | Not checked: no key wired |
 | Switched bus (GPIO 16/15) | With the star in and LDO2 on: the RV-8803 (0x32), the ADS1115 (0x48) and the BME280 (0x77, id 0x60); with LDO2 off, nothing |
-| Sleep current (NFR-40.1, R-43) | From the LiPo in deep sleep, LDO2 held off, USB out: 46 µA with nothing on either socket; 49 µA with the switched bus's star (RV-8803, ADS1115, BME280) in the vertical socket |
+| Sleep current (NFR-40.1, R-43) | From the LiPo in deep sleep, LDO2 held off, USB out: 46 µA with nothing on either socket; 49 µA with the switched bus's star (RV-8803, ADS1115, BME280) in the vertical socket ([measured so](#measuring-the-sleep-current)) |
 
-To read the sleep current, short the meter with a jumper while the board boots
-and runs, and lift the jumper only once it sleeps: on its mA and µA ranges the
-meter's own drop stops the board when LDO2 switches the star on, and it
-never reaches the sleep. Put the jumper back before it wakes.
+## Measuring the sleep current
+
+NFR-40.1's figure is the current from the LiPo while the board sleeps, the
+board alone first and then each part added in turn. With `feathers3-probe` the
+board is awake for about 2 min 25 s after a reset (about 30 mA), sleeps 60 s
+with LDO2 held off, wakes, prints `done` and stays awake; the build sleeps
+between its windows instead.
+
+1. **Flash first, then unplug USB.** With USB in, the board runs from 5 V and
+   its charger pushes current into the LiPo (about 140 mA into a half-full
+   cell), so the battery lead shows charge current, not the board's draw.
+2. **Meter in the battery lead.** Break the LiPo's red lead at the JST plug and
+   put the meter in series, on the µA range.
+3. **Jumper across the meter.** Clip a lead across the meter's terminals. The
+   meter's own drop on its mA and µA ranges stops the board when LDO2 switches
+   the star on, so it never reaches the sleep; the board runs normally with the
+   jumper fitted.
+4. **Press RST on the board** and note the time. With USB out the bench's
+   EN pulse was not seen to restart it.
+5. **Lift the jumper once it sleeps**, about 2 min 35 s after the press (the
+   sleep runs from about 2:25 to 3:25), and read the steady value. Lifting it
+   doesn't break the circuit.
+6. **Refit the jumper before it wakes**, by about 3:20.
+7. **Part by part.** Repeat with nothing on either socket, then with each part
+   added (the switched bus's star in the vertical socket, then the always-on
+   bus's parts, the displays and the field boards).
+
+To check that a run on the battery is running at all, put a voltmeter on the
+vertical socket's 3V3 and GND: after the reset it reads 3.3 V (LDO2 on, the
+scan), about 0.5 V (off, 10 s), 3.3 V (on, 10 s), then stays low.
 
 ## Sources
 
