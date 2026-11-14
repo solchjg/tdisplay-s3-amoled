@@ -4572,7 +4572,7 @@ program confirms the chip, both buses, LDO2 and each header pin on the board.
 | Item | Value | Source |
 |------|-------|--------|
 | Board | Unexpected Maker FeatherS3D (2025): its two STEMMA QT sockets on separate buses, the header of the FeatherS3 | [user] |
-| MCU | ESP32-S3 with no PSRAM in its package (eFuse), so GPIO 33 – 37 are free; 16 MB flash; the datasheet's 8 MB QSPI PSRAM, if fitted, unused | [derived from the board] |
+| MCU | ESP32-S3 with no PSRAM in its package (eFuse), so GPIO 33 – 37 are free; 16 MB flash; 8 MB QSPI PSRAM beside the chip on the flash bus (CS on GPIO 26), unused | [derived from the board] |
 | Console | The ESP32-S3's native USB-Serial/JTAG, which also flashes it and resets it into download mode | [derived from the board] |
 | Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery's voltage and charge from the board's MAX17048 fuel gauge (0x36) on the always-on bus, its alert on GPIO 2 (unused); USB present on GPIO 34 | [derived from the board] |
 | Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
