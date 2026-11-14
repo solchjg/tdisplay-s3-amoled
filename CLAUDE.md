@@ -194,7 +194,7 @@ Other builds sharing the components:
   `cell` or `ntn` (Skylo), showing each step on the AMOLED (the `ntn` build waits for a key
   press before it sends, for a run on batteries outdoors), held together by `tests/host/test_sat_day.py`;
   `commissioning/feathers3-probe/` — the FeatherS3D's hardware check (FSD §40, Phase 21: chip, MAC and
-  whether octal PSRAM takes GPIO 33 – 37 (R-44), both STEMMA buses and the MAX17048, LDO2 switched by
+  PSRAM in the package (none, so GPIO 33 – 37 are free), both STEMMA buses and the MAX17048, LDO2 switched by
   GPIO 39, the user key, the pin walk and the sleep current);
   `commissioning/rtc-probe/` — the hardware clock check (FSD §39: found, flags, rate over
   24 h, trim direction);
