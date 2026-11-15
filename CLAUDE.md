@@ -212,6 +212,8 @@ Other builds sharing the components:
   I2C scan of GPIO 15/16 in both pin orders and a test pattern on a panel at 0x3C/0x3D, the modem kept off;
   `commissioning/ws-epaper-probe/` — the Waveshare 4.2" e-Paper Module (V2, SSD1683) on the Waveshare board (§36):
   a full refresh, five timed partial refreshes and the controller's deep sleep every 30 s, the modem kept off;
+  `commissioning/fs3-epaper-probe/` — the same program with the FeatherS3D's pins (§40.2), BUSY also read
+  with each pull to tell an open line from a driven one;
   `commissioning/ws-lcd-probe/` — the Waveshare 1.9" LCD module (170 × 320, ST7789) on the Waveshare board through the
   shared `st7789`'s SPI mode, on SPI2 beside the OLED on the e-paper's cable (CS 3, RST 20, BL 1; CS 19 and RST, BL on 3V3 by menuconfig) (no FSD section: the panel
   is for another project): timed fills, a frame with corner marks, colour bars, a moving box's frame rate, the modem kept off;

@@ -24,6 +24,18 @@
 #include "freertos/task.h"
 #include "text.h"
 
+#ifdef PROBE_FEATHERS3
+// The FeatherS3D build's pins (FSD §40.2), built as commissioning/fs3-epaper-probe:
+// VCC 3V3.1, GND, CLK SCK (36), DIN MO (35), CS 5, DC 6, RST 7, BUSY 10.
+#define PIN_SCK 36
+#define PIN_MOSI 35
+#define PIN_CS 5
+#define PIN_DC 6
+#define PIN_RST 7
+#define PIN_BUSY 10
+#define BUSY_ADC ADC_CHANNEL_9  // GPIO 10 is ADC1 channel 9
+#define BOARD_LINE "FeatherS3D, SLOT11"
+#else
 #define PIN_SCK 7
 #define PIN_MOSI 8
 #define PIN_CS 3
@@ -31,6 +43,9 @@
 #define PIN_RST 20   // low = reset
 #define PIN_BUSY 1   // high = busy
 #define PIN_MODEM_SUPPLY 21
+#define BUSY_ADC ADC_CHANNEL_0  // GPIO 1 is ADC1 channel 0
+#define BOARD_LINE "SIM7670G board, SLOT2"
+#endif
 
 #define SPI_HZ 1000000
 #define EPD_W 400
@@ -89,20 +104,28 @@ static void busy_input(void)
     gpio_config(&in);
 }
 
-// BUSY's logic level, its voltage (GPIO 1 is ADC1 channel 0) and RST read back.
-// The board's VBAT/3 divider may also sit on GPIO 1 (R85/R86/R87).
+// BUSY's logic level, its voltage and RST read back. On the Waveshare board
+// its VBAT/3 divider may also sit on GPIO 1 (R85/R86/R87).
 static void pins(const char *when)
 {
     int busy = gpio_get_level(PIN_BUSY);
     int rst = gpio_get_level(PIN_RST);
     int raw = -1, mv = -1;
     adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
-    if (adc != NULL && adc_oneshot_config_channel(adc, ADC_CHANNEL_0, &cc) == ESP_OK &&
-        adc_oneshot_read(adc, ADC_CHANNEL_0, &raw) == ESP_OK && cali != NULL) {
+    if (adc != NULL && adc_oneshot_config_channel(adc, BUSY_ADC, &cc) == ESP_OK &&
+        adc_oneshot_read(adc, BUSY_ADC, &raw) == ESP_OK && cali != NULL) {
         adc_cali_raw_to_voltage(cali, raw, &mv);
     }
+    // A BUSY the panel drives reads the same with either pull; an open one follows the pull.
+    gpio_set_pull_mode(PIN_BUSY, GPIO_PULLUP_ONLY);
+    esp_rom_delay_us(100);
+    int up = gpio_get_level(PIN_BUSY);
+    gpio_set_pull_mode(PIN_BUSY, GPIO_PULLDOWN_ONLY);
+    esp_rom_delay_us(100);
+    int down = gpio_get_level(PIN_BUSY);
     busy_input();
-    printf("wsepaper: pins %s busy=%d (%d mV) rst=%d\n", when, busy, mv, rst);
+    printf("wsepaper: pins %s busy=%d (%d mV) pulled up=%d down=%d%s rst=%d\n", when, busy, mv, up,
+           down, up != down ? " (BUSY follows the pull: open, or the panel unpowered) CHECK" : "", rst);
 }
 
 static void adc_start(void)
@@ -112,7 +135,7 @@ static void adc_start(void)
         adc = NULL;
         return;
     }
-    adc_cali_curve_fitting_config_t kc = {.unit_id = ADC_UNIT_1, .chan = ADC_CHANNEL_0,
+    adc_cali_curve_fitting_config_t kc = {.unit_id = ADC_UNIT_1, .chan = BUSY_ADC,
                                           .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
     if (adc_cali_create_scheme_curve_fitting(&kc, &cali) != ESP_OK) {
         cali = NULL;
@@ -121,9 +144,11 @@ static void adc_start(void)
 
 static esp_err_t bus_start(void)
 {
+#ifdef PIN_MODEM_SUPPLY
     gpio_set_level(PIN_MODEM_SUPPLY, 0);
     gpio_config_t modem = {.pin_bit_mask = 1ULL << PIN_MODEM_SUPPLY, .mode = GPIO_MODE_OUTPUT};
     gpio_config(&modem);
+#endif
     gpio_set_level(PIN_RST, 1);
     // INPUT_OUTPUT so RST can be read back (GPIO 20 is the USB D+ pad).
     gpio_config_t out = {.pin_bit_mask = (1ULL << PIN_DC) | (1ULL << PIN_RST), .mode = GPIO_MODE_INPUT_OUTPUT};
@@ -265,7 +290,7 @@ static void screen(int run, int count)
     }
     char s[48];
     draw(&text_font_small, 8, 12, "Waveshare 4.2in V2 SSD1683");
-    draw(&text_font_small, 8, 52, "SIM7670G board, SLOT2");
+    draw(&text_font_small, 8, 52, BOARD_LINE);
     snprintf(s, sizeof s, "Run %d", run);
     draw(&text_font_small, 8, 92, s);
     draw(&text_font_small, 8, 132, "Full refresh, then 5");
