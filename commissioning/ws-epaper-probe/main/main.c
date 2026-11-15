@@ -110,19 +110,21 @@ static void pins(const char *when)
 {
     int busy = gpio_get_level(PIN_BUSY);
     int rst = gpio_get_level(PIN_RST);
-    int raw = -1, mv = -1;
-    adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
-    if (adc != NULL && adc_oneshot_config_channel(adc, BUSY_ADC, &cc) == ESP_OK &&
-        adc_oneshot_read(adc, BUSY_ADC, &raw) == ESP_OK && cali != NULL) {
-        adc_cali_raw_to_voltage(cali, raw, &mv);
-    }
-    // A BUSY the panel drives reads the same with either pull; an open one follows the pull.
+    // A BUSY the panel drives reads the same with either pull; an open one follows
+    // the pull. Read before the ADC, which leaves the pad analog until busy_input.
     gpio_set_pull_mode(PIN_BUSY, GPIO_PULLUP_ONLY);
     esp_rom_delay_us(100);
     int up = gpio_get_level(PIN_BUSY);
     gpio_set_pull_mode(PIN_BUSY, GPIO_PULLDOWN_ONLY);
     esp_rom_delay_us(100);
     int down = gpio_get_level(PIN_BUSY);
+    gpio_set_pull_mode(PIN_BUSY, GPIO_FLOATING);
+    int raw = -1, mv = -1;
+    adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
+    if (adc != NULL && adc_oneshot_config_channel(adc, BUSY_ADC, &cc) == ESP_OK &&
+        adc_oneshot_read(adc, BUSY_ADC, &raw) == ESP_OK && cali != NULL) {
+        adc_cali_raw_to_voltage(cali, raw, &mv);
+    }
     busy_input();
     printf("wsepaper: pins %s busy=%d (%d mV) pulled up=%d down=%d%s rst=%d\n", when, busy, mv, up,
            down, up != down ? " (BUSY follows the pull: open, or the panel unpowered) CHECK" : "", rst);
