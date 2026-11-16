@@ -1503,7 +1503,6 @@ def sheet_fs3_displays(S):
     S.place(OL, "tds3a_oled_312", 4600, 2400)
     S.place("R1", "tds3a_r10k5_v", 4250, 4300)
     S.place("U1", "fs3_power_switch", 2400, 4800)
-    S.place("U2", "fs3_boost_5v", 2400, 6100)
     # left-header lines run round the board's bottom, each in its own lane
     left = (("IO35", ((EP, "DIN"), (OL, "SDIN")), "blue", 1450, 4100, 3300),
             ("IO36", ((EP, "CLK"), (OL, "SCLK")), "yellow", 1400, 4150, 3200),
@@ -1526,17 +1525,14 @@ def sheet_fs3_displays(S):
     S.wire((B, "GND"), ("U1", "GND"), "black", ("x", 1150), ("y", 4400), ("x", 2250))
     S.wire((B, "IO17"), ("U1", "CTRL"), "green", ("x", 1200), ("y", 4350), ("x", 3550))
     S.wire(("U1", "VOUT"), (EP, "VCC"), "red", ("x", 4100))
-    # the OLED's 5 V from a step-up on the switched 3.3 V
-    S.wire(("U1", "VOUT"), ("U2", "VIN"), "red", ("x", 3450), ("y", 5900), ("x", 2300))
-    S.wire(("U1", "GND"), ("U2", "GND"), "black", ("x", 2250))
-    S.wire(("U2", "VOUT"), (OL, "VCC"), "pink", ("x", 4200))
+    S.wire(("U1", "VOUT"), (OL, "VCC"), "red", ("x", 4200))
     S.note(300, 7100, 7000, [
         "# FeatherS3D build: e-paper and OLED on one switched supply (FSD 40.2, FR-40.4, FR-40.5)",
         "The board in its header order, USB-C up. SPI2: SCK GPIO 36, MOSI GPIO 35 and DC GPIO 6 to both",
         "displays. E-paper CS 5, RST 7, BUSY 10; OLED CS 11 (10k to GND marks it fitted), RES 12.",
         "The Pololu switch takes LDO1's 3.3 V; GPIO 17 high turns it on, low off, then floating. Before it",
-        "turns off, every display line is set to an input. The e-paper takes the switched 3.3 V; the OLED",
-        "module needs 5 V on VCC (ws-displays.md), from the U1V11F5 step-up after the switch.",
+        "turns off, every display line is set to an input. Both displays take the switched 3.3 V; the",
+        "OLED module (Ver 2.1) is as bright on 3.3 V as on 5 V.",
         LEGEND,
     ])
 
