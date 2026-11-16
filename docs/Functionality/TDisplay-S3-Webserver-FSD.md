@@ -4578,7 +4578,7 @@ program confirms the chip, both buses, LDO2 and each header pin on the board.
 | Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
 | Always-on bus | The STEMMA QT socket marked I2C1, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the board's MAX17048 (0x36), the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins and the gauge [derived from the board] |
 | Switched bus | The STEMMA QT socket marked I2C2, I2C controller 1, SDA GPIO 16, SCL GPIO 15 (the order of the board's Arduino and CircuitPython definitions), 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user]; the pin order [user] |
-| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's VCC directly and the OLED's VCC through a 5 V step-up (Pololu U1V11F5), since the OLED module's own regulator leaves the panel dark on 3.3 V (`docs/Method/project/ws-displays.md`) | [user]; GPIO 17 [user]; the step-up [user] |
+| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's and the OLED's VCC directly: the OLED module (Ver 2.1) is as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21) | [user]; GPIO 17 [user]; the OLED on 3.3 V [user] |
 | Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [user] |
 | E-paper | Waveshare 4.2" e-Paper Module (V2), SSD1683, as §35.2: CS GPIO 5, DC GPIO 6, RST GPIO 7, BUSY GPIO 10 (internal pull-down, FR-35.25) | [user]; pins [user] |
 | OLED | 3.12" 256 × 64 SSD1322 module, as §35.2: CS GPIO 11 (10 kΩ to GND on its lead, FR-35.25), RES GPIO 12, DC shared with the e-paper's GPIO 6 | [user]; pins [user] |
@@ -5334,7 +5334,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.64.2
+fsd_version: 0.65.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5342,7 +5342,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-14
+last_updated: 2026-11-16
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -5444,6 +5444,7 @@ change_history:
   - "0.64.0 2026-11-14 Phase 21 on the FeatherS3D (SLOT11): no PSRAM in its package (eFuse), so §40.2's MCU row says GPIO 33 – 37 are free; every header pin of §40.2 toggles where the pinout card puts it, so R-44 is closed"
   - "0.64.1 2026-11-14 the user's note from the board: both STEMMA QT sockets are vertical, marked I2C1 (always on) and I2C2 (switched); §40.2 names them so"
   - "0.64.2 2026-11-14 NFR-40.1: the sleep currents measured so far (board alone 46 µA; both buses with the RV-8803, Notecarrier-X, BME280 and ADS1115: 35 µA with the probe, 36 µA with the build), recorded without a limit until the displays and field boards are measured"
+  - "0.65.0 2026-11-16 approved by the user: §40.2's display supply feeds the OLED's VCC from the switch's 3.3 V with no step-up, since the module was as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21)"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§42 Remote Session, the whole section: the Notehub session over the other options, `session_at`/`session_h` and `s_session`/`s_hours`, the requests, 1-minute syncs and 5 s polling, 64 KB history chunks to the `hist` route and that route's endpoint (a file store the user chooses), the 10-minute connect limit, the 3.50 V cut-off, NFR-42.1 and NFR-42.2"

@@ -19,7 +19,7 @@ and the LiPo connector on the top edge.
 | Sheet | Draws |
 |-------|-------|
 | [11 Power, buses, key and bench lines](wiring/wiring-11-fs3-core.png) ([.fzz](wiring/wiring-11-fs3-core.fzz)) | The LiPo; the always-on bus (RV-8803, Notecarrier-X); the switched bus (BME280, the analog board's isolator); the user key; the bench's RST and GPIO 0 |
-| [12 E-paper and OLED](wiring/wiring-12-fs3-displays.png) ([.fzz](wiring/wiring-12-fs3-displays.fzz)) | SPI2 to both displays, the Pololu #2808 display supply, the OLED's 5 V step-up |
+| [12 E-paper and OLED](wiring/wiring-12-fs3-displays.png) ([.fzz](wiring/wiring-12-fs3-displays.fzz)) | SPI2 to both displays, the Pololu #2808 display supply feeding both |
 | [13 Analog board](wiring/wiring-13-fs3-analog.png) ([.fzz](wiring/wiring-13-fs3-analog.fzz)) | The isolated 24 V, the 4-20 mA loop channel (as sheet 2), the 0 – 5 V probe channel on A2 |
 | [14 Serial port](wiring/wiring-14-fs3-serial.png) ([.fzz](wiring/wiring-14-fs3-serial.fzz)) | The isolated 5 V, the one-channel isolator, the MaxBotix MB7569-100 with its ranging pin tied high |
 | [15 Field entry](wiring/wiring-15-fs3-entry.png) ([.fzz](wiring/wiring-15-fs3-entry.fzz)) | One field cable through its surge protector to an isolated board, the earth rod |
@@ -56,9 +56,10 @@ and the LiPo connector on the top edge.
 - **GPIO 13.** Both definitions name it the board's blue LED, so no field line
   uses it: the MB7569 ranges continuously with its pin 4 high, and its supply is
   switched off between readings anyway.
-- **The OLED's 5 V.** The 3.12" module's own regulator leaves the panel dark on
-  3.3 V ([ws-displays.md](ws-displays.md#supply)), so a U1V11F5 step-up after
-  the display switch feeds its VCC; it is unpowered whenever the switch is off.
+- **The OLED on 3.3 V.** The 3.12" module (Ver 2.1) is as bright on 3.3 V as on
+  5 V, on USB and on the LiPo, so the display switch's output feeds its VCC
+  directly, with no step-up; it is unpowered whenever the switch is off. Its
+  20 to 100 mA comes from LDO1 while a window runs.
 - **GPIO 33.** A header pin (D5) in both definitions; the FeatherS3D has no
   PSRAM in its package, so GPIO 33 – 37 are free.
 

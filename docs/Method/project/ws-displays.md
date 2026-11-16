@@ -140,8 +140,9 @@ join the I2C buses.
 
 ### Supply
 
-The module's VCC comes from the board's 5 V. Its own regulator (U1) has no
-headroom with 3.3 V on VCC, and the panel stays dark there. The logic lines stay
+On this board the module's VCC comes from the board's 5 V. On the FeatherS3D
+the same module (Ver 2.1) runs from the display switch's 3.3 V, as bright as on
+5 V ([feathers3-build.md](feathers3-build.md)). The logic lines stay
 at 3.3 V. The OLED draws about 20 to 100 mA, depending on
 how much of the screen is lit. The e-paper draws a few mA, and only while it
 refreshes.
