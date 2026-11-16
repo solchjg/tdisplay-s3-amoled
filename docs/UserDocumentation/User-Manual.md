@@ -164,6 +164,14 @@ Averages start at local midnight and on each multiple of that time (with 60,
 on every full hour); the device keeps the newest 96. A short reading time
 wears the battery faster: the board wakes for a few seconds at every reading.
 
+**Battery use on the FeatherS3D build.** Asleep between readings, the
+FeatherS3D board with its clock, Notecard carrier, BME280 and loop converter
+draws about **36 µA** from its LiPo (the board alone, 46 µA). These figures
+are without the displays and the field boards, and are confirmed once those
+are fitted. A Notecard carrier whose own battery is flat raises the figure to
+about 330 µA, so keep it charged. Charge the FeatherS3D's LiPo only through
+its own USB-C.
+
 **Checking that everything works.** Below the setup, tick one or both tests.
 They run once, after the next 60-second window, then the device carries on
 with the setup you picked:
@@ -539,6 +547,11 @@ are in [ws-displays.md](../Method/project/ws-displays.md) and on Fritzing
   **4.2" e-paper, when plugged in** and **3.12" OLED, when plugged in**, each
   `on` or `off`. With `off`, that display is never looked for or used, even
   when plugged in. Both default to `on`.
+- **On the FeatherS3D build.** The same two displays, with the same choice and
+  the same two settings, after the Notecard's fields on the portal form and the
+  Bluetooth page. They hang off the board's SPI pins
+  ([feathers3-build.md](../Method/project/feathers3-build.md)), and a switched
+  supply powers them only while a window runs.
 
 ## 5k. Hardware clock (optional)
 

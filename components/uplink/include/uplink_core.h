@@ -72,7 +72,7 @@ typedef struct {
 #define UL_MODEM_V1_SIZE (UL_APN_MAX + 1 + UL_PLMN_MAX + 1)
 
 // A new cellular board: wifi, cell_mail on, gps off, no APN, automatic choice,
-// `epaper` off, `oled` on.
+// `epaper` on, `oled` on.
 void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m);
 
 // §35.4, FR-35.4: the fields of a body over the stored settings; an absent or
@@ -82,6 +82,12 @@ void ul_modem_defaults(ul_settings_t *s, ul_modem_t *m);
 // given or stored; "gps" for gps on with wifi.
 const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *stored,
                            const ul_modem_t *stored_m, ul_settings_t *out, ul_modem_t *out_m);
+
+// FR-40.7: the `epaper` and `oled` fields of a body over the stored ones (the
+// FeatherS3D's displays beside the Notecard's §33.3 fields); an absent or empty
+// field keeps its stored value. NULL when valid, else "epaper" or "oled".
+const char *ul_parse_displays(const char *body, size_t len, const ul_modem_t *stored_m,
+                              ul_modem_t *out_m);
 
 // The BLE `settings` read of the modem's fields:
 // "uplink=<wifi|cell>&apn=<apn>&cell_plmn=<plmn>&cell_mail=<on|off>&gps=<on|off>

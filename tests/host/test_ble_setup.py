@@ -185,11 +185,14 @@ int main(int argc, char **argv)
         }
         ul_modem_t m = {"hologram", "310410", .epaper = false, .oled = true};
         bool modem = argc > 3 && !strcmp(argv[3], "modem");
-        bset_dump(&cur, &s, &sel, &loop, &a, &u, modem ? &m : NULL, argv[2][0] != '2', out,
-                  sizeof out);
+        bool displays = argc > 3 && !strcmp(argv[3], "displays");
+        bset_dump(&cur, &s, &sel, &loop, &a, &u, modem ? &m : NULL, displays ? &m : NULL,
+                  argv[2][0] != '2', out, sizeof out);
         printf("%s", out);
     } else if (!strcmp(argv[1], "form")) {
-        printf("%zu|", argc > 2 ? bset_form_modem(form, sizeof form) : bset_form(form, sizeof form));
+        printf("%zu|", argc < 3 ? bset_form(form, sizeof form)
+                       : !strcmp(argv[2], "modem") ? bset_form_modem(form, sizeof form)
+                       : bset_form_displays(form, sizeof form));
         printf("%s", form);
     } else {
         bset_info("0.2.0", "tds3-48c3a2", "ONLINE", out, sizeof out);
@@ -427,25 +430,34 @@ PORTAL_PARTS = [  # file, first and last text of its form HTML
 ]
 
 
-def _portal_html(modem=False):
-    """The portal form; with modem, the cellular build's (§35.4), whose uplink
-    section is the second in uplink.c."""
+def _portal_html(board="tdisplay"):
+    """The portal form; on the cellular build ("modem", §35.4) its uplink
+    section is the second in uplink.c; the FeatherS3D ("feathers3", FR-40.7)
+    adds the displays' section (DISPLAYS_HTML) to the Notecard's."""
     import codecs
     root = pathlib.Path(__file__).resolve().parents[2]
+
+    def text(part):
+        return "".join(codecs.decode(lit, "unicode_escape").encode("latin-1").decode("utf-8")
+                       for lit in re.findall(r'"((?:[^"\\]|\\.)*)"', part))
+
     html = ""
     for rel, first, last in PORTAL_PARTS:
         src = (root / rel).read_text()
         a = src.index(first)
-        if modem and rel.endswith("uplink.c"):
+        if board == "modem" and rel.endswith("uplink.c"):
             a = src.index(first, a + 1)
+            last = "DISPLAYS_HTML,"
         a = src.rindex('"', 0, a)  # the literal it starts in
         part = src[a:src.index(last, a) + len(last)]
-        for lit in re.findall(r'"((?:[^"\\]|\\.)*)"', part):  # macros between them drop out
-            html += codecs.decode(lit, "unicode_escape").encode("latin-1").decode("utf-8")
+        html += text(part)  # macros between the literals drop out
+        if board != "tdisplay" and rel.endswith("uplink.c"):
+            d = src.index("#define DISPLAYS_HTML")
+            html += text(src[d:src.index("#define DISPLAYS_ARGS", d)])
     return html.replace("%%", "%").replace('value="%s"', "").replace("%s", "")
 
 
-def _portal_fields(modem=False):
+def _portal_fields(board="tdisplay"):
     """Each named control of the portal form, in order, with its label text, its
     section heading and intro text before it, its attributes, options and unit."""
     from html.parser import HTMLParser
@@ -504,7 +516,7 @@ def _portal_fields(modem=False):
             self.text += d
 
     p = P()
-    p.feed(_portal_html(modem))
+    p.feed(_portal_html(board))
     return p.fields, p.extras
 
 
@@ -518,14 +530,15 @@ ATTR_CHECKS = ["type", "minlength", "maxlength", "min", "max", "step", "pattern"
 
 # TC-BLE-33 · FR-26.21 (core): the page's form is the portal form: the same
 # fields in the same order, sections, intro text, labels, choices, units and checks
-# (FR-35.4: likewise on the cellular build, with the modem's fields)
-@pytest.mark.parametrize("modem", [False, True])
-def test_form_rules_match_the_portal_form(bset, modem):
+# (FR-35.4: likewise on the cellular build, with the modem's fields; FR-40.7:
+# on the FeatherS3D, with the displays after the Notecard's)
+@pytest.mark.parametrize("board", ["tdisplay", "modem", "displays"])
+def test_form_rules_match_the_portal_form(bset, board):
     import urllib.parse as up
-    body = (bset("form", "modem") if modem else bset("form")).split("|", 1)[1]
+    body = (bset("form") if board == "tdisplay" else bset("form", board)).split("|", 1)[1]
     rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
              for k, v in up.parse_qsl(body, keep_blank_values=True)}
-    fields, extras = _portal_fields(modem)
+    fields, extras = _portal_fields("feathers3" if board == "displays" else board)
     assert [f["name"] for f in fields] == list(rules)
     for f in fields:
         r, name = rules[f["name"]], f["name"]
@@ -594,3 +607,24 @@ def test_modem_dump_and_form(bset):
     assert rules["epaper"]["section"] == "Displays"
     assert rules["epaper"]["options"].split(",") == ["on", "off"]
     assert rules["oled"]["options"].split(",") == ["on", "off"]
+
+
+# TC-FS3-05 · FR-40.7 (core): the FeatherS3D's settings read and rules show the
+# Notecard's fields, then `epaper` and `oled`
+def test_displays_dump_and_form(bset):
+    import urllib.parse as up
+    pairs = up.parse_qsl(bset("dump", "1", "displays"), keep_blank_values=True)
+    dump = dict(pairs)
+    assert (dump["nh_product"], dump["cell_every"], dump["cell_mail"]) == \
+        ("com.example.joe:weather", "120", "route")
+    assert [k for k, _ in pairs][-3:] == ["gps", "epaper", "oled"]
+    assert (dump["epaper"], dump["oled"]) == ("off", "on")
+    assert "apn" not in dump
+    n, body = bset("form", "displays").split("|", 1)
+    assert int(n) == len(body.encode()) < 6144                         # BLE_SETUP_FORM_MAX
+    rules = {k: dict(up.parse_qsl(v, keep_blank_values=True))
+             for k, v in up.parse_qsl(body, keep_blank_values=True)}
+    assert list(rules) == [k[:-4] if k.endswith("_set") else k for k, _ in pairs]
+    assert rules["epaper"]["section"] == "Displays"
+    # the T-Display build shows neither
+    assert "epaper" not in bset("dump", "1") and "epaper" not in bset("form")

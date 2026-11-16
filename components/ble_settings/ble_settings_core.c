@@ -111,8 +111,8 @@ const char *bset_prepare(const char *body, size_t len, bset_mode_t mode,
 
 size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *sel,
                  const lp_settings_t *loop, const nf_settings_t *alerts,
-                 const ul_settings_t *uplink, const ul_modem_t *modem, bool wifi_on, char *out,
-                 size_t cap)
+                 const ul_settings_t *uplink, const ul_modem_t *modem,
+                 const ul_modem_t *displays, bool wifi_on, char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
@@ -182,6 +182,10 @@ size_t bset_dump(const pc_creds_t *cur, const sm_settings_t *m, const sp_sel_t *
     field(&b, "cell_every", num);
     field(&b, "cell_mail", uplink->mail_route ? "route" : "off");
     field(&b, "gps", uplink->gps ? "on" : "off");
+    if (displays) {  // FR-40.7: the FeatherS3D's displays
+        field(&b, "epaper", displays->epaper ? "on" : "off");
+        field(&b, "oled", displays->oled ? "on" : "off");
+    }
     return b.len;
 }
 
@@ -281,6 +285,10 @@ static const char *const MODEM_RULES[][24] = {
      "[0-9]{5,6}", "placeholder", "310410", NULL},
     {"cell_mail", "label", "Email over cellular", "options", "on,off", NULL},
     {"gps", "label", "GPS fix in the setup check", "options", "off,on", NULL},
+};
+
+// §36.2, §35.4, FR-40.7: the displays, after the uplink's fields.
+static const char *const DISPLAY_RULES[][24] = {
     {"epaper", "section", "Displays", "label", "4.2\" e-paper, when plugged in", "options",
      "on,off", NULL},
     {"oled", "label", "3.12\" OLED, when plugged in", "options", "on,off", NULL},
@@ -322,7 +330,7 @@ static void rules(buf_t *b, const char *const (*table)[24], size_t n)
     }
 }
 
-static size_t form(bool modem, char *out, size_t cap)
+static size_t form(bool modem, bool displays, char *out, size_t cap)
 {
     buf_t b = {out, cap, 0, false};
     out[0] = '\0';
@@ -332,17 +340,25 @@ static size_t form(bool modem, char *out, size_t cap)
     } else {
         rules(&b, NOTECARD_RULES, sizeof NOTECARD_RULES / sizeof NOTECARD_RULES[0]);
     }
+    if (displays) {
+        rules(&b, DISPLAY_RULES, sizeof DISPLAY_RULES / sizeof DISPLAY_RULES[0]);
+    }
     return b.len;
 }
 
 size_t bset_form(char *out, size_t cap)
 {
-    return form(false, out, cap);
+    return form(false, false, out, cap);
 }
 
 size_t bset_form_modem(char *out, size_t cap)
 {
-    return form(true, out, cap);
+    return form(true, true, out, cap);
+}
+
+size_t bset_form_displays(char *out, size_t cap)
+{
+    return form(false, true, out, cap);
 }
 
 size_t bset_info(const char *fw, const char *host, const char *state, char *out, size_t cap)

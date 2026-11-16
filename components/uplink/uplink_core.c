@@ -186,6 +186,19 @@ const char *ul_parse_modem(const char *body, size_t len, const ul_settings_t *st
     return NULL;
 }
 
+const char *ul_parse_displays(const char *body, size_t len, const ul_modem_t *stored_m,
+                              ul_modem_t *out_m)
+{
+    *out_m = *stored_m;
+    if (!choice(body, len, "epaper", "on", "off", &out_m->epaper)) {
+        return "epaper";
+    }
+    if (!choice(body, len, "oled", "on", "off", &out_m->oled)) {
+        return "oled";
+    }
+    return NULL;
+}
+
 void ul_report_modem(const ul_settings_t *s, const ul_modem_t *m, char *out, size_t cap)
 {
     snprintf(out, cap, "uplink=%s&apn=%s&cell_plmn=%s&cell_mail=%s&gps=%s&epaper=%s&oled=%s",

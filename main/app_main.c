@@ -393,8 +393,10 @@ static size_t ble_read_settings(char *out, size_t cap)
     strlcpy(alerts.topic, notify_topic(), sizeof alerts.topic);  // FR-31.3, as the portal shows it
     size_t n = bset_dump(&stored, summary_settings(), sampling_sel(), loop_settings(), &alerts,
                          uplink_settings(), BOARD_HAS_NOTECARD ? NULL : uplink_modem(),
+                         BOARD_HAS_NOTECARD && BOARD_CELL_DISPLAY ? uplink_modem() : NULL,
                          uplink_wifi_on(), out,
-                         cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2, FR-33.2, FR-34.3
+                         cap);  // FR-26.9, FR-26.21, FR-28.3, FR-29.11, FR-31.2, FR-33.2, FR-34.3,
+                                // FR-40.7
     memset(alerts.token, 0, sizeof alerts.token);
     return n;
 }
@@ -475,8 +477,9 @@ static void ble_on_time(int64_t epoch_ms)
 static const ble_setup_config_t ble_cfg = {.name = softap_ssid,
                                            .read_info = ble_read_info,
                                            .read_settings = ble_read_settings,
-                                           .read_form = BOARD_HAS_NOTECARD ? bset_form
-                                                                           : bset_form_modem,  // FR-26.19
+                                           .read_form = !BOARD_HAS_NOTECARD  ? bset_form_modem
+                                                        : BOARD_CELL_DISPLAY ? bset_form_displays
+                                                                             : bset_form,  // FR-26.19, FR-40.7
                                            .on_apply = ble_apply,
                                            .on_passkey = ble_passkey_cb,
                                            .on_event = ble_event_cb,
