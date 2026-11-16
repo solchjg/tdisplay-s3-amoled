@@ -142,6 +142,14 @@ int main(int argc, char **argv)
         if (bad) { printf("bad %s", bad); return 0; }
         ul_report_modem(&s, &m, buf, sizeof buf);
         printf("%s", buf);
+    } else if (!strcmp(argv[1], "displays")) {  // displays <stored body> <body>
+        static ul_modem_t mnone, mstored, m;
+        ul_modem_defaults(&none, &mnone);
+        const char *bad = ul_parse_displays(argv[2], strlen(argv[2]), &mnone, &mstored);
+        if (bad) { printf("stored bad %s", bad); return 0; }
+        bad = ul_parse_displays(argv[3], strlen(argv[3]), &mstored, &m);
+        if (bad) { printf("bad %s", bad); return 0; }
+        printf("epaper=%s&oled=%s", m.epaper ? "on" : "off", m.oled ? "on" : "off");
     } else if (!strcmp(argv[1], "wanted")) {  // wanted <body> <upload> <alert> <mail> <time> <gps>
         static ul_modem_t mnone, m;
         ul_modem_defaults(&none, &mnone);
@@ -511,3 +519,17 @@ def test_modem_gps_answers(ul, after, answers, want):
 def test_modem_settings_displays(ul, stored, body, want):
     out = ul("modem", stored, body)
     assert out == want if want.startswith("bad") else out.endswith(want)
+
+
+# TC-FS3-05 · FR-40.7 (core): the FeatherS3D's `epaper` and `oled` beside the
+# Notecard's fields: both on when none is stored, an absent or empty field kept
+@pytest.mark.parametrize("stored,body,expected", [
+    ("", "", "epaper=on&oled=on"),
+    ("", "epaper=off", "epaper=off&oled=on"),
+    ("epaper=off", "uplink=cell&nh_product=x", "epaper=off&oled=on"),
+    ("epaper=off&oled=off", "epaper=&oled=on", "epaper=off&oled=on"),
+    ("", "epaper=maybe", "bad epaper"),
+    ("", "oled=1", "bad oled"),
+])
+def test_displays_settings(ul, stored, body, expected):
+    assert ul("displays", stored, body) == expected

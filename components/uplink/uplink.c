@@ -16,6 +16,10 @@
 #define KEY_WIFI_OFF "wifi_off"  // FR-34.1: its own key, so the settings blob keeps its size
 #define KEY_MODEM "modem"        // §35.4: the modem's fields, likewise their own key
 
+// KEY_MODEM is kept on the cellular build (§35.4) and, for its `epaper` and
+// `oled` alone, on the FeatherS3D (FR-40.7).
+#define KEEP_MODEM (!BOARD_HAS_NOTECARD || BOARD_CELL_DISPLAY)
+
 // FSD §33.2: the Notecard on the BME280's bus (C-23.1); on the always-on bus
 // on the FeatherS3D (§40.2).
 #if BOARD_HAS_NOTECARD
@@ -71,7 +75,7 @@ static void load(void)
     if (nvs_get_blob(h, KEY_SETTINGS, &settings, &len) != ESP_OK || len != sizeof settings) {
         defaults();
     }
-#if !BOARD_HAS_NOTECARD
+#if KEEP_MODEM
     len = sizeof modem;
     esp_err_t got = nvs_get_blob(h, KEY_MODEM, &modem, &len);
     if (got == ESP_OK && len == UL_MODEM_V1_SIZE) {
@@ -119,11 +123,28 @@ const char *uplink_take(const char *body, size_t len)
     load();
     const char *bad = ul_parse_wifi(body, len, wifi_on, &taken_wifi_on);
 #if BOARD_HAS_NOTECARD
-    return bad ? bad : ul_parse(body, len, &settings, &taken);
+    bad = bad ? bad : ul_parse(body, len, &settings, &taken);
+#if BOARD_CELL_DISPLAY
+    return bad ? bad : ul_parse_displays(body, len, &modem, &taken_m);  // FR-40.7
+#else
+    taken_m = modem;
+    return bad;
+#endif
 #else
     return bad ? bad : ul_parse_modem(body, len, &settings, &modem, &taken, &taken_m);
 #endif
 }
+
+// §35.4, FR-40.7: the displays' section of the form, and its arguments.
+#define DISPLAYS_HTML                                                                           \
+    "<h2>Displays</h2>"                                                                         \
+    "<p><label>4.2\" e-paper, when plugged in <select name=\"epaper\"><option%s>on</option>"    \
+    "<option%s>off</option></select></label></p>"                                               \
+    "<p><label>3.12\" OLED, when plugged in <select name=\"oled\"><option%s>on</option>"        \
+    "<option%s>off</option></select></label></p>"
+#define DISPLAYS_ARGS                                                                    \
+    modem.epaper ? " selected" : "", modem.epaper ? "" : " selected",                    \
+        modem.oled ? " selected" : "", modem.oled ? "" : " selected"
 
 const char *uplink_form_html(void)
 {
@@ -153,6 +174,10 @@ const char *uplink_form_html(void)
              s->cell ? "" : " selected", s->cell ? " selected" : "", s->product, every,
              s->mail_route ? "" : " selected", s->mail_route ? " selected" : "",
              s->gps ? "" : " selected", s->gps ? " selected" : "");
+#if BOARD_CELL_DISPLAY
+    size_t n = strlen(form);
+    snprintf(form + n, sizeof form - n, DISPLAYS_HTML, DISPLAYS_ARGS);  // FR-40.7
+#endif
     return form;
 #else
     // §35.4: the board's modem; no Notehub fields.
@@ -172,16 +197,10 @@ const char *uplink_form_html(void)
              "<option%s>off</option></select></label></p>"
              "<p><label>GPS fix in the setup check <select name=\"gps\"><option%s>off</option>"
              "<option%s>on</option></select></label></p>"
-             "<h2>Displays</h2>"
-             "<p><label>4.2\" e-paper, when plugged in <select name=\"epaper\"><option%s>on</option>"
-             "<option%s>off</option></select></label></p>"
-             "<p><label>3.12\" OLED, when plugged in <select name=\"oled\"><option%s>on</option>"
-             "<option%s>off</option></select></label></p>",
+             DISPLAYS_HTML,
              s->cell ? "" : " selected", s->cell ? " selected" : "", modem.apn, modem.plmn,
              s->mail_route ? " selected" : "", s->mail_route ? "" : " selected",
-             s->gps ? "" : " selected", s->gps ? " selected" : "",
-             modem.epaper ? " selected" : "", modem.epaper ? "" : " selected",
-             modem.oled ? " selected" : "", modem.oled ? "" : " selected");
+             s->gps ? "" : " selected", s->gps ? " selected" : "", DISPLAYS_ARGS);
     return form;
 #endif
 }
@@ -202,7 +221,7 @@ static esp_err_t store_settings(const ul_settings_t *s, const ul_modem_t *m, boo
     if (err == ESP_OK && s) {
         err = nvs_set_u8(h, KEY_WIFI_OFF, taken_wifi_on ? 0 : 1);
     }
-#if !BOARD_HAS_NOTECARD
+#if KEEP_MODEM
     if (err == ESP_OK && m) {
         err = nvs_set_blob(h, KEY_MODEM, m, sizeof *m);
     }

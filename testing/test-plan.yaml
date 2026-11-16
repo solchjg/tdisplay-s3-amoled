@@ -4241,3 +4241,15 @@ tests:
     observable: "board.h's FeatherS3D block has the analog supply on GPIO 18 and the serial supply on GPIO 33; app_main releases their hold and drives both low before addons_setup, and the deep-sleep step drives both low and holds them before gpio_deep_sleep_hold_en; the loop's float_bus leaves GPIO 15/16 alone when the loop shares the BME280's bus"
     impl: [tests/host/test_feathers3.py::test_field_supplies_off_in_sleep, tests/host/test_feathers3.py::test_loop_keeps_the_shared_bus]
     result: {status: not done}
+  - id: TC-FS3-05
+    title: "The FeatherS3D's epaper and oled settings beside the Notecard's, in the portal form and over BLE"
+    shape: atomic
+    kind: standard
+    wave: 1
+    fsd_phase: 21
+    tier: host
+    verifies: [FR-40.7]
+    needs: []
+    observable: "ul_parse_displays keeps both on when none is stored, keeps an absent or empty field and refuses any value but on or off; the settings read shows the Notecard's fields then epaper and oled, the BLE form's rules match it and the portal form (the Notecard's section then DISPLAYS_HTML); the T-Display build shows neither"
+    impl: [tests/host/test_uplink.py::test_displays_settings, tests/host/test_ble_setup.py::test_displays_dump_and_form, tests/host/test_ble_setup.py::test_form_rules_match_the_portal_form]
+    result: {status: not done}

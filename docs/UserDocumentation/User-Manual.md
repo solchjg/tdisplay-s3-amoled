@@ -547,6 +547,11 @@ are in [ws-displays.md](../Method/project/ws-displays.md) and on Fritzing
   **4.2" e-paper, when plugged in** and **3.12" OLED, when plugged in**, each
   `on` or `off`. With `off`, that display is never looked for or used, even
   when plugged in. Both default to `on`.
+- **On the FeatherS3D build.** The same two displays, with the same choice and
+  the same two settings, after the Notecard's fields on the portal form and the
+  Bluetooth page. They hang off the board's SPI pins
+  ([feathers3-build.md](../Method/project/feathers3-build.md)), and a switched
+  supply powers them only while a window runs.
 
 ## 5k. Hardware clock (optional)
 
