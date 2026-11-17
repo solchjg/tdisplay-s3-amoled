@@ -18,10 +18,10 @@
 // the 4.2"'s with the SSD1680's source range (0x21 B = 0x80); a panel whose
 // controller needs a waveform loaded by software (an old V2) stays blank or
 // grey on the full refresh, which the run's RESULT cannot see: look at it.
-// Its runs cycle through three: the test screen with partial refreshes from
-// the panel's own waveform (Waveshare's V4 sequence, 0x22 0xFF), the test
-// screen with a partial waveform loaded by software (their V3 sequence and
-// LUT), and the font page. After each run the ESP32 deep-sleeps for 60 s with
+// Its runs cycle through four: the test screen with partial refreshes from
+// the panel's own waveform (Waveshare's V4 sequence, 0x22 0xFF), with their
+// V3 software LUT (SSD1680, 153 bytes), with their V2 software LUT (IL3897 /
+// SSD1675, 70 bytes), and the font page. After each run the ESP32 deep-sleeps for 60 s with
 // RST and CS held high, for the sleep current.
 #include <stdio.h>
 #include <string.h>
@@ -84,7 +84,7 @@
 // The reset is an exact 2 ms low and 10 ms high: a low of 10 ms or more
 // leaves the 4.2" module's refreshes hanging, while 0.2 to 5 ms works (the
 // bench sweep). Odd runs show the test screen and five partial refreshes,
-// even runs the font page (the 2.13" cycles through three, see the top);
+// even runs the font page (the 2.13" cycles through four, see the top);
 // every run ends with the power off and the deep sleep.
 #define RESET_LOW_US 2000
 #define RESET_HIGH_US 10000
@@ -356,6 +356,50 @@ static long epd_partial_lut(void)
     epd_cmd(0x20, NULL, 0);
     return epd_wait();
 }
+
+// Waveshare's 2.13" V2 partial waveform (EPD_2IN13_V2_lut_partial_update):
+// 70 bytes for an IL3897 / SSD1675-class controller.
+static const uint8_t lut_partial_v2[70] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0A, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+// A partial refresh as their V2 code makes it: a hardware reset, VCOM 0x26,
+// the 70-byte LUT, RAM ping-pong (0x37, 7 bytes), the analog block on
+// (0x22 0xC0), the border 0x01, the new picture and 0x22 0x0C.
+static long epd_partial_v2(void)
+{
+    epd_hw_reset();
+    CMD(0x2C, 0x26);
+    if (epd_wait() < 0) {
+        return -1;
+    }
+    epd_cmd(0x32, lut_partial_v2, sizeof lut_partial_v2);
+    CMD(0x37, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00);
+    CMD(0x22, 0xC0);
+    epd_cmd(0x20, NULL, 0);
+    if (epd_wait() < 0) {
+        return -1;
+    }
+    CMD(0x3C, 0x01);
+    CMD(0x11, 0x03);
+    CMD(0x44, 0x00, EPD_W / 8 - 1);
+    CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
+    epd_write(0x24);
+    CMD(0x22, 0x0C);
+    epd_cmd(0x20, NULL, 0);
+    return epd_wait();
+}
 #endif
 
 // The analog block and the clock off (0x22 0x83, as Waveshare's and
@@ -504,10 +548,11 @@ void app_main(void)
     }
 #ifdef PROBE_EPD213
     for (int run = ++rtc_run;;) {
-        bool fonts = run % 3 == 0;
-        bool lut = run % 3 == 2;
-        printf("wsepaper: run %d (%s%s)\n", run, fonts ? "font page" : "test screen",
-               fonts ? "" : lut ? ", partials from the software LUT" : ", partials from the panel's waveform");
+        int method = run % 4;  // 1 the panel's waveform, 2 the V3 LUT, 3 the V2 LUT, 0 the font page
+        bool fonts = method == 0;
+        static const char *const how[] = {"", ", partials from the panel's waveform (V4)",
+                                          ", partials from the V3 LUT", ", partials from the V2 LUT"};
+        printf("wsepaper: run %d (%s%s)\n", run, fonts ? "font page" : "test screen", how[method]);
 #else
     for (int run = 1;; run++) {
         bool fonts = run % 2 == 0;
@@ -530,7 +575,7 @@ void app_main(void)
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 screen(run, i);
 #ifdef PROBE_EPD213
-                ms = lut ? epd_partial_lut() : epd_partial_otp();
+                ms = method == 1 ? epd_partial_otp() : method == 2 ? epd_partial_lut() : epd_partial_v2();
 #else
                 ms = epd_partial();
 #endif
