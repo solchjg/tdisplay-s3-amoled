@@ -10,6 +10,14 @@
 //
 // Wiring (P3 / P2 header labels): VCC 3V3, GND GND, CLK IO7, DIN IO8,
 // CS IO3, DC IO10, RST IO20, BUSY IO1.
+//
+// With PROBE_EPD213 (commissioning/fs3-epd213-probe) the panel is Waveshare's
+// 2.13" e-Paper HAT instead (250 x 122, an SSD1680-family controller, the
+// same 8-pin cable): its RAM is 128 x 250 (122 columns shown) and the probe
+// draws in landscape, 250 x 122, turned into that RAM by px(). The init is
+// the 4.2"'s with the SSD1680's source range (0x21 B = 0x80); a panel whose
+// controller needs a waveform loaded by software (an old V2) stays blank or
+// grey on the full refresh, which the run's RESULT cannot see: look at it.
 #include <stdio.h>
 #include <string.h>
 
@@ -48,8 +56,21 @@
 #endif
 
 #define SPI_HZ 1000000
+#ifdef PROBE_EPD213
+#define EPD_W 128  // the controller's RAM: 128 columns (122 shown) x 250 rows
+#define EPD_H 250
+#define LW 250     // drawn in landscape
+#define LH 122
+#define SRC_RANGE 0x80  // 0x21 byte B: sources S8 - S167, as Waveshare's 2.13" code
+#define PANEL_LINE "Waveshare 2.13in HAT"
+#else
 #define EPD_W 400
 #define EPD_H 300
+#define LW EPD_W
+#define LH EPD_H
+#define SRC_RANGE 0x00
+#define PANEL_LINE "Waveshare 4.2in V2 SSD1683"
+#endif
 #define EPD_BYTES (EPD_W / 8 * EPD_H)
 #define BUSY_LIMIT_MS 10000
 #define SPI_CHUNK 4000
@@ -219,7 +240,7 @@ static long epd_full(void)
 {
     epd_write(0x24);
     epd_write(0x26);
-    CMD(0x21, 0x40, 0x00);  // red RAM bypassed as 0
+    CMD(0x21, 0x40, SRC_RANGE);  // red RAM bypassed as 0
     CMD(0x22, 0xF7);
     epd_cmd(0x20, NULL, 0);
     return epd_wait();
@@ -228,7 +249,7 @@ static long epd_full(void)
 static long epd_partial(void)
 {
     epd_write(0x24);
-    CMD(0x21, 0x00, 0x00);
+    CMD(0x21, 0x00, SRC_RANGE);
     CMD(0x22, 0xFC);
     epd_cmd(0x20, NULL, 0);
     long ms = epd_wait();
@@ -250,11 +271,19 @@ static long epd_sleep(bool deep)
     return ms;
 }
 
+// One pixel at (x, y) of the LW x LH picture, 1 = white in the RAM.
 static void px(int x, int y, bool black)
 {
-    if (x < 0 || y < 0 || x >= EPD_W || y >= EPD_H) {
+    if (x < 0 || y < 0 || x >= LW || y >= LH) {
         return;
     }
+#ifdef PROBE_EPD213
+    // Landscape on the portrait RAM: picture x runs down the RAM's rows and
+    // picture y across its 122 shown columns, top of the picture at column 121.
+    int rx = LH - 1 - y;
+    y = x;
+    x = rx;
+#endif
     uint8_t bit = (uint8_t)(0x80 >> (x & 7));
     if (black) {
         fb[y * (EPD_W / 8) + x / 8] &= (uint8_t)~bit;
@@ -265,10 +294,10 @@ static void px(int x, int y, bool black)
 
 static void draw(const text_font_t *f, int x, int y, const char *s)
 {
-    static uint16_t line[EPD_W * FONT_H];
+    static uint16_t line[LW * FONT_H];
     int w = text_font_width(f, s);
-    if (w > EPD_W - x) {
-        w = EPD_W - x;
+    if (w > LW - x) {
+        w = LW - x;
     }
     if (w <= 0) {
         return;
@@ -284,14 +313,30 @@ static void draw(const text_font_t *f, int x, int y, const char *s)
 static void screen(int run, int count)
 {
     memset(fb, 0xFF, sizeof fb);
-    for (int i = 0; i < EPD_W; i++) {
-        px(i, 0, true), px(i, 1, true), px(i, EPD_H - 2, true), px(i, EPD_H - 1, true);
+    for (int i = 0; i < LW; i++) {
+        px(i, 0, true), px(i, 1, true), px(i, LH - 2, true), px(i, LH - 1, true);
     }
-    for (int i = 0; i < EPD_H; i++) {
-        px(0, i, true), px(1, i, true), px(EPD_W - 2, i, true), px(EPD_W - 1, i, true);
+    for (int i = 0; i < LH; i++) {
+        px(0, i, true), px(1, i, true), px(LW - 2, i, true), px(LW - 1, i, true);
     }
     char s[48];
-    draw(&text_font_small, 8, 12, "Waveshare 4.2in V2 SSD1683");
+#ifdef PROBE_EPD213
+    // A solid 10 x 10 mark in the top-left corner shows the picture's turn.
+    for (int y = 4; y < 14; y++) {
+        for (int x = 4; x < 14; x++) {
+            px(x, y, true);
+        }
+    }
+    draw(&text_font_mini, 20, 4, PANEL_LINE);
+    draw(&text_font_mini, 8, 22, BOARD_LINE);
+    snprintf(s, sizeof s, "Run %d: full, then 5 partials", run);
+    draw(&text_font_tiny, 8, 42, s);
+    draw(&text_font_tiny, 8, 54, "Mark top left, frame on all 4 edges");
+    snprintf(s, sizeof s, "Partial %d of 5", count);
+    draw(&text_font_large, 8, 74, s);
+    return;
+#endif
+    draw(&text_font_small, 8, 12, PANEL_LINE);
     draw(&text_font_small, 8, 52, BOARD_LINE);
     snprintf(s, sizeof s, "Run %d", run);
     draw(&text_font_small, 8, 92, s);
@@ -319,7 +364,12 @@ static void font_page(int run)
     };
     int y = 4;
     char s[48];
-    for (size_t i = 0; i < sizeof fonts / sizeof fonts[0]; i++) {
+#ifdef PROBE_EPD213
+    size_t first = 1;  // 122 rows hold the three smaller fonts
+#else
+    size_t first = 0;
+#endif
+    for (size_t i = first; i < sizeof fonts / sizeof fonts[0]; i++) {
         snprintf(s, sizeof s, "%s font:", fonts[i].name);
         draw(&text_font_tiny, 4, y, s);
         y += 12;
@@ -328,12 +378,12 @@ static void font_page(int run)
             y += fonts[i].f->h + 2;
         }
         y += 6;
-        for (int x = 0; x < EPD_W; x++) {
+        for (int x = 0; x < LW; x++) {
             px(x, y - 4, true);
         }
     }
     snprintf(s, sizeof s, "Font page, run %d", run);
-    draw(&text_font_tiny, 4, EPD_H - 12, s);
+    draw(&text_font_tiny, 4, LH - 12, s);
 }
 
 // The reset is an exact 2 ms low and 10 ms high: a low of 10 ms or more
