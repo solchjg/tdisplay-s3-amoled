@@ -508,6 +508,18 @@ static void screen(int run, int count)
 
 // The firmware's fonts on the panel, each with sample lines, so their
 // sizes can be judged at 4.2".
+#ifdef PROBE_EPD213
+// The last picture before the ESP32's deep sleep.
+static void sleeping_page(int run)
+{
+    memset(fb, 0xFF, sizeof fb);
+    draw(&text_font_large, 8, 30, "Sleeping");
+    char s[48];
+    snprintf(s, sizeof s, "60 s after run %d", run);
+    draw(&text_font_mini, 8, 80, s);
+}
+#endif
+
 static void font_page(int run)
 {
     memset(fb, 0xFF, sizeof fb);
@@ -553,8 +565,11 @@ RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
 void app_main(void)
 {
 #ifdef PROBE_EPD213
-    gpio_hold_dis(PIN_RST);  // held high through the last deep sleep
-    gpio_hold_dis(PIN_CS);
+    // Held through the last deep sleep.
+    static const int held[] = {PIN_RST, PIN_CS, PIN_DC, PIN_SCK, PIN_MOSI};
+    for (size_t k = 0; k < sizeof held / sizeof held[0]; k++) {
+        gpio_hold_dis(held[k]);
+    }
 #endif
     esp_err_t err = bus_start();
     printf("wsepaper: spi %s\n", esp_err_to_name(err));
@@ -603,8 +618,16 @@ void app_main(void)
                 printf("wsepaper: partial %d %ld ms %s\n", i, ms, ms > 100 && ms < 3000 ? "ok" : "CHECK");
             }
 #ifdef PROBE_EPD213
-            printf("wsepaper: partials done; power off in 5 s\n");
-            vTaskDelay(pdMS_TO_TICKS(5000));  // a look before and after the power off
+            if (!fonts) {
+                printf("wsepaper: partials done; sleeping page in 5 s\n");
+                vTaskDelay(pdMS_TO_TICKS(5000));
+            }
+            // A fresh init and a full refresh for the "Sleeping" page, so it
+            // shows whatever state the partials left the controller in.
+            ms = v3_init();
+            sleeping_page(run);
+            long slp = ms < 0 ? -1 : v3_full();
+            printf("wsepaper: sleeping page %ld ms %s\n", slp, slp > 500 ? "ok" : "CHECK");
             ms = v3_sleep();
 #else
             ms = epd_sleep(true);
@@ -615,13 +638,22 @@ void app_main(void)
                fonts ? "font page" : "test screen", full, good, fonts ? 0 : 5,
                full > 500 && full < 6000 && (fonts || good == 5) ? "GOOD" : "CHECK");
 #ifdef PROBE_EPD213
-        // RST and CS held high, so the controller stays in its deep sleep.
+        // RST and CS held high, so the controller stays in its deep sleep, and
+        // DC, SCK and MOSI held low, so no input of the HAT's level shifter
+        // floats; CS, SCK and MOSI from the SPI peripheral back to plain outputs.
         gpio_set_level(PIN_RST, 1);
+        gpio_config_t hi = {.pin_bit_mask = 1ULL << PIN_CS, .mode = GPIO_MODE_OUTPUT};
+        gpio_config(&hi);
         gpio_set_level(PIN_CS, 1);
-        gpio_config_t cs = {.pin_bit_mask = 1ULL << PIN_CS, .mode = GPIO_MODE_OUTPUT};
-        gpio_config(&cs);  // CS from the SPI peripheral back to a plain output
-        gpio_hold_en(PIN_RST);
-        gpio_hold_en(PIN_CS);
+        gpio_config_t lo = {.pin_bit_mask = (1ULL << PIN_DC) | (1ULL << PIN_SCK) | (1ULL << PIN_MOSI),
+                            .mode = GPIO_MODE_OUTPUT};
+        gpio_config(&lo);
+        gpio_set_level(PIN_DC, 0);
+        gpio_set_level(PIN_SCK, 0);
+        gpio_set_level(PIN_MOSI, 0);
+        for (size_t k = 0; k < sizeof held / sizeof held[0]; k++) {
+            gpio_hold_en(held[k]);
+        }
         gpio_deep_sleep_hold_en();
         printf("wsepaper: sleep 60 s\n");
         fflush(stdout);
