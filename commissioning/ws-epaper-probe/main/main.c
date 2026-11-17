@@ -18,6 +18,11 @@
 // the 4.2"'s with the SSD1680's source range (0x21 B = 0x80); a panel whose
 // controller needs a waveform loaded by software (an old V2) stays blank or
 // grey on the full refresh, which the run's RESULT cannot see: look at it.
+// Its runs cycle through three: the test screen with partial refreshes from
+// the panel's own waveform (Waveshare's V4 sequence, 0x22 0xFF), the test
+// screen with a partial waveform loaded by software (their V3 sequence and
+// LUT), and the font page. After each run the ESP32 deep-sleeps for 60 s with
+// RST and CS held high, for the sleep current.
 #include <stdio.h>
 #include <string.h>
 
@@ -27,6 +32,7 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_rom_sys.h"
+#include "esp_sleep.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -74,6 +80,14 @@
 #define EPD_BYTES (EPD_W / 8 * EPD_H)
 #define BUSY_LIMIT_MS 10000
 #define SPI_CHUNK 4000
+
+// The reset is an exact 2 ms low and 10 ms high: a low of 10 ms or more
+// leaves the 4.2" module's refreshes hanging, while 0.2 to 5 ms works (the
+// bench sweep). Odd runs show the test screen and five partial refreshes,
+// even runs the font page (the 2.13" cycles through three, see the top);
+// every run ends with the power off and the deep sleep.
+#define RESET_LOW_US 2000
+#define RESET_HIGH_US 10000
 
 static spi_device_handle_t spi;
 static adc_oneshot_unit_handle_t adc;
@@ -257,6 +271,93 @@ static long epd_partial(void)
     return ms;
 }
 
+#ifdef PROBE_EPD213
+// Waveshare's 2.13" V3 partial waveform (WF_PARTIAL_2IN13_V3): 153 bytes of
+// LUT, then 0x3F, the gate voltage (0x03), VSH, VSH2, VSL (0x04) and VCOM (0x2C).
+static const uint8_t lut_partial[159] = {
+    0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x40, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00,
+    0x22, 0x17, 0x41, 0x00, 0x32, 0x36,
+};
+
+static void epd_window(void)
+{
+    CMD(0x01, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8, 0x00);
+    CMD(0x11, 0x03);
+    CMD(0x44, 0x00, EPD_W / 8 - 1);
+    CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
+    CMD(0x21, 0x00, SRC_RANGE);  // in case the hardware reset cleared them
+    CMD(0x18, 0x80);
+}
+
+static void epd_hw_reset(void)
+{
+    gpio_set_level(PIN_RST, 0);
+    esp_rom_delay_us(RESET_LOW_US);
+    gpio_set_level(PIN_RST, 1);
+    esp_rom_delay_us(RESET_HIGH_US);
+}
+
+// A partial refresh as Waveshare's 2.13" V4 code makes it: a hardware reset,
+// the border floating, the new picture in the B/W RAM and 0x22 0xFF (display
+// mode 2 from the panel's own waveform, then the analog block and clock off).
+static long epd_partial_otp(void)
+{
+    epd_hw_reset();
+    CMD(0x3C, 0x80);
+    epd_window();
+    epd_write(0x24);
+    CMD(0x22, 0xFF);
+    epd_cmd(0x20, NULL, 0);
+    return epd_wait();
+}
+
+// A partial refresh as their V3 code makes it: a hardware reset, the partial
+// waveform loaded by software, RAM ping-pong on (0x37), the border floating,
+// the analog block on (0x22 0xC0), the new picture and 0x22 0x0F.
+static long epd_partial_lut(void)
+{
+    epd_hw_reset();
+    epd_cmd(0x32, lut_partial, 153);
+    long ms = epd_wait();
+    if (ms < 0) {
+        return -1;
+    }
+    CMD(0x3F, lut_partial[153]);
+    CMD(0x03, lut_partial[154]);
+    CMD(0x04, lut_partial[155], lut_partial[156], lut_partial[157]);
+    CMD(0x2C, lut_partial[158]);
+    CMD(0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00);
+    CMD(0x3C, 0x80);
+    CMD(0x22, 0xC0);
+    epd_cmd(0x20, NULL, 0);
+    if (epd_wait() < 0) {
+        return -1;
+    }
+    epd_window();
+    epd_write(0x24);
+    CMD(0x22, 0x0F);
+    epd_cmd(0x20, NULL, 0);
+    return epd_wait();
+}
+#endif
+
 // The analog block and the clock off (0x22 0x83, as Waveshare's and
 // GxEPD2's power-off do; a partial refresh's 0xFC leaves them on), then, if
 // asked, deep sleep mode 1, which RST ends.
@@ -386,25 +487,33 @@ static void font_page(int run)
     draw(&text_font_tiny, 4, LH - 12, s);
 }
 
-// The reset is an exact 2 ms low and 10 ms high: a low of 10 ms or more
-// leaves this module's refreshes hanging, while 0.2 to 5 ms works (the
-// bench sweep). Odd runs show the test screen and five partial refreshes,
-// even runs the font page; every run ends with the power off and the deep
-// sleep.
-#define RESET_LOW_US 2000
-#define RESET_HIGH_US 10000
+#ifdef PROBE_EPD213
+RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
+#endif
 
 void app_main(void)
 {
+#ifdef PROBE_EPD213
+    gpio_hold_dis(PIN_RST);  // held high through the last deep sleep
+    gpio_hold_dis(PIN_CS);
+#endif
     esp_err_t err = bus_start();
     printf("wsepaper: spi %s\n", esp_err_to_name(err));
     if (err != ESP_OK) {
         return;
     }
+#ifdef PROBE_EPD213
+    for (int run = ++rtc_run;;) {
+        bool fonts = run % 3 == 0;
+        bool lut = run % 3 == 2;
+        printf("wsepaper: run %d (%s%s)\n", run, fonts ? "font page" : "test screen",
+               fonts ? "" : lut ? ", partials from the software LUT" : ", partials from the panel's waveform");
+#else
     for (int run = 1;; run++) {
         bool fonts = run % 2 == 0;
         printf("wsepaper: run %d at %lld s since boot (%s)\n", run, esp_timer_get_time() / 1000000,
                fonts ? "font page" : "test screen");
+#endif
         long ms = epd_init(RESET_LOW_US, RESET_HIGH_US);
         printf("wsepaper: run %d reset busy=%ld ms %s\n", run, ms, ms < 0 ? "CHECK (BUSY stuck high or unwired)" : "ok");
         long full = -2;
@@ -420,16 +529,35 @@ void app_main(void)
             for (int i = 1; !fonts && i <= 5; i++) {
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 screen(run, i);
+#ifdef PROBE_EPD213
+                ms = lut ? epd_partial_lut() : epd_partial_otp();
+#else
                 ms = epd_partial();
+#endif
                 good += ms > 100 && ms < 3000;
                 printf("wsepaper: partial %d %ld ms %s\n", i, ms, ms > 100 && ms < 3000 ? "ok" : "CHECK");
             }
             ms = epd_sleep(true);
-            printf("wsepaper: power off %ld ms %s; controller asleep; next run in 30 s\n", ms, ms >= 0 ? "ok" : "CHECK");
+            printf("wsepaper: power off %ld ms %s; controller asleep\n", ms, ms >= 0 ? "ok" : "CHECK");
         }
         printf("wsepaper: RESULT run %d (%s): full %ld ms, %d of %d partials ok -> %s\n", run,
                fonts ? "font page" : "test screen", full, good, fonts ? 0 : 5,
                full > 500 && full < 6000 && (fonts || good == 5) ? "GOOD" : "CHECK");
+#ifdef PROBE_EPD213
+        // RST and CS held high, so the controller stays in its deep sleep.
+        gpio_set_level(PIN_RST, 1);
+        gpio_set_level(PIN_CS, 1);
+        gpio_config_t cs = {.pin_bit_mask = 1ULL << PIN_CS, .mode = GPIO_MODE_OUTPUT};
+        gpio_config(&cs);  // CS from the SPI peripheral back to a plain output
+        gpio_hold_en(PIN_RST);
+        gpio_hold_en(PIN_CS);
+        gpio_deep_sleep_hold_en();
+        printf("wsepaper: sleep 60 s\n");
+        fflush(stdout);
+        esp_sleep_enable_timer_wakeup(60ULL * 1000000);
+        esp_deep_sleep_start();
+#else
         vTaskDelay(pdMS_TO_TICKS(30000));
+#endif
     }
 }
