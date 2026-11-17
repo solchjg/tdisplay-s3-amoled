@@ -275,10 +275,8 @@ static long epd_partial(void)
 // The 2.13" HAT is the V3 (SSD1680; the "V3" sticker on its Rev2.1 board),
 // driven as Waveshare's EPD_2in13_V3.c drives it: their init with the
 // WS_20_30 waveform loaded by software and 0x22 0xC7 for a full refresh, the
-// base picture in both RAMs, then their partial waveform, RAM ping-pong
-// (0x37), border 0x80 and 0x22 0xC0 once, and for each partial the B/W RAM
-// and 0x22 0xCF (their 0x0F turns the clock off, so a second one hangs); then deep sleep (0x10 0x01) with no power off. Each waveform
-// is 153 bytes of LUT, then 0x3F, the gate voltage (0x03), VSH, VSH2, VSL
+// base picture in both RAMs, each partial as v3_partial makes it, then deep
+// sleep (0x10 0x01) with no power off. Each waveform is 153 bytes of LUT, then 0x3F, the gate voltage (0x03), VSH, VSH2, VSL
 // (0x04) and VCOM (0x2C).
 static const uint8_t v3_lut_full[159] = {
     0x80, 0x4A, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -383,26 +381,30 @@ static long v3_full(void)
     return epd_wait();
 }
 
-// The partial waveform, ping-pong, border and the analog block on, once
-// after the full refresh (no hardware reset: with one before each partial,
-// as Waveshare's code does, every partial ran the full waveform).
-static long v3_partial_setup(void)
+// Each partial as Waveshare's V3 code makes it: a hardware reset (after an
+// update the controller takes no new LUT without one), then, once BUSY is
+// low again, their partial waveform, RAM ping-pong, border 0x80, the clock
+// and analog block on (0x22 0xC0), the B/W RAM and 0x22 0x0F. Without the
+// wait after the reset the LUT write was lost and the partial ran the full
+// waveform; without the reset each partial hung or ran the full waveform.
+static long v3_partial(void)
 {
-    long lut = v3_lut(v3_lut_partial);
+    v3_reset();
+    long rst = epd_wait();
+    vTaskDelay(pdMS_TO_TICKS(20));
+    long lut = rst < 0 ? -1 : v3_lut(v3_lut_partial);
     CMD(0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00);
     CMD(0x3C, 0x80);
     CMD(0x22, 0xC0);
     epd_cmd(0x20, NULL, 0);
     long on = epd_wait();
-    printf("wsepaper: partial setup: LUT busy %ld ms, analog on %ld ms\n", lut, on);
-    return lut < 0 || on < 0 ? -1 : on;
-}
-
-static long v3_partial(void)
-{
+    printf("wsepaper: partial setup: reset busy %ld ms, LUT busy %ld ms, analog on %ld ms\n", rst, lut, on);
+    if (lut < 0 || on < 0) {
+        return -1;
+    }
     v3_window();
     epd_write(0x24);
-    CMD(0x22, 0xCF);  // clock and analog on, display mode 2, then both off again
+    CMD(0x22, 0x0F);
     epd_cmd(0x20, NULL, 0);
     return epd_wait();
 }
@@ -585,9 +587,6 @@ void app_main(void)
             }
 #ifdef PROBE_EPD213
             full = v3_full();
-            if (!fonts) {
-                v3_partial_setup();
-            }
 #else
             full = epd_full();
 #endif
