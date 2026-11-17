@@ -122,6 +122,7 @@ From the FeatherS3D's LiPo, the probe asleep with LDO2 held off, USB out,
 | Fitted | Asleep |
 |--------|--------|
 | Nothing on either socket | 46 µA |
+| I2C2: a 1.3" 128 × 64 SSD1306 OLED (0x3C) alone, through a Qwiic adapter (`fs3-oled-probe`) | 44 µA |
 | I2C2: RV-8803, ADS1115 and BME280 on a star | 49 µA |
 | I2C2: ADS1115 and BME280; I2C1: RV-8803 | 43 µA |
 | As above, plus the Notecarrier-X on I2C1, powered from its own LiPo | 35 µA |

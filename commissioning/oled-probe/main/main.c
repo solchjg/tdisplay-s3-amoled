@@ -30,7 +30,13 @@
 #define SLEEP_S 60
 #define CLK_HZ 100000
 #define TIMEOUT_MS 50
-#define W 132  // the SH1106's RAM width; an SSD1306 ignores the 4 extra columns
+#ifdef PROBE_FEATHERS3
+#define W 128          // the FeatherS3D's OLEDs so far are SSD1306s (1.3" stand-in at 0x3C)
+#define FRAME_LEFT 0
+#else
+#define W 132          // the SH1106's RAM width; an SSD1306 wraps the 4 extra columns
+#define FRAME_LEFT 2
+#endif
 
 static uint8_t page[1 + W];
 
@@ -67,8 +73,8 @@ static uint8_t pattern_byte(int pattern, int p, int x)
     switch (pattern) {
     case 0: return 0xFF;                                         // all on
     case 1: return ((x / 8 + p) & 1) ? 0xFF : 0x00;              // checkerboard
-    default:                                                     // a frame round the visible 128 x 64
-        if (x == 2 || x == 129) return 0xFF;
+    default:  // a frame round the visible 128 x 64: SH1106 RAM columns 2 - 129, SSD1306 0 - 127
+        if (x == FRAME_LEFT || x == FRAME_LEFT + 127) return 0xFF;
         if (p == 0) return 0x01;
         if (p == 7) return 0x80;
         return 0x00;
@@ -188,8 +194,8 @@ void app_main(void)
     printf("oled-probe: FeatherS3D, I2C2 with LDO2 on; expected 0x3c or 0x3d (the OLED), "
            "0x76 (BME280) and 0x49 (ADS1115) when fitted\n");
     for (int pattern = 0; pattern < 3; pattern++) {
-        pass(PIN_B, PIN_A, pattern);  // SDA 16 / SCL 15, the board's order
-        pass(PIN_A, PIN_B, pattern);
+        pass(PIN_A, PIN_B, pattern);  // swapped first: its clocking can leave the panel
+        pass(PIN_B, PIN_A, pattern);  // out of step, so the board's order (SDA 16 / SCL 15) comes last
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
     if (last_oled == 0) {
