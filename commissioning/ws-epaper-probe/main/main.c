@@ -277,7 +277,7 @@ static long epd_partial(void)
 // WS_20_30 waveform loaded by software and 0x22 0xC7 for a full refresh, the
 // base picture in both RAMs, then their partial waveform, RAM ping-pong
 // (0x37), border 0x80 and 0x22 0xC0 once, and for each partial the B/W RAM
-// and 0x22 0x0F; then deep sleep (0x10 0x01) with no power off. Each waveform
+// and 0x22 0xCF (their 0x0F turns the clock off, so a second one hangs); then deep sleep (0x10 0x01) with no power off. Each waveform
 // is 153 bytes of LUT, then 0x3F, the gate voltage (0x03), VSH, VSH2, VSL
 // (0x04) and VCOM (0x2C).
 static const uint8_t v3_lut_full[159] = {
@@ -402,7 +402,7 @@ static long v3_partial(void)
 {
     v3_window();
     epd_write(0x24);
-    CMD(0x22, 0x0F);
+    CMD(0x22, 0xCF);  // clock and analog on, display mode 2, then both off again
     epd_cmd(0x20, NULL, 0);
     return epd_wait();
 }
