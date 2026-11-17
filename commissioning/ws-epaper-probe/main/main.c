@@ -18,10 +18,11 @@
 // the 4.2"'s with the SSD1680's source range (0x21 B = 0x80); a panel whose
 // controller needs a waveform loaded by software (an old V2) stays blank or
 // grey on the full refresh, which the run's RESULT cannot see: look at it.
-// Its runs cycle through four: the test screen with partial refreshes from
-// the panel's own waveform (Waveshare's V4 sequence, 0x22 0xFF), with their
-// V3 software LUT (SSD1680, 153 bytes), with their V2 software LUT (IL3897 /
-// SSD1675, 70 bytes), and the font page. After each run the ESP32 deep-sleeps for 60 s with
+// The HAT tried is the V2 (SSD1675B): neither the V4 partial sequence
+// (0x22 0xFF) nor the V3 LUT shortened a partial, so they stay in the source
+// (epd_partial_otp, epd_partial_lut) and its runs alternate between the test
+// screen with partials from the V2 LUT (70 bytes) and the font page. Its
+// power off is the V2's 0x22 0xC3, five seconds after the last partial. After each run the ESP32 deep-sleeps for 60 s with
 // RST and CS held high, for the sleep current.
 #include <stdio.h>
 #include <string.h>
@@ -84,7 +85,7 @@
 // The reset is an exact 2 ms low and 10 ms high: a low of 10 ms or more
 // leaves the 4.2" module's refreshes hanging, while 0.2 to 5 ms works (the
 // bench sweep). Odd runs show the test screen and five partial refreshes,
-// even runs the font page (the 2.13" cycles through four, see the top);
+// even runs the font page (the 2.13" too, see the top);
 // every run ends with the power off and the deep sleep.
 #define RESET_LOW_US 2000
 #define RESET_HIGH_US 10000
@@ -392,6 +393,9 @@ static long epd_partial_v2(void)
         return -1;
     }
     CMD(0x3C, 0x01);
+    CMD(0x01, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8, 0x00);
+    CMD(0x3A, 0x30);  // dummy line and gate time, as their V2 init
+    CMD(0x3B, 0x0A);
     CMD(0x11, 0x03);
     CMD(0x44, 0x00, EPD_W / 8 - 1);
     CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
@@ -407,7 +411,11 @@ static long epd_partial_v2(void)
 // asked, deep sleep mode 1, which RST ends.
 static long epd_sleep(bool deep)
 {
+#ifdef PROBE_EPD213
+    CMD(0x22, 0xC3);  // the V2 (SSD1675B) HAT's power off, as Waveshare's V2 code
+#else
     CMD(0x22, 0x83);
+#endif
     epd_cmd(0x20, NULL, 0);
     long ms = epd_wait();
     if (deep) {
@@ -548,7 +556,7 @@ void app_main(void)
     }
 #ifdef PROBE_EPD213
     for (int run = ++rtc_run;;) {
-        int method = run % 4;  // 1 the panel's waveform, 2 the V3 LUT, 3 the V2 LUT, 0 the font page
+        int method = run % 2 ? 3 : 0;  // odd runs the V2 LUT, even runs the font page
         bool fonts = method == 0;
         static const char *const how[] = {"", ", partials from the panel's waveform (V4)",
                                           ", partials from the V3 LUT", ", partials from the V2 LUT"};
@@ -582,6 +590,10 @@ void app_main(void)
                 good += ms > 100 && ms < 3000;
                 printf("wsepaper: partial %d %ld ms %s\n", i, ms, ms > 100 && ms < 3000 ? "ok" : "CHECK");
             }
+#ifdef PROBE_EPD213
+            printf("wsepaper: partials done; power off in 5 s\n");
+            vTaskDelay(pdMS_TO_TICKS(5000));  // a look before and after the power off
+#endif
             ms = epd_sleep(true);
             printf("wsepaper: power off %ld ms %s; controller asleep\n", ms, ms >= 0 ? "ok" : "CHECK");
         }
