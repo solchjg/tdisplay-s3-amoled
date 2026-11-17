@@ -275,8 +275,8 @@ static long epd_partial(void)
 // The 2.13" HAT is the V3 (SSD1680; the "V3" sticker on its Rev2.1 board),
 // driven as Waveshare's EPD_2in13_V3.c drives it: their init with the
 // WS_20_30 waveform loaded by software and 0x22 0xC7 for a full refresh, the
-// base picture in both RAMs, and for each partial a hardware reset, their
-// partial waveform, RAM ping-pong (0x37), border 0x80, 0x22 0xC0, the B/W RAM
+// base picture in both RAMs, then their partial waveform, RAM ping-pong
+// (0x37), border 0x80 and 0x22 0xC0 once, and for each partial the B/W RAM
 // and 0x22 0x0F; then deep sleep (0x10 0x01) with no power off. Each waveform
 // is 153 bytes of LUT, then 0x3F, the gate voltage (0x03), VSH, VSH2, VSL
 // (0x04) and VCOM (0x2C).
@@ -383,19 +383,23 @@ static long v3_full(void)
     return epd_wait();
 }
 
-static long v3_partial(void)
+// The partial waveform, ping-pong, border and the analog block on, once
+// after the full refresh (no hardware reset: with one before each partial,
+// as Waveshare's code does, every partial ran the full waveform).
+static long v3_partial_setup(void)
 {
-    v3_reset();
-    if (v3_lut(v3_lut_partial) < 0) {
-        return -1;
-    }
+    long lut = v3_lut(v3_lut_partial);
     CMD(0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00);
     CMD(0x3C, 0x80);
     CMD(0x22, 0xC0);
     epd_cmd(0x20, NULL, 0);
-    if (epd_wait() < 0) {
-        return -1;
-    }
+    long on = epd_wait();
+    printf("wsepaper: partial setup: LUT busy %ld ms, analog on %ld ms\n", lut, on);
+    return lut < 0 || on < 0 ? -1 : on;
+}
+
+static long v3_partial(void)
+{
     v3_window();
     epd_write(0x24);
     CMD(0x22, 0x0F);
@@ -581,6 +585,9 @@ void app_main(void)
             }
 #ifdef PROBE_EPD213
             full = v3_full();
+            if (!fonts) {
+                v3_partial_setup();
+            }
 #else
             full = epd_full();
 #endif
