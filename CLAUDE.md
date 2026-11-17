@@ -219,7 +219,7 @@ Other builds sharing the components:
   60 s of deep sleep for the sleep current;
   `commissioning/fs3-epd213-probe/` — `ws-epaper-probe`'s program for Waveshare's 2.13" e-Paper HAT
   (V3, 250 × 122, SSD1680) on the FeatherS3D's e-paper pins, drawn in landscape with a corner mark,
-  driven with Waveshare's V3 sequence (software full and partial waveforms), then a "Sleeping" page and 60 s of deep sleep with its lines held;
+  driven with Waveshare's V3 sequence (software full and partial waveforms), then a "Sleeping" page, its lines made inputs and its supply (the Pololu switch, GPIO 17) cut for 60 s of deep sleep;
   `commissioning/ws-lcd-probe/` — the Waveshare 1.9" LCD module (170 × 320, ST7789) on the Waveshare board through the
   shared `st7789`'s SPI mode, on SPI2 beside the OLED on the e-paper's cable (CS 3, RST 20, BL 1; CS 19 and RST, BL on 3V3 by menuconfig) (no FSD section: the panel
   is for another project): timed fills, a frame with corner marks, colour bars, a moving box's frame rate, the modem kept off;

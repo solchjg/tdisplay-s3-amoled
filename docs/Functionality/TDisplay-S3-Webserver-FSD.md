@@ -4578,10 +4578,11 @@ program confirms the chip, both buses, LDO2 and each header pin on the board.
 | Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
 | Always-on bus | The STEMMA QT socket marked I2C1, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the board's MAX17048 (0x36), the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins and the gauge [derived from the board] |
 | Switched bus | The STEMMA QT socket marked I2C2, I2C controller 1, SDA GPIO 16, SCL GPIO 15 (the order of the board's Arduino and CircuitPython definitions), 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user]; the pin order [user] |
-| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's and the OLED's VCC directly: the OLED module (Ver 2.1) is as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21) | [user]; GPIO 17 [user]; the OLED on 3.3 V [user] |
+| Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's and the OLED's VCC and the microSD breakout's 3V directly: the OLED module (Ver 2.1) is as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21) | [user]; GPIO 17 [user]; the OLED on 3.3 V [user]; the microSD on it [proposed] |
 | Display bus | SPI2, SCK GPIO 36, MOSI GPIO 35, shared by both displays | [user] |
 | E-paper | Waveshare 4.2" e-Paper Module (V2), SSD1683, as §35.2: CS GPIO 5, DC GPIO 6, RST GPIO 7, BUSY GPIO 10 (internal pull-down, FR-35.25) | [user]; pins [user] |
 | OLED | 3.12" 256 × 64 SSD1322 module, as §35.2: CS GPIO 11 (10 kΩ to GND on its lead, FR-35.25), RES GPIO 12, DC shared with the e-paper's GPIO 6 | [user]; pins [user] |
+| microSD | Adafruit MicroSD SPI or SDIO Card Breakout (#4682): 3.3 V only, no regulator or level shifter, pull-ups to its 3V on every logic pin. In SPI mode on the display bus: CLK GPIO 36 and SI GPIO 35 (shared with the displays), SO GPIO 37 (MISO), CS GPIO 38; DET and the SDIO-only pins unconnected, so an empty slot is a mount that fails, as on §35. Its 3V from the display supply, never from LDO1 directly: with no card, DET ties a 4.7 kΩ pull-up to GND (about 0.7 mA), and a card idles at 100 µA or more (R-38). FAT32, 32 GB or smaller | [user]; CS GPIO 38 [user]; SPI mode, SO GPIO 37, DET unconnected [proposed]; the breakout [derived from Adafruit's guide] |
 | Analog board | The §29 loop board with a second, voltage channel (FR-40.9): its supply enable on GPIO 18 (100 kΩ pull-down on the board), its 24 V from a 2 W isolated DC-DC, isolation of at least 3 kV (C-40.6); loop on A0 – A1 as §29, the probe's 0 – 5 V through a 15 kΩ / 10 kΩ divider (0.1 %) to A2, read single-ended at ±2.048 V | [user]; parts [user] |
 | Serial port | An isolated logic-level port in place of §30's MAX3232: a 1 W isolated 5 V DC-DC (at least 3 kV) powering the sensor at 5 V, a one-channel digital isolator carrying the sensor's serial line to UART 1 RX on GPIO 14; the sensor's ranging pin (4) tied high on the isolated side, so it ranges whenever powered, and GPIO 13 (the board's blue LED) left unused; its supply enable on GPIO 33 (100 kΩ pull-down) | [user]; the ranging pin [user] |
 | User key | A momentary key on GPIO 1 (an RTC GPIO), active low, external 10 kΩ pull-up | [user] |
@@ -4606,7 +4607,8 @@ program confirms the chip, both buses, LDO2 and each header pin on the board.
 | Cellular uplink (Notecard) | 33 | Same, the Notecard on the always-on bus |
 | WiFi off, packed messages, ESP-NOW | 34, 37, 38 | Same |
 | Fuel gauge | 35 | Same, the board's MAX17048 on the always-on bus: FR-35.10's battery mV and `battery_pct` with `uplink` `cell` |
-| Modem, microSD settings | 35 | Not on this build |
+| Modem | 35 | Not on this build |
+| microSD settings | 35 | Same (FR-35.4, FR-35.19, FR-35.20), the card on the display supply (FR-40.4, FR-40.14) |
 
 ### 40.4 Settings
 
@@ -4647,13 +4649,15 @@ Power in sleep:
   enables LDO2 at each boot, window and wake before the first BME280 reading,
   and waits **10 ms** [user] before addressing the bus.
 - **FR-40.4** [Must] [user] The display supply shall be on only within a
-  window: switched on before FR-35.25's detection and off after FR-35.15's
-  final refresh and the e-paper's deep sleep command, and never on a timer
-  wake.
+  window: switched on before FR-35.25's detection and FR-35.4's card read
+  (also when neither display is `on`) and off after FR-35.15's final refresh,
+  the e-paper's deep sleep command and the card's unmount, and never on a
+  timer wake.
 - **FR-40.5** [Must] [derived] Before the display supply is switched off,
-  every display line of §40.2 (SCK, MOSI, both CS, DC, both resets) shall be
-  set to an input without pulls, so no line powers a panel through its input
-  protection.
+  every display line of §40.2 (SCK, MOSI, both CS, DC, both resets) and the
+  microSD's SO (GPIO 37) and CS (GPIO 38) shall be set to an input without
+  pulls, so no line powers a panel or the card through its input protection or
+  the breakout's pull-ups.
 - **FR-40.6** [Must] [derived from C-29.2] The analog board's supply (GPIO 18)
   and the serial port's supply (GPIO 33) shall be off through deep sleep,
   reset and power-on, and on only while their add-on is read.
@@ -4683,6 +4687,10 @@ Displays:
 - **FR-40.8** [Must] [derived] After the display supply turns on, the device
   shall wait **100 ms** [user] before FR-35.25's detection, so the OLED's
   boost has started; commissioning measures the start-up time (Phase 21).
+- **FR-40.14** [Must] [proposed] In a window that reads the card (FR-35.4),
+  the device shall bring the microSD up in SPI mode (74 clocks or more with
+  every CS on SPI2 high) after FR-40.8's wait and before any display traffic
+  on SPI2, and unmount it before the displays start.
 
 Level probe (0 – 5 V):
 
@@ -4763,6 +4771,7 @@ Bench rows run on the slot that holds the FeatherS3 (not yet assigned);
 | FR-40.3, FR-40.4, FR-40.5, FR-40.6 | Operator: the build asleep between windows; a meter on LDO2's output, the display supply's output, and GPIO 18 and 33 | All at 0 V; each display line at 0 V | A powered rail or a line high in sleep | bench (operator) |
 | NFR-40.1 | Operator: a meter in the battery lead, USB unplugged, the build asleep; the board alone, then each part added in turn | Each current recorded in this section and the User Manual | — | bench (operator) |
 | FR-40.7, FR-40.8 | Operator: both displays fitted, windows above 42 °F and below 40 °F (a cold pack on the BME280) | L50 `epaper=found oled=found`; the lines on the e-paper, then on the OLED, as FR-35.2 | A missed display; the OLED dark after FR-40.8's wait | bench (operator) |
+| FR-40.14, FR-35.4 | Operator: the microSD breakout fitted, a card with a valid `/settings.txt`, power-on; then the build asleep with and without a card | L49 `ok`, then the lines on the display; asleep, the display supply's output and GPIO 37, 38 at 0 V and the sleep current unchanged by the card | The card unread, a display blank after the read, or the card powered in sleep | bench (operator) |
 | FR-40.9, FR-40.10 (core) | Level core with A2 at 0.000, 1.000, 2.000 and 2.045 V, `loop_lo` 0 and `loop_hi` 5 (metres); an ADS1115 error | Values 0.000, 2.500, 5.000, then a fault (5.11 V); a fault with the error | A value kept with a fault | host |
 | FR-40.9, FR-40.11, NFR-40.2 | `loop` `volt`; a reference voltage on the probe input at 0, 1.25, 2.5, 3.75 and 5 V | L62 with `volt=` within 12.5 mV of each; the value on line 6, the page, `ext`, the CSV and the summary | No L62; the supply on in sleep | bench (operator) |
 | FR-40.10 | A reference at 5.5 V, then the ADS1115 unplugged | L63 `over volt=5.500`; L63 with `ESP_ERR_TIMEOUT`; the window and sleep as usual | A restart; a value kept | bench (operator) |
@@ -5334,7 +5343,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.65.0
+fsd_version: 0.66.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5342,7 +5351,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-16
+last_updated: 2026-11-17
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -5445,6 +5454,7 @@ change_history:
   - "0.64.1 2026-11-14 the user's note from the board: both STEMMA QT sockets are vertical, marked I2C1 (always on) and I2C2 (switched); §40.2 names them so"
   - "0.64.2 2026-11-14 NFR-40.1: the sleep currents measured so far (board alone 46 µA; both buses with the RV-8803, Notecarrier-X, BME280 and ADS1115: 35 µA with the probe, 36 µA with the build), recorded without a limit until the displays and field boards are measured"
   - "0.65.0 2026-11-16 approved by the user: §40.2's display supply feeds the OLED's VCC from the switch's 3.3 V with no step-up, since the module was as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21)"
+  - "0.66.0 2026-11-17 drafted at the user's request, awaiting approval: §40.2's microSD row (Adafruit #4682 in SPI mode on SPI2, CS GPIO 38 [user], SO GPIO 37, DET unconnected) on the display supply; §40.3 microSD settings as §35; FR-40.4 and FR-40.5 extended to the card; FR-40.14 the card before any display traffic"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§42 Remote Session, the whole section: the Notehub session over the other options, `session_at`/`session_h` and `s_session`/`s_hours`, the requests, 1-minute syncs and 5 s polling, 64 KB history chunks to the `hist` route and that route's endpoint (a file store the user chooses), the 10-minute connect limit, the 3.50 V cut-off, NFR-42.1 and NFR-42.2"
