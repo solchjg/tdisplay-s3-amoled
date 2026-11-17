@@ -127,12 +127,17 @@ From the FeatherS3D's LiPo, the probe asleep with LDO2 held off, USB out,
 | I2C2: ADS1115 and BME280; I2C1: RV-8803 | 43 µA |
 | As above, plus the Notecarrier-X on I2C1, powered from its own LiPo | 35 µA |
 | As above, plus SparkFun's Qwiic Button (V10, ATtiny84A, 0x6F) on I2C1 | 2.6 mA |
+| Display pins: Waveshare's 2.13" e-Paper HAT (V3 panel, SSD1680, Rev2.1 board) on 3V3, its controller in deep sleep and its lines held (`fs3-epd213-probe`) | 2.8 mA |
+| The same probe with the HAT's cable out | 20 µA |
 
 I2C1's 3V3 holds 3.3 V throughout. A Notecarrier-X that is unpowered or whose
 LiPo is flat raises the figure to 332 µA: the FeatherS3D's I2C1 pull-ups feed
 it through SDA and SCL. The Qwiic Button's microcontroller and power LED run
 whenever I2C1 is powered, so the build does not use it: the user key is a
-plain key on GPIO 1 to GND (§40.2).
+plain key on GPIO 1 to GND (§40.2). The 2.13" HAT's own parts (a TXS0108E level shifter and the
+panel's boost circuit) draw 2.8 mA whenever its VCC is powered, whatever
+the controller's state (the panel alone: 1 µA, 5 µA at most), so a panel on
+such a HAT needs its 3V3 switched off in sleep.
 
 The build itself (`sdkconfig.feathers3`, provisioned, setup `std`) with the
 same parts as the 35 µA row (no Qwiic Button, no displays), asleep between
