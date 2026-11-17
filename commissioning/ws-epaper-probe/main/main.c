@@ -20,9 +20,10 @@
 // grey on the full refresh, which the run's RESULT cannot see: look at it.
 // The HAT tried is the V3 (SSD1680), so this build drives it with
 // Waveshare's V3 sequence (see v3_init): its runs alternate between the test
-// screen with five partials and the font page, the deep sleep five seconds
-// after the last partial. After each run the ESP32 deep-sleeps for 60 s with
-// RST and CS held high, for the sleep current.
+// screen with five partials and the font page, then a "Sleeping" page and
+// the controller's deep sleep. The HAT's VCC comes from the display supply
+// (the Pololu switch, GPIO 17): on at boot, off with every panel line an
+// input before the ESP32 deep-sleeps for 60 s, for the sleep current.
 #include <stdio.h>
 #include <string.h>
 
@@ -560,16 +561,44 @@ static void font_page(int run)
 
 #ifdef PROBE_EPD213
 RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
+
+// The HAT's VCC from the display supply (§40.2, FR-40.4): the Pololu 2808's
+// CTRL on GPIO 17 latches, so it is driven high (on) or low (off) for 10 ms
+// and then left floating, as lcd_cell.c does. The HAT draws 2.8 mA whenever
+// it is powered, its controller asleep or not.
+#define PIN_SUPPLY 17
+
+static void supply_ctrl(int level)
+{
+    gpio_config_t c = {.pin_bit_mask = 1ULL << PIN_SUPPLY, .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&c);
+    gpio_set_level(PIN_SUPPLY, level);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    c.mode = GPIO_MODE_INPUT;
+    gpio_config(&c);
+}
+
+// FR-40.5: every panel line an input without pulls, so none feeds the HAT
+// through its level shifter, then the supply off.
+static void supply_off(void)
+{
+    spi_bus_remove_device(spi);
+    spi_bus_free(SPI2_HOST);
+    gpio_config_t in = {.pin_bit_mask = (1ULL << PIN_SCK) | (1ULL << PIN_MOSI) | (1ULL << PIN_CS) |
+                                        (1ULL << PIN_DC) | (1ULL << PIN_RST),
+                        .mode = GPIO_MODE_INPUT,
+                        .pull_up_en = GPIO_PULLUP_DISABLE,
+                        .pull_down_en = GPIO_PULLDOWN_DISABLE};
+    gpio_config(&in);
+    supply_ctrl(0);
+}
 #endif
 
 void app_main(void)
 {
 #ifdef PROBE_EPD213
-    // Held through the last deep sleep.
-    static const int held[] = {PIN_RST, PIN_CS, PIN_DC, PIN_SCK, PIN_MOSI};
-    for (size_t k = 0; k < sizeof held / sizeof held[0]; k++) {
-        gpio_hold_dis(held[k]);
-    }
+    supply_ctrl(1);  // the HAT on before any line drives it (FR-40.8: 100 ms)
+    vTaskDelay(pdMS_TO_TICKS(100));
 #endif
     esp_err_t err = bus_start();
     printf("wsepaper: spi %s\n", esp_err_to_name(err));
@@ -638,23 +667,8 @@ void app_main(void)
                fonts ? "font page" : "test screen", full, good, fonts ? 0 : 5,
                full > 500 && full < 6000 && (fonts || good == 5) ? "GOOD" : "CHECK");
 #ifdef PROBE_EPD213
-        // RST and CS held high, so the controller stays in its deep sleep, and
-        // DC, SCK and MOSI held low, so no input of the HAT's level shifter
-        // floats; CS, SCK and MOSI from the SPI peripheral back to plain outputs.
-        gpio_set_level(PIN_RST, 1);
-        gpio_config_t hi = {.pin_bit_mask = 1ULL << PIN_CS, .mode = GPIO_MODE_OUTPUT};
-        gpio_config(&hi);
-        gpio_set_level(PIN_CS, 1);
-        gpio_config_t lo = {.pin_bit_mask = (1ULL << PIN_DC) | (1ULL << PIN_SCK) | (1ULL << PIN_MOSI),
-                            .mode = GPIO_MODE_OUTPUT};
-        gpio_config(&lo);
-        gpio_set_level(PIN_DC, 0);
-        gpio_set_level(PIN_SCK, 0);
-        gpio_set_level(PIN_MOSI, 0);
-        for (size_t k = 0; k < sizeof held / sizeof held[0]; k++) {
-            gpio_hold_en(held[k]);
-        }
-        gpio_deep_sleep_hold_en();
+        supply_off();
+        printf("wsepaper: panel lines inputs, display supply off\n");
         printf("wsepaper: sleep 60 s\n");
         fflush(stdout);
         esp_sleep_enable_timer_wakeup(60ULL * 1000000);
