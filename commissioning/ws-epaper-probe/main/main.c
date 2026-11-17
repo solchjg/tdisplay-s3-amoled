@@ -18,11 +18,10 @@
 // the 4.2"'s with the SSD1680's source range (0x21 B = 0x80); a panel whose
 // controller needs a waveform loaded by software (an old V2) stays blank or
 // grey on the full refresh, which the run's RESULT cannot see: look at it.
-// The HAT tried is the V2 (SSD1675B): neither the V4 partial sequence
-// (0x22 0xFF) nor the V3 LUT shortened a partial, so they stay in the source
-// (epd_partial_otp, epd_partial_lut) and its runs alternate between the test
-// screen with partials from the V2 LUT (70 bytes) and the font page. Its
-// power off is the V2's 0x22 0xC3, five seconds after the last partial. After each run the ESP32 deep-sleeps for 60 s with
+// The HAT tried is the V2 (SSD1675B), so this build drives it with
+// Waveshare's V2 sequence (see v2_init): its runs alternate between the test
+// screen with five partials and the font page, the deep sleep five seconds
+// after the last partial. After each run the ESP32 deep-sleeps for 60 s with
 // RST and CS held high, for the sleep current.
 #include <stdio.h>
 #include <string.h>
@@ -273,94 +272,30 @@ static long epd_partial(void)
 }
 
 #ifdef PROBE_EPD213
-// Waveshare's 2.13" V3 partial waveform (WF_PARTIAL_2IN13_V3): 153 bytes of
-// LUT, then 0x3F, the gate voltage (0x03), VSH, VSH2, VSL (0x04) and VCOM (0x2C).
-static const uint8_t lut_partial[159] = {
-    0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x40, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00,
-    0x22, 0x17, 0x41, 0x00, 0x32, 0x36,
+// The 2.13" HAT is the V2 (SSD1675B), driven as Waveshare's EPD_2in13_V2.c
+// drives it: their init and 70-byte full LUT with 0x22 0xC7, the base picture
+// in both RAMs, then their partial setup (VCOM 0x26, the partial LUT, RAM
+// ping-pong, the analog block on, border 0x01) once and each partial as the
+// B/W RAM and 0x22 0x0C; then deep sleep (0x10 0x01). Only the data entry
+// differs (X and Y increment, 0x11 0x03, for px()). The SSD1680's sequence
+// (0x18, 0x21, 0x22 0xF7 / 0x83) left this panel half or wholly black.
+static const uint8_t v2_lut_full[76] = {
+    0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00,  // BB
+    0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00,  // BW
+    0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00,  // WB
+    0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00,  // WW
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // VCOM
+    0x03, 0x03, 0x00, 0x00, 0x02,
+    0x09, 0x09, 0x00, 0x00, 0x02,
+    0x03, 0x03, 0x00, 0x00, 0x02,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x15, 0x41, 0xA8, 0x32, 0x30, 0x0A,  // gate (0x03), source (0x04), dummy line (0x3A), gate time (0x3B)
 };
 
-static void epd_window(void)
-{
-    CMD(0x01, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8, 0x00);
-    CMD(0x11, 0x03);
-    CMD(0x44, 0x00, EPD_W / 8 - 1);
-    CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
-    CMD(0x21, 0x00, SRC_RANGE);  // in case the hardware reset cleared them
-    CMD(0x18, 0x80);
-}
-
-static void epd_hw_reset(void)
-{
-    gpio_set_level(PIN_RST, 0);
-    esp_rom_delay_us(RESET_LOW_US);
-    gpio_set_level(PIN_RST, 1);
-    esp_rom_delay_us(RESET_HIGH_US);
-}
-
-// A partial refresh as Waveshare's 2.13" V4 code makes it: a hardware reset,
-// the border floating, the new picture in the B/W RAM and 0x22 0xFF (display
-// mode 2 from the panel's own waveform, then the analog block and clock off).
-static long epd_partial_otp(void)
-{
-    epd_hw_reset();
-    CMD(0x3C, 0x80);
-    epd_window();
-    epd_write(0x24);
-    CMD(0x22, 0xFF);
-    epd_cmd(0x20, NULL, 0);
-    return epd_wait();
-}
-
-// A partial refresh as their V3 code makes it: a hardware reset, the partial
-// waveform loaded by software, RAM ping-pong on (0x37), the border floating,
-// the analog block on (0x22 0xC0), the new picture and 0x22 0x0F.
-static long epd_partial_lut(void)
-{
-    epd_hw_reset();
-    epd_cmd(0x32, lut_partial, 153);
-    long ms = epd_wait();
-    if (ms < 0) {
-        return -1;
-    }
-    CMD(0x3F, lut_partial[153]);
-    CMD(0x03, lut_partial[154]);
-    CMD(0x04, lut_partial[155], lut_partial[156], lut_partial[157]);
-    CMD(0x2C, lut_partial[158]);
-    CMD(0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00);
-    CMD(0x3C, 0x80);
-    CMD(0x22, 0xC0);
-    epd_cmd(0x20, NULL, 0);
-    if (epd_wait() < 0) {
-        return -1;
-    }
-    epd_window();
-    epd_write(0x24);
-    CMD(0x22, 0x0F);
-    epd_cmd(0x20, NULL, 0);
-    return epd_wait();
-}
-
-// Waveshare's 2.13" V2 partial waveform (EPD_2IN13_V2_lut_partial_update):
-// 70 bytes for an IL3897 / SSD1675-class controller.
-static const uint8_t lut_partial_v2[70] = {
+static const uint8_t v2_lut_partial[70] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -375,34 +310,83 @@ static const uint8_t lut_partial_v2[70] = {
     0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-// A partial refresh as their V2 code makes it: a hardware reset, VCOM 0x26,
-// the 70-byte LUT, RAM ping-pong (0x37, 7 bytes), the analog block on
-// (0x22 0xC0), the border 0x01, the new picture and 0x22 0x0C.
-static long epd_partial_v2(void)
+static void v2_reset(void)
 {
-    epd_hw_reset();
+    gpio_set_level(PIN_RST, 0);
+    esp_rom_delay_us(RESET_LOW_US);
+    gpio_set_level(PIN_RST, 1);
+    esp_rom_delay_us(RESET_HIGH_US);
+}
+
+// BUSY's time after the software reset, or -1.
+static long v2_init(void)
+{
+    pins("before");
+    v2_reset();
+    if (epd_wait() < 0) {
+        return -1;
+    }
+    epd_cmd(0x12, NULL, 0);
+    long ms = epd_wait();
+    if (ms < 0) {
+        return -1;
+    }
+    CMD(0x74, 0x54);  // analog block control
+    CMD(0x7E, 0x3B);  // digital block control
+    CMD(0x01, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8, 0x00);
+    CMD(0x11, 0x03);
+    CMD(0x44, 0x00, EPD_W / 8 - 1);
+    CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
+    CMD(0x3C, 0x03);
+    CMD(0x2C, 0x55);
+    CMD(0x03, v2_lut_full[70]);
+    CMD(0x04, v2_lut_full[71], v2_lut_full[72], v2_lut_full[73]);
+    CMD(0x3A, v2_lut_full[74]);
+    CMD(0x3B, v2_lut_full[75]);
+    epd_cmd(0x32, v2_lut_full, 70);
+    return epd_wait() < 0 ? -1 : ms;
+}
+
+static long v2_full(void)
+{
+    epd_write(0x24);
+    epd_write(0x26);
+    CMD(0x22, 0xC7);
+    epd_cmd(0x20, NULL, 0);
+    return epd_wait();
+}
+
+static long v2_partial_setup(void)
+{
+    v2_reset();
     CMD(0x2C, 0x26);
     if (epd_wait() < 0) {
         return -1;
     }
-    epd_cmd(0x32, lut_partial_v2, sizeof lut_partial_v2);
+    epd_cmd(0x32, v2_lut_partial, sizeof v2_lut_partial);
     CMD(0x37, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00);
     CMD(0x22, 0xC0);
     epd_cmd(0x20, NULL, 0);
-    if (epd_wait() < 0) {
-        return -1;
-    }
+    long ms = epd_wait();
     CMD(0x3C, 0x01);
-    CMD(0x01, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8, 0x00);
-    CMD(0x3A, 0x30);  // dummy line and gate time, as their V2 init
-    CMD(0x3B, 0x0A);
-    CMD(0x11, 0x03);
-    CMD(0x44, 0x00, EPD_W / 8 - 1);
-    CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
+    return ms;
+}
+
+static long v2_partial(void)
+{
     epd_write(0x24);
     CMD(0x22, 0x0C);
     epd_cmd(0x20, NULL, 0);
     return epd_wait();
+}
+
+// Straight to deep sleep mode 1: on this panel a 0x22 0xC3 / 0x20 power off
+// ran the last waveform again (as long as the refresh before it).
+static long v2_sleep(void)
+{
+    CMD(0x10, 0x01);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    return gpio_get_level(PIN_BUSY) ? -1 : 0;
 }
 #endif
 
@@ -411,11 +395,7 @@ static long epd_partial_v2(void)
 // asked, deep sleep mode 1, which RST ends.
 static long epd_sleep(bool deep)
 {
-#ifdef PROBE_EPD213
-    CMD(0x22, 0xC3);  // the V2 (SSD1675B) HAT's power off, as Waveshare's V2 code
-#else
     CMD(0x22, 0x83);
-#endif
     epd_cmd(0x20, NULL, 0);
     long ms = epd_wait();
     if (deep) {
@@ -556,18 +536,19 @@ void app_main(void)
     }
 #ifdef PROBE_EPD213
     for (int run = ++rtc_run;;) {
-        int method = run % 2 ? 3 : 0;  // odd runs the V2 LUT, even runs the font page
-        bool fonts = method == 0;
-        static const char *const how[] = {"", ", partials from the panel's waveform (V4)",
-                                          ", partials from the V3 LUT", ", partials from the V2 LUT"};
-        printf("wsepaper: run %d (%s%s)\n", run, fonts ? "font page" : "test screen", how[method]);
+        bool fonts = run % 2 == 0;
+        printf("wsepaper: run %d (%s)\n", run, fonts ? "font page" : "test screen");
 #else
     for (int run = 1;; run++) {
         bool fonts = run % 2 == 0;
         printf("wsepaper: run %d at %lld s since boot (%s)\n", run, esp_timer_get_time() / 1000000,
                fonts ? "font page" : "test screen");
 #endif
+#ifdef PROBE_EPD213
+        long ms = v2_init();
+#else
         long ms = epd_init(RESET_LOW_US, RESET_HIGH_US);
+#endif
         printf("wsepaper: run %d reset busy=%ld ms %s\n", run, ms, ms < 0 ? "CHECK (BUSY stuck high or unwired)" : "ok");
         long full = -2;
         int good = 0;
@@ -577,13 +558,21 @@ void app_main(void)
             } else {
                 screen(run, 0);
             }
+#ifdef PROBE_EPD213
+            full = v2_full();
+            if (!fonts) {
+                ms = v2_partial_setup();
+                printf("wsepaper: partial setup %ld ms %s\n", ms, ms >= 0 ? "ok" : "CHECK");
+            }
+#else
             full = epd_full();
+#endif
             printf("wsepaper: full refresh %ld ms %s\n", full, full > 500 && full < 6000 ? "ok" : "CHECK");
             for (int i = 1; !fonts && i <= 5; i++) {
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 screen(run, i);
 #ifdef PROBE_EPD213
-                ms = method == 1 ? epd_partial_otp() : method == 2 ? epd_partial_lut() : epd_partial_v2();
+                ms = v2_partial();
 #else
                 ms = epd_partial();
 #endif
@@ -593,8 +582,10 @@ void app_main(void)
 #ifdef PROBE_EPD213
             printf("wsepaper: partials done; power off in 5 s\n");
             vTaskDelay(pdMS_TO_TICKS(5000));  // a look before and after the power off
-#endif
+            ms = v2_sleep();
+#else
             ms = epd_sleep(true);
+#endif
             printf("wsepaper: power off %ld ms %s; controller asleep\n", ms, ms >= 0 ? "ok" : "CHECK");
         }
         printf("wsepaper: RESULT run %d (%s): full %ld ms, %d of %d partials ok -> %s\n", run,
