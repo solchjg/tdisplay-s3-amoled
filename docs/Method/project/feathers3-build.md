@@ -130,6 +130,7 @@ From the FeatherS3D's LiPo, the probe asleep with LDO2 held off, USB out,
 | Display pins: Waveshare's 2.13" e-Paper HAT (V3 panel, SSD1680, Rev2.1 board) on 3V3, its controller in deep sleep and its lines held (`fs3-epd213-probe`) | 2.8 mA |
 | The same probe with the HAT's cable out | 20 µA |
 | The HAT on the display supply (Pololu #2808, CTRL GPIO 17), cut after the controller's deep sleep with every panel line an input (`fs3-epd213-probe`, from the LiPo) | 43 – 45 µA |
+| As above, plus the Adafruit #4682 microSD breakout (SPI, SO GPIO 37, CS GPIO 38) on the same supply, a 16 GB SDHC card in or out, mounted, 64 KB written and read back each wake | 44 µA |
 
 I2C1's 3V3 holds 3.3 V throughout. A Notecarrier-X that is unpowered or whose
 LiPo is flat raises the figure to 332 µA: the FeatherS3D's I2C1 pull-ups feed
@@ -139,7 +140,12 @@ plain key on GPIO 1 to GND (§40.2). The 2.13" HAT's own parts (a TXS0108E level
 panel's boost circuit) draw 2.8 mA whenever its VCC is powered, whatever
 the controller's state (the panel alone: 1 µA, 5 µA at most), so a panel on
 such a HAT needs its 3V3 switched off in sleep. Powered fresh from the switch at each wake, the
-V3 panel also runs its partial waveform: 627 ms a partial, without a flash.
+V3 panel also runs its partial waveform: 627 ms a partial, without a flash. The
+microSD breakout's 3V must come from the switch: on LDO1's 3V3 the card and
+its pull-ups stay powered, 117 µA with the slot empty and 296 µA with the card in. On the
+switch, the card mounts on the first try 100 ms after the supply comes on
+(FR-40.8's wait, no more needed): 85 ms from a reset, 257 – 305 ms after a deep
+sleep; 64 KB is written in 160 – 169 ms and read in 118 ms at 10 MHz.
 
 The build itself (`sdkconfig.feathers3`, provisioned, setup `std`) with the
 same parts as the 35 µA row (no Qwiic Button, no displays), asleep between

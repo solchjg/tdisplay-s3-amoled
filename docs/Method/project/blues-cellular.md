@@ -253,6 +253,26 @@ closed. With `gps` `on`, give AE2 the best view of the sky the site allows (the
 upper wall facing a window, or outdoors), and run the setup check with the box in place,
 so the fix is the place where it stands. Keep USB-C on the Notecarrier reachable, or route it out, to charge BT2.
 
+## Limits
+
+### No carrier choice
+
+The Notecard chooses the network itself. Its API has no operator scan or lock (nothing
+like a modem's `AT+COPS=?` or `AT+COPS=1`) and no AT pass-through to the modem.
+`card.wireless` sets only the external SIM's APN, which SIM is used (`method`: internal,
+external or failover between them) and the radio access type (`mode`: `auto`, `m`, `nb`,
+`gprs`). It reports only the one network the modem registered on: `mcc`, `mnc`, `rat`,
+`band`, `bars`, `rssi` and `rsrp` under `net`.
+
+An external SIM, such as a Hologram SIM in the Notecarrier's SIM slot, changes the SIM
+and its APN, not this. Hologram's multi-carrier profile lets the modem register on more
+than one US carrier, but which one it takes is still the modem's choice, and the host
+cannot list the others or ask for one. So a survey through the Notecard records one
+carrier per run, the one it registered on, and cannot compare AT&T, T-Mobile and Verizon
+at a site. A per-carrier survey needs a modem the ESP32-S3 drives over AT commands, such
+as the SIM7080G in [lte-m-modem.md](lte-m-modem.md) or the Waveshare board's SIM7670G,
+which can scan with `AT+COPS=?` and register on each network in turn with `AT+COPS=1`.
+
 ## Sources
 
 - [Blues: NOTE-MBGLW datasheet](https://dev.blues.io/datasheets/notecard-datasheet/note-mbglw/)
@@ -265,3 +285,5 @@ so the fix is the place where it stands. Keep USB-C on the Notecarrier reachable
 - [Blues: Antenna guide](https://dev.blues.io/datasheets/application-notes/antenna-guide/)
 - [Blues: Low Bandwidth Design, data usage](https://dev.blues.io/notecard/notecard-walkthrough/low-bandwidth-design/#periodic-minimum-mode-usage)
 - [Blues: Understanding event credits](https://dev.blues.io/notehub/notehub-walkthrough/#understanding-event-credits)
+- [Blues: card.wireless](https://dev.blues.io/api-reference/notecard-api/card-requests/latest/#card-wireless)
+- [Blues: Using external SIM cards](https://dev.blues.io/guides-and-tutorials/notecard-guides/using-external-sim-cards/)
