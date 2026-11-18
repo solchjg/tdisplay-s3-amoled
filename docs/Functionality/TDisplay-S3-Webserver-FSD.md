@@ -3385,6 +3385,7 @@ holds, the composition root performs it.
 | Bus | I2C at 0x17 on the BME280's bus (GPIO 43/44, 100 kHz, C-23.1) from the carrier's I2C fan-out (§2.2), wired as the Wiring row says, which also feeds the BME280 and the water probe board; no address clash with 0x76, the water ADS1115's 0x48 or the Notecarrier-X's LiPo charger (TI BQ25628E) at its fixed 0x6A, which shares the Notecard's I2C lines and which the firmware never addresses. The Notecard's own 10 kΩ pull-ups to its VIO join the bus, so the bus's pull-ups in parallel stay at or above about 2.2 kΩ | [proposed] |
 | Wiring | One of two, chosen when building [user]: **Qwiic**, a Qwiic cable from the fan-out's Qwiic socket to the Notecarrier-X's Qwiic connector, its red 3.3 V wire unconnected; or **direct**, three wires soldered from the fan-out to the Notecarrier-X's 16-pin header pins `GND`, `SDA` and `SCL`, with `VIO` and every other header pin unconnected. With direct wiring the LiPo may also be soldered to the header's `VBAT` and `GND` instead of the JST-PH connector [proposed]. The firmware is the same for both | [user]; pins [proposed] |
 | Power | The Notecarrier-X's own LiPo (or its USB-C) supplies the Notecard and its modem peaks (up to about 2 A), a LiPo of at least **2000 mAh** [proposed]: at hourly syncs (`cell_every` 60) the Notecard uses about **10 mAh a day** (Blues' published sync and idle figures; real use depends on signal, and each `sync:true` alert or email adds a session), so 2000 mAh lasts about 6 months between charges; either wiring joins GND, SDA and SCL only, the Qwiic cable's 3.3 V wire and the header's `VIO` left unconnected, so the board's 3.3 V and the Notecarrier's regulator are never tied together | [proposed] |
+| Shared cell (option) | Instead of a cell on each board, one cell may supply both the board and the Notecarrier-X under C-33.1: the cell on the board's own battery input and charged only by the board, the Notecarrier-X fed from the same cell on its header `VBAT` and `GND`, its JST-PH and USB-C left empty | [proposed] |
 | ATTN | Not connected in the first build (the Qwiic cable carries no ATTN; the ESLOV connector and the header's `ATTN` pin would); the device polls the Notecard | [proposed] |
 | Antenna | LTE: one flexible LTE antenna on the Notecard's `MAIN` u.FL, required because the Notecarrier-X has no onboard antenna, mounted with its long axis vertical on the inside of a plastic enclosure wall, at least 10 mm from metal, the LiPo and both PCBs, its coax kept clear of the AMOLED's QSPI lines and the ESP32-S3's antenna. GPS: only with `gps` `on` (FR-33.15), a GPS antenna on the Notecard's `GPS` u.FL, placed with the best view of the sky the site allows, for the fix during the setup check; with `gps` `off` the port stays empty. As shipped the Notecarrier-X puts no bias on `GPS`, so the antenna is passive (the GPS part of Blues' combined LTE + GPS flexible antenna, or a single flexible antenna). An active GPS antenna, for a faster or outdoor fix, needs the carrier's 0 Ω 0603 jumper between `VGPS_OUT` and `VGPS_IN` fitted (3.8 V on the centre conductor); with it fitted, no passive antenna is ever plugged into `GPS`, since one that is a DC short can damage the Notecard. WiFi: the Notecard's own WiFi is not used (FR-33.14), so its onboard WiFi antenna and `WIFI` u.FL need no placement. The combined LTE + GPS flexible antenna is used whole, never cut; separate orientations take two single flexible antennas. The fit is checked by the signal bars (`tbattr.qo`) with the enclosure closed | [proposed] |
 
@@ -3556,6 +3557,38 @@ Power and data:
   Notefile template (`note.template`) [proposed], and the commissioning
   program measures one hourly batch so the monthly figure is computed from
   a measurement, not an estimate.
+- **C-33.1** [Should] [proposed] A build may run the board and the
+  Notecarrier-X from **one shared cell** in place of a cell on each board
+  (§33.2's Shared cell row, C-40.11's option); the default stays a cell on
+  each. A shared cell shall be:
+  1. **One charger.** One 1S Li-ion or LiPo cell with its own protection
+     circuit (over-discharge cut near 3.0 V, over-current trip of at least
+     **3 A**), rated for at least **1C** and at least **2000 mAh**, on the
+     board's battery input (the FeatherS3's JST-PH, the T-Display-S3
+     AMOLED's battery connector, the Waveshare board's 18650 holder) and
+     charged only by the board's charger. The Notecarrier-X takes the cell on
+     its header `VBAT` and `GND`; its JST-PH holds no cell and its USB-C
+     carries nothing while the cell is shared, so its charger never runs.
+     One 5 V source feeds the board at a time (C-40.11).
+  2. **Short, heavy leads.** The lead from the board's battery input to the
+     Notecarrier-X at most **150 mm** of at least **22 AWG**, with a **3 A**
+     fuse or PTC at the board end, so the modem's 2 A peaks drop little on
+     the way.
+  3. **Battery and ground only.** Only the cell's + and GND join the two
+     boards; their 3.3 V outputs and the header's `VIO` stay apart
+     (§33.2's Wiring row).
+  4. **Polarity checked.** The cell's connector checked with a meter
+     against the board's marking before it is first plugged in; makers wire
+     JST-PH leads both ways, and a reversed cell destroys both chargers.
+  5. **Temperature.** Charged only between **0 °C and 45 °C**: a build in an
+     enclosure that can freeze uses a charger or solar controller with a
+     cold cut-off, or a low-temperature cell.
+  6. **Brown-out.** A modem peak on a low cell also pulls the board's rail
+     down, which two cells kept apart. The board shall not reset through a
+     forced Notecard sync with the cell at **3.5 V**, measured as this
+     section's verification row says.
+  On the FeatherS3 the MAX17048 then reads the shared cell, which is also
+  what `card.voltage` reports, less the Notecarrier-X's input diode.
 
 ### 33.6 Verification contracts
 
@@ -3585,6 +3618,7 @@ Power and data:
 | FR-33.20 | A Notecard with its GPS antenna at a window (R-31, R-35), `uplink` `cell`, `gps` `on`; BLE write `setup=std,gps` | L32 `id=gps`, line 6 `GPS searching <mm>:<ss>`, then L45 with the place and L33 `fix=yes result=pass` within 20 min, or L45 `none` and L33 `fix=no result=fail`; no sleep during the test | The search on a timer wake; a factory reset needed | bench (operator) |
 | FR-33.8 | The user's routes set up, an alert and a summary due | The ntfy message and the email arrive | Nothing on the target with L43 logged | bench (operator) |
 | NFR-33.2 | A month of the `std` setup on cellular | Notehub's data use for the device under 4 MB | — | bench (operator) |
+| C-33.1 | Inspection, then operator: a shared cell at 3.5 V (a bench supply in its place, set to 3.5 V, 3 A limit), the Notecarrier-X on the board's battery lead; a Notecard sync forced over cellular, then the board's USB-C plugged in | The leads, fuse, polarity and protection as C-33.1 says; the sync completes with no boot line from the board; with USB in, only the board's charge LED on | A reset during the sync; the Notecarrier-X's charge LED on; a 3.3 V output joined to the other board | bench (operator) |
 
 ---
 
@@ -3733,7 +3767,7 @@ The board facts below are read from Waveshare's V2 schematic
 | MCU | ESP32-S3R8 (8 MB octal PSRAM in the package, which takes GPIO 33 – 37; PSRAM unused), 16 MB flash (PY25Q128HA) | [derived from the board] |
 | Console | UART 0 (GPIO 43/44) through the board's CH343 USB-serial, which also flashes it (auto-program, no BOOT or EN wires) | [derived from the board] |
 | Modem | SIM7670G on UART 1, 115200 baud, through the board's TXB0104 level shifter: the ESP32-S3 receives on GPIO 17 (the modem's TXD) and sends on GPIO 18 (its RXD); the modem's DTR on GPIO 45 and RI on GPIO 40 through the same shifter; RTS, CTS, DCD, RESET and STATUS not wired. The shifter's modem side runs from the modem's own 1.8 V (VDD_EXT), so GPIO 17/18 float until the modem has started. PWRKEY is held low by the board, so the modem starts by itself whenever its supply comes on. Its supply is the battery switched by the board's FDC6333C: with the 4G switch off, GPIO 21 high switches it on and low off, held low through deep sleep. The modem's start-up draw drops the board's USB console (CH343) off its host for about a second each time the supply comes on, so serial lines printed then are lost; the ESP32-S3 does not reset. A nano SIM whose plan covers LTE Cat-1, fitted before power-up | [derived from the board]; UART, GPIO 21 [user] |
-| Power | One 18650 cell in the board's holder, required: the modem runs only from the cell (its transmit peaks of about 2 A), never from USB alone. Charged from USB-C or the solar input (CN3791); 3.3 V from the EA3036C. The cell's voltage and charge are read from the MAX17048 (0x36); the board's GPIO 1 divider (VBAT / 3) is not used | [derived from the board]; reading [user] |
+| Power | One 18650 cell in the board's holder, required: the modem runs only from the cell (its transmit peaks of about 2 A), never from USB alone. Charged from USB-C or the solar input (CN3791); 3.3 V from the EA3036C. The cell's voltage and charge are read from the MAX17048 (0x36); the board's GPIO 1 divider (VBAT / 3) is not used. The cell is already shared by the whole board; a Notecarrier-X added to this build takes it under C-33.1 | [derived from the board]; reading [user]; the Notecarrier-X [proposed] |
 | Sensor bus | The BME280 (0x76), the water probe's ADS1115 (0x48) and the board's MAX17048 (0x36) on I2C controller 0, SDA GPIO 15, SCL GPIO 16, 100 kHz, from the header. With the CAM switch off the board has no pull-ups on it (its 4.7 kΩ run from the camera's rail), so two 4.7 kΩ resistors from SDA and SCL to 3.3 V at the header serve the bus; the ESP32-S3's internal pull-ups alone carry the gauge's short reads but not a display's page writes | [user]; the board's pull-ups [derived from the board] |
 | Loop bus | The loop's isolated ADS1115 (0x49) on I2C controller 1, SDA GPIO 39, SCL GPIO 41, its supply and the isolator's board side switched by GPIO 42, as §29 with the pins moved | [user] |
 | RS232 | MAX3232 powered from GPIO 11, TX GPIO 46 (a strapping pin, driven only as an output, with the transceiver unpowered at reset), RX GPIO 2, on UART 2 because the modem holds UART 1 | [user] |
@@ -4575,7 +4609,7 @@ program confirms the chip, both buses, LDO2 and each header pin on the board.
 | MCU | ESP32-S3 with no PSRAM in its package (eFuse), so GPIO 33 – 37 are free; 16 MB flash; 8 MB QSPI PSRAM beside the chip on the flash bus (CS on GPIO 26), unused | [derived from the board] |
 | Console | The ESP32-S3's native USB-Serial/JTAG, which also flashes it and resets it into download mode | [derived from the board] |
 | Power | One LiPo on the board's JST socket, charged from USB-C by the board's charger; two 3.3 V LDOs: LDO1 always on, LDO2 enabled by GPIO 39 and off in deep sleep. The battery's voltage and charge from the board's MAX17048 fuel gauge (0x36) on the always-on bus, its alert on GPIO 2 (unused); USB present on GPIO 34 | [derived from the board] |
-| Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11) | [user] |
+| Charging | Two cells, kept separate: the FeatherS3's LiPo and the Notecarrier-X's LiPo, each charged by its own board from that board's USB-C port. In the field, one 5 V source of at least 3 A (a charger, a USB battery pack or a solar controller with a USB output) feeds both USB-C ports through a power-only Y cable. On the bench, the FeatherS3's USB-C carries the bench's data cable, which also charges it, and the Notecarrier-X has its own power-only cable from the 5 V source. Nothing is wired to either board's header for charging (C-40.11). Option: one shared cell under C-33.1 in place of the two [proposed] | [user] |
 | Always-on bus | The STEMMA QT socket marked I2C1, I2C controller 0, SDA GPIO 8, SCL GPIO 9, 100 kHz, powered from LDO1: the board's MAX17048 (0x36), the RV-8803 (0x32, §39) and the Notecarrier-X (§33, its own LiPo, its red 3.3 V wire unconnected) | [user]; pins and the gauge [derived from the board] |
 | Switched bus | The STEMMA QT socket marked I2C2, I2C controller 1, SDA GPIO 16, SCL GPIO 15 (the order of the board's Arduino and CircuitPython definitions), 100 kHz, powered from LDO2: the BME280 (0x76), and through the analog board's ISO1540 the isolated ADS1115 (0x49) | [user]; the pin order [user] |
 | Display supply | A Pololu Mini Pushbutton Power Switch LV (#2808), input from LDO1's 3.3 V; its CTRL from GPIO 17: high on, low off, then left floating, which the switch's latch holds. Its output feeds the e-paper's and the OLED's VCC and the microSD breakout's 3V directly: the OLED module (Ver 2.1) is as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21) | [user]; GPIO 17 [user]; the OLED on 3.3 V [user]; the microSD on it [proposed] |
@@ -4757,7 +4791,11 @@ Field protection and isolation:
   never joined, and the FeatherS3's USB rail has one 5 V source at a time
   (the field's Y cable or the bench's data cable, never both). The shared
   5 V source shall be rated for at least **3 A**, so the modem's 2 A start
-  and the FeatherS3's charging are carried together.
+  and the FeatherS3's charging are carried together. As an option, the
+  two boards may instead share one cell under C-33.1 [proposed]: the cell
+  on the FeatherS3's JST-PH, charged by the FeatherS3 alone, and the
+  Notecarrier-X fed from it on `VBAT`, so the Y cable has no Notecarrier-X
+  leg.
 
 ### 40.6 Verification contracts
 
@@ -5343,7 +5381,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.66.0
+fsd_version: 0.67.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5455,6 +5493,7 @@ change_history:
   - "0.64.2 2026-11-14 NFR-40.1: the sleep currents measured so far (board alone 46 µA; both buses with the RV-8803, Notecarrier-X, BME280 and ADS1115: 35 µA with the probe, 36 µA with the build), recorded without a limit until the displays and field boards are measured"
   - "0.65.0 2026-11-16 approved by the user: §40.2's display supply feeds the OLED's VCC from the switch's 3.3 V with no step-up, since the module was as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21)"
   - "0.66.0 2026-11-17 approved by the user (PR #162): §40.2's microSD row (Adafruit #4682 in SPI mode on SPI2, CS GPIO 38 [user], SO GPIO 37, DET unconnected) on the display supply; §40.3 microSD settings as §35; FR-40.4 and FR-40.5 extended to the card; FR-40.14 the card before any display traffic"
+  - "0.67.0 2026-11-18 drafted at the user's request, awaiting approval: C-33.1, one shared cell for the board and the Notecarrier-X as an option on every Notecard build (one charger, the board's; the Notecarrier-X on `VBAT` with its JST-PH and USB-C empty; 150 mm of 22 AWG with a 3 A fuse; battery and ground only; polarity checked; 0 – 45 °C charging; no reset through a sync at 3.5 V); §33.2's Shared cell row, C-40.11's option, §40.2's Charging row and §35.2's Power row point to it"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
   - "§42 Remote Session, the whole section: the Notehub session over the other options, `session_at`/`session_h` and `s_session`/`s_hours`, the requests, 1-minute syncs and 5 s polling, 64 KB history chunks to the `hist` route and that route's endpoint (a file store the user chooses), the 10-minute connect limit, the 3.50 V cut-off, NFR-42.1 and NFR-42.2"
