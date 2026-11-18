@@ -1,0 +1,774 @@
+// fs3-survey: a site survey on the FeatherS3D, for a field demo. Each boot or
+// key wake: the display supply (the Pololu switch, GPIO 17) and LDO2 on; the
+// microSD mounted (SPI2: SO 37, CS 38); the panel found (the 2.13" e-Paper HAT,
+// V3, on SPI2 when its BUSY is driven, else a 1.3" SSD1306 OLED at 0x3C on
+// I2C2); the battery from the MAX17048; then through the Notecard on I2C1 a GPS
+// fix (continuous mode, up to GPS_LIMIT_S) and a Notehub sync with the network
+// it registers on (card.wireless, up to CELL_LIMIT_S). The result goes on the
+// panel and as a line in /survey.csv with the local date and time from the
+// Notecard. Then, with the e-paper, the panel's deep sleep, every panel and card
+// line an input and the supplies off, and deep sleep until the user key (GPIO 1)
+// or BOOT (GPIO 0) is pressed; with the OLED the result stays up for
+// OLED_HOLD_S first. Serial lines start "survey:". Never released.
+//
+// The Notecard can neither choose nor scan operators, so the cellular line is
+// the one network its SIM registered on. No satellite Notecard is fitted on
+// this build, so the satellite line reads n/a.
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+
+#include "driver/gpio.h"
+#include "driver/i2c_master.h"
+#include "driver/rtc_io.h"
+#include "driver/sdspi_host.h"
+#include "driver/spi_master.h"
+#include "esp_rom_sys.h"
+#include "esp_sleep.h"
+#include "esp_system.h"
+#include "esp_timer.h"
+#include "esp_vfs_fat.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "max17048.h"
+#include "notecard.h"
+#include "sdmmc_cmd.h"
+#include "survey_core.h"
+#include "text.h"
+
+// FSD §40.2 pins
+#define PIN_SUPPLY 17  // the Pololu switch's CTRL: high on, low off, then floating
+#define PIN_LDO2 39    // I2C2's 3.3 V
+#define PIN_SCK 36
+#define PIN_MOSI 35
+#define PIN_MISO 37
+#define PIN_SD_CS 38
+#define PIN_CS 5  // the e-paper's
+#define PIN_DC 6
+#define PIN_RST 7
+#define PIN_BUSY 10
+#define PIN_KEY 1   // user key, active low, 10 kΩ pull-up
+#define PIN_BOOT 0  // BOOT key, active low
+#define I2C1_SDA 8
+#define I2C1_SCL 9
+#define I2C2_SDA 16
+#define I2C2_SCL 15
+
+#define GPS_LIMIT_S 300
+#define CELL_LIMIT_S 180
+#define POLL_S 5
+#define SCREEN_EVERY_S 10  // e-paper partials while searching
+#define OLED_HOLD_S 600
+
+#define SD_MOUNT "/sd"
+#define CSV SD_MOUNT "/survey.csv"
+
+// ---------------------------------------------------------------- supplies
+
+static void supply_ctrl(int level)
+{
+    gpio_hold_dis(PIN_SUPPLY);
+    gpio_config_t c = {.pin_bit_mask = 1ULL << PIN_SUPPLY, .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&c);
+    gpio_set_level(PIN_SUPPLY, level);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    c.mode = GPIO_MODE_INPUT;
+    gpio_config(&c);
+}
+
+static void ldo2(bool on)
+{
+    gpio_hold_dis(PIN_LDO2);
+    gpio_set_level(PIN_LDO2, on);
+    gpio_config_t c = {.pin_bit_mask = 1ULL << PIN_LDO2, .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&c);
+    gpio_set_level(PIN_LDO2, on);
+}
+
+// ---------------------------------------------------------------- e-paper (2.13" V3)
+
+#define EPD_W 128  // the controller's RAM: 128 columns (122 shown) x 250 rows
+#define EPD_H 250
+#define LW 250  // drawn in landscape
+#define LH 122
+#define EPD_BYTES (EPD_W / 8 * EPD_H)
+#define SPI_HZ 1000000
+#define SPI_CHUNK 4000
+#define BUSY_LIMIT_MS 10000
+
+static spi_device_handle_t epd;
+static uint8_t fb[EPD_BYTES];  // 1 = white
+
+static void epd_send(bool data, const uint8_t *p, size_t n)
+{
+    gpio_set_level(PIN_DC, data ? 1 : 0);
+    while (n > 0) {
+        size_t k = n > SPI_CHUNK ? SPI_CHUNK : n;
+        spi_transaction_t t = {.length = k * 8, .tx_buffer = p};
+        spi_device_polling_transmit(epd, &t);
+        p += k;
+        n -= k;
+    }
+}
+
+static void epd_cmd(uint8_t c, const uint8_t *data, size_t n)
+{
+    epd_send(false, &c, 1);
+    if (n > 0) {
+        epd_send(true, data, n);
+    }
+}
+
+#define CMD(c, ...)                         \
+    do {                                    \
+        const uint8_t d_[] = {__VA_ARGS__}; \
+        epd_cmd((c), d_, sizeof d_);        \
+    } while (0)
+
+static long epd_wait(void)
+{
+    int64_t t0 = esp_timer_get_time();
+    while (gpio_get_level(PIN_BUSY) == 1) {
+        if (esp_timer_get_time() - t0 > (int64_t)BUSY_LIMIT_MS * 1000) {
+            return -1;
+        }
+        vTaskDelay(1);
+    }
+    return (long)((esp_timer_get_time() - t0) / 1000);
+}
+
+// Waveshare's WS_20_30 full and WF_PARTIAL waveforms for the V3 (as in
+// commissioning/ws-epaper-probe): 153 bytes of LUT, then 0x3F, 0x03, 0x04 x3, 0x2C.
+static const uint8_t lut_full[159] = {
+    0x80, 0x4A, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x40, 0x4A, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x4A, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x40, 0x4A, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0F, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x02,
+    0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00,
+    0x22, 0x17, 0x41, 0x00, 0x32, 0x36,
+};
+
+static const uint8_t lut_partial[159] = {
+    0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x40, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00,
+    0x22, 0x17, 0x41, 0x00, 0x32, 0x36,
+};
+
+static void epd_reset(void)
+{
+    gpio_set_level(PIN_RST, 0);
+    esp_rom_delay_us(2000);
+    gpio_set_level(PIN_RST, 1);
+    esp_rom_delay_us(10000);
+}
+
+static long epd_lut(const uint8_t *lut)
+{
+    epd_cmd(0x32, lut, 153);
+    long ms = epd_wait();
+    CMD(0x3F, lut[153]);
+    CMD(0x03, lut[154]);
+    CMD(0x04, lut[155], lut[156], lut[157]);
+    CMD(0x2C, lut[158]);
+    return ms;
+}
+
+static void epd_window(void)
+{
+    CMD(0x44, 0x00, EPD_W / 8 - 1);
+    CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
+}
+
+static void epd_write(uint8_t ram)
+{
+    CMD(0x4E, 0x00);
+    CMD(0x4F, 0x00, 0x00);
+    epd_cmd(ram, fb, sizeof fb);
+}
+
+static bool epd_init(void)
+{
+    epd_reset();
+    if (epd_wait() < 0) {
+        return false;
+    }
+    epd_cmd(0x12, NULL, 0);
+    if (epd_wait() < 0) {
+        return false;
+    }
+    CMD(0x01, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8, 0x00);
+    CMD(0x11, 0x03);
+    epd_window();
+    CMD(0x3C, 0x05);
+    CMD(0x21, 0x00, 0x80);
+    CMD(0x18, 0x80);
+    return epd_wait() >= 0 && epd_lut(lut_full) >= 0;
+}
+
+static long epd_full(void)
+{
+    epd_write(0x24);
+    epd_write(0x26);
+    CMD(0x22, 0xC7);
+    epd_cmd(0x20, NULL, 0);
+    return epd_wait();
+}
+
+// As Waveshare's V3 code: a reset, the partial waveform, then the B/W RAM.
+static long epd_partial(void)
+{
+    epd_reset();
+    if (epd_wait() < 0) {
+        return -1;
+    }
+    vTaskDelay(pdMS_TO_TICKS(20));
+    if (epd_lut(lut_partial) < 0) {
+        return -1;
+    }
+    CMD(0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00);
+    CMD(0x3C, 0x80);
+    CMD(0x22, 0xC0);
+    epd_cmd(0x20, NULL, 0);
+    if (epd_wait() < 0) {
+        return -1;
+    }
+    epd_window();
+    epd_write(0x24);
+    CMD(0x22, 0x0F);
+    epd_cmd(0x20, NULL, 0);
+    return epd_wait();
+}
+
+static void epd_px(int x, int y, bool black)
+{
+    if (x < 0 || y < 0 || x >= LW || y >= LH) {
+        return;
+    }
+    // Landscape on the portrait RAM: picture x down the RAM's rows, y across its columns.
+    int rx = LH - 1 - y, ry = x;
+    uint8_t bit = (uint8_t)(0x80 >> (rx & 7));
+    if (black) {
+        fb[ry * (EPD_W / 8) + rx / 8] &= (uint8_t)~bit;
+    } else {
+        fb[ry * (EPD_W / 8) + rx / 8] |= bit;
+    }
+}
+
+// ---------------------------------------------------------------- OLED (1.3", SSD1306, I2C2)
+
+#define OLED_W 128
+#define OLED_H 64
+
+static i2c_master_bus_handle_t i2c2;
+static i2c_master_dev_handle_t oled;
+static uint8_t ob[OLED_H / 8][OLED_W];
+
+static esp_err_t oled_cmds(const uint8_t *c, size_t n)
+{
+    uint8_t b[32];
+    b[0] = 0x00;
+    memcpy(b + 1, c, n);
+    return i2c_master_transmit(oled, b, n + 1, 50);
+}
+
+static bool oled_find(void)
+{
+    const i2c_master_bus_config_t bc = {.i2c_port = 1, .sda_io_num = I2C2_SDA, .scl_io_num = I2C2_SCL,
+                                        .clk_source = I2C_CLK_SRC_DEFAULT, .glitch_ignore_cnt = 7,
+                                        .flags.enable_internal_pullup = true};
+    if (i2c_new_master_bus(&bc, &i2c2) != ESP_OK) {
+        return false;
+    }
+    for (uint16_t a = 0x3C; a <= 0x3D; a++) {
+        if (i2c_master_probe(i2c2, a, 50) == ESP_OK) {
+            const i2c_device_config_t dc = {.dev_addr_length = I2C_ADDR_BIT_LEN_7, .device_address = a,
+                                            .scl_speed_hz = 400000};
+            if (i2c_master_bus_add_device(i2c2, &dc, &oled) != ESP_OK) {
+                break;
+            }
+            static const uint8_t init[] = {0xAE, 0xD5, 0x80, 0xA8, 0x3F, 0xD3, 0x00, 0x40, 0x8D, 0x14,
+                                           0x20, 0x02, 0xA1, 0xC8, 0xDA, 0x12, 0x81, 0xCF, 0xD9, 0xF1,
+                                           0xDB, 0x40, 0xA4, 0xA6, 0xAF};
+            printf("survey: OLED at 0x%02X\n", a);
+            return oled_cmds(init, sizeof init) == ESP_OK;
+        }
+    }
+    i2c_del_master_bus(i2c2);
+    i2c2 = NULL;
+    return false;
+}
+
+static void oled_px(int x, int y, bool on)
+{
+    if (x < 0 || y < 0 || x >= OLED_W || y >= OLED_H) {
+        return;
+    }
+    if (on) {
+        ob[y / 8][x] |= (uint8_t)(1 << (y & 7));
+    } else {
+        ob[y / 8][x] &= (uint8_t)~(1 << (y & 7));
+    }
+}
+
+static esp_err_t oled_push(void)
+{
+    esp_err_t err = ESP_OK;
+    static uint8_t page[1 + OLED_W];
+    for (int p = 0; err == ESP_OK && p < OLED_H / 8; p++) {
+        const uint8_t at[] = {(uint8_t)(0xB0 + p), 0x00, 0x10};
+        err = oled_cmds(at, sizeof at);
+        page[0] = 0x40;
+        memcpy(page + 1, ob[p], OLED_W);
+        if (err == ESP_OK) {
+            err = i2c_master_transmit(oled, page, sizeof page, 50);
+        }
+    }
+    return err;
+}
+
+static void oled_off(void)
+{
+    if (oled) {
+        const uint8_t off[] = {0xAE};
+        oled_cmds(off, sizeof off);
+    }
+}
+
+// ---------------------------------------------------------------- the screen
+
+typedef enum { DISP_NONE, DISP_EPD, DISP_OLED } disp_t;
+static disp_t disp = DISP_NONE;
+static bool epd_drawn;  // a full refresh has set the base picture
+
+static void draw_text(const text_font_t *f, int x, int y, const char *s)
+{
+    static uint16_t line[LW * FONT_H];
+    int maxw = disp == DISP_EPD ? LW : OLED_W;
+    int w = text_font_width(f, s);
+    if (w > maxw - x) {
+        w = maxw - x;
+    }
+    if (w <= 0) {
+        return;
+    }
+    text_font_render(f, s, 1, 0, line, w);
+    for (int r = 0; r < f->h; r++) {
+        for (int c = 0; c < w; c++) {
+            if (disp == DISP_EPD) {
+                epd_px(x + c, y + r, line[r * w + c] != 0);
+            } else {
+                oled_px(x + c, y + r, line[r * w + c] != 0);
+            }
+        }
+    }
+}
+
+// The title and six lines; full forces an e-paper full refresh.
+static void show(const char *title, char lines[SV_LINES][SV_LINE_MAX], bool full)
+{
+    for (int i = 0; i < SV_LINES; i++) {
+        printf("survey: | %s\n", lines[i]);
+    }
+    if (disp == DISP_EPD) {
+        memset(fb, 0xFF, sizeof fb);
+        draw_text(&text_font_mini, 2, 1, title);
+        for (int x = 0; x < LW; x++) {
+            epd_px(x, 18, true);
+        }
+        for (int i = 0; i < SV_LINES; i++) {
+            draw_text(&text_font_mini, 2, 21 + i * 17, lines[i]);
+        }
+        bool use_full = full || !epd_drawn;
+        long ms = use_full ? epd_full() : epd_partial();
+        epd_drawn = true;
+        printf("survey: e-paper %s %ld ms\n", use_full ? "full" : "partial", ms);
+    } else if (disp == DISP_OLED) {
+        memset(ob, 0, sizeof ob);
+        for (int i = 0; i < SV_LINES; i++) {
+            draw_text(&text_font_tiny, 0, 1 + i * 10 + (i > 0 ? 3 : 0), lines[i]);
+        }
+        oled_push();
+    }
+}
+
+// ---------------------------------------------------------------- microSD
+
+static sdmmc_card_t *card;
+
+static bool sd_mount(void)
+{
+    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+    host.slot = SPI2_HOST;
+    host.max_freq_khz = 10000;
+    sdspi_device_config_t slot = SDSPI_DEVICE_CONFIG_DEFAULT();
+    slot.gpio_cs = PIN_SD_CS;
+    slot.host_id = SPI2_HOST;
+    const esp_vfs_fat_sdmmc_mount_config_t mc = {.format_if_mount_failed = false, .max_files = 2,
+                                                 .allocation_unit_size = 0};
+    esp_err_t err = ESP_FAIL;
+    for (int i = 0; i < 2 && err != ESP_OK; i++) {
+        err = esp_vfs_fat_sdspi_mount(SD_MOUNT, &host, &slot, &mc, &card);
+    }
+    printf("survey: sd mount %s\n", esp_err_to_name(err));
+    if (err != ESP_OK) {
+        card = NULL;
+    }
+    return err == ESP_OK;
+}
+
+static bool sd_append(const sv_result_t *r)
+{
+    if (!card) {
+        return false;
+    }
+    char line[256];
+    struct stat st;
+    bool fresh = stat(CSV, &st) != 0;
+    FILE *f = fopen(CSV, "a");
+    if (!f) {
+        return false;
+    }
+    bool ok = true;
+    if (fresh) {
+        size_t n = sv_csv_header(line, sizeof line);
+        ok = n > 0 && fwrite(line, 1, n, f) == n;
+    }
+    size_t n = sv_csv_line(r, line, sizeof line);
+    ok = ok && n > 0 && fwrite(line, 1, n, f) == n;
+    ok = fclose(f) == 0 && ok;
+    printf("survey: csv %s: %s", ok ? "written" : "FAILED", line);
+    return ok;
+}
+
+// ---------------------------------------------------------------- Notecard
+
+static char rsp[1024];
+
+// Sends req (one JSON line) and prints the answer; false on a bus error or an "err".
+static bool nc_send(const char *req)
+{
+    esp_err_t err = notecard_request(req, rsp, sizeof rsp);
+    printf("survey: > %s", req);
+    printf("survey: < %s\n", err == ESP_OK ? rsp : esp_err_to_name(err));
+    return err == ESP_OK && !nc_err(rsp, NULL, 0);
+}
+
+static bool nc_name(const char *name)
+{
+    char req[64];
+    return nc_req(req, sizeof req, name) > 0 && nc_send(req);
+}
+
+// Epoch seconds and the zone's offset in minutes from card.time; false before the time is set.
+static bool nc_time(int64_t *epoch, int *minutes)
+{
+    double t, m = 0;
+    if (!nc_name("card.time") || !nc_num(rsp, "time", &t) || t < 1.6e9) {
+        return false;
+    }
+    nc_num(rsp, "minutes", &m);
+    *epoch = (int64_t)t;
+    *minutes = (int)m;
+    return true;
+}
+
+static int key_down(void)
+{
+    return gpio_get_level(PIN_KEY) == 0 || gpio_get_level(PIN_BOOT) == 0;
+}
+
+// ---------------------------------------------------------------- the survey
+
+static sv_result_t res;
+
+static void progress(const char *gps, const char *cell, bool full)
+{
+    char lines[SV_LINES][SV_LINE_MAX];
+    sv_result_lines(&res, lines);
+    snprintf(lines[0], SV_LINE_MAX, "%s", gps);
+    snprintf(lines[1], SV_LINE_MAX, "%s", cell);
+    snprintf(lines[4], SV_LINE_MAX, "Surveying...");
+    lines[5][0] = '\0';
+    show("Site survey", lines, full);
+}
+
+static void gps_phase(int64_t t_start)
+{
+    char saved[24] = "";
+    if (nc_name("card.location.mode")) {
+        nc_str(rsp, "mode", saved, sizeof saved);
+    }
+    char req[128];
+    if (nc_req_location_mode(req, sizeof req, "continuous", NULL, NULL) > 0) {
+        nc_send(req);
+    }
+    int64_t t0 = esp_timer_get_time();
+    int64_t shown = t0;
+    char line[SV_LINE_MAX];
+    for (;;) {
+        int s = (int)((esp_timer_get_time() - t0) / 1000000);
+        double lat, lon, when = 0;
+        if (nc_name("card.location") && nc_num(rsp, "lat", &lat) && nc_num(rsp, "lon", &lon)) {
+            nc_num(rsp, "time", &when);
+            if (t_start == 0 || when + 60 >= (double)t_start) {
+                res.gps_fix = true;
+                res.lat = lat;
+                res.lon = lon;
+                res.gps_s = s;
+                break;
+            }
+        }
+        if (s >= GPS_LIMIT_S) {
+            res.gps_s = s;
+            break;
+        }
+        if (esp_timer_get_time() - shown >= (int64_t)SCREEN_EVERY_S * 1000000) {
+            shown = esp_timer_get_time();
+            snprintf(line, sizeof line, "GPS: searching %ds", s);
+            progress(line, "Cell: waiting", false);
+        }
+        vTaskDelay(pdMS_TO_TICKS(POLL_S * 1000));
+    }
+    // Back to the mode it had (none set means off).
+    if (nc_req_location_mode(req, sizeof req, saved[0] && strcmp(saved, "continuous") != 0 ? saved : "off",
+                             NULL, NULL) > 0) {
+        nc_send(req);
+    }
+}
+
+static void cell_phase(int64_t t_start, const char *gps_line)
+{
+    nc_name("hub.sync");
+    int64_t t0 = esp_timer_get_time();
+    int64_t shown = t0;
+    int seen_s = -1;
+    char line[SV_LINE_MAX];
+    for (;;) {
+        int s = (int)((esp_timer_get_time() - t0) / 1000000);
+        double v;
+        if (nc_name("card.wireless") && nc_num(rsp, "net.rssi", &v) && v != 0) {
+            double upd = 0;
+            nc_num(rsp, "net.updated", &upd);
+            if (t_start == 0 || upd == 0 || upd + 60 >= (double)t_start) {
+                if (seen_s < 0) {
+                    seen_s = s;
+                }
+                int bars = nc_num(rsp, "net.bars", &v) ? (int)v : 0;
+                if (!res.cell || bars >= res.bars) {
+                    res.cell = true;
+                    res.bars = bars;
+                    res.rssi = nc_num(rsp, "net.rssi", &v) ? (int)v : 0;
+                    res.rsrp = nc_num(rsp, "net.rsrp", &v) ? (int)v : 0;
+                    res.mcc = nc_num(rsp, "net.mcc", &v) ? (int)v : 0;
+                    res.mnc = nc_num(rsp, "net.mnc", &v) ? (int)v : 0;
+                    nc_str(rsp, "net.rat", res.rat, sizeof res.rat);
+                }
+            }
+        }
+        // A sync completed since this one was asked for ("completed": seconds ago).
+        if (nc_name("hub.sync.status") && nc_num(rsp, "completed", &v) && v <= s + POLL_S) {
+            res.synced = true;
+        }
+        // Done once synced with a network seen, at the limit, or 60 s after the
+        // first registration without a sync.
+        if ((res.cell && res.synced) || s >= CELL_LIMIT_S || (seen_s >= 0 && s - seen_s >= 60)) {
+            res.cell_s = seen_s >= 0 ? seen_s : s;
+            break;
+        }
+        if (esp_timer_get_time() - shown >= (int64_t)SCREEN_EVERY_S * 1000000) {
+            shown = esp_timer_get_time();
+            snprintf(line, sizeof line, res.cell ? "Cell: syncing %ds" : "Cell: searching %ds", s);
+            progress(gps_line, line, false);
+        }
+        vTaskDelay(pdMS_TO_TICKS(POLL_S * 1000));
+    }
+}
+
+static void lines_inputs(void)
+{
+    gpio_config_t in = {.pin_bit_mask = (1ULL << PIN_SCK) | (1ULL << PIN_MOSI) | (1ULL << PIN_MISO) |
+                                        (1ULL << PIN_CS) | (1ULL << PIN_SD_CS) | (1ULL << PIN_DC) |
+                                        (1ULL << PIN_RST),
+                        .mode = GPIO_MODE_INPUT,
+                        .pull_up_en = GPIO_PULLUP_DISABLE,
+                        .pull_down_en = GPIO_PULLDOWN_DISABLE};
+    gpio_config(&in);
+}
+
+static void sleep_until_key(void)
+{
+    printf("survey: asleep until the user key or BOOT\n");
+    fflush(stdout);
+    rtc_gpio_pullup_en(PIN_KEY);
+    rtc_gpio_pulldown_dis(PIN_KEY);
+    rtc_gpio_pullup_en(PIN_BOOT);
+    rtc_gpio_pulldown_dis(PIN_BOOT);
+    esp_sleep_enable_ext1_wakeup((1ULL << PIN_KEY) | (1ULL << PIN_BOOT), ESP_EXT1_WAKEUP_ANY_LOW);
+    esp_deep_sleep_start();
+}
+
+void app_main(void)
+{
+    printf("survey: start, wake cause %d\n", (int)esp_sleep_get_wakeup_cause());
+    gpio_config_t keys = {.pin_bit_mask = (1ULL << PIN_KEY) | (1ULL << PIN_BOOT), .mode = GPIO_MODE_INPUT,
+                          .pull_up_en = GPIO_PULLUP_ENABLE};
+    rtc_gpio_deinit(PIN_KEY);
+    rtc_gpio_deinit(PIN_BOOT);
+    gpio_config(&keys);
+    while (key_down()) {  // the press that woke it
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+
+    // Supplies on (FR-40.8: 100 ms), then the card before any panel traffic (FR-40.14).
+    supply_ctrl(1);
+    ldo2(true);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(PIN_CS, 1);
+    gpio_set_level(PIN_RST, 1);
+    gpio_config_t out = {.pin_bit_mask = (1ULL << PIN_CS) | (1ULL << PIN_DC) | (1ULL << PIN_RST),
+                         .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&out);
+    gpio_config_t busy = {.pin_bit_mask = 1ULL << PIN_BUSY, .mode = GPIO_MODE_INPUT};
+    gpio_config(&busy);
+    spi_bus_config_t bc = {.sclk_io_num = PIN_SCK, .mosi_io_num = PIN_MOSI, .miso_io_num = PIN_MISO,
+                           .quadwp_io_num = -1, .quadhd_io_num = -1, .max_transfer_sz = SPI_CHUNK};
+    esp_err_t err = spi_bus_initialize(SPI2_HOST, &bc, SPI_DMA_CH_AUTO);
+    printf("survey: spi %s\n", esp_err_to_name(err));
+    res.sd_ok = err == ESP_OK && sd_mount();
+
+    // The panel: the e-paper when its BUSY is driven (the same with either pull), else the OLED.
+    gpio_set_pull_mode(PIN_BUSY, GPIO_PULLUP_ONLY);
+    esp_rom_delay_us(200);
+    int up = gpio_get_level(PIN_BUSY);
+    gpio_set_pull_mode(PIN_BUSY, GPIO_PULLDOWN_ONLY);
+    esp_rom_delay_us(200);
+    int down = gpio_get_level(PIN_BUSY);
+    gpio_set_pull_mode(PIN_BUSY, GPIO_FLOATING);
+    if (err == ESP_OK && up == down) {
+        spi_device_interface_config_t dc = {.clock_speed_hz = SPI_HZ, .mode = 0, .spics_io_num = PIN_CS,
+                                            .queue_size = 1};
+        if (spi_bus_add_device(SPI2_HOST, &dc, &epd) == ESP_OK && epd_init()) {
+            disp = DISP_EPD;
+        }
+    }
+    if (disp == DISP_NONE && oled_find()) {
+        disp = DISP_OLED;
+    }
+    printf("survey: display %s\n", disp == DISP_EPD ? "e-paper 2.13in" : disp == DISP_OLED ? "OLED" : "none");
+
+    // The Notecard and the gauge on I2C1.
+    const notecard_config_t nc = {.i2c_port = 0, .sda_gpio = I2C1_SDA, .scl_gpio = I2C1_SCL,
+                                  .address = NOTECARD_I2C_ADDR, .clk_hz = 100000, .internal_pullup = false,
+                                  .timeout_s = 10};
+    bool have_nc = notecard_start(&nc) == ESP_OK && nc_name("card.version");
+    const max17048_config_t gc = {.i2c_port = 0, .sda_gpio = I2C1_SDA, .scl_gpio = I2C1_SCL,
+                                  .clk_hz = 100000, .internal_pullup = false};
+    max17048_reading_t b;
+    res.batt_mv = -1;
+    if (max17048_start(&gc) == ESP_OK && max17048_read(&b) == ESP_OK) {
+        res.batt_mv = b.mv;
+        res.batt_pct = b.pct;
+    }
+    printf("survey: battery %d mV %d%%\n", res.batt_mv, res.batt_pct);
+
+    int64_t epoch = 0;
+    int minutes = 0;
+    if (have_nc) {
+        nc_time(&epoch, &minutes);
+    }
+    progress(have_nc ? "GPS: starting" : "Notecard: none", "Cell: waiting", true);
+
+    if (have_nc) {
+        gps_phase(epoch);
+        char gps_line[SV_LINE_MAX];
+        if (res.gps_fix) {
+            snprintf(gps_line, sizeof gps_line, "%.5f,%.5f", res.lat, res.lon);
+        } else {
+            snprintf(gps_line, sizeof gps_line, "GPS: no fix (%ds)", res.gps_s);
+        }
+        progress(gps_line, "Cell: searching", false);
+        cell_phase(epoch, gps_line);
+        if (nc_time(&epoch, &minutes)) {
+            res.local_s = epoch + (int64_t)minutes * 60;
+        }
+    }
+
+    // The result: on the panel and in /survey.csv.
+    if (max17048_read(&b) == ESP_OK) {
+        res.batt_mv = b.mv;
+        res.batt_pct = b.pct;
+    }
+    if (res.sd_ok) {
+        res.sd_ok = sd_append(&res);
+    }
+    char lines[SV_LINES][SV_LINE_MAX];
+    sv_result_lines(&res, lines);
+    if (!have_nc) {
+        snprintf(lines[0], SV_LINE_MAX, "Notecard: none");
+    }
+    show("Site survey result", lines, true);
+
+    if (card) {
+        esp_vfs_fat_sdcard_unmount(SD_MOUNT, card);
+    }
+    if (have_nc) {
+        notecard_stop();
+    }
+    max17048_stop();
+
+    if (disp == DISP_OLED) {
+        // The OLED shows nothing unpowered: hold the result, then sleep.
+        int64_t t0 = esp_timer_get_time();
+        while (!key_down() && esp_timer_get_time() - t0 < (int64_t)OLED_HOLD_S * 1000000) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        if (key_down()) {
+            esp_restart();
+        }
+        oled_off();
+    }
+    if (disp == DISP_EPD) {
+        CMD(0x10, 0x01);  // the controller's deep sleep; the picture stays
+        vTaskDelay(pdMS_TO_TICKS(100));
+        spi_bus_remove_device(epd);
+    }
+    spi_bus_free(SPI2_HOST);
+    lines_inputs();  // FR-40.5, before the supply goes off
+    supply_ctrl(0);
+    if (i2c2) {
+        i2c_del_master_bus(i2c2);
+    }
+    ldo2(false);
+    gpio_hold_en(PIN_LDO2);
+    gpio_deep_sleep_hold_en();
+    sleep_until_key();
+}
