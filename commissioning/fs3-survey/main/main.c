@@ -662,7 +662,17 @@ static void cell_phase(int64_t t_start, const char *gps_line)
     for (;;) {
         int s = (int)((esp_timer_get_time() - t0) / 1000000);
         double v;
-        if (nc_name("card.wireless") && nc_num(rsp, "net.rssi", &v) && v != 0) {
+        // Values from the satellite identity (rat "NTN ...", Skylo's mcc 901) stay
+        // in card.wireless after an ntn session: not a cellular network.
+        char rat[24] = "";
+        bool ntn_left = false;
+        if (nc_name("card.wireless")) {
+            nc_str(rsp, "net.rat", rat, sizeof rat);
+            double mcc = 0;
+            ntn_left = strncmp(rat, "NTN", 3) == 0 || strncmp(rat, "ntn", 3) == 0 ||
+                       (nc_num(rsp, "net.mcc", &mcc) && (int)mcc == 901);
+        }
+        if (!ntn_left && nc_num(rsp, "net.rssi", &v) && v != 0) {
             double upd = 0;
             nc_num(rsp, "net.updated", &upd);
             if (t_start == 0 || upd == 0 || upd + 60 >= (double)t_start) {
@@ -685,9 +695,9 @@ static void cell_phase(int64_t t_start, const char *gps_line)
         if (nc_name("hub.sync.status") && nc_num(rsp, "completed", &v) && v <= s + POLL_S) {
             res.synced = true;
         }
-        // Done once synced with a network seen, at the limit, or 60 s after the
-        // first registration without a sync.
-        if ((res.cell && res.synced) || s >= CELL_LIMIT_S || (seen_s >= 0 && s - seen_s >= 60)) {
+        // Done once synced with a network seen, or at the limit (a registration
+        // and sync took 50 - 110 s on the bench, more after an ntn session).
+        if ((res.cell && res.synced) || s >= CELL_LIMIT_S) {
             res.cell_s = seen_s >= 0 ? seen_s : s;
             break;
         }
@@ -1202,6 +1212,14 @@ void app_main(void)
     char transport[24] = "";
     if (have_nc && nc_name("card.transport")) {
         nc_str(rsp, "method", transport, sizeof transport);
+    }
+    if (have_nc && strcmp(transport, "ntn") == 0) {
+        // Left by a survey cut off in its satellite step: back to cellular now,
+        // so the modem's switch happens during the GPS search, not the cell step.
+        char req[96];
+        if (nc_req_transport(req, sizeof req, "cell") > 0) {
+            nc_send(req);
+        }
     }
     if (have_nc) {
         gps_phase(epoch);
