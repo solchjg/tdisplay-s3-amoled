@@ -1222,9 +1222,11 @@ void app_main(void)
         } else {
             printf("survey: satellite off in the settings\n");
         }
-        // The transport it had ("-", the default, when none was reported).
+        // The transport it had ("-", the default, when none was reported, or
+        // when it was "ntn": a survey cut off in its satellite step left that).
         char req[96];
-        if (nc_req_transport(req, sizeof req, transport[0] ? transport : "-") > 0) {
+        bool keep = transport[0] && strcmp(transport, "ntn") != 0;
+        if (nc_req_transport(req, sizeof req, keep ? transport : "-") > 0) {
             nc_send(req);
         }
         if (nc_time(&epoch, &minutes)) {
