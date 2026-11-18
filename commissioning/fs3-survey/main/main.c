@@ -68,7 +68,7 @@
 #define I2C2_SCL 15
 
 #define BLE_IDLE_S 120   // the setup window closes after this long with no phone connected
-#define BLE_MAX_S 900    // and after this long in all
+#define BLE_MAX_S 300    // and after this long in all, a phone connected or not
 #define CELL_LIMIT_S 180
 #define SURVEY_FILE "survey.qo"
 #define SURVEY_PORT 20  // NTN needs a templated Notefile with a port
