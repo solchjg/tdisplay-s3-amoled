@@ -203,6 +203,10 @@ RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
 
 // Mount, card details, 64 KB written, read back and compared, /settings.txt
 // looked for, unmount. The panel's CS is held high so only the card answers.
+// The result again in one line before the run's RESULT: the lines above go
+// out while the USB console is still coming back after a timer wake.
+static char sd_line[160];
+
 static void sd_test(void)
 {
     gpio_set_level(PIN_CS, 1);
@@ -225,12 +229,14 @@ static void sd_test(void)
     esp_log_level_set("sdspi_transaction", ESP_LOG_DEBUG);
     // On top of the 100 ms after the supply: none on odd runs, 250 ms on even
     // ones, to find the settle time the card needs after its supply comes on.
-    const int settle_ms = rtc_run % 2 ? 0 : 250;
+    const int settle_ms = (rtc_run + 1) % 2 ? 0 : 250;  // rtc_run + 1 is this run
     vTaskDelay(pdMS_TO_TICKS(settle_ms));
     printf("wsepaper: sd %d ms after the supply\n", 100 + settle_ms);
     esp_err_t err = ESP_FAIL;
     long mount_ms = 0;
-    for (int attempt = 1; attempt <= 3 && err != ESP_OK; attempt++) {
+    int attempt = 0;
+    while (attempt < 3 && err != ESP_OK) {
+        attempt++;
         int64_t t0 = esp_timer_get_time();
         err = esp_vfs_fat_sdspi_mount(SD_MOUNT, &host, &slot, &mc, &card);
         mount_ms = (long)((esp_timer_get_time() - t0) / 1000);
@@ -242,6 +248,8 @@ static void sd_test(void)
     esp_log_level_set("*", ESP_LOG_INFO);
     if (err != ESP_OK) {
         printf("wsepaper: sd mount %s after %ld ms (no card, or no FAT)\n", esp_err_to_name(err), mount_ms);
+        snprintf(sd_line, sizeof sd_line, "%d ms after the supply, mount %s after 3 attempts", 100 + settle_ms,
+                 esp_err_to_name(err));
         return;
     }
     printf("wsepaper: sd mount ok %ld ms: %s, %s, %llu MB, %d kHz\n", mount_ms, card->cid.name,
@@ -280,6 +288,11 @@ static void sd_test(void)
     }
     err = esp_vfs_fat_sdcard_unmount(SD_MOUNT, card);
     printf("wsepaper: sd unmount %s\n", esp_err_to_name(err));
+    snprintf(sd_line, sizeof sd_line,
+             "%d ms after the supply, mount ok on attempt %d (%ld ms), 64 KB write %ld ms %s, read %ld ms %s, "
+             "settings.txt %s",
+             100 + settle_ms, attempt, mount_ms, w_ms, ok ? "ok" : "CHECK", r_ms, same ? "same" : "CHECK",
+             s ? "found" : "none");
 }
 #endif
 
@@ -779,6 +792,7 @@ void app_main(void)
                fonts ? "font page" : "test screen", full, good, fonts ? 0 : 5,
                full > 500 && full < 6000 && (fonts || good == 5) ? "GOOD" : "CHECK");
 #ifdef PROBE_EPD213
+        printf("wsepaper: sd summary run %d: %s\n", run, sd_line);
         supply_off();
         printf("wsepaper: panel lines inputs, display supply off\n");
         printf("wsepaper: sleep 60 s\n");
