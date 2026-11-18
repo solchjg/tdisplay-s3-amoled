@@ -38,6 +38,7 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
+#include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "esp_sleep.h"
 #ifdef PROBE_EPD213
@@ -196,6 +197,28 @@ static void adc_start(void)
 #define PIN_SD_CS 38
 #define SD_MOUNT "/sd"
 #define SD_TEST_BYTES (64 * 1024)
+#define SD_SETTLE_MS 250
+
+// SO's level with each internal pull, before the bus claims it: the
+// breakout's pull-up (to the switched 3V) holds it high against the
+// ESP32's weak pull-down; low with the pull-down means no pull-up there.
+static void sd_so_pins(void)
+{
+    gpio_config_t c = {.pin_bit_mask = 1ULL << PIN_SD_MISO, .mode = GPIO_MODE_INPUT,
+                       .pull_down_en = GPIO_PULLDOWN_ENABLE};
+    gpio_config(&c);
+    esp_rom_delay_us(200);
+    int down = gpio_get_level(PIN_SD_MISO);
+    c.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    c.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&c);
+    esp_rom_delay_us(200);
+    int up = gpio_get_level(PIN_SD_MISO);
+    c.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&c);
+    printf("wsepaper: sd SO pulled down=%d up=%d %s\n", down, up,
+           down ? "ok (the breakout's pull-up)" : "CHECK: no pull-up, or SO not wired, or the card's 3V off");
+}
 
 RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
 
@@ -215,9 +238,25 @@ static void sd_test(void)
     const esp_vfs_fat_sdmmc_mount_config_t mc = {.format_if_mount_failed = false, .max_files = 2,
                                                  .allocation_unit_size = 0};
     sdmmc_card_t *card = NULL;
-    int64_t t0 = esp_timer_get_time();
-    esp_err_t err = esp_vfs_fat_sdspi_mount(SD_MOUNT, &host, &slot, &mc, &card);
-    long mount_ms = (long)((esp_timer_get_time() - t0) / 1000);
+    // The card's commands and replies (the R7 echo of CMD8 among them).
+    esp_log_level_set("sdmmc_sd", ESP_LOG_DEBUG);
+    esp_log_level_set("sdmmc_cmd", ESP_LOG_DEBUG);
+    esp_log_level_set("sdmmc_common", ESP_LOG_DEBUG);
+    esp_log_level_set("sdspi_host", ESP_LOG_DEBUG);
+    esp_log_level_set("sdspi_transaction", ESP_LOG_DEBUG);
+    vTaskDelay(pdMS_TO_TICKS(SD_SETTLE_MS));  // on top of the 100 ms after the supply
+    esp_err_t err = ESP_FAIL;
+    long mount_ms = 0;
+    for (int attempt = 1; attempt <= 3 && err != ESP_OK; attempt++) {
+        int64_t t0 = esp_timer_get_time();
+        err = esp_vfs_fat_sdspi_mount(SD_MOUNT, &host, &slot, &mc, &card);
+        mount_ms = (long)((esp_timer_get_time() - t0) / 1000);
+        printf("wsepaper: sd mount attempt %d: %s after %ld ms\n", attempt, esp_err_to_name(err), mount_ms);
+        if (err != ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+    esp_log_level_set("*", ESP_LOG_INFO);
     if (err != ESP_OK) {
         printf("wsepaper: sd mount %s after %ld ms (no card, or no FAT)\n", esp_err_to_name(err), mount_ms);
         return;
@@ -228,7 +267,7 @@ static void sd_test(void)
            card->real_freq_khz);
     static uint8_t buf[4096];
     bool ok = true;
-    t0 = esp_timer_get_time();
+    int64_t t0 = esp_timer_get_time();
     FILE *f = fopen(SD_MOUNT "/probe.bin", "w");
     for (int i = 0; f && i < SD_TEST_BYTES / (int)sizeof buf; i++) {
         for (size_t k = 0; k < sizeof buf; k++) {
@@ -275,6 +314,7 @@ static esp_err_t bus_start(void)
     busy_input();
     adc_start();
 #ifdef PIN_SD_CS
+    sd_so_pins();
     const int miso = PIN_SD_MISO;
 #else
     const int miso = -1;
