@@ -60,7 +60,7 @@
 
 #define GPS_LIMIT_S 300
 #define CELL_LIMIT_S 180
-#define SAT_LIMIT_S 600  // a Skylo registration and one note over the Starnote
+#define SAT_LIMIT_S 300  // a Skylo registration and one note over the Starnote
 #define SURVEY_FILE "survey.qo"
 #define SURVEY_PORT 20  // NTN needs a templated Notefile with a port
 #define POLL_S 5
@@ -523,6 +523,26 @@ static int key_down(void)
     return gpio_get_level(PIN_KEY) == 0 || gpio_get_level(PIN_BOOT) == 0;
 }
 
+// One poll interval, cut short by a key press: true once a key was pressed
+// (and let go, so the press does not also restart the survey at the end).
+static bool poll_wait(void)
+{
+    for (int i = 0; i < POLL_S * 10; i++) {
+        if (key_down()) {
+            vTaskDelay(pdMS_TO_TICKS(30));
+            if (key_down()) {
+                printf("survey: key pressed, step skipped\n");
+                while (key_down()) {
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                }
+                return true;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    return false;
+}
+
 // ---------------------------------------------------------------- the survey
 
 static sv_result_t res;
@@ -535,7 +555,7 @@ static void progress(const char *gps, const char *cell, bool full)
     snprintf(lines[0], SV_LINE_MAX, "%s", gps);
     snprintf(lines[1], SV_LINE_MAX, "%s", cell);
     lines[5][0] = '\0';
-    snprintf(lines[6], SV_LINE_MAX, "Surveying...");
+    snprintf(lines[6], SV_LINE_MAX, "Surveying - key: skip");
     show("Site survey", lines, full);
 }
 
@@ -585,7 +605,10 @@ static void gps_phase(int64_t t_start)
             snprintf(line, sizeof line, "GPS: searching %ds", s);
             progress(line, "Cell: waiting", false);
         }
-        vTaskDelay(pdMS_TO_TICKS(POLL_S * 1000));
+        if (poll_wait()) {
+            res.gps_s = (int)((esp_timer_get_time() - t0) / 1000000);
+            break;
+        }
     }
     // Back to the mode it had (none set means off).
     if (nc_req_location_mode(req, sizeof req, saved[0] && strcmp(saved, "continuous") != 0 ? saved : "off",
@@ -643,7 +666,10 @@ static void cell_phase(int64_t t_start, const char *gps_line)
             snprintf(line, sizeof line, res.cell ? "Cell: syncing %ds" : "Cell: searching %ds", s);
             progress(gps_line, line, false);
         }
-        vTaskDelay(pdMS_TO_TICKS(POLL_S * 1000));
+        if (poll_wait()) {
+            res.cell_s = seen_s >= 0 ? seen_s : (int)((esp_timer_get_time() - t0) / 1000000);
+            break;
+        }
     }
 }
 
@@ -677,7 +703,7 @@ static bool sync_wait(int limit_s, int *took_s, const char *gps_line, const char
     int64_t t0 = esp_timer_get_time(), shown = t0;
     char line[SV_LINE_MAX];
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(POLL_S * 1000));
+        bool skip = poll_wait();
         int s = (int)((esp_timer_get_time() - t0) / 1000000);
         double done;
         if (nc_name("hub.sync.status")) {
@@ -689,7 +715,7 @@ static bool sync_wait(int limit_s, int *took_s, const char *gps_line, const char
                 return true;
             }
         }
-        if (s >= limit_s) {
+        if (s >= limit_s || skip) {
             *took_s = s;
             return false;
         }
@@ -702,7 +728,7 @@ static bool sync_wait(int limit_s, int *took_s, const char *gps_line, const char
             snprintf(lines[1], SV_LINE_MAX, "%s", cell_line);
             snprintf(lines[2], SV_LINE_MAX, "%s", line);
             lines[5][0] = '\0';
-            snprintf(lines[6], SV_LINE_MAX, "Surveying...");
+            snprintf(lines[6], SV_LINE_MAX, "Surveying - key: skip");
             show("Site survey", lines, false);
         }
     }
