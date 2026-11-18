@@ -289,6 +289,17 @@ bool sv_settings_parse(const char *body, size_t len, const sv_settings_t *cur, s
             fail = "sat";
         }
     }
+    if (!fail && (n = sv_form_field(body, len, "display", s, sizeof s)) >= 0) {
+        if (strcmp(s, "auto") == 0) {
+            out->display = SV_DISP_AUTO;
+        } else if (strcmp(s, "epaper") == 0) {
+            out->display = SV_DISP_EPAPER;
+        } else if (strcmp(s, "oled") == 0) {
+            out->display = SV_DISP_OLED;
+        } else {
+            fail = "display";
+        }
+    }
     if (!fail && !int_field(body, len, "gps_min", 1, 10, &out->gps_min)) {
         fail = "gps_min";
     }
@@ -310,7 +321,9 @@ size_t sv_settings_form(const sv_settings_t *s, char *out, size_t cap)
     bool ok = raw_put(out, cap, &p, "site=") && sv_url_put(out, cap, &p, s->site) &&
               raw_put(out, cap, &p, s->sat ? "&sat=on" : "&sat=off");
     snprintf(num, sizeof num, "&gps_min=%d&sat_min=%d", s->gps_min, s->sat_min);
-    ok = ok && raw_put(out, cap, &p, num);
+    static const char *const disp[] = {"&display=auto", "&display=epaper", "&display=oled"};
+    ok = ok && raw_put(out, cap, &p, num) &&
+         raw_put(out, cap, &p, disp[s->display >= 0 && s->display <= 2 ? s->display : 0]);
     return ok ? p : 0;
 }
 
@@ -322,6 +335,8 @@ size_t sv_settings_rules(char *out, size_t cap)
         {"sat", "label=Satellite test&options=on,off&labels=On|Off"},
         {"gps_min", "label=GPS search limit&type=number&min=1&max=10&step=1&unit=min&required=1"},
         {"sat_min", "label=Satellite limit&type=number&min=1&max=15&step=1&unit=min&required=1"},
+        {"display", "label=Screen&options=auto,epaper,oled&labels=Whichever is fitted|2.13in e-paper|1.3in OLED"
+                    "&hint=With both fitted, the one chosen shows; it changes as soon as you save"},
     };
     size_t p = 0;
     for (size_t i = 0; i < sizeof rules / sizeof rules[0]; i++) {
@@ -342,4 +357,15 @@ bool sv_in_range(const char *line, const char *from, const char *to)
         return false;
     }
     return (!from[0] || strncmp(line, from, 10) >= 0) && (!to[0] || strncmp(line, to, 10) <= 0);
+}
+
+int sv_display_pick(int setting, bool epaper_fitted, bool oled_fitted)
+{
+    if (setting == SV_DISP_EPAPER && epaper_fitted) {
+        return SV_DISP_EPAPER;
+    }
+    if (setting == SV_DISP_OLED && oled_fitted) {
+        return SV_DISP_OLED;
+    }
+    return epaper_fitted ? SV_DISP_EPAPER : oled_fitted ? SV_DISP_OLED : SV_DISP_AUTO;
 }

@@ -384,6 +384,24 @@ static void oled_off(void)
 typedef enum { DISP_NONE, DISP_EPD, DISP_OLED } disp_t;
 static disp_t disp = DISP_NONE;
 static bool epd_drawn;  // a full refresh has set the base picture
+static bool epd_ok, oled_ok;  // each panel found and set up
+static sv_settings_t set;  // from NVS, changed over Bluetooth
+
+// The panel to draw on, from the `display` setting and the panels found; the
+// OLED is turned on only while chosen.
+static void display_choose(void)
+{
+    int p = sv_display_pick(set.display, epd_ok, oled_ok);
+    disp_t was = disp;
+    disp = p == SV_DISP_EPAPER ? DISP_EPD : p == SV_DISP_OLED ? DISP_OLED : DISP_NONE;
+    if (oled_ok && disp != was) {
+        const uint8_t on[] = {disp == DISP_OLED ? 0xAF : 0xAE};
+        oled_cmds(on, sizeof on);
+    }
+    printf("survey: display %s (setting %d, e-paper %s, OLED %s)\n",
+           disp == DISP_EPD ? "e-paper 2.13in" : disp == DISP_OLED ? "OLED" : "none", set.display,
+           epd_ok ? "found" : "absent", oled_ok ? "found" : "absent");
+}
 
 static void draw_text(const text_font_t *f, int x, int y, const char *s)
 {
@@ -575,7 +593,6 @@ static bool poll_wait(void)
 // ---------------------------------------------------------------- the survey
 
 static sv_result_t res;
-static sv_settings_t set;  // from NVS, changed over Bluetooth
 static bool survey_note(void);
 
 static void progress(const char *gps, const char *cell, bool full)
@@ -873,7 +890,7 @@ static char ble_name[16];
 #define RESTART_MAGIC 0x53525652u  // set before the result screen's restart: no setup window
 RTC_NOINIT_ATTR static uint32_t restart_mark;
 static volatile uint32_t ble_code;      // the passkey on show, or 0
-static volatile bool ble_code_on, ble_conn, ble_done, ble_dirty;
+static volatile bool ble_code_on, ble_conn, ble_done, ble_dirty, display_changed;
 static char hist_from[11], hist_to[11];  // the page's date range, "" for open
 
 static bool put_raw(char *out, size_t cap, size_t *p, const char *s)
@@ -929,6 +946,7 @@ static void ble_apply(const char *body, size_t len, char *result, size_t cap)
     snprintf(result, cap, "%s", settings_save(&set) ? "ok" : "invalid=site");
     printf("survey: ble settings applied site='%s' sat=%s gps_min=%d sat_min=%d\n", set.site,
            set.sat ? "on" : "off", set.gps_min, set.sat_min);
+    display_changed = true;
     ble_dirty = true;
 }
 
@@ -1055,6 +1073,10 @@ static void ble_window(void)
             }
         }
         // The screen on any change, and the countdown every 10 s while waiting.
+        if (display_changed) {
+            display_changed = false;
+            display_choose();  // in this task: the panels are driven only from here
+        }
         int tick = ble_conn ? -2 : left / 10;
         if (ble_dirty || tick != shown_s || ble_conn != was_conn) {
             ble_dirty = false;
@@ -1074,7 +1096,8 @@ static void ble_window(void)
             }
             snprintf(lines[3], SV_LINE_MAX, "GPS %dm  Sat %s", set.gps_min, sat);
             if (ble_conn) {
-                lines[4][0] = '\0';
+                static const char *const scr[] = {"auto", "e-paper", "OLED"};
+                snprintf(lines[4], SV_LINE_MAX, "Screen: %s", scr[set.display >= 0 && set.display <= 2 ? set.display : 0]);
             } else {
                 snprintf(lines[4], SV_LINE_MAX, "Closes in %ds", left);
             }
@@ -1138,14 +1161,12 @@ void app_main(void)
     if (err == ESP_OK && up == down) {
         spi_device_interface_config_t dc = {.clock_speed_hz = SPI_HZ, .mode = 0, .spics_io_num = PIN_CS,
                                             .queue_size = 1};
-        if (spi_bus_add_device(SPI2_HOST, &dc, &epd) == ESP_OK && epd_init()) {
-            disp = DISP_EPD;
-        }
+        epd_ok = spi_bus_add_device(SPI2_HOST, &dc, &epd) == ESP_OK && epd_init();
     }
-    if (disp == DISP_NONE && oled_find()) {
-        disp = DISP_OLED;
-    }
-    printf("survey: display %s\n", disp == DISP_EPD ? "e-paper 2.13in" : disp == DISP_OLED ? "OLED" : "none");
+    // Both panels may be fitted; the `display` setting picks one (auto: the e-paper).
+    oled_ok = oled_find();
+    disp = DISP_OLED;  // so display_choose turns a found OLED off when it is not chosen
+    display_choose();
 
     // The Notecard and the gauge on I2C1.
     const notecard_config_t nc = {.i2c_port = 0, .sda_gpio = I2C1_SDA, .scl_gpio = I2C1_SCL,
@@ -1286,8 +1307,8 @@ void app_main(void)
             restart_mark = RESTART_MAGIC;
             esp_restart();
         }
-        oled_off();
     }
+    oled_off();  // the panel off before LDO2 drops, chosen or not
     if (disp != DISP_OLED) {
         // The picture stays on the e-paper: three blinks say the survey is done.
         for (int i = 0; i < 6; i++) {
@@ -1295,9 +1316,11 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(500));
         }
     }
-    if (disp == DISP_EPD) {
+    if (epd_ok) {
         CMD(0x10, 0x01);  // the controller's deep sleep; the picture stays
         vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    if (epd) {
         spi_bus_remove_device(epd);
     }
     spi_bus_free(SPI2_HOST);

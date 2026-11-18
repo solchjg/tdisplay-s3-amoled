@@ -61,7 +61,14 @@ typedef struct {
     bool sat;                    // run the satellite step
     int gps_min;                 // the GPS search's limit, 1 - 10 minutes
     int sat_min;                 // the satellite step's limit, 1 - 15 minutes
+    int display;                 // SV_DISP_*: which panel shows when both are fitted
 } sv_settings_t;
+
+enum { SV_DISP_AUTO, SV_DISP_EPAPER, SV_DISP_OLED };
+
+// The panel to drive: SV_DISP_EPAPER or SV_DISP_OLED, or SV_DISP_AUTO for
+// none. The chosen one when it is fitted, else whichever is (the e-paper first).
+int sv_display_pick(int setting, bool epaper_fitted, bool oled_fitted);
 
 void sv_settings_default(sv_settings_t *s);
 
