@@ -842,16 +842,25 @@ void app_main(void)
     }
     printf("survey: battery %d mV %d%%\n", res.batt_mv, res.batt_pct);
 
-    // The weather from the BME280 on I2C2 (the OLED's bus when one is fitted).
-    const bme280_config_t wc = {.i2c_port = 1, .sda_gpio = I2C2_SDA, .scl_gpio = I2C2_SCL, .address = 0x76,
-                                .clk_hz = 100000, .internal_pullup = true,
-                                .settings = BME280_SETTINGS_WEATHER};
+    // The weather from the BME280 on I2C2 (the OLED's bus when one is fitted),
+    // at 0x76 or else 0x77 (SDO high, Adafruit's default), as FR-23.1.
+    bme280_config_t wc = {.i2c_port = 1, .sda_gpio = I2C2_SDA, .scl_gpio = I2C2_SCL, .address = 0x76,
+                          .clk_hz = 100000, .internal_pullup = true,
+                          .settings = BME280_SETTINGS_WEATHER};
     bme280_reading_t w;
-    if (bme280_start(&wc) == ESP_OK && bme280_read(&w) == ESP_OK) {
+    bool wx_up = bme280_start(&wc) == ESP_OK;
+    if (!wx_up) {
+        wc.address = 0x77;
+        wx_up = bme280_start(&wc) == ESP_OK;
+    }
+    printf("survey: bme280 %s at 0x%02x\n", wx_up ? "found" : "not found", wc.address);
+    if (wx_up && bme280_read(&w) == ESP_OK) {
         res.wx = true;
         res.temp_centi_c = (int)w.temp_centi_c;
         res.hum_pct = (int)((w.hum_q10_pct + 512) / 1024);
         res.press_hpa = (int)((w.press_q8_pa / 256 + 50) / 100);
+    }
+    if (wx_up) {
         bme280_stop();
     }
     printf("survey: weather %s %d cC %d %% %d hPa\n", res.wx ? "ok" : "none", res.temp_centi_c,
