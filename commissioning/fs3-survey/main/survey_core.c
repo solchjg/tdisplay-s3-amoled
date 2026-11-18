@@ -95,27 +95,34 @@ void sv_result_lines(const sv_result_t *r, char lines[SV_LINES][SV_LINE_MAX])
     } else {
         snprintf(lines[3], SV_LINE_MAX, "Weather: no sensor");
     }
+    // The Feather's battery (F, with its gauge's %) and the Notecard's supply (N),
+    // in 21 characters for the OLED.
+    char f[32] = "F?", nv[24] = "N?";
     if (r->batt_mv >= 0) {
-        snprintf(lines[4], SV_LINE_MAX, "Bat %d.%02dV %d%% SD %s", r->batt_mv / 1000,
-                 r->batt_mv % 1000 / 10, r->batt_pct, r->sd_ok ? "ok" : "--");
-    } else {
-        snprintf(lines[4], SV_LINE_MAX, "Bat ?  SD %s", r->sd_ok ? "ok" : "--");
+        snprintf(f, sizeof f, "F%d.%02dV %d%%", r->batt_mv / 1000, r->batt_mv % 1000 / 10, r->batt_pct);
+    }
+    if (r->nc_mv >= 0) {
+        snprintf(nv, sizeof nv, "N%d.%02dV", r->nc_mv / 1000, r->nc_mv % 1000 / 10);
+    }
+    int k = snprintf(lines[4], SV_LINE_MAX, "Bat %s %s", f, nv);
+    if (k > 21) {
+        snprintf(lines[4], SV_LINE_MAX, "%s %s", f, nv);
     }
     sv_time_text(r->local_s, lines[5], SV_LINE_MAX);
-    snprintf(lines[6], SV_LINE_MAX, "Press key: restart");
+    snprintf(lines[6], SV_LINE_MAX, "Key: restart  SD %s", r->sd_ok ? "ok" : "--");
 }
 
 size_t sv_csv_header(char *buf, size_t n)
 {
     int k = snprintf(buf, n,
                      "local_time,lat,lon,gps_s,carrier,mcc,mnc,rat,bars,rssi_dbm,rsrp_dbm,cell_s,"
-                     "notehub_sync,satellite,sat_s,temp_c,hum_pct,press_hpa,batt_v,batt_pct\n");
+                     "notehub_sync,satellite,sat_s,temp_c,hum_pct,press_hpa,batt_v,batt_pct,notecard_v\n");
     return k > 0 && (size_t)k < n ? (size_t)k : 0;
 }
 
 size_t sv_csv_line(const sv_result_t *r, char *buf, size_t n)
 {
-    char t[24], lat[16] = "", lon[16] = "", name[16] = "", batt[24] = "", pct[16] = "";
+    char t[24], lat[16] = "", lon[16] = "", name[16] = "", batt[24] = "", pct[16] = "", ncv[16] = "";
     char temp[16] = "", hum[16] = "", press[16] = "";
     if (r->wx) {
         int c = r->temp_centi_c;
@@ -139,9 +146,12 @@ size_t sv_csv_line(const sv_result_t *r, char *buf, size_t n)
         snprintf(batt, sizeof batt, "%d.%03d", r->batt_mv / 1000, r->batt_mv % 1000);
         snprintf(pct, sizeof pct, "%d", r->batt_pct);
     }
-    int k = snprintf(buf, n, "%s,%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,%d,%s,%s,%d,%s,%s,%s,%s,%s\n", t, lat,
+    if (r->nc_mv >= 0) {
+        snprintf(ncv, sizeof ncv, "%d.%03d", r->nc_mv / 1000, r->nc_mv % 1000);
+    }
+    int k = snprintf(buf, n, "%s,%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,%d,%s,%s,%d,%s,%s,%s,%s,%s,%s\n", t, lat,
                      lon, r->gps_s, name, r->mcc, r->mnc, r->rat, r->bars, r->rssi, r->rsrp, r->cell_s,
                      r->synced ? "yes" : "no", r->sat_tried ? (r->sat ? "ok" : "none") : "n/a",
-                     r->sat_s, temp, hum, press, batt, pct);
+                     r->sat_s, temp, hum, press, batt, pct, ncv);
     return k > 0 && (size_t)k < n ? (size_t)k : 0;
 }

@@ -29,7 +29,8 @@ typedef struct {
     bool wx;
     int temp_centi_c, hum_pct, press_hpa;
     // Battery
-    int batt_mv, batt_pct;  // -1 when the gauge did not answer
+    int batt_mv, batt_pct;  // the Feather's LiPo (MAX17048); -1 when the gauge did not answer
+    int nc_mv;              // the Notecard's supply (card.voltage); -1 when unknown
     // Clock: local time from the Notecard, 0 when unknown
     int64_t local_s;
     bool sd_ok;

@@ -840,7 +840,15 @@ void app_main(void)
         res.batt_mv = b.mv;
         res.batt_pct = b.pct;
     }
-    printf("survey: battery %d mV %d%%\n", res.batt_mv, res.batt_pct);
+    // The Notecard's own supply (VMODEM_P, from the Notecarrier's LiPo or USB);
+    // it has no gauge, so a voltage only.
+    double nv;
+    res.nc_mv = -1;
+    if (have_nc && nc_send("{\"req\":\"card.voltage\",\"now\":true}\n") && nc_num(rsp, "value", &nv) &&
+        nv > 0) {
+        res.nc_mv = (int)(nv * 1000 + 0.5);
+    }
+    printf("survey: battery %d mV %d%%, notecard %d mV\n", res.batt_mv, res.batt_pct, res.nc_mv);
 
     // The weather from the BME280 on I2C2 (the OLED's bus when one is fitted),
     // at 0x76 or else 0x77 (SDO high, Adafruit's default), as FR-23.1.
