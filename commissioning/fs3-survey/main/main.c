@@ -14,7 +14,8 @@
 // OLED_HOLD_S first. Serial lines start "survey:". Never released.
 //
 // The Notecard can neither choose nor scan operators, so the cellular line is
-// the one network its SIM registered on. Without a Starnote (ntn.status) the
+// the one network its SIM registered on. Without a satellite radio (a Notecard
+// for Skylo, or a Starnote answering ntn.status) the
 // satellite line reads n/a. The Notecard's transport is put back afterwards.
 #include <stdio.h>
 #include <string.h>
@@ -416,6 +417,9 @@ static void show(const char *title, char lines[SV_LINES][SV_LINE_MAX], bool full
             draw_text(&text_font_mini, 2, 18 + i * 15, lines[i]);
         }
         bool use_full = full || !epd_drawn;
+        if (use_full && epd_drawn) {
+            epd_init();  // the partials left their waveform loaded
+        }
         long ms = use_full ? epd_full() : epd_partial();
         epd_drawn = true;
         printf("survey: e-paper %s %ld ms\n", use_full ? "full" : "partial", ms);
@@ -443,8 +447,13 @@ static bool sd_mount(void)
     const esp_vfs_fat_sdmmc_mount_config_t mc = {.format_if_mount_failed = false, .max_files = 2,
                                                  .allocation_unit_size = 0};
     esp_err_t err = ESP_FAIL;
-    for (int i = 0; i < 2 && err != ESP_OK; i++) {
+    vTaskDelay(pdMS_TO_TICKS(250));  // 350 ms after the supply in all
+    for (int i = 0; i < 3 && err != ESP_OK; i++) {
+        if (i > 0) {
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
         err = esp_vfs_fat_sdspi_mount(SD_MOUNT, &host, &slot, &mc, &card);
+        printf("survey: sd mount attempt %d %s\n", i + 1, esp_err_to_name(err));
     }
     printf("survey: sd mount %s\n", esp_err_to_name(err));
     if (err != ESP_OK) {
@@ -543,12 +552,23 @@ static void gps_phase(int64_t t_start)
     int64_t t0 = esp_timer_get_time();
     int64_t shown = t0;
     char line[SV_LINE_MAX];
+    // The Notecard keeps its last fix: a fix counts only once its time is
+    // newer than the one card.location reported first (and than the clock at
+    // the start, when the clock was set).
+    double stale = -1;
     for (;;) {
         int s = (int)((esp_timer_get_time() - t0) / 1000000);
         double lat, lon, when = 0;
-        if (nc_name("card.location") && nc_num(rsp, "lat", &lat) && nc_num(rsp, "lon", &lon)) {
+        bool got = nc_name("card.location");
+        bool has = got && nc_num(rsp, "lat", &lat) && nc_num(rsp, "lon", &lon);
+        if (has) {
             nc_num(rsp, "time", &when);
-            if (t_start == 0 || when + 60 >= (double)t_start) {
+        }
+        if (got && stale < 0) {
+            stale = has ? when : 0;
+            printf("survey: last stored fix time %.0f\n", stale);
+        } else if (has && when > stale && (t_start == 0 || when + 60 >= (double)t_start)) {
+            {
                 res.gps_fix = true;
                 res.lat = lat;
                 res.lon = lon;
@@ -688,11 +708,15 @@ static bool sync_wait(int limit_s, int *took_s, const char *gps_line, const char
     }
 }
 
+static bool has_ntn;  // card.version's "ntn":true
+
 static void sat_phase(const char *gps_line, const char *cell_line)
 {
-    // A Starnote answers ntn.status; without one the line stays n/a.
-    if (!nc_name("ntn.status") || strstr(rsp, "{ntn-unknown}") || strstr(rsp, "{ntn-none}")) {
-        printf("survey: no Starnote, satellite skipped\n");
+    // A Notecard for Skylo (card.version "ntn":true) or a paired Starnote
+    // (ntn.status without {no-ntn-module}); with neither the line stays n/a.
+    if (!has_ntn && (!nc_name("ntn.status") || strstr(rsp, "{no-ntn-module}") ||
+                     strstr(rsp, "{ntn-unknown}") || strstr(rsp, "{ntn-none}"))) {
+        printf("survey: no satellite radio, satellite skipped\n");
         return;
     }
     char req[96];
@@ -781,6 +805,7 @@ void app_main(void)
                                   .address = NOTECARD_I2C_ADDR, .clk_hz = 100000, .internal_pullup = false,
                                   .timeout_s = 10};
     bool have_nc = notecard_start(&nc) == ESP_OK && nc_name("card.version");
+    has_ntn = have_nc && strstr(rsp, "\"ntn\":true") != NULL;
     const max17048_config_t gc = {.i2c_port = 0, .sda_gpio = I2C1_SDA, .scl_gpio = I2C1_SCL,
                                   .clk_hz = 100000, .internal_pullup = false};
     max17048_reading_t b;
@@ -860,10 +885,10 @@ void app_main(void)
     if (card) {
         esp_vfs_fat_sdcard_unmount(SD_MOUNT, card);
     }
+    max17048_stop();  // before the Notecard, whose driver opened the bus
     if (have_nc) {
         notecard_stop();
     }
-    max17048_stop();
 
     if (disp == DISP_OLED) {
         // The OLED shows nothing unpowered: hold the result, then sleep.
