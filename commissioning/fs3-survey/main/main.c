@@ -4,7 +4,9 @@
 // V3, on SPI2 when its BUSY is driven, else a 1.3" SSD1306 OLED at 0x3C on
 // I2C2); the battery from the MAX17048; then through the Notecard on I2C1 a GPS
 // fix (continuous mode, up to GPS_LIMIT_S) and a Notehub sync with the network
-// it registers on (card.wireless, up to CELL_LIMIT_S). The result goes on the
+// it registers on (card.wireless, up to CELL_LIMIT_S), and with a Starnote the
+// same note sent over satellite (card.transport ntn, up to SAT_LIMIT_S); the
+// BME280 on I2C2 adds the weather. The result goes on the
 // panel and as a line in /survey.csv with the local date and time from the
 // Notecard. Then, with the e-paper, the panel's deep sleep, every panel and card
 // line an input and the supplies off, and deep sleep until the user key (GPIO 1)
@@ -12,8 +14,8 @@
 // OLED_HOLD_S first. Serial lines start "survey:". Never released.
 //
 // The Notecard can neither choose nor scan operators, so the cellular line is
-// the one network its SIM registered on. No satellite Notecard is fitted on
-// this build, so the satellite line reads n/a.
+// the one network its SIM registered on. Without a Starnote (ntn.status) the
+// satellite line reads n/a. The Notecard's transport is put back afterwards.
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -30,6 +32,7 @@
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "bme280.h"
 #include "max17048.h"
 #include "notecard.h"
 #include "sdmmc_cmd.h"
@@ -56,6 +59,9 @@
 
 #define GPS_LIMIT_S 300
 #define CELL_LIMIT_S 180
+#define SAT_LIMIT_S 600  // a Skylo registration and one note over the Starnote
+#define SURVEY_FILE "survey.qo"
+#define SURVEY_PORT 20  // NTN needs a templated Notefile with a port
 #define POLL_S 5
 #define SCREEN_EVERY_S 10  // e-paper partials while searching
 #define OLED_HOLD_S 600
@@ -400,12 +406,14 @@ static void show(const char *title, char lines[SV_LINES][SV_LINE_MAX], bool full
     }
     if (disp == DISP_EPD) {
         memset(fb, 0xFF, sizeof fb);
-        draw_text(&text_font_mini, 2, 1, title);
+        // The title, a rule, then the lines 14 px apart (8 x 16 glyphs, the
+        // last line's descenders at the bottom edge).
+        draw_text(&text_font_mini, 2, 0, title);
         for (int x = 0; x < LW; x++) {
-            epd_px(x, 18, true);
+            epd_px(x, 16, true);
         }
         for (int i = 0; i < SV_LINES; i++) {
-            draw_text(&text_font_mini, 2, 21 + i * 17, lines[i]);
+            draw_text(&text_font_mini, 2, 18 + i * 15, lines[i]);
         }
         bool use_full = full || !epd_drawn;
         long ms = use_full ? epd_full() : epd_partial();
@@ -414,7 +422,7 @@ static void show(const char *title, char lines[SV_LINES][SV_LINE_MAX], bool full
     } else if (disp == DISP_OLED) {
         memset(ob, 0, sizeof ob);
         for (int i = 0; i < SV_LINES; i++) {
-            draw_text(&text_font_tiny, 0, 1 + i * 10 + (i > 0 ? 3 : 0), lines[i]);
+            draw_text(&text_font_tiny, 0, i * 9, lines[i]);
         }
         oled_push();
     }
@@ -509,6 +517,7 @@ static int key_down(void)
 // ---------------------------------------------------------------- the survey
 
 static sv_result_t res;
+static bool survey_note(void);
 
 static void progress(const char *gps, const char *cell, bool full)
 {
@@ -516,8 +525,8 @@ static void progress(const char *gps, const char *cell, bool full)
     sv_result_lines(&res, lines);
     snprintf(lines[0], SV_LINE_MAX, "%s", gps);
     snprintf(lines[1], SV_LINE_MAX, "%s", cell);
-    snprintf(lines[4], SV_LINE_MAX, "Surveying...");
     lines[5][0] = '\0';
+    snprintf(lines[6], SV_LINE_MAX, "Surveying...");
     show("Site survey", lines, full);
 }
 
@@ -567,6 +576,11 @@ static void gps_phase(int64_t t_start)
 
 static void cell_phase(int64_t t_start, const char *gps_line)
 {
+    char req[96];
+    if (nc_req_transport(req, sizeof req, "cell") > 0) {
+        nc_send(req);
+    }
+    survey_note();
     nc_name("hub.sync");
     int64_t t0 = esp_timer_get_time();
     int64_t shown = t0;
@@ -611,6 +625,83 @@ static void cell_phase(int64_t t_start, const char *gps_line)
         }
         vTaskDelay(pdMS_TO_TICKS(POLL_S * 1000));
     }
+}
+
+// The survey's note: a compact template (port SURVEY_PORT, so NTN takes it),
+// then one note with what was found so far; sync says whether to send it now.
+static bool survey_note(void)
+{
+    static bool templated;
+    char req[512];
+    if (!templated) {
+        snprintf(req, sizeof req,
+                 "{\"req\":\"note.template\",\"file\":\"" SURVEY_FILE "\",\"port\":%d,"
+                 "\"format\":\"compact\",\"body\":{\"lat\":14.1,\"lon\":14.1,\"bars\":11,"
+                 "\"rsrp\":12,\"temp\":12,\"batt\":12}}\n",
+                 SURVEY_PORT);
+        templated = nc_send(req);
+    }
+    snprintf(req, sizeof req,
+             "{\"req\":\"note.add\",\"file\":\"" SURVEY_FILE "\",\"body\":{\"lat\":%.5f,\"lon\":%.5f,"
+             "\"bars\":%d,\"rsrp\":%d,\"temp\":%d,\"batt\":%d}}\n",
+             res.gps_fix ? res.lat : 0.0, res.gps_fix ? res.lon : 0.0, res.bars, res.rsrp,
+             res.wx ? res.temp_centi_c : 0, res.batt_mv);
+    return nc_send(req);
+}
+
+// A sync forced and waited for, up to limit_s: true once the Notecard reports
+// a sync completed since this one was asked for.
+static bool sync_wait(int limit_s, int *took_s, const char *gps_line, const char *cell_line)
+{
+    nc_name("hub.sync");
+    int64_t t0 = esp_timer_get_time(), shown = t0;
+    char line[SV_LINE_MAX];
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(POLL_S * 1000));
+        int s = (int)((esp_timer_get_time() - t0) / 1000000);
+        double done;
+        if (nc_name("hub.sync.status")) {
+            char st[96] = "";
+            bool pending = strstr(rsp, "\"sync\":true") != NULL;
+            nc_str(rsp, "status", st, sizeof st);
+            if (strstr(st, "{sync-end}") || (!pending && nc_num(rsp, "completed", &done) && done <= s)) {
+                *took_s = s;
+                return true;
+            }
+        }
+        if (s >= limit_s) {
+            *took_s = s;
+            return false;
+        }
+        if (esp_timer_get_time() - shown >= (int64_t)SCREEN_EVERY_S * 1000000) {
+            shown = esp_timer_get_time();
+            snprintf(line, sizeof line, "Satellite: %d:%02d", s / 60, s % 60);
+            char lines[SV_LINES][SV_LINE_MAX];
+            sv_result_lines(&res, lines);
+            snprintf(lines[0], SV_LINE_MAX, "%s", gps_line);
+            snprintf(lines[1], SV_LINE_MAX, "%s", cell_line);
+            snprintf(lines[2], SV_LINE_MAX, "%s", line);
+            lines[5][0] = '\0';
+            snprintf(lines[6], SV_LINE_MAX, "Surveying...");
+            show("Site survey", lines, false);
+        }
+    }
+}
+
+static void sat_phase(const char *gps_line, const char *cell_line)
+{
+    // A Starnote answers ntn.status; without one the line stays n/a.
+    if (!nc_name("ntn.status") || strstr(rsp, "{ntn-unknown}") || strstr(rsp, "{ntn-none}")) {
+        printf("survey: no Starnote, satellite skipped\n");
+        return;
+    }
+    char req[96];
+    if (nc_req_transport(req, sizeof req, "ntn") == 0 || !nc_send(req)) {
+        return;
+    }
+    res.sat_tried = true;
+    survey_note();
+    res.sat = sync_wait(SAT_LIMIT_S, &res.sat_s, gps_line, cell_line);
 }
 
 static void lines_inputs(void)
@@ -700,6 +791,21 @@ void app_main(void)
     }
     printf("survey: battery %d mV %d%%\n", res.batt_mv, res.batt_pct);
 
+    // The weather from the BME280 on I2C2 (the OLED's bus when one is fitted).
+    const bme280_config_t wc = {.i2c_port = 1, .sda_gpio = I2C2_SDA, .scl_gpio = I2C2_SCL, .address = 0x76,
+                                .clk_hz = 100000, .internal_pullup = true,
+                                .settings = BME280_SETTINGS_WEATHER};
+    bme280_reading_t w;
+    if (bme280_start(&wc) == ESP_OK && bme280_read(&w) == ESP_OK) {
+        res.wx = true;
+        res.temp_centi_c = (int)w.temp_centi_c;
+        res.hum_pct = (int)((w.hum_q10_pct + 512) / 1024);
+        res.press_hpa = (int)((w.press_q8_pa / 256 + 50) / 100);
+        bme280_stop();
+    }
+    printf("survey: weather %s %d cC %d %% %d hPa\n", res.wx ? "ok" : "none", res.temp_centi_c,
+           res.hum_pct, res.press_hpa);
+
     int64_t epoch = 0;
     int minutes = 0;
     if (have_nc) {
@@ -707,6 +813,10 @@ void app_main(void)
     }
     progress(have_nc ? "GPS: starting" : "Notecard: none", "Cell: waiting", true);
 
+    char transport[24] = "";
+    if (have_nc && nc_name("card.transport")) {
+        nc_str(rsp, "method", transport, sizeof transport);
+    }
     if (have_nc) {
         gps_phase(epoch);
         char gps_line[SV_LINE_MAX];
@@ -717,6 +827,16 @@ void app_main(void)
         }
         progress(gps_line, "Cell: searching", false);
         cell_phase(epoch, gps_line);
+        char cell_line[SV_LINE_MAX];
+        char lines0[SV_LINES][SV_LINE_MAX];
+        sv_result_lines(&res, lines0);
+        snprintf(cell_line, sizeof cell_line, "%s", lines0[1]);
+        sat_phase(gps_line, cell_line);
+        // The transport it had ("-", the default, when none was reported).
+        char req[96];
+        if (nc_req_transport(req, sizeof req, transport[0] ? transport : "-") > 0) {
+            nc_send(req);
+        }
         if (nc_time(&epoch, &minutes)) {
             res.local_s = epoch + (int64_t)minutes * 60;
         }
@@ -735,7 +855,7 @@ void app_main(void)
     if (!have_nc) {
         snprintf(lines[0], SV_LINE_MAX, "Notecard: none");
     }
-    show("Site survey result", lines, true);
+    show("Survey done - key: again", lines, true);
 
     if (card) {
         esp_vfs_fat_sdcard_unmount(SD_MOUNT, card);

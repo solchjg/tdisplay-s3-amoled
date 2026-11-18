@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define SV_LINES 6
+#define SV_LINES 7
 #define SV_LINE_MAX 32  // a line's bytes with its NUL; the OLED shows 21 of them
 
 typedef struct {
@@ -22,8 +22,12 @@ typedef struct {
     int rssi, rsrp;     // dBm, 0 when unknown
     int cell_s;         // seconds to the first registration, or the limit
     bool synced;        // a Notehub sync completed
-    // Satellite: not fitted on this build unless sat_fitted
-    bool sat_fitted, sat;
+    // Satellite (Starnote, card.transport ntn): sat_tried false when not run
+    bool sat_tried, sat;
+    int sat_s;  // seconds to the sync's end, or the limit
+    // Weather from the BME280, when it answered
+    bool wx;
+    int temp_centi_c, hum_pct, press_hpa;
     // Battery
     int batt_mv, batt_pct;  // -1 when the gauge did not answer
     // Clock: local time from the Notecard, 0 when unknown
@@ -34,7 +38,7 @@ typedef struct {
 // The carrier's short name for mcc/mnc (US networks), or NULL.
 const char *sv_carrier(int mcc, int mnc);
 
-// The six result lines, each at most 21 characters so the OLED shows it whole.
+// The seven result lines, each at most 21 characters so the OLED shows it whole.
 void sv_result_lines(const sv_result_t *r, char lines[SV_LINES][SV_LINE_MAX]);
 
 // The CSV header and one result as a line, both ending in '\n'. The length

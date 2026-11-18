@@ -81,32 +81,48 @@ void sv_result_lines(const sv_result_t *r, char lines[SV_LINES][SV_LINE_MAX])
     } else {
         snprintf(lines[1], SV_LINE_MAX, "Cell: none (%ds)", r->cell_s);
     }
-    if (!r->sat_fitted) {
+    if (!r->sat_tried) {
         snprintf(lines[2], SV_LINE_MAX, "Satellite: n/a");
+    } else if (r->sat) {
+        snprintf(lines[2], SV_LINE_MAX, "Satellite: ok %ds", r->sat_s);
     } else {
-        snprintf(lines[2], SV_LINE_MAX, "Satellite: %s", r->sat ? "ok" : "none");
+        snprintf(lines[2], SV_LINE_MAX, "Satellite: none %ds", r->sat_s);
+    }
+    if (r->wx) {
+        int f10 = r->temp_centi_c * 9 / 50 + 320;  // 0.1 F
+        snprintf(lines[3], SV_LINE_MAX, "%d.%dF %d%%RH %dhPa", f10 / 10, (f10 < 0 ? -f10 : f10) % 10,
+                 r->hum_pct, r->press_hpa);
+    } else {
+        snprintf(lines[3], SV_LINE_MAX, "Weather: no sensor");
     }
     if (r->batt_mv >= 0) {
-        snprintf(lines[3], SV_LINE_MAX, "Bat %d.%02dV %d%% SD %s", r->batt_mv / 1000,
+        snprintf(lines[4], SV_LINE_MAX, "Bat %d.%02dV %d%% SD %s", r->batt_mv / 1000,
                  r->batt_mv % 1000 / 10, r->batt_pct, r->sd_ok ? "ok" : "--");
     } else {
-        snprintf(lines[3], SV_LINE_MAX, "Bat ?  SD %s", r->sd_ok ? "ok" : "--");
+        snprintf(lines[4], SV_LINE_MAX, "Bat ?  SD %s", r->sd_ok ? "ok" : "--");
     }
-    sv_time_text(r->local_s, lines[4], SV_LINE_MAX);
-    snprintf(lines[5], SV_LINE_MAX, "Press key: restart");
+    sv_time_text(r->local_s, lines[5], SV_LINE_MAX);
+    snprintf(lines[6], SV_LINE_MAX, "Press key: restart");
 }
 
 size_t sv_csv_header(char *buf, size_t n)
 {
     int k = snprintf(buf, n,
                      "local_time,lat,lon,gps_s,carrier,mcc,mnc,rat,bars,rssi_dbm,rsrp_dbm,cell_s,"
-                     "notehub_sync,satellite,batt_v,batt_pct\n");
+                     "notehub_sync,satellite,sat_s,temp_c,hum_pct,press_hpa,batt_v,batt_pct\n");
     return k > 0 && (size_t)k < n ? (size_t)k : 0;
 }
 
 size_t sv_csv_line(const sv_result_t *r, char *buf, size_t n)
 {
     char t[24], lat[16] = "", lon[16] = "", name[16] = "", batt[24] = "", pct[16] = "";
+    char temp[16] = "", hum[16] = "", press[16] = "";
+    if (r->wx) {
+        int c = r->temp_centi_c;
+        snprintf(temp, sizeof temp, "%s%d.%02d", c < 0 ? "-" : "", (c < 0 ? -c : c) / 100, (c < 0 ? -c : c) % 100);
+        snprintf(hum, sizeof hum, "%d", r->hum_pct);
+        snprintf(press, sizeof press, "%d", r->press_hpa);
+    }
     sv_time_text(r->local_s, t, sizeof t);
     if (r->local_s <= 0) {
         t[0] = '\0';
@@ -123,9 +139,9 @@ size_t sv_csv_line(const sv_result_t *r, char *buf, size_t n)
         snprintf(batt, sizeof batt, "%d.%03d", r->batt_mv / 1000, r->batt_mv % 1000);
         snprintf(pct, sizeof pct, "%d", r->batt_pct);
     }
-    int k = snprintf(buf, n, "%s,%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,%d,%s,%s,%s,%s\n", t, lat, lon,
-                     r->gps_s, name, r->mcc, r->mnc, r->rat, r->bars, r->rssi, r->rsrp, r->cell_s,
-                     r->synced ? "yes" : "no", r->sat_fitted ? (r->sat ? "ok" : "none") : "n/a",
-                     batt, pct);
+    int k = snprintf(buf, n, "%s,%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,%d,%s,%s,%d,%s,%s,%s,%s,%s\n", t, lat,
+                     lon, r->gps_s, name, r->mcc, r->mnc, r->rat, r->bars, r->rssi, r->rsrp, r->cell_s,
+                     r->synced ? "yes" : "no", r->sat_tried ? (r->sat ? "ok" : "none") : "n/a",
+                     r->sat_s, temp, hum, press, batt, pct);
     return k > 0 && (size_t)k < n ? (size_t)k : 0;
 }
