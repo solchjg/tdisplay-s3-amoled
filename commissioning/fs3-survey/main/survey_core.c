@@ -104,10 +104,9 @@ void sv_result_lines(const sv_result_t *r, char lines[SV_LINES][SV_LINE_MAX])
     if (r->nc_mv >= 0) {
         snprintf(nv, sizeof nv, "N%d.%02dV", r->nc_mv / 1000, r->nc_mv % 1000 / 10);
     }
-    int k = snprintf(lines[4], SV_LINE_MAX, "Bat %s %s", f, nv);
-    if (k > 21) {
-        snprintf(lines[4], SV_LINE_MAX, "%s %s", f, nv);
-    }
+    char full[64];
+    int k = snprintf(full, sizeof full, "Bat %s %s", f, nv);
+    snprintf(lines[4], SV_LINE_MAX, "%.31s", k > 21 ? full + 4 : full);
     sv_time_text(r->local_s, lines[5], SV_LINE_MAX);
     snprintf(lines[6], SV_LINE_MAX, "Key: restart  SD %s", r->sd_ok ? "ok" : "--");
 }
