@@ -197,28 +197,7 @@ static void adc_start(void)
 #define PIN_SD_CS 38
 #define SD_MOUNT "/sd"
 #define SD_TEST_BYTES (64 * 1024)
-#define SD_SETTLE_MS 250
 
-// SO's level with each internal pull, before the bus claims it: the
-// breakout's pull-up (to the switched 3V) holds it high against the
-// ESP32's weak pull-down; low with the pull-down means no pull-up there.
-static void sd_so_pins(void)
-{
-    gpio_config_t c = {.pin_bit_mask = 1ULL << PIN_SD_MISO, .mode = GPIO_MODE_INPUT,
-                       .pull_down_en = GPIO_PULLDOWN_ENABLE};
-    gpio_config(&c);
-    esp_rom_delay_us(200);
-    int down = gpio_get_level(PIN_SD_MISO);
-    c.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    c.pull_up_en = GPIO_PULLUP_ENABLE;
-    gpio_config(&c);
-    esp_rom_delay_us(200);
-    int up = gpio_get_level(PIN_SD_MISO);
-    c.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&c);
-    printf("wsepaper: sd SO pulled down=%d up=%d %s\n", down, up,
-           down ? "ok (the breakout's pull-up)" : "CHECK: no pull-up, or SO not wired, or the card's 3V off");
-}
 
 RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
 
@@ -244,7 +223,11 @@ static void sd_test(void)
     esp_log_level_set("sdmmc_common", ESP_LOG_DEBUG);
     esp_log_level_set("sdspi_host", ESP_LOG_DEBUG);
     esp_log_level_set("sdspi_transaction", ESP_LOG_DEBUG);
-    vTaskDelay(pdMS_TO_TICKS(SD_SETTLE_MS));  // on top of the 100 ms after the supply
+    // On top of the 100 ms after the supply: none on odd runs, 250 ms on even
+    // ones, to find the settle time the card needs after its supply comes on.
+    const int settle_ms = rtc_run % 2 ? 0 : 250;
+    vTaskDelay(pdMS_TO_TICKS(settle_ms));
+    printf("wsepaper: sd %d ms after the supply\n", 100 + settle_ms);
     esp_err_t err = ESP_FAIL;
     long mount_ms = 0;
     for (int attempt = 1; attempt <= 3 && err != ESP_OK; attempt++) {
@@ -314,7 +297,6 @@ static esp_err_t bus_start(void)
     busy_input();
     adc_start();
 #ifdef PIN_SD_CS
-    sd_so_pins();
     const int miso = PIN_SD_MISO;
 #else
     const int miso = -1;
