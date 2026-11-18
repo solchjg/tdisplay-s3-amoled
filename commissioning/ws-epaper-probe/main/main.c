@@ -24,6 +24,12 @@
 // the controller's deep sleep. The HAT's VCC comes from the display supply
 // (the Pololu switch, GPIO 17): on at boot, off with every panel line an
 // input before the ESP32 deep-sleeps for 60 s, for the sleep current.
+// Before the panel, each run mounts the microSD breakout on the same supply
+// and bus (FSD §40.2, FR-40.14: SO GPIO 37, CS GPIO 38, the panel's CS held
+// high), prints the card, writes 64 KB to /sd/probe.bin, reads it back and
+// compares (`wsepaper: sd`), looks for /settings.txt, and unmounts; with no
+// card the mount fails and the run goes on. Wiring adds SO to MI (GPIO 37),
+// CS to GPIO 38, the card's 3V to the switch's output, DET unconnected.
 #include <stdio.h>
 #include <string.h>
 
@@ -34,6 +40,11 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_rom_sys.h"
 #include "esp_sleep.h"
+#ifdef PROBE_EPD213
+#include "driver/sdspi_host.h"
+#include "esp_vfs_fat.h"
+#include "sdmmc_cmd.h"
+#endif
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -180,6 +191,76 @@ static void adc_start(void)
     }
 }
 
+#ifdef PROBE_EPD213
+#define PIN_SD_MISO 37
+#define PIN_SD_CS 38
+#define SD_MOUNT "/sd"
+#define SD_TEST_BYTES (64 * 1024)
+
+RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
+
+// Mount, card details, 64 KB written, read back and compared, /settings.txt
+// looked for, unmount. The panel's CS is held high so only the card answers.
+static void sd_test(void)
+{
+    gpio_set_level(PIN_CS, 1);
+    gpio_config_t cs = {.pin_bit_mask = 1ULL << PIN_CS, .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&cs);
+    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+    host.slot = SPI2_HOST;
+    host.max_freq_khz = 10000;
+    sdspi_device_config_t slot = SDSPI_DEVICE_CONFIG_DEFAULT();
+    slot.gpio_cs = PIN_SD_CS;
+    slot.host_id = SPI2_HOST;
+    const esp_vfs_fat_sdmmc_mount_config_t mc = {.format_if_mount_failed = false, .max_files = 2,
+                                                 .allocation_unit_size = 0};
+    sdmmc_card_t *card = NULL;
+    int64_t t0 = esp_timer_get_time();
+    esp_err_t err = esp_vfs_fat_sdspi_mount(SD_MOUNT, &host, &slot, &mc, &card);
+    long mount_ms = (long)((esp_timer_get_time() - t0) / 1000);
+    if (err != ESP_OK) {
+        printf("wsepaper: sd mount %s after %ld ms (no card, or no FAT)\n", esp_err_to_name(err), mount_ms);
+        return;
+    }
+    printf("wsepaper: sd mount ok %ld ms: %s, %s, %llu MB, %d kHz\n", mount_ms, card->cid.name,
+           (card->ocr & (1 << 30)) ? "SDHC/SDXC" : "SDSC",
+           (unsigned long long)card->csd.capacity * card->csd.sector_size / (1024 * 1024),
+           card->real_freq_khz);
+    static uint8_t buf[4096];
+    bool ok = true;
+    t0 = esp_timer_get_time();
+    FILE *f = fopen(SD_MOUNT "/probe.bin", "w");
+    for (int i = 0; f && i < SD_TEST_BYTES / (int)sizeof buf; i++) {
+        for (size_t k = 0; k < sizeof buf; k++) {
+            buf[k] = (uint8_t)(i * 31 + k * 7 + rtc_run);
+        }
+        ok = ok && fwrite(buf, 1, sizeof buf, f) == sizeof buf;
+    }
+    ok = f && fclose(f) == 0 && ok;
+    long w_ms = (long)((esp_timer_get_time() - t0) / 1000);
+    t0 = esp_timer_get_time();
+    bool same = ok;
+    f = fopen(SD_MOUNT "/probe.bin", "r");
+    for (int i = 0; f && same && i < SD_TEST_BYTES / (int)sizeof buf; i++) {
+        same = fread(buf, 1, sizeof buf, f) == sizeof buf;
+        for (size_t k = 0; same && k < sizeof buf; k++) {
+            same = buf[k] == (uint8_t)(i * 31 + k * 7 + rtc_run);
+        }
+    }
+    same = f && fclose(f) == 0 && same;
+    long r_ms = (long)((esp_timer_get_time() - t0) / 1000);
+    printf("wsepaper: sd 64 KB write %ld ms %s, read %ld ms %s\n", w_ms, ok ? "ok" : "CHECK", r_ms,
+           same ? "ok, same" : "CHECK");
+    FILE *s = fopen(SD_MOUNT "/settings.txt", "r");
+    printf("wsepaper: sd /settings.txt %s\n", s ? "found" : "none");
+    if (s) {
+        fclose(s);
+    }
+    err = esp_vfs_fat_sdcard_unmount(SD_MOUNT, card);
+    printf("wsepaper: sd unmount %s\n", esp_err_to_name(err));
+}
+#endif
+
 static esp_err_t bus_start(void)
 {
 #ifdef PIN_MODEM_SUPPLY
@@ -193,12 +274,20 @@ static esp_err_t bus_start(void)
     gpio_config(&out);
     busy_input();
     adc_start();
-    spi_bus_config_t bc = {.sclk_io_num = PIN_SCK, .mosi_io_num = PIN_MOSI, .miso_io_num = -1,
+#ifdef PIN_SD_CS
+    const int miso = PIN_SD_MISO;
+#else
+    const int miso = -1;
+#endif
+    spi_bus_config_t bc = {.sclk_io_num = PIN_SCK, .mosi_io_num = PIN_MOSI, .miso_io_num = miso,
                            .quadwp_io_num = -1, .quadhd_io_num = -1, .max_transfer_sz = SPI_CHUNK};
     esp_err_t err = spi_bus_initialize(SPI2_HOST, &bc, SPI_DMA_CH_AUTO);
     if (err != ESP_OK) {
         return err;
     }
+#ifdef PIN_SD_CS
+    sd_test();  // FR-40.14: the card before any panel traffic
+#endif
     spi_device_interface_config_t dc = {.clock_speed_hz = SPI_HZ, .mode = 0,
                                         .spics_io_num = PIN_CS, .queue_size = 1};
     return spi_bus_add_device(SPI2_HOST, &dc, &spi);
@@ -410,11 +499,11 @@ static long v3_partial(void)
     return epd_wait();
 }
 
-static long v3_sleep(void)
+// Deep sleep mode 1; the SSD1680 holds BUSY high from then on, so it is not waited on.
+static void v3_sleep(void)
 {
     CMD(0x10, 0x01);
     vTaskDelay(pdMS_TO_TICKS(100));
-    return gpio_get_level(PIN_BUSY) ? -1 : 0;
 }
 #endif
 
@@ -560,7 +649,6 @@ static void font_page(int run)
 }
 
 #ifdef PROBE_EPD213
-RTC_DATA_ATTR static int rtc_run;  // kept through the ESP32's deep sleep
 
 // The HAT's VCC from the display supply (§40.2, FR-40.4): the Pololu 2808's
 // CTRL on GPIO 17 latches, so it is driven high (on) or low (off) for 10 ms
@@ -585,7 +673,8 @@ static void supply_off(void)
     spi_bus_remove_device(spi);
     spi_bus_free(SPI2_HOST);
     gpio_config_t in = {.pin_bit_mask = (1ULL << PIN_SCK) | (1ULL << PIN_MOSI) | (1ULL << PIN_CS) |
-                                        (1ULL << PIN_DC) | (1ULL << PIN_RST),
+                                        (1ULL << PIN_DC) | (1ULL << PIN_RST) |
+                                        (1ULL << PIN_SD_MISO) | (1ULL << PIN_SD_CS),
                         .mode = GPIO_MODE_INPUT,
                         .pull_up_en = GPIO_PULLUP_DISABLE,
                         .pull_down_en = GPIO_PULLDOWN_DISABLE};
@@ -657,11 +746,12 @@ void app_main(void)
             sleeping_page(run);
             long slp = ms < 0 ? -1 : v3_full();
             printf("wsepaper: sleeping page %ld ms %s\n", slp, slp > 500 ? "ok" : "CHECK");
-            ms = v3_sleep();
+            v3_sleep();
+            printf("wsepaper: controller asleep\n");
 #else
             ms = epd_sleep(true);
-#endif
             printf("wsepaper: power off %ld ms %s; controller asleep\n", ms, ms >= 0 ? "ok" : "CHECK");
+#endif
         }
         printf("wsepaper: RESULT run %d (%s): full %ld ms, %d of %d partials ok -> %s\n", run,
                fonts ? "font page" : "test screen", full, good, fonts ? 0 : 5,
