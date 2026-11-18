@@ -410,11 +410,11 @@ static long v3_partial(void)
     return epd_wait();
 }
 
-static long v3_sleep(void)
+// Deep sleep mode 1; the SSD1680 holds BUSY high from then on, so it is not waited on.
+static void v3_sleep(void)
 {
     CMD(0x10, 0x01);
     vTaskDelay(pdMS_TO_TICKS(100));
-    return gpio_get_level(PIN_BUSY) ? -1 : 0;
 }
 #endif
 
@@ -657,11 +657,12 @@ void app_main(void)
             sleeping_page(run);
             long slp = ms < 0 ? -1 : v3_full();
             printf("wsepaper: sleeping page %ld ms %s\n", slp, slp > 500 ? "ok" : "CHECK");
-            ms = v3_sleep();
+            v3_sleep();
+            printf("wsepaper: controller asleep\n");
 #else
             ms = epd_sleep(true);
-#endif
             printf("wsepaper: power off %ld ms %s; controller asleep\n", ms, ms >= 0 ? "ok" : "CHECK");
+#endif
         }
         printf("wsepaper: RESULT run %d (%s): full %ld ms, %d of %d partials ok -> %s\n", run,
                fonts ? "font page" : "test screen", full, good, fonts ? 0 : 5,
