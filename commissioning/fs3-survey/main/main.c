@@ -467,9 +467,29 @@ static bool sd_append(const sv_result_t *r)
     if (!card) {
         return false;
     }
-    char line[256];
+    char line[256], head[256];
     struct stat st;
     bool fresh = stat(CSV, &st) != 0;
+    if (!fresh) {
+        // A file with another header (an older column set) is kept under a
+        // free name, survey-1.csv to survey-9.csv (8.3 names), and a new one started.
+        FILE *old = fopen(CSV, "r");
+        bool same = false;
+        if (old) {
+            size_t hn = sv_csv_header(line, sizeof line);
+            same = hn > 0 && fgets(head, sizeof head, old) && strcmp(head, line) == 0;
+            fclose(old);
+        }
+        for (int i = 1; !same && i < 10; i++) {
+            char to[32];
+            snprintf(to, sizeof to, SD_MOUNT "/survey-%d.csv", i);
+            if (stat(to, &st) != 0) {
+                printf("survey: csv header changed, old file kept as %s\n", to);
+                fresh = rename(CSV, to) == 0;
+                break;
+            }
+        }
+    }
     FILE *f = fopen(CSV, "a");
     if (!f) {
         return false;
