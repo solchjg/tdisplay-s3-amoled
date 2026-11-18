@@ -3,15 +3,16 @@
 // microSD mounted (SPI2: SO 37, CS 38); the panel found (the 2.13" e-Paper HAT,
 // V3, on SPI2 when its BUSY is driven, else a 1.3" SSD1306 OLED at 0x3C on
 // I2C2); the battery from the MAX17048; then through the Notecard on I2C1 a GPS
-// fix (continuous mode, up to GPS_LIMIT_S) and a Notehub sync with the network
+// fix (continuous mode, up to the gps_min setting) and a Notehub sync with the network
 // it registers on (card.wireless, up to CELL_LIMIT_S), and with a Starnote the
-// same note sent over satellite (card.transport ntn, up to SAT_LIMIT_S); the
+// same note sent over satellite (card.transport ntn, up to sat_min, when sat is on); the
 // BME280 on I2C2 adds the weather. The result goes on the
 // panel and as a line in /survey.csv with the local date and time from the
 // Notecard. Then, with the e-paper, the panel's deep sleep, every panel and card
 // line an input and the supplies off, and deep sleep until the user key (GPIO 1)
 // or BOOT (GPIO 0) is pressed; with the OLED the result stays up for
-// OLED_HOLD_S first. An off-board key may sit beside the user key on GPIO 1, and
+// OLED_HOLD_S first. On a power-up or reset a Bluetooth setup window comes
+// first (ble_window). An off-board key may sit beside the user key on GPIO 1, and
 // its LED on GPIO 13 (with the board's blue LED): on while surveying, blinking on
 // the result, off asleep. Serial lines start "survey:". Never released.
 //
@@ -30,12 +31,17 @@
 #include "driver/spi_master.h"
 #include "esp_rom_sys.h"
 #include "esp_sleep.h"
+#include "esp_attr.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "ble_setup.h"
 #include "bme280.h"
+#include "esp_mac.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "max17048.h"
 #include "notecard.h"
 #include "sdmmc_cmd.h"
@@ -61,9 +67,9 @@
 #define I2C2_SDA 16
 #define I2C2_SCL 15
 
-#define GPS_LIMIT_S 300
+#define BLE_IDLE_S 120   // the setup window closes after this long with no phone connected
+#define BLE_MAX_S 900    // and after this long in all
 #define CELL_LIMIT_S 180
-#define SAT_LIMIT_S 300  // a Skylo registration and one note over the Starnote
 #define SURVEY_FILE "survey.qo"
 #define SURVEY_PORT 20  // NTN needs a templated Notefile with a port
 #define POLL_S 5
@@ -569,6 +575,7 @@ static bool poll_wait(void)
 // ---------------------------------------------------------------- the survey
 
 static sv_result_t res;
+static sv_settings_t set;  // from NVS, changed over Bluetooth
 static bool survey_note(void);
 
 static void progress(const char *gps, const char *cell, bool full)
@@ -579,7 +586,7 @@ static void progress(const char *gps, const char *cell, bool full)
     snprintf(lines[1], SV_LINE_MAX, "%s", cell);
     lines[5][0] = '\0';
     snprintf(lines[6], SV_LINE_MAX, "Surveying - key: skip");
-    show("Site survey", lines, full);
+    show(res.site[0] ? res.site : "Site survey", lines, full);
 }
 
 static void gps_phase(int64_t t_start)
@@ -619,7 +626,7 @@ static void gps_phase(int64_t t_start)
                 break;
             }
         }
-        if (s >= GPS_LIMIT_S) {
+        if (s >= set.gps_min * 60) {
             res.gps_s = s;
             break;
         }
@@ -752,7 +759,7 @@ static bool sync_wait(int limit_s, int *took_s, const char *gps_line, const char
             snprintf(lines[2], SV_LINE_MAX, "%s", line);
             lines[5][0] = '\0';
             snprintf(lines[6], SV_LINE_MAX, "Surveying - key: skip");
-            show("Site survey", lines, false);
+            show(res.site[0] ? res.site : "Site survey", lines, false);
         }
     }
 }
@@ -774,7 +781,7 @@ static void sat_phase(const char *gps_line, const char *cell_line)
     }
     res.sat_tried = true;
     survey_note();
-    res.sat = sync_wait(SAT_LIMIT_S, &res.sat_s, gps_line, cell_line);
+    res.sat = sync_wait(set.sat_min * 60, &res.sat_s, gps_line, cell_line);
 }
 
 static void lines_inputs(void)
@@ -814,6 +821,262 @@ static void sleep_until_key(void)
     esp_deep_sleep_start();
 }
 
+// ---------------------------------------------------------------- Bluetooth setup
+// On a power-up or reset (not a key wake) the shared ble_setup service runs
+// first: the phone page (shared/components/ble_setup/web/index.html) reads and
+// writes the survey's settings and downloads survey.csv. A key press, the
+// page's Done, BLE_IDLE_S without a phone or BLE_MAX_S in all end it.
+
+#define NVS_NS "survey"
+
+static void settings_load(void)
+{
+    sv_settings_default(&set);
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+        sv_settings_t s;
+        size_t n = sizeof s;
+        if (nvs_get_blob(h, "set", &s, &n) == ESP_OK && n == sizeof s && s.gps_min >= 1 && s.gps_min <= 10 &&
+            s.sat_min >= 1 && s.sat_min <= 15) {
+            s.site[SV_SITE_MAX] = '\0';
+            set = s;
+        }
+        nvs_close(h);
+    }
+    snprintf(res.site, sizeof res.site, "%s", set.site);
+    printf("survey: settings site='%s' sat=%s gps_min=%d sat_min=%d\n", set.site, set.sat ? "on" : "off",
+           set.gps_min, set.sat_min);
+}
+
+static bool settings_save(const sv_settings_t *s)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
+        return false;
+    }
+    bool ok = nvs_set_blob(h, "set", s, sizeof *s) == ESP_OK && nvs_commit(h) == ESP_OK;
+    nvs_close(h);
+    return ok;
+}
+
+static char ble_name[16];
+#define RESTART_MAGIC 0x53525652u  // set before the result screen's restart: no setup window
+RTC_NOINIT_ATTR static uint32_t restart_mark;
+static volatile uint32_t ble_code;      // the passkey on show, or 0
+static volatile bool ble_code_on, ble_conn, ble_done, ble_dirty;
+static char hist_from[11], hist_to[11];  // the page's date range, "" for open
+
+static bool put_raw(char *out, size_t cap, size_t *p, const char *s)
+{
+    size_t n = strlen(s);
+    if (*p + n >= cap) {
+        return false;
+    }
+    memcpy(out + *p, s, n + 1);
+    *p += n;
+    return true;
+}
+
+static size_t ble_read_info(char *out, size_t cap)
+{
+    char head[256], v[48];
+    size_t p = 0, hn = sv_csv_header(head, sizeof head);
+    if (hn > 0) {
+        head[hn - 1] = '\0';  // the newline
+    }
+    bool ok = put_raw(out, cap, &p, "name=") && sv_url_put(out, cap, &p, ble_name);
+    if (ok && res.batt_mv >= 0) {
+        snprintf(v, sizeof v, "%d.%02d V %d %%", res.batt_mv / 1000, res.batt_mv % 1000 / 10, res.batt_pct);
+        ok = put_raw(out, cap, &p, "&battery=") && sv_url_put(out, cap, &p, v);
+    }
+    if (ok && card) {
+        ok = put_raw(out, cap, &p, "&history=") && sv_url_put(out, cap, &p, head);
+    }
+    return ok ? p : 0;
+}
+
+static size_t ble_read_settings(char *out, size_t cap)
+{
+    return sv_settings_form(&set, out, cap);
+}
+
+static size_t ble_read_form(char *out, size_t cap)
+{
+    return sv_settings_rules(out, cap);
+}
+
+static void ble_apply(const char *body, size_t len, char *result, size_t cap)
+{
+    sv_settings_t s;
+    char bad[16];
+    if (!sv_settings_parse(body, len, &set, &s, bad, sizeof bad)) {
+        snprintf(result, cap, "invalid=%s", bad);
+        printf("survey: ble settings invalid=%s\n", bad);
+        return;
+    }
+    set = s;
+    snprintf(res.site, sizeof res.site, "%s", set.site);
+    snprintf(result, cap, "%s", settings_save(&set) ? "ok" : "invalid=site");
+    printf("survey: ble settings applied site='%s' sat=%s gps_min=%d sat_min=%d\n", set.site,
+           set.sat ? "on" : "off", set.gps_min, set.sat_min);
+    ble_dirty = true;
+}
+
+static void ble_passkey(uint32_t passkey, bool shown)
+{
+    ble_code = passkey;
+    ble_code_on = shown;
+    ble_dirty = true;
+}
+
+static void ble_event(ble_setup_event_t ev)
+{
+    if (ev == BLE_SETUP_EV_CONNECTED) {
+        ble_conn = true;
+    } else if (ev == BLE_SETUP_EV_DISCONNECTED) {
+        ble_conn = false;
+        ble_code_on = false;
+    } else if (ev == BLE_SETUP_EV_DONE) {
+        ble_done = true;
+    } else if (ev == BLE_SETUP_EV_PAIRED) {
+        ble_code_on = false;
+    }
+    ble_dirty = true;
+}
+
+// Whole CSV lines from data line `line` (the header not counted) within the
+// page's range, as many as fit in cap.
+static size_t ble_read_history(uint32_t line, char *out, size_t cap)
+{
+    if (!card) {
+        return 0;
+    }
+    FILE *f = fopen(CSV, "r");
+    if (!f) {
+        return 0;
+    }
+    char buf[256];
+    size_t p = 0;
+    uint32_t n = 0;
+    bool first = true;
+    while (fgets(buf, sizeof buf, f)) {
+        if (first) {
+            first = false;  // the header
+            continue;
+        }
+        if (!sv_in_range(buf, hist_from, hist_to)) {
+            continue;
+        }
+        if (n++ < line) {
+            continue;
+        }
+        size_t l = strlen(buf);
+        if (p + l > cap) {
+            break;
+        }
+        memcpy(out + p, buf, l);
+        p += l;
+    }
+    fclose(f);
+    return p;
+}
+
+static bool ble_history_range(const char *text, size_t len)
+{
+    char t[32];
+    if (len >= sizeof t) {
+        return false;
+    }
+    memcpy(t, text, len);
+    t[len] = '\0';
+    char *comma = strchr(t, ',');
+    if (!comma) {
+        return false;
+    }
+    *comma = '\0';
+    snprintf(hist_from, sizeof hist_from, "%.10s", t);
+    snprintf(hist_to, sizeof hist_to, "%.10s", comma + 1);
+    return true;
+}
+
+static void ble_window(void)
+{
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_BT);
+    snprintf(ble_name, sizeof ble_name, "FS3-%02X%02X%02X", mac[3], mac[4], mac[5]);
+    static const ble_setup_config_t cfg = {
+        .name = ble_name,
+        .read_info = ble_read_info,
+        .read_settings = ble_read_settings,
+        .read_form = ble_read_form,
+        .on_apply = ble_apply,
+        .on_passkey = ble_passkey,
+        .on_event = ble_event,
+        .read_history = ble_read_history,
+        .on_history_range = ble_history_range,
+    };
+    esp_err_t err = ble_setup_start(&cfg);
+    printf("survey: ble setup %s as %s\n", esp_err_to_name(err), ble_name);
+    if (err != ESP_OK) {
+        return;
+    }
+    int64_t t0 = esp_timer_get_time(), idle0 = t0;
+    int shown_s = -1;
+    bool was_conn = false;
+    ble_dirty = true;
+    for (;;) {
+        int64_t now = esp_timer_get_time();
+        if (ble_conn) {
+            idle0 = now;
+        }
+        int left = BLE_IDLE_S - (int)((now - idle0) / 1000000);
+        if (ble_done || left <= 0 || now - t0 >= (int64_t)BLE_MAX_S * 1000000) {
+            printf("survey: ble setup ends (%s)\n", ble_done ? "done" : "time");
+            break;
+        }
+        if (key_down()) {
+            vTaskDelay(pdMS_TO_TICKS(30));
+            if (key_down()) {
+                printf("survey: ble setup ends (key)\n");
+                while (key_down()) {
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                }
+                break;
+            }
+        }
+        // The screen on any change, and the countdown every 10 s while waiting.
+        int tick = ble_conn ? -2 : left / 10;
+        if (ble_dirty || tick != shown_s || ble_conn != was_conn) {
+            ble_dirty = false;
+            shown_s = tick;
+            was_conn = ble_conn;
+            char lines[SV_LINES][SV_LINE_MAX];
+            snprintf(lines[0], SV_LINE_MAX, "Name: %s", ble_name);
+            if (ble_code_on) {
+                snprintf(lines[1], SV_LINE_MAX, "Code: %06lu", (unsigned long)ble_code);
+            } else {
+                snprintf(lines[1], SV_LINE_MAX, "%s", ble_conn ? "Phone connected" : "Waiting for phone");
+            }
+            snprintf(lines[2], SV_LINE_MAX, "Site: %.15s", set.site[0] ? set.site : "-");
+            char sat[8] = "off";
+            if (set.sat) {
+                snprintf(sat, sizeof sat, "%dm", set.sat_min);
+            }
+            snprintf(lines[3], SV_LINE_MAX, "GPS %dm  Sat %s", set.gps_min, sat);
+            if (ble_conn) {
+                lines[4][0] = '\0';
+            } else {
+                snprintf(lines[4], SV_LINE_MAX, "Closes in %ds", left);
+            }
+            snprintf(lines[5], SV_LINE_MAX, "Done on page or key:");
+            snprintf(lines[6], SV_LINE_MAX, "start the survey");
+            show("Bluetooth setup", lines, false);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    ble_setup_stop();
+}
+
 void app_main(void)
 {
     printf("survey: start, wake cause %d\n", (int)esp_sleep_get_wakeup_cause());
@@ -829,6 +1092,13 @@ void app_main(void)
     while (key_down()) {  // the press that woke it
         vTaskDelay(pdMS_TO_TICKS(20));
     }
+    esp_err_t nerr = nvs_flash_init();
+    if (nerr == ESP_ERR_NVS_NO_FREE_PAGES || nerr == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase();
+        nerr = nvs_flash_init();
+    }
+    printf("survey: nvs %s\n", esp_err_to_name(nerr));
+    settings_load();
 
     // Supplies on (FR-40.8: 100 ms), then the card before any panel traffic (FR-40.14).
     supply_ctrl(1);
@@ -915,6 +1185,13 @@ void app_main(void)
     printf("survey: weather %s %d cC %d %% %d hPa\n", res.wx ? "ok" : "none", res.temp_centi_c,
            res.hum_pct, res.press_hpa);
 
+    // Bluetooth setup on a power-up or reset, not on a key wake.
+    bool again = restart_mark == RESTART_MAGIC && esp_reset_reason() == ESP_RST_SW;
+    restart_mark = 0;
+    if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1 && !again) {
+        ble_window();
+    }
+
     int64_t epoch = 0;
     int minutes = 0;
     if (have_nc) {
@@ -940,7 +1217,11 @@ void app_main(void)
         char lines0[SV_LINES][SV_LINE_MAX];
         sv_result_lines(&res, lines0);
         snprintf(cell_line, sizeof cell_line, "%s", lines0[1]);
-        sat_phase(gps_line, cell_line);
+        if (set.sat) {
+            sat_phase(gps_line, cell_line);
+        } else {
+            printf("survey: satellite off in the settings\n");
+        }
         // The transport it had ("-", the default, when none was reported).
         char req[96];
         if (nc_req_transport(req, sizeof req, transport[0] ? transport : "-") > 0) {
@@ -982,6 +1263,7 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(50));
         }
         if (key_down()) {
+            restart_mark = RESTART_MAGIC;
             esp_restart();
         }
         oled_off();

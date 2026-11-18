@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.22)
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(EXTRA_COMPONENT_DIRS ${ROOT}/shared/components/notecard ${ROOT}/shared/components/max17048
     ${ROOT}/shared/components/text ${ROOT}/shared/components/esp_try
-    ${ROOT}/shared/components/bme280)
+    ${ROOT}/shared/components/bme280 ${ROOT}/shared/components/ble_setup)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(fs3_survey)

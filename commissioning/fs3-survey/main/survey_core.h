@@ -34,6 +34,7 @@ typedef struct {
     // Clock: local time from the Notecard, 0 when unknown
     int64_t local_s;
     bool sd_ok;
+    char site[24];  // the site's name from the settings, or ""
 } sv_result_t;
 
 // The carrier's short name for mcc/mnc (US networks), or NULL.
@@ -49,3 +50,38 @@ size_t sv_csv_line(const sv_result_t *r, char *buf, size_t n);
 
 // "YYYY-MM-DD HH:MM" for a local time in seconds since 1970, or "time unknown".
 void sv_time_text(int64_t local_s, char *buf, size_t n);
+
+// ---------------------------------------------------------------- settings
+// Set over Bluetooth (the shared ble_setup page) and kept in NVS.
+
+#define SV_SITE_MAX 20
+
+typedef struct {
+    char site[SV_SITE_MAX + 1];  // letters, digits, space, - _ . only (no comma for the CSV)
+    bool sat;                    // run the satellite step
+    int gps_min;                 // the GPS search's limit, 1 - 10 minutes
+    int sat_min;                 // the satellite step's limit, 1 - 15 minutes
+} sv_settings_t;
+
+void sv_settings_default(sv_settings_t *s);
+
+// The value of field name in a URL-encoded form body, decoded into out (max
+// bytes with its NUL): its length, or -1 when absent or too long.
+int sv_form_field(const char *body, size_t len, const char *name, char *out, size_t max);
+
+// Percent-encodes src onto out at *pos (cap bytes in all); false when full.
+bool sv_url_put(char *out, size_t cap, size_t *pos, const char *src);
+
+// A settings write: fields absent keep cur's value. true with *out set, or
+// false with the first bad field's name in bad.
+bool sv_settings_parse(const char *body, size_t len, const sv_settings_t *cur, sv_settings_t *out,
+                       char *bad, size_t bad_max);
+
+// The settings as a form body, and the page's rules for each field (ble_setup.h
+// read_form). The length, or 0 when cap is too small.
+size_t sv_settings_form(const sv_settings_t *s, char *out, size_t cap);
+size_t sv_settings_rules(char *out, size_t cap);
+
+// A CSV line's date (its first 10 characters, YYYY-MM-DD) within from..to
+// (either "" for open); a line with no date passes only an open range.
+bool sv_in_range(const char *line, const char *from, const char *to);

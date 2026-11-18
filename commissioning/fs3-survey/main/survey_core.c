@@ -1,6 +1,8 @@
 #include "survey_core.h"
 
 #include <stdio.h>
+#include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct {
@@ -115,7 +117,7 @@ size_t sv_csv_header(char *buf, size_t n)
 {
     int k = snprintf(buf, n,
                      "local_time,lat,lon,gps_s,carrier,mcc,mnc,rat,bars,rssi_dbm,rsrp_dbm,cell_s,"
-                     "notehub_sync,satellite,sat_s,temp_c,hum_pct,press_hpa,batt_v,batt_pct,notecard_v\n");
+                     "notehub_sync,satellite,sat_s,temp_c,hum_pct,press_hpa,batt_v,batt_pct,notecard_v,site\n");
     return k > 0 && (size_t)k < n ? (size_t)k : 0;
 }
 
@@ -148,9 +150,196 @@ size_t sv_csv_line(const sv_result_t *r, char *buf, size_t n)
     if (r->nc_mv >= 0) {
         snprintf(ncv, sizeof ncv, "%d.%03d", r->nc_mv / 1000, r->nc_mv % 1000);
     }
-    int k = snprintf(buf, n, "%s,%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,%d,%s,%s,%d,%s,%s,%s,%s,%s,%s\n", t, lat,
+    int k = snprintf(buf, n, "%s,%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,%d,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s\n", t, lat,
                      lon, r->gps_s, name, r->mcc, r->mnc, r->rat, r->bars, r->rssi, r->rsrp, r->cell_s,
                      r->synced ? "yes" : "no", r->sat_tried ? (r->sat ? "ok" : "none") : "n/a",
-                     r->sat_s, temp, hum, press, batt, pct, ncv);
+                     r->sat_s, temp, hum, press, batt, pct, ncv, r->site);
     return k > 0 && (size_t)k < n ? (size_t)k : 0;
+}
+
+// ---------------------------------------------------------------- settings
+
+void sv_settings_default(sv_settings_t *s)
+{
+    memset(s, 0, sizeof *s);
+    s->sat = true;
+    s->gps_min = 5;
+    s->sat_min = 5;
+}
+
+static int hexval(char c)
+{
+    return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+}
+
+int sv_form_field(const char *body, size_t len, const char *name, char *out, size_t max)
+{
+    size_t nl = strlen(name), i = 0;
+    while (i < len) {
+        size_t end = i;
+        while (end < len && body[end] != '&') {
+            end++;
+        }
+        if (end - i > nl && strncmp(body + i, name, nl) == 0 && body[i + nl] == '=') {
+            size_t o = 0;
+            for (size_t k = i + nl + 1; k < end; k++) {
+                char ch = body[k];
+                if (ch == '+') {
+                    ch = ' ';
+                } else if (ch == '%' && k + 2 < end && hexval(body[k + 1]) >= 0 && hexval(body[k + 2]) >= 0) {
+                    ch = (char)(hexval(body[k + 1]) * 16 + hexval(body[k + 2]));
+                    k += 2;
+                }
+                if (o + 1 >= max) {
+                    return -1;
+                }
+                out[o++] = ch;
+            }
+            out[o] = '\0';
+            return (int)o;
+        }
+        if (end - i == nl && strncmp(body + i, name, nl) == 0) {  // "name" with no '='
+            if (max < 1) {
+                return -1;
+            }
+            out[0] = '\0';
+            return 0;
+        }
+        i = end + 1;
+    }
+    return -1;
+}
+
+bool sv_url_put(char *out, size_t cap, size_t *pos, const char *src)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    for (; *src; src++) {
+        unsigned char ch = (unsigned char)*src;
+        bool plain = isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~';
+        size_t need = plain ? 1 : 3;
+        if (*pos + need >= cap) {
+            return false;
+        }
+        if (plain) {
+            out[(*pos)++] = (char)ch;
+        } else {
+            out[(*pos)++] = '%';
+            out[(*pos)++] = hex[ch >> 4];
+            out[(*pos)++] = hex[ch & 15];
+        }
+    }
+    out[*pos] = '\0';
+    return true;
+}
+
+static bool raw_put(char *out, size_t cap, size_t *pos, const char *src)
+{
+    size_t n = strlen(src);
+    if (*pos + n >= cap) {
+        return false;
+    }
+    memcpy(out + *pos, src, n + 1);
+    *pos += n;
+    return true;
+}
+
+static bool int_field(const char *body, size_t len, const char *name, int lo, int hi, int *v)
+{
+    char t[8];
+    int n = sv_form_field(body, len, name, t, sizeof t);
+    if (n < 0) {
+        return true;  // absent: keep
+    }
+    char *end;
+    long x = strtol(t, &end, 10);
+    if (n == 0 || *end || x < lo || x > hi) {
+        return false;
+    }
+    *v = (int)x;
+    return true;
+}
+
+bool sv_settings_parse(const char *body, size_t len, const sv_settings_t *cur, sv_settings_t *out,
+                       char *bad, size_t bad_max)
+{
+    *out = *cur;
+    const char *fail = NULL;
+    char t[128];  // longer than the limit, so a long name fails rather than reads as absent
+    int n = sv_form_field(body, len, "site", t, sizeof t);
+    if (n > SV_SITE_MAX) {
+        fail = "site";
+    } else if (n >= 0) {
+        for (int i = 0; i < n; i++) {
+            unsigned char ch = (unsigned char)t[i];
+            if (!(isalnum(ch) || ch == ' ' || ch == '-' || ch == '_' || ch == '.')) {
+                fail = "site";
+            }
+        }
+        if (!fail) {
+            memcpy(out->site, t, (size_t)n + 1);
+        }
+    }
+    char s[8];
+    if (!fail && (n = sv_form_field(body, len, "sat", s, sizeof s)) >= 0) {
+        if (strcmp(s, "on") == 0) {
+            out->sat = true;
+        } else if (strcmp(s, "off") == 0) {
+            out->sat = false;
+        } else {
+            fail = "sat";
+        }
+    }
+    if (!fail && !int_field(body, len, "gps_min", 1, 10, &out->gps_min)) {
+        fail = "gps_min";
+    }
+    if (!fail && !int_field(body, len, "sat_min", 1, 15, &out->sat_min)) {
+        fail = "sat_min";
+    }
+    if (fail) {
+        snprintf(bad, bad_max, "%s", fail);
+        *out = *cur;
+        return false;
+    }
+    return true;
+}
+
+size_t sv_settings_form(const sv_settings_t *s, char *out, size_t cap)
+{
+    size_t p = 0;
+    char num[32];
+    bool ok = raw_put(out, cap, &p, "site=") && sv_url_put(out, cap, &p, s->site) &&
+              raw_put(out, cap, &p, s->sat ? "&sat=on" : "&sat=off");
+    snprintf(num, sizeof num, "&gps_min=%d&sat_min=%d", s->gps_min, s->sat_min);
+    ok = ok && raw_put(out, cap, &p, num);
+    return ok ? p : 0;
+}
+
+size_t sv_settings_rules(char *out, size_t cap)
+{
+    static const char *const rules[][2] = {
+        {"site", "section=Site survey&label=Site name&maxlength=20&pattern=[A-Za-z0-9 ._-]*"
+                 "&placeholder=e.g. Well 3&hint=Saved with each survey in survey.csv"},
+        {"sat", "label=Satellite test&options=on,off&labels=On|Off"},
+        {"gps_min", "label=GPS search limit&type=number&min=1&max=10&step=1&unit=min&required=1"},
+        {"sat_min", "label=Satellite limit&type=number&min=1&max=15&step=1&unit=min&required=1"},
+    };
+    size_t p = 0;
+    for (size_t i = 0; i < sizeof rules / sizeof rules[0]; i++) {
+        if ((i > 0 && !raw_put(out, cap, &p, "&")) || !raw_put(out, cap, &p, rules[i][0]) ||
+            !raw_put(out, cap, &p, "=") || !sv_url_put(out, cap, &p, rules[i][1])) {
+            return 0;
+        }
+    }
+    return p;
+}
+
+bool sv_in_range(const char *line, const char *from, const char *to)
+{
+    if (!from[0] && !to[0]) {
+        return true;
+    }
+    if (strlen(line) < 10 || !isdigit((unsigned char)line[0]) || line[4] != '-') {
+        return false;
+    }
+    return (!from[0] || strncmp(line, from, 10) >= 0) && (!to[0] || strncmp(line, to, 10) <= 0);
 }
