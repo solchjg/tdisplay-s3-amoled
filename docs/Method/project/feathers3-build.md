@@ -130,7 +130,7 @@ From the FeatherS3D's LiPo, the probe asleep with LDO2 held off, USB out,
 | Display pins: Waveshare's 2.13" e-Paper HAT (V3 panel, SSD1680, Rev2.1 board) on 3V3, its controller in deep sleep and its lines held (`fs3-epd213-probe`) | 2.8 mA |
 | The same probe with the HAT's cable out | 20 µA |
 | The HAT on the display supply (Pololu #2808, CTRL GPIO 17), cut after the controller's deep sleep with every panel line an input (`fs3-epd213-probe`, from the LiPo) | 43 – 45 µA |
-| As above, plus the Adafruit #4682 microSD breakout (SPI, SO GPIO 37, CS GPIO 38) on the same supply, a 16 GB SDHC card in, mounted, 64 KB written and read back each wake | 44 µA |
+| As above, plus the Adafruit #4682 microSD breakout (SPI, SO GPIO 37, CS GPIO 38) on the same supply, a 16 GB SDHC card in or out, mounted, 64 KB written and read back each wake | 44 µA |
 
 I2C1's 3V3 holds 3.3 V throughout. A Notecarrier-X that is unpowered or whose
 LiPo is flat raises the figure to 332 µA: the FeatherS3D's I2C1 pull-ups feed
