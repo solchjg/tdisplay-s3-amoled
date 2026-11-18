@@ -11,7 +11,9 @@
 // Notecard. Then, with the e-paper, the panel's deep sleep, every panel and card
 // line an input and the supplies off, and deep sleep until the user key (GPIO 1)
 // or BOOT (GPIO 0) is pressed; with the OLED the result stays up for
-// OLED_HOLD_S first. Serial lines start "survey:". Never released.
+// OLED_HOLD_S first. An off-board key may sit beside the user key on GPIO 1, and
+// its LED on GPIO 13 (with the board's blue LED): on while surveying, blinking on
+// the result, off asleep. Serial lines start "survey:". Never released.
 //
 // The Notecard can neither choose nor scan operators, so the cellular line is
 // the one network its SIM registered on. Without a satellite radio (a Notecard
@@ -53,6 +55,7 @@
 #define PIN_BUSY 10
 #define PIN_KEY 1   // user key, active low, 10 kΩ pull-up
 #define PIN_BOOT 0  // BOOT key, active low
+#define PIN_LED 13  // the board's blue LED and the off-board key's LED (to GND through a resistor)
 #define I2C1_SDA 8
 #define I2C1_SCL 9
 #define I2C2_SDA 16
@@ -785,8 +788,22 @@ static void lines_inputs(void)
     gpio_config(&in);
 }
 
+static void led(bool on)
+{
+    gpio_set_level(PIN_LED, on);
+}
+
+// The LED off and its line an input (no current) for the deep sleep.
+static void led_release(void)
+{
+    gpio_config_t in = {.pin_bit_mask = 1ULL << PIN_LED, .mode = GPIO_MODE_INPUT,
+                        .pull_up_en = GPIO_PULLUP_DISABLE, .pull_down_en = GPIO_PULLDOWN_DISABLE};
+    gpio_config(&in);
+}
+
 static void sleep_until_key(void)
 {
+    led_release();
     printf("survey: asleep until the user key or BOOT\n");
     fflush(stdout);
     rtc_gpio_pullup_en(PIN_KEY);
@@ -805,6 +822,10 @@ void app_main(void)
     rtc_gpio_deinit(PIN_KEY);
     rtc_gpio_deinit(PIN_BOOT);
     gpio_config(&keys);
+    // The LED on while the survey runs, blinking on the result, off asleep.
+    gpio_config_t lc = {.pin_bit_mask = 1ULL << PIN_LED, .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&lc);
+    led(true);
     while (key_down()) {  // the press that woke it
         vTaskDelay(pdMS_TO_TICKS(20));
     }
@@ -957,12 +978,20 @@ void app_main(void)
         // The OLED shows nothing unpowered: hold the result, then sleep.
         int64_t t0 = esp_timer_get_time();
         while (!key_down() && esp_timer_get_time() - t0 < (int64_t)OLED_HOLD_S * 1000000) {
+            led((esp_timer_get_time() - t0) / 500000 % 2 == 0);  // 1 Hz
             vTaskDelay(pdMS_TO_TICKS(50));
         }
         if (key_down()) {
             esp_restart();
         }
         oled_off();
+    }
+    if (disp != DISP_OLED) {
+        // The picture stays on the e-paper: three blinks say the survey is done.
+        for (int i = 0; i < 6; i++) {
+            led(i % 2);
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
     }
     if (disp == DISP_EPD) {
         CMD(0x10, 0x01);  // the controller's deep sleep; the picture stays
