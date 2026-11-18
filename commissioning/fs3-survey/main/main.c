@@ -570,14 +570,26 @@ static int key_down(void)
     return gpio_get_level(PIN_KEY) == 0 || gpio_get_level(PIN_BOOT) == 0;
 }
 
+// A real press: a key held low through 100 ms of samples, so a glitch on a
+// long off-board key cable does not end a step.
+static bool key_held(void)
+{
+    for (int i = 0; i < 10; i++) {
+        if (!key_down()) {
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    return true;
+}
+
 // One poll interval, cut short by a key press: true once a key was pressed
 // (and let go, so the press does not also restart the survey at the end).
 static bool poll_wait(void)
 {
     for (int i = 0; i < POLL_S * 10; i++) {
         if (key_down()) {
-            vTaskDelay(pdMS_TO_TICKS(30));
-            if (key_down()) {
+            if (key_held()) {
                 printf("survey: key pressed, step skipped\n");
                 while (key_down()) {
                     vTaskDelay(pdMS_TO_TICKS(20));
@@ -1063,8 +1075,7 @@ static void ble_window(void)
             break;
         }
         if (key_down()) {
-            vTaskDelay(pdMS_TO_TICKS(30));
-            if (key_down()) {
+            if (key_held()) {
                 printf("survey: ble setup ends (key)\n");
                 while (key_down()) {
                     vTaskDelay(pdMS_TO_TICKS(20));
