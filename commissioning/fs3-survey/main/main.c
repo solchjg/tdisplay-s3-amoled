@@ -1326,6 +1326,10 @@ void app_main(void)
     spi_bus_free(SPI2_HOST);
     lines_inputs();  // FR-40.5, before the supply goes off
     supply_ctrl(0);
+    if (oled) {
+        i2c_master_bus_rm_device(oled);
+        oled = NULL;
+    }
     if (i2c2) {
         i2c_del_master_bus(i2c2);
     }
