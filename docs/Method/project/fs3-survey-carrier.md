@@ -47,7 +47,7 @@ and 0.6 mm vias (0.8 mm on power).
 | J24 / J25 | JST PH 2 way, each | Battery in / battery out | The same for the Notecarrier-X's LiPo |
 | J26 | 2 × 2 pins, 2.54 mm | Pole A: 1 – 2 (Feather), pole B: 3 – 4 (Notecarrier) | Two jumpers, or a lead to a panel DPST switch |
 | J14 | 1 × 3 pins | EN, BOOT, GND | The testbench's slot lines |
-| J15 | 1 × 6 pins | GND, GPIO 11, 12, 43, 44, 3V3 | The free header pins |
+| J15 | 1 × 4 pins | GND, GPIO 43, 44, 3V3 | The header's free pins (UART 0); GPIO 11 and 12 belong to the OLED |
 
 **Notecarrier-X.** Four M2.5 holes (H5 – H8) take posts for the
 Notecarrier-X above the middle of the board. They match Blues' v1.2
@@ -119,6 +119,59 @@ and watch the serial monitor for the ROM's `waiting for download` banner.
 The board's R11 removes the cause: GPIO 0 stays high unless the bench
 actively drives it low.
 
+## Add-on boards
+
+Two boards plug into the carrier with straight JST XH leads. Their designs are in
+[`hardware/fs3-analog-board/`](../../../hardware/fs3-analog-board/) and
+[`hardware/fs3-serial-board/`](../../../hardware/fs3-serial-board/), made the same
+way as the carrier. Sheet 18 shows every lead between the boards, the devices and
+the field wiring:
+
+![Leads between the boards](wiring/wiring-18-fs3-boards.png)
+
+Its [`.fzz`](wiring/wiring-18-fs3-boards.fzz) opens in Fritzing.
+
+Both boards share a front end. The enable line has a 100 kΩ pull-down, so the board is
+off through sleep and reset. It drives a P-MOSFET load switch from VBAT (Q1 AO3401A,
+Q2 MMBT3904, a 47 nF soft start), as on the loop circuit of §29. An MT3608 boost then
+feeds an isolated 2 W DC-DC (XP Power IH, 3 kVDC). The field side is on the right, past
+a 5 mm gap with no copper on either layer. Only the DC-DC and a TI ISO1642 isolator
+(5 kVrms) cross the gap. Each side has its own ground pour: GND on the left, GNDI on the
+right.
+
+**Analog board** (74 × 54 mm, carrier J12; FSD §29, §40.2, FR-40.9).
+
+- **24 V.** The boost makes 5.1 V for an IH0512S-H. Its +12 V and −12 V
+  outputs together give 24 V at up to 83 mA, with −12 V as the field side's 0 V.
+- **ADC.** An ADS1115 at 0x49 runs from an LM317L at 3.25 V. It talks to I2C2
+  through the ISO1642, whose side 1 runs from LDO2.
+- **4-20 mA loop.** It is powered through a DN2540 current limiter (47 Ω and the
+  RV1 trimmer) and runs into the 100 Ω 0.1 % shunt across A0 – A1. An SMBJ28CA
+  TVS sits across its terminal.
+- **0 – 5 V probe.** Its 24 V comes through a second limiter (RV2). Its signal
+  reaches A2 through a 15 kΩ / 10 kΩ 0.1 % divider with 100 nF. TVS diodes
+  protect both lines.
+- **Supply budget (C-40.10).** A shorted loop draws 30 mA, the regulator 11 mA and
+  the probe at most 25 mA. That totals 66 mA, which fits 83 mA with 20 % to spare.
+- **Trimming.** Trim RV1 to 25 – 30 mA and RV2 to about 25 mA, each with its
+  terminal shorted through an ammeter.
+
+**Serial board** (63 × 54 mm, carrier J13; FSD §40.2, FR-40.12, C-40.4).
+
+- **5 V supply.** The boost is set to 4.7 V (R6 680 kΩ). It feeds an IH0505S-H,
+  whose +5 V output powers the MB7569 at about 5 V. The ISO1642 and the
+  sensor's 5.5 V limit stay safe at light load.
+- **Serial line.** The sensor's TX passes a TVS diode and 1 kΩ to the
+  isolator's INB, with 100 kΩ holding INB low. OUTB on the board side drives
+  GPIO 14, which the firmware inverts. GPIO 33 powers the isolator's board side
+  as well as enabling the supply.
+- **Ranging.** The ranging pin is tied high through 1 kΩ.
+- **Signal levels.** This port carries logic levels only. A true RS232
+  instrument still needs §30's MAX3232 board.
+
+Both boards keep C-40.7's surge protectors at the enclosure wall, not on the board.
+Their own TVS diodes only clamp what passes the protectors.
+
 ## Before ordering
 
 These were not checked against the physical parts:
@@ -138,6 +191,12 @@ These were not checked against the physical parts:
    Adafruit boards.
 5. **§40.2.** The FSD still names the Pololu #2808 as the display supply. If
    this board is adopted, the user changes that row.
+6. **The add-on boards' isolation.** XP Power rates the IH -H models at
+   3 kVDC; check the test duration against C-40.6's 1 minute. Also check the
+   IH0512S-H's pins against its drawing (1 +Vin, 2 −Vin, 4 −Vout, 5 0V,
+   6 +Vout, as in KiCad's library).
+7. **The terminal order.** Each field terminal is numbered from the bottom
+   of the board: the silk says which wire goes where.
 
 ## Ordering and assembly
 
@@ -152,7 +211,7 @@ through-hole connectors last. Leave JP1 open.
 After assembly, and before the Feather goes in, check the following:
 
 - No short between 3V3, VSW, VBAT and GND.
-- VSW reads 0 V with 3V3 applied at J15 pin 6.
+- VSW reads 0 V with 3V3 applied at J15 pin 4.
 - Pulling J1 pin 5 (GPIO 17) to 3V3 for a moment turns VSW on, and it stays
   on. Pulling the pin to GND turns VSW off, and it stays off.
 
@@ -164,13 +223,18 @@ files. The scripts need KiCad 7 (`kicad-cli` and the `pcbnew` Python module)
 and its symbol and footprint libraries (`apt install kicad kicad-symbols
 kicad-footprints`).
 
+The scripts in [`hardware/pcbgen/`](../../../hardware/pcbgen/) serve all three
+boards. Each runs from a board's directory and reads its `netlist.py`, which also
+holds the board's own choices (size, silk, ground pours, isolation gap).
+
 ```bash
-cd hardware/fs3-survey-carrier
-python3 make_sch.py        # the schematic
-python3 make_pcb.py        # placement, routing (route.py), ground pours
-python3 check.py --pcb     # schematic and board match netlist.py; KiCad DRC: no errors
-python3 make_fab.py        # fab/: Gerbers, drill, BOM, positions, PDFs, pictures
-python3 make_fritzing.py   # wiring sheet 17, the part placement
+cd hardware/fs3-survey-carrier     # or fs3-analog-board, fs3-serial-board
+python3 ../pcbgen/make_sch.py      # the schematic
+python3 ../pcbgen/make_pcb.py      # placement, routing (route.py), ground pours
+python3 ../pcbgen/check.py --pcb   # schematic and board match netlist.py; KiCad DRC: no errors
+python3 ../pcbgen/make_fab.py      # fab/: Gerbers, drill, BOM, positions, PDFs, pictures
+python3 make_fritzing.py           # carrier only: wiring sheet 17, the part placement
+python3 make_connections.py        # carrier only: wiring sheet 18, the leads between boards
 ```
 
 `route.py` is a small maze router: it routes each net on a 0.127 mm grid and

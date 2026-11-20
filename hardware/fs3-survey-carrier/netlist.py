@@ -132,9 +132,9 @@ PARTS = [
     P("J13", conn(4), "Serial port", "Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical",
       pins(GND, VBAT, "SER_EN", "SER_RX"), "Add-ons", (33.0, 85.5, 0), "JST B4B-XH-A",
       "§40.2 serial port: enable GPIO 33, RX GPIO 14"),
-    P("J15", conn(6), "Spare", "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
-      pins(GND, "IO11", "IO12", "TX43", "RX44", V33), "Spare", (85.026, 5.08, 90),
-      "1x6 2.54 mm header", "Free header pins"),
+    P("J15", conn(4), "Spare", "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      pins(GND, "TX43", "RX44", V33), "Spare", (85.026, 5.08, 90),
+      "1x4 2.54 mm header", "The header's free pins: UART 0 on GPIO 43 and 44"),
     # ---- the 3.12" SSD1322 OLED (§40.2): a 2x8 box header with the module's own pinout
     # (ws-displays.md), so a straight 16-way IDC ribbon joins the two. The board ties the
     # module's unused parallel inputs (D3 - D7, E/RD, R/W) to GND and leaves D2 open.
@@ -207,3 +207,45 @@ POWER_NETS = {GND, V33, LDO2, VBAT, VSW, "FBAT_1", "FBAT_IN", "FBAT_OUT", "NBAT_
 BOARD_W, BOARD_H = 110.0, 90.0
 # The Notecarrier-X on posts: its outline on the board, x, y, w, h (mm)
 NOTECARRIER = (31.0, 18.0, 66.11, 38.10)
+
+# ---- what the shared generator (../pcbgen) needs besides the parts
+NAME = "fs3-survey-carrier"
+TITLE, DATE, REV = "FeatherS3D survey carrier", "2026-11-20", "B"
+SCH_NOTE = "FSD 40.2 pins; commissioning/fs3-survey"
+SCH_LAYOUT = {   # group: (x, y, width) on the A3 sheet
+    "Feather": (20, 35, 40), "Display supply": (85, 35, 75), "E-paper": (170, 35, 40),
+    "OLED 3.12": (215, 35, 40), "microSD": (262, 35, 85), "Add-ons": (355, 35, 40),
+    "Mech": (350, 112, 60), "Battery switch": (200, 112, 90),
+    "Spare": (300, 112, 40),
+    "Key": (20, 175, 110), "Bench": (135, 175, 60), "I2C1": (200, 175, 85),
+    "I2C2": (290, 175, 120),
+}
+SCH_FLAGS = (V33, GND, VBAT, LDO2)        # nets that come in on a passive connector
+SILK_RECTS = [NOTECARRIER]
+ROUTE_FIRST = ["SCK", "MOSI", "MISO"]     # the SPI bus reaches four parts
+BOM_GENERIC = {"1u": "0805 X7R 16 V", "1n": "0805 C0G 50 V", "10u": "0805 X5R 10 V",
+               "100n": "0805 X7R 16 V", "Notecarrier 3V3": "solder jumper, left open"}
+SILK = [  # (text, x, y, size, rotation)
+    ("FeatherS3D survey carrier", 64.0, 63.0, 1.5, 0),
+    ("rev B  tdisplay-s3-amoled", 64.0, 65.6, 1.0, 0),
+    ("FEATHER: USB-C THIS EDGE", 16.2, 1.2, 0.8, 0),
+    ("RST", 3.0, 8.9, 0.8, 0),
+    ("E-PAPER 2.13/4.2: VCC GND DIN CLK CS DC RST BUSY", 42.0, 1.4, 0.8, 0),
+    ("OLED 3.12: 16-WAY RIBBON, PIN 1 LEFT", 68.0, 15.6, 0.8, 0),
+    ("SPARE: G 43 44 3V3", 88.8, 1.6, 0.8, 0),
+    ("NOTECARRIER-X ON M2.5 POSTS (66 x 38 mm)", 64.0, 54.6, 1.0, 0),
+    ("BENCH: EN BT G", 11.5, 83.0, 0.8, 0),
+    ("KEY: G K LED", 23.0, 82.0, 0.8, 0),
+    ("SER: G BAT EN RX", 36.75, 82.0, 0.8, 0),
+    ("ANALOG: G BAT EN SCL SDA 3V3", 101.2, 71.75, 0.8, 90),
+    ("I2C2 IN", 58.0, 80.4, 0.8, 0), ("BME280", 66.5, 80.4, 0.8, 0), ("OLED", 75.0, 80.4, 0.8, 0),
+    ("I2C2", 83.5, 80.4, 0.8, 0), ("I2C2", 92.0, 80.4, 0.8, 0),
+    ("RTC", 102.4, 27.0, 0.8, 90), ("NOTECARD", 98.4, 35.5, 0.8, 90),
+    ("I2C1", 102.4, 44.0, 0.8, 90), ("I2C1", 102.4, 52.5, 0.8, 90),
+    ("microSD", 103.0, 22.6, 0.8, 0),
+    ("FEATHER BATTERY", 11.0, 62.4, 0.8, 0), ("NOTECARRIER BATTERY", 30.0, 62.4, 0.8, 0),
+    ("LIPO IN", 7.0, 70.0, 0.8, 0), ("TO FEATHER", 15.0, 70.0, 0.8, 0),
+    ("LIPO IN", 26.0, 70.0, 0.8, 0), ("TO NOTECARR.", 34.0, 70.0, 0.8, 0),
+    ("BATT SW", 44.3, 62.4, 0.8, 0), ("A 1-2  B 3-4", 44.3, 71.2, 0.8, 0),
+]
+

@@ -19,7 +19,7 @@ Qty,Value,Designators,Footprint,Part
 1,Analog board,J12,JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical,JST B6B-XH-A
 1,Serial port,J13,JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical,JST B4B-XH-A
 1,Bench,J14,PinHeader_1x03_P2.54mm_Vertical,1x3 2.54 mm header
-1,Spare,J15,PinHeader_1x06_P2.54mm_Vertical,1x6 2.54 mm header
+1,Spare,J15,PinHeader_1x04_P2.54mm_Vertical,1x4 2.54 mm header
 1,OLED 3.12 2x8,J16,IDC-Header_2x08_P2.54mm_Vertical,2x8 2.54 mm shrouded box header (e.g. Amphenol T821116A1S100CEU)
 2,I2C1 spare,J18 J19,JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal,JST SM04B-SRSS-TB
 2,I2C2 spare,J20 J21,JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal,JST SM04B-SRSS-TB

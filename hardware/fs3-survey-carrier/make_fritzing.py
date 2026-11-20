@@ -4,7 +4,7 @@ The board at twice full size with every part where it sits, labelled, and the
 FeatherS3D and the Notecarrier-X drawn as outlines over it; each part's pads are
 its pins, named by their nets. No wires: the board's copper does the wiring.
 Uses the sheet machinery of docs/Method/project/wiring/make_wiring.py and the
-positions on the generated board, so run it after make_pcb.py:
+positions on the generated board, so run it after ../pcbgen/make_pcb.py:
 
   python3 make_fritzing.py   ->  docs/Method/project/wiring/wiring-17-fs3-carrier.{fzz,svg,png}
 """
@@ -190,7 +190,7 @@ def main():
         "J26  Battery switch: jumpers 1-2 and 3-4, or a panel",
         "       DPST switch (pole A Feather, pole B Notecarrier)",
         "J14  Testbench lines: EN BOOT GND",
-        "J15  Spare Feather pins: GND 11 12 43 44 3V3",
+        "J15  Spare Feather pins: GND 43 44 3V3 (UART 0)",
         "# Holes",
         "H1 - H4  M3, board corners",
         "H5 - H8  M2.5 posts for the Notecarrier-X",

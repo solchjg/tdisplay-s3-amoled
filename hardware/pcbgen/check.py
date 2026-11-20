@@ -5,7 +5,7 @@
 2. With --pcb, every pad on the board carries the net netlist.py gives it, and
    KiCad's DRC (pcbnew.WriteDRCReport) finds no error, unconnected items included
    (warnings are left in drc.rpt).
-Run: python3 check.py [--pcb]
+Run from the board's directory: python3 ../pcbgen/check.py [--pcb]
 """
 import re
 import subprocess
@@ -14,10 +14,10 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
-from netlist import PARTS, PAD_EXTRA
+from board import HERE, NAME, N
 
-HERE = Path(__file__).resolve().parent
-NAME = "fs3-survey-carrier"
+PARTS = N.PARTS
+PAD_EXTRA = N.PAD_EXTRA
 
 
 def expected():

@@ -23,7 +23,7 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "J12","Analog board","JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical",106.000000,12.000000,90.000000,top
 "J13","Serial port","JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical",33.000000,4.500000,0.000000,top
 "J14","Bench","PinHeader_1x03_P2.54mm_Vertical",8.890000,3.640000,90.000000,top
-"J15","Spare","PinHeader_1x06_P2.54mm_Vertical",85.026000,84.920000,90.000000,top
+"J15","Spare","PinHeader_1x04_P2.54mm_Vertical",85.026000,84.920000,90.000000,top
 "J16","OLED 3.12 2x8","IDC-Header_2x08_P2.54mm_Vertical",59.000000,81.500000,90.000000,top
 "J18","I2C1 spare","JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal",106.500000,46.000000,90.000000,top
 "J19","I2C1 spare","JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal",106.500000,37.500000,90.000000,top

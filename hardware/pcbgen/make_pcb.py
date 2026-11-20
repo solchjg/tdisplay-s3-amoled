@@ -1,7 +1,8 @@
-"""Writes fs3-survey-carrier.kicad_pcb (KiCad 7) from netlist.py, then routes it.
+"""Writes <board>.kicad_pcb (KiCad 7) from the board's netlist.py, then routes it.
+Run from the board's directory:
 
-  python3 make_pcb.py                  place the parts, route them (route.py), pour ground
-  python3 make_pcb.py --no-route       place only (to look at the placement)
+  python3 ../pcbgen/make_pcb.py            place the parts, route them (route.py), pour ground
+  python3 ../pcbgen/make_pcb.py --no-route place only (to look at the placement)
 
 The ground pours cover both layers; every power net is a 0.5 mm track.
 """
@@ -13,10 +14,12 @@ import pcbnew
 
 import route
 from make_sch import uid
-from netlist import BOARD_H, BOARD_W, NOTECARRIER, PAD_EXTRA, PARTS, POWER_NETS, GND
+from board import HERE, NAME, N
 
-HERE = Path(__file__).resolve().parent
-NAME = "fs3-survey-carrier"
+BOARD_H, BOARD_W, PAD_EXTRA, PARTS, POWER_NETS, GND = N.BOARD_H, N.BOARD_W, N.PAD_EXTRA, N.PARTS, N.POWER_NETS, N.GND
+# each ground net and the rectangle its pour covers (x0, y0, x1, y1, mm); one pour by default
+GROUNDS = getattr(N, "GROUNDS", {GND: (0, 0, BOARD_W, BOARD_H)})
+KEEPOUTS = getattr(N, "KEEPOUTS", [])   # copper-free rectangles, such as an isolation gap
 FPDIR = Path("/usr/share/kicad/footprints")
 OX, OY = 100.0, 100.0          # the board's top-left corner on the page, mm
 mm = pcbnew.FromMM
@@ -83,29 +86,7 @@ def text(board, s, x, y, size=1.0, layer=pcbnew.F_SilkS, rot=0, bold=False):
     board.Add(t)
 
 
-SILK = [  # (text, x, y, size, rotation)
-    ("FeatherS3D survey carrier", 64.0, 63.0, 1.5, 0),
-    ("rev B  tdisplay-s3-amoled", 64.0, 65.6, 1.0, 0),
-    ("FEATHER: USB-C THIS EDGE", 16.2, 1.2, 0.8, 0),
-    ("RST", 3.0, 8.9, 0.8, 0),
-    ("E-PAPER 2.13/4.2: VCC GND DIN CLK CS DC RST BUSY", 42.0, 1.4, 0.8, 0),
-    ("OLED 3.12: 16-WAY RIBBON, PIN 1 LEFT", 68.0, 15.6, 0.8, 0),
-    ("SPARE: G 11 12 43 44 3V3", 91.4, 1.6, 0.8, 0),
-    ("NOTECARRIER-X ON M2.5 POSTS (66 x 38 mm)", 64.0, 54.6, 1.0, 0),
-    ("BENCH: EN BT G", 11.5, 83.0, 0.8, 0),
-    ("KEY: G K LED", 23.0, 82.0, 0.8, 0),
-    ("SER: G BAT EN RX", 36.75, 82.0, 0.8, 0),
-    ("ANALOG: G BAT EN SCL SDA 3V3", 101.2, 71.75, 0.8, 90),
-    ("I2C2 IN", 58.0, 80.4, 0.8, 0), ("BME280", 66.5, 80.4, 0.8, 0), ("OLED", 75.0, 80.4, 0.8, 0),
-    ("I2C2", 83.5, 80.4, 0.8, 0), ("I2C2", 92.0, 80.4, 0.8, 0),
-    ("RTC", 102.4, 27.0, 0.8, 90), ("NOTECARD", 98.4, 35.5, 0.8, 90),
-    ("I2C1", 102.4, 44.0, 0.8, 90), ("I2C1", 102.4, 52.5, 0.8, 90),
-    ("microSD", 103.0, 22.6, 0.8, 0),
-    ("FEATHER BATTERY", 11.0, 62.4, 0.8, 0), ("NOTECARRIER BATTERY", 30.0, 62.4, 0.8, 0),
-    ("LIPO IN", 7.0, 70.0, 0.8, 0), ("TO FEATHER", 15.0, 70.0, 0.8, 0),
-    ("LIPO IN", 26.0, 70.0, 0.8, 0), ("TO NOTECARR.", 34.0, 70.0, 0.8, 0),
-    ("BATT SW", 44.3, 62.4, 0.8, 0), ("A 1-2  B 3-4", 44.3, 71.2, 0.8, 0),
-]
+SILK = N.SILK   # (text, x, y, size, rotation)
 
 
 def build():
@@ -146,10 +127,10 @@ def build():
     corners = [(0, 0), (BOARD_W, 0), (BOARD_W, BOARD_H), (0, BOARD_H)]
     for a, b in zip(corners, corners[1:] + corners[:1]):
         segment(board, pcbnew.Edge_Cuts, pt(*a), pt(*b), 0.1)
-    nx, ny, nw, nh = NOTECARRIER          # the Notecarrier's outline, where it sits on its posts
-    nc = [(nx, ny), (nx + nw, ny), (nx + nw, ny + nh), (nx, ny + nh)]
-    for a, b in zip(nc, nc[1:] + nc[:1]):
-        segment(board, pcbnew.F_SilkS, pt(*a), pt(*b), 0.15)
+    for nx, ny, nw, nh in getattr(N, "SILK_RECTS", []):   # outlines on the silk, such as a board above
+        nc = [(nx, ny), (nx + nw, ny), (nx + nw, ny + nh), (nx, ny + nh)]
+        for a, b in zip(nc, nc[1:] + nc[:1]):
+            segment(board, pcbnew.F_SilkS, pt(*a), pt(*b), 0.15)
     for s, x, y, size, rot in SILK:
         text(board, s, x, y, size, rot=rot)
     board.Save(str(path))
@@ -161,7 +142,7 @@ def do_route(path):
     nets = {}
     for p in PARTS:
         for n in p["pins"].values():
-            if n and n != GND:
+            if n and n not in GROUNDS:
                 nets.setdefault(n, []).append(p["pcb"])
 
     def span(n):
@@ -169,24 +150,43 @@ def do_route(path):
         ys = [q[1] for q in nets[n]]
         return max(xs) - min(xs) + max(ys) - min(ys)
     power = [n for n in POWER_NETS if n in nets]
-    first = ["SCK", "MOSI", "MISO"]          # the SPI bus reaches four parts: lay it down early
+    first = [n for n in getattr(N, "ROUTE_FIRST", []) if n in nets]   # long buses, laid down early
     rest = sorted((n for n in nets if n not in POWER_NETS and n not in first), key=span)
     order = sorted(power, key=span) + first + rest
-    failed = route.route(board, OX, OY, BOARD_W, BOARD_H, order, POWER_NETS, GND)
+    failed = route.route(board, OX, OY, BOARD_W, BOARD_H, order, POWER_NETS, list(GROUNDS), KEEPOUTS)
     pour(board)
     board.Save(str(path))
     return failed
 
 
 def pour(board):
-    gnd = board.FindNet(GND)
+    for name, (x0, y0, x1, y1) in GROUNDS.items():
+        pour_one(board, board.FindNet(name), max(x0, 0.3), max(y0, 0.3), min(x1, BOARD_W - 0.3), min(y1, BOARD_H - 0.3))
+    for x0, y0, x1, y1 in KEEPOUTS:   # rule areas, so DRC holds the gap too
+        z = pcbnew.ZONE(board)
+        z.SetIsRuleArea(True)
+        z.SetLayerSet(pcbnew.LSET.AllCuMask(2))
+        z.SetDoNotAllowTracks(True)
+        z.SetDoNotAllowVias(True)
+        z.SetDoNotAllowCopperPour(True)
+        z.SetDoNotAllowPads(False)
+        z.SetDoNotAllowFootprints(False)
+        o = z.Outline()
+        o.NewOutline()
+        for x, y in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]:
+            o.Append(mm(OX + x), mm(OY + y))
+        board.Add(z)
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+
+
+def pour_one(board, gnd, x0, y0, x1, y1):
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
         z = pcbnew.ZONE(board)
         z.SetLayer(layer)
         z.SetNet(gnd)
         o = z.Outline()
         o.NewOutline()
-        for x, y in [(0.3, 0.3), (BOARD_W - 0.3, 0.3), (BOARD_W - 0.3, BOARD_H - 0.3), (0.3, BOARD_H - 0.3)]:
+        for x, y in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]:
             o.Append(mm(OX + x), mm(OY + y))
         z.SetLocalClearance(mm(0.3))
         z.SetMinThickness(mm(0.25))
@@ -195,7 +195,6 @@ def pour(board):
         z.SetPadConnection(pcbnew.ZONE_CONNECTION_THT_THERMAL)
         z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_ALWAYS)
         board.Add(z)
-    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
 
 
 if __name__ == "__main__":

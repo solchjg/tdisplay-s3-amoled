@@ -1,24 +1,22 @@
 """Writes the fabrication package into fab/ from the generated KiCad files.
 
   fab/gerbers/            Gerbers (F/B copper, mask, paste, silk, edge) and the Excellon drill
-  fs3-survey-carrier-gerbers.zip   the same, zipped for upload to a board house
+  fab/<board>-gerbers.zip the same, zipped for upload to a board house
   fab/bom.csv             parts by value and footprint, with designators and part numbers
   fab/positions.csv       pick-and-place for the top side (all parts are on top)
   fab/schematic.pdf       the schematic
   fab/assembly.pdf        top copper outline, silk and fab layer (reference designators)
   fab/top.png, fab/bottom.png   pictures of both copper sides
-Run after make_sch.py, make_pcb.py and check.py --pcb.
+Run from the board's directory after make_sch.py, make_pcb.py and check.py --pcb.
 """
 import csv
 import shutil
 import subprocess
 from collections import defaultdict
-from pathlib import Path
 
-from netlist import PARTS
+from board import HERE, NAME, N
 
-HERE = Path(__file__).resolve().parent
-NAME = "fs3-survey-carrier"
+PARTS = N.PARTS
 FAB = HERE / "fab"
 PCB = str(HERE / f"{NAME}.kicad_pcb")
 
@@ -54,8 +52,7 @@ def main():
             svg.unlink()
         except ImportError:
             pass
-    generic = {"1u": "0805 X7R 16 V", "1n": "0805 C0G 50 V", "10u": "0805 X5R 10 V",
-               "100n": "0805 X7R 16 V", "Notecarrier 3V3": "solder jumper, left open"}
+    generic = N.BOM_GENERIC
     rows = defaultdict(list)
     for p in PARTS:
         if p["group"] == "Mech":

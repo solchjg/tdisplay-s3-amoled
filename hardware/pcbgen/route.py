@@ -30,7 +30,7 @@ FREE, BLOCK = -1, -2
 
 
 class Router:
-    def __init__(self, board, ox, oy, w, h, power):
+    def __init__(self, board, ox, oy, w, h, power, keepouts=()):
         self.b, self.ox, self.oy = board, ox, oy
         self.nx, self.ny = int(round(w / G)) + 1, int(round(h / G)) + 1
         # own[class, layer, i, j]: FREE, BLOCK or the id of the net that may use the cell
@@ -44,10 +44,15 @@ class Router:
                 self.own[c, L, -e:, :] = BLOCK
                 self.own[c, L, :, :e] = BLOCK
                 self.own[c, L, :, -e:] = BLOCK
+        for x0, y0, x1, y1 in keepouts:     # copper-free areas, such as an isolation gap
+            for L in (0, 1):
+                self.mark(L, x0, y0, x1, y1, BLOCK, 0)
         self.pads, self.vias = [], []
         for fp in board.GetFootprints():
             for pad in fp.Pads():
                 self._pad(pad)
+        for p in self.pads:                 # fine-pitch pads: an exit lane along each pad's axis
+            self._lane(p)
 
     def nid(self, name):
         if name not in self.netid:
@@ -111,6 +116,28 @@ class Router:
         if name:
             cx, cy = self.to_mm(pad.GetPosition())
             self.pads.append(dict(net=name, x=cx, y=cy, layers=layers, smd=len(layers) == 1, pad=pad))
+
+    def _lane(self, p):
+        """Give a narrow SMD pad (0.5 mm pitch) its axis, out 0.6 mm past each end, in the signal
+        map: a 0.25 mm track there clears the neighbouring pads, which the inflated marks hide."""
+        pad = p["pad"]
+        if not p["smd"]:
+            return
+        bb = pad.GetBoundingBox()
+        x0, y0 = self.to_mm(bb.GetOrigin())
+        x1, y1 = self.to_mm(bb.GetEnd())
+        w, h = x1 - x0, y1 - y0
+        if min(w, h) >= 0.45:
+            return
+        net, L = self.nid(p["net"]), p["layers"][0]
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        if w >= h:
+            cells = [self.cell(x, cy) for x in np.arange(x0 - 0.6, x1 + 0.6 + 1e-9, G / 2)]
+        else:
+            cells = [self.cell(cx, y) for y in np.arange(y0 - 0.6, y1 + 0.6 + 1e-9, G / 2)]
+        for i, j in cells:
+            if 0 <= i < self.nx and 0 <= j < self.ny and self.own[0, L, i, j] != net:
+                self.own[0, L, i, j] = net
 
     # ---- search
     def astar(self, net, sources, target, tlayers, any_b=False, limit=600000):
@@ -284,19 +311,24 @@ class Router:
         return failed
 
 
-def route(board, ox, oy, w, h, order, power, gnd):
-    r = Router(board, ox, oy, w, h, set(power) - {gnd})   # ground stubs are thin: the pours carry it
+def route(board, ox, oy, w, h, order, power, gnds, keepouts=()):
+    """gnds: the ground nets, each with its own pour; keepouts: (x0, y0, x1, y1) rectangles, mm."""
+    if isinstance(gnds, str):
+        gnds = [gnds]
+    r = Router(board, ox, oy, w, h, set(power) - set(gnds), keepouts)   # ground stubs are thin: the pours carry it
     # ground first: each Qwiic socket's pin 1 to its tabs, then a via by every SMD ground pad,
     # so no signal track walls one in
-    by_part = {}
-    for p in r.pads:
-        if p["net"] == gnd:
-            by_part.setdefault(p["pad"].GetParent().GetReference(), []).append(p)
-    for ref, pads in by_part.items():
-        if any(p["pad"].GetNumber() == "MP" for p in pads):
-            r.route_net(gnd, pads)
-    failed = [f"{gnd} stitch: {p['pad'].GetParent().GetReference()}.{p['pad'].GetNumber()}"
-              for p in r.stitch(gnd)]
+    failed = []
+    for gnd in gnds:
+        by_part = {}
+        for p in r.pads:
+            if p["net"] == gnd:
+                by_part.setdefault(p["pad"].GetParent().GetReference(), []).append(p)
+        for ref, pads in by_part.items():
+            if any(p["pad"].GetNumber() == "MP" for p in pads):
+                r.route_net(gnd, pads)
+        failed += [f"{gnd} stitch: {p['pad'].GetParent().GetReference()}.{p['pad'].GetNumber()}"
+                   for p in r.stitch(gnd)]
     for name in order:
         for p in r.route_net(name):
             failed.append(f"{name}: {p['pad'].GetParent().GetReference()}.{p['pad'].GetNumber()}")
