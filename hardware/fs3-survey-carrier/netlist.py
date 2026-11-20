@@ -156,6 +156,26 @@ PARTS = [
       "JST SM04B-SRSS-TB"),
     P("J21", QW, "I2C2 spare", FP["QWIIC"], pins(GND, LDO2, "SDA2", "SCL2"), "I2C2", (92.0, 85.0, 0),
       "JST SM04B-SRSS-TB"),
+    # ---- battery switch: each LiPo plugs in here and a short straight PH lead goes on to its
+    # board's battery socket. Pin 1 passes straight through; pin 2 runs through one pole of J26.
+    # Nothing here touches GND, so either battery polarity works. J26 takes two jumpers
+    # (1-2 and 3-4) for no switch, or a lead to a panel DPST switch.
+    P("J22", conn(2), "Feather LiPo in", "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",
+      pins("FBAT_1", "FBAT_IN"), "Battery switch", (6.0, 66.0, 0), "JST B2B-PH-K-S",
+      "The Feather's LiPo plugs in here"),
+    P("J23", conn(2), "To Feather", "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",
+      pins("FBAT_1", "FBAT_OUT"), "Battery switch", (14.0, 66.0, 0), "JST B2B-PH-K-S",
+      "Straight PH lead to the Feather's battery socket"),
+    P("J24", conn(2), "Notecarrier LiPo in", "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",
+      pins("NBAT_1", "NBAT_IN"), "Battery switch", (25.0, 66.0, 0), "JST B2B-PH-K-S",
+      "The Notecarrier-X's LiPo plugs in here"),
+    P("J25", conn(2), "To Notecarrier", "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",
+      pins("NBAT_1", "NBAT_OUT"), "Battery switch", (33.0, 66.0, 0), "JST B2B-PH-K-S",
+      "Straight PH lead to the Notecarrier-X's battery socket"),
+    P("J26", ("Connector_Generic", "Conn_02x02_Odd_Even"), "Battery switch",
+      "Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical",
+      pins("FBAT_IN", "FBAT_OUT", "NBAT_IN", "NBAT_OUT"), "Battery switch", (43.0, 65.0, 0),
+      "2x2 2.54 mm header + 2 jumpers", "Pole A 1-2 (Feather), pole B 3-4 (Notecarrier)"),
     # ---- posts for the Notecarrier-X above the board (Blues 66.11 x 38.10 mm, holes 58.49 x 30.48 mm)
     P("H5", ("Mechanical", "MountingHole"), "M2.5", "MountingHole:MountingHole_2.7mm_M2.5", {}, "Mech",
       (34.81, 21.81, 0)),
@@ -183,7 +203,7 @@ PAD_EXTRA = {
     "J21": {"MP": GND},
 }
 
-POWER_NETS = {GND, V33, LDO2, VBAT, VSW}
+POWER_NETS = {GND, V33, LDO2, VBAT, VSW, "FBAT_1", "FBAT_IN", "FBAT_OUT", "NBAT_1", "NBAT_IN", "NBAT_OUT"}
 BOARD_W, BOARD_H = 110.0, 90.0
 # The Notecarrier-X on posts: its outline on the board, x, y, w, h (mm)
 NOTECARRIER = (31.0, 18.0, 66.11, 38.10)

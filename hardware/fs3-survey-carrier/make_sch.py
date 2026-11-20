@@ -77,7 +77,7 @@ def main():
     layout = {   # group: (x, y, width): parts flow left to right, then wrap
         "Feather": (20, 35, 40), "Display supply": (85, 35, 75), "E-paper": (170, 35, 40),
         "OLED 3.12": (215, 35, 40), "microSD": (262, 35, 85), "Add-ons": (355, 35, 40),
-        "Mech": (350, 112, 60),
+        "Mech": (350, 112, 60), "Battery switch": (200, 112, 90),
         "Spare": (300, 112, 40),
         "Key": (20, 175, 110), "Bench": (135, 175, 60), "I2C1": (200, 175, 85),
         "I2C2": (290, 175, 120),

@@ -43,6 +43,9 @@ and 0.6 mm vias (0.8 mm on power).
 | J20, J21 | Qwiic | GND, 3V3 (LDO2), SDA, SCL | I2C2 spares |
 | J12 | JST XH, 6 way | GND, VBAT, EN (GPIO 18), SCL2, SDA2, 3V3 (LDO2) | The analog board (§40.2) |
 | J13 | JST XH, 4 way | GND, VBAT, EN (GPIO 33), RX (GPIO 14) | The isolated serial port (§40.2) |
+| J22 / J23 | JST PH 2 way, each | Battery in / battery out | The Feather's LiPo plugs into J22; a straight PH lead runs from J23 to the Feather's battery socket |
+| J24 / J25 | JST PH 2 way, each | Battery in / battery out | The same for the Notecarrier-X's LiPo |
+| J26 | 2 × 2 pins, 2.54 mm | Pole A: 1 – 2 (Feather), pole B: 3 – 4 (Notecarrier) | Two jumpers, or a lead to a panel DPST switch |
 | J14 | 1 × 3 pins | EN, BOOT, GND | The testbench's slot lines |
 | J15 | 1 × 6 pins | GND, GPIO 11, 12, 43, 44, 3V3 | The free header pins |
 
@@ -84,6 +87,15 @@ TVS diode (D2). The cable carries three wires: GND, KEY and LED+.
 with MISO on GPIO 37 and CS on GPIO 38. It has 10 kΩ pull-ups to VSW on CS,
 MISO, MOSI, DAT1 and DAT2, as on the Adafruit #4682, so a switched-off card
 draws nothing. Card detect is not wired: an empty slot is a mount that fails.
+
+**Battery switch.** Each LiPo can pass through the carrier on its way to its
+board: pin 1 of each battery socket runs straight through, and pin 2 runs
+through one pole of J26. Nothing on the switch path touches the board's ground,
+so it works whichever pin of a battery's plug is positive. With jumpers on 1 – 2
+and 3 – 4 both batteries are always connected. A panel DPST switch on J26 turns
+both off together. A battery can also plug straight into its own board, which
+bypasses the switch. The tracks are 0.5 mm wide, enough for the Notecard's
+transmit bursts.
 
 **Bench lines.** These keep sheet 16's two Schottky diodes (BAT43W, cathode at
 the bench), so the bench can only pull RST or GPIO 0 low. The carrier adds

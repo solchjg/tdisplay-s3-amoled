@@ -235,7 +235,31 @@
       },
       {
         "netclass": "Power",
+        "pattern": "FBAT_1"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "FBAT_IN"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "FBAT_OUT"
+      },
+      {
+        "netclass": "Power",
         "pattern": "GND"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "NBAT_1"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "NBAT_IN"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "NBAT_OUT"
       },
       {
         "netclass": "Power",
