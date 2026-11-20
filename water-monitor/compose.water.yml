@@ -1,0 +1,12 @@
+# Joins the ThingsBoard Compose project on the cloud VM:
+#   docker compose -f docker-compose.yml -f compose.water.yml up -d
+# Secrets go in .env next to it (never committed):
+#   WM_IMAP_PASSWORD, WM_TB_TOKEN_<serial> for each site, WM_NTFY_TOKEN
+services:
+  water-intake:
+    build: ./water-monitor
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./water-data:/data
+    command: ["poll", "--every", "900"]

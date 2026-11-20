@@ -1,0 +1,44 @@
+# Water monitoring intake: copy to water.toml and fill in.
+# Secrets are never in this file: they come from the environment variables
+# named here (the IMAP password, each site's ThingsBoard token, ntfy token).
+
+[store]
+path = "data/water.sqlite"          # the local archive of every report
+
+[export]
+dir = "exports"                     # water-report.xlsx / .ods and archive/
+keep_days = 90                      # dated copies kept this long
+
+[thingsboard]
+url = "https://tb.example.org"      # empty: store and export only
+
+[mail]
+host = "imap.example.org"
+port = 993
+user = "levelsender@example.org"
+password_env = "WM_IMAP_PASSWORD"
+folder = "INBOX"
+done_folder = "done"
+failed_folder = "failed"
+
+[alerts]
+late_hours = 26                     # no report for this long raises an alert
+battery_low_pct = 30
+ntfy_url = ""                       # e.g. https://ntfy.example.org/water
+ntfy_token_env = "WM_NTFY_TOKEN"
+
+# One [[site]] per LevelSender. utc_offset is the offset of the logger's
+# clock from UTC: the sample times in the email carry no zone. Check it
+# against the email's arrival time (the intake logs and alerts when the
+# email time and the last sample disagree by more than 3 h).
+[[site]]
+serial = "100001"
+name = "North Well"
+utc_offset = "+01:00"
+token_env = "WM_TB_TOKEN_100001"
+
+[[site]]
+serial = "100002"
+name = "Creek Weir"
+utc_offset = "+06:00"
+token_env = "WM_TB_TOKEN_100002"
