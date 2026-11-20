@@ -1,0 +1,143 @@
+# FeatherS3D survey carrier board
+
+A two-layer carrier PCB that replaces the hand wiring of the FeatherS3D site
+survey (`commissioning/fs3-survey`) and of the §40 build's add-ons. The
+FeatherS3D plugs into two socket strips. The key, the display supply, the
+e-paper, the microSD, both I2C buses, the add-on boards and the bench lines
+then reach it through keyed connectors. The pins are FSD §40.2's
+([feathers3-build.md](feathers3-build.md) gives the header order). The design
+files are in [`hardware/fs3-survey-carrier/`](../../../hardware/fs3-survey-carrier/).
+
+![Top copper](../../../hardware/fs3-survey-carrier/fab/top.png)
+
+## The board
+
+95 × 70 mm, two layers, 1.6 mm FR-4, four M3 holes at the corners. All parts
+are on the top. The Feather sits at the left with its USB-C at the top edge, so
+the cable and the board's own STEMMA QT sockets, RST and BOOT buttons stay
+reachable. Only tracks and the head of the top-left screw lie under it. B.Cu is a ground pour, with tracks
+only where a crossing needs one. F.Cu carries the tracks and its own ground
+pour, and a via beside each surface-mount ground pad ties the two pours
+together. Tracks are 0.25 mm and power tracks 0.5 mm, with 0.2 mm clearance
+and 0.6 mm vias (0.8 mm on power).
+
+| Ref | Connector | Pins, pin 1 first | To |
+|-----|-----------|-------------------|----|
+| J1, J2 | 1 × 16 and 1 × 12 sockets, 2.54 mm | The Feather's long and short headers | The FeatherS3D |
+| J3 | JST XH, 3 way | GND, KEY, LED+ | The off-board illuminated key (key to GND, its LED's cathode to GND) |
+| SW1 | 6 mm tactile key | In parallel with the off-board key | Testing without the key |
+| J4 / J5 | JST PH 9 way / 1 × 9 pins, in parallel | VCC, GND, DIN, CLK, CS, DC, RST, BUSY, PWR | Waveshare 2.13" e-Paper HAT V3 (its PH cable, or its Dupont lead) |
+| J6 | microSD, Molex 104031-0811 | SPI mode | The card, inserted from the right edge |
+| J7 | Qwiic (JST SH 4) | GND, 3V3, SDA, SCL | I2C1: the RV-8803 |
+| J8 + JP1 | Qwiic | GND, (3V3 through JP1, open), SDA, SCL | I2C1: the Notecarrier-X, its 3.3 V unconnected (§33.2) |
+| J9 | Qwiic | GND, 3V3 (LDO2), SDA, SCL | I2C2 in: a Qwiic cable from the Feather's I2C2 socket |
+| J10, J11 | Qwiic | GND, 3V3 (LDO2), SDA, SCL | I2C2 out: the BME280 and the 1.3" OLED (and the ADS1115 chained on) |
+| J12 | JST XH, 6 way | GND, VBAT, EN (GPIO 18), SCL2, SDA2, 3V3 (LDO2) | The analog board (§40.2) |
+| J13 | JST XH, 4 way | GND, VBAT, EN (GPIO 33), RX (GPIO 14) | The isolated serial port (§40.2) |
+| J14 | 1 × 3 pins | EN, BOOT, GND | The testbench's slot lines |
+| J15 | 1 × 6 pins | GND, GPIO 11, 12, 43, 44, 3V3 | The free header pins |
+
+Each add-on connector has a different pin count, so a cable fits only its own
+socket. GPIO 15 and 16 (I2C2) are not on the Feather's header, so the switched
+bus comes in on J9 from the Feather's own I2C2 socket and fans out from there.
+The carrier adds no I2C pull-ups: each bus keeps the one set it has today.
+
+## Circuits
+
+**Display supply.** A TI TPS22917 load switch (U1) takes LDO1's 3.3 V and
+feeds VSW: the e-paper, the microSD and their pull-ups. It replaces the
+Pololu #2808 and keeps its behaviour, so the survey firmware does not change.
+GPIO 17 drives ON high or low for 10 ms and then floats. R4 (2.2 MΩ) from VSW
+back to ON then holds the state, the way the Pololu's latch did. When the
+switch is on, VSW holds ON high: the TPS22917 removes its ON pull-down above
+1 V and leaks at most 10 nA there. When it is off, the switch's 750 kΩ smart
+pull-down and the discharge of VSW (QOD tied to VOUT, 150 Ω) hold ON low. At
+power-up VSW is 0 V, so the displays start off. C2 (1 nF, CT to VIN) gives
+about 4 ms turn-on, within FR-40.8's 100 ms wait. TI gives the switch's off
+current as 10 nA typical, the same as the Pololu's 0.01 µA. The board
+only adds currents that flow while something is pressed or driven.
+
+**Key.** As the Waveshare build's key (§35.2): a 10 kΩ pull-up to 3V3 on
+GPIO 1, then 1 kΩ in series and 100 nF to GND at the board end, and a TVS diode
+(D1) on the cable side. The LED runs from GPIO 3 through 330 Ω, with its own
+TVS diode (D2). The cable carries three wires: GND, KEY and LED+.
+
+**microSD.** It runs in SPI mode on the e-paper's SPI2 (SCK 36, MOSI 35),
+with MISO on GPIO 37 and CS on GPIO 38. It has 10 kΩ pull-ups to VSW on CS,
+MISO, MOSI, DAT1 and DAT2, as on the Adafruit #4682, so a switched-off card
+draws nothing. Card detect is not wired: an empty slot is a mount that fails.
+
+**Bench lines.** These keep sheet 16's two Schottky diodes (BAT43W, cathode at
+the bench), so the bench can only pull RST or GPIO 0 low. The carrier adds
+4.7 kΩ pull-ups (R10, R11) on RST and GPIO 0, which hold both near 3.0 V
+against a Pi pin left with its default 50 kΩ pull-down. A slot wired to this
+board no longer needs `gpio=…=ip,pu` in the Pi's `config.txt`.
+
+## Why RST failed with the bench lead fitted
+
+The Feather's RST button shorts EN straight to ground, and nothing on the
+bench line can stop that. So the press does reset the chip. What the chip does
+next depends on GPIO 0, which it samples as EN rises. If GPIO 0 is low then,
+the chip starts the ROM's download mode, not the app, and looks dead. The
+bench's BOOT line reaches GPIO 0 through its diode. The chip's own pull-up on
+GPIO 0 is weak (about 45 kΩ), so a Pi pin with its default 50 kΩ pull-down,
+or one left driven low after a flash or a recover, holds GPIO 0 low enough.
+The bench's own reset works because it sets BOOT high before it releases EN.
+
+This is the likely cause, not a proven one. To check it on SLOT11, press RST
+and watch the serial monitor for the ROM's `waiting for download` banner.
+The board's R11 removes the cause: GPIO 0 stays high unless the bench
+actively drives it low.
+
+## Before ordering
+
+These were not checked against the physical parts:
+
+1. **The Feather's footprint.** Print `fab/assembly.pdf` at 100 % and lay a
+   FeatherS3D on it. The long header's pin 1 (RST) is at the USB-C end, and
+   the short header's BAT pin is level with the long header's fifth pin
+   (GPIO 17).
+2. **The e-paper cable.** Check that the HAT's PH socket has VCC on pin 1 and
+   PWR on pin 9 (Rev2.1 boards). A HAT with an 8-way cable uses pins 1 – 8.
+3. **The Qwiic pinout.** Pin 1 is GND and pin 4 is SCL, as on SparkFun and
+   Adafruit boards.
+4. **§40.2.** The FSD still names the Pololu #2808 as the display supply. If
+   this board is adopted, the user changes that row.
+
+## Ordering and assembly
+
+Upload `fab/fs3-survey-carrier-gerbers.zip` to any board house and order 2
+layers, 1.6 mm, HASL or ENIG, with the default 0.2 mm (8 mil) rules. The
+parts are 0805 passives, SOD-123 and SOD-323 diodes, one SOT-23-6, the
+microSD socket and the Qwiic sockets, all hand-solderable.
+`fab/bom.csv` lists them, and `fab/positions.csv` gives the placement
+(origin at the bottom-left corner) for an assembly service. Fit the
+through-hole connectors last. Leave JP1 open.
+
+After assembly, and before the Feather goes in, check the following:
+
+- No short between 3V3, VSW, VBAT and GND.
+- VSW reads 0 V with 3V3 applied at J15 pin 6.
+- Pulling J1 pin 5 (GPIO 17) to 3V3 for a moment turns VSW on, and it stays
+  on. Pulling the pin to GND turns VSW off, and it stays off.
+
+## Regenerating
+
+Everything is generated from [`netlist.py`](../../../hardware/fs3-survey-carrier/netlist.py),
+which lists each part's place and pin nets. Edit that file, not the KiCad
+files. The scripts need KiCad 7 (`kicad-cli` and the `pcbnew` Python module)
+and its symbol and footprint libraries (`apt install kicad kicad-symbols
+kicad-footprints`).
+
+```bash
+cd hardware/fs3-survey-carrier
+python3 make_sch.py        # the schematic
+python3 make_pcb.py        # placement, routing (route.py), ground pours
+python3 check.py --pcb     # schematic and board match netlist.py; KiCad DRC: no errors
+python3 make_fab.py        # fab/: Gerbers, drill, BOM, positions, PDFs, pictures
+```
+
+`route.py` is a small maze router: it routes each net on a 0.127 mm grid and
+keeps every track and via clear by the 0.2 mm rule. Its tracks are correct
+but not pretty. Tidy them in KiCad if the board is to be shown. Run
+`check.py --pcb` again after any hand edit.

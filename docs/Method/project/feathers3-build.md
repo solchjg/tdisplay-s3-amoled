@@ -25,6 +25,9 @@ and the LiPo connector on the top edge.
 | [15 Field entry](wiring/wiring-15-fs3-entry.png) ([.fzz](wiring/wiring-15-fs3-entry.fzz)) | One field cable through its surge protector to an isolated board, the earth rod |
 | [16 Bench BOOT and RST](wiring/wiring-16-fs3-bench.png) ([.fzz](wiring/wiring-16-fs3-bench.fzz)) | The testbench Pi's EN and BOOT GPIOs through two Schottky diodes to RST and GPIO 0, and GND |
 
+The [survey carrier board](fs3-survey-carrier.md) carries the same pins on a PCB for the
+site survey and the add-ons, in place of hand wiring.
+
 ## Pins
 
 | Pin | Use | Sheet |

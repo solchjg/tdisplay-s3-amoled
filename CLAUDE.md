@@ -237,6 +237,10 @@ Other builds sharing the components:
   sleep current; no FSD section yet, `docs/Method/project/crowpanel-epaper.md`); `commissioning/common/oled/`
   is the modem probe's SSD1306 status screen. The LoRaWAN site survey for the Heltec
   lives in `solchjg/lora`. Never released.
+- `hardware/fs3-survey-carrier/` — the FeatherS3D survey carrier PCB (KiCad 7), generated from
+  `netlist.py` by `make_sch.py`, `make_pcb.py` (its own router, `route.py`) and `make_fab.py`, checked by
+  `check.py --pcb`; edit `netlist.py`, never the KiCad files (`docs/Method/project/fs3-survey-carrier.md`;
+  no FSD section: its display supply differs from §40.2's Pololu #2808).
 
 ## Testing
 
