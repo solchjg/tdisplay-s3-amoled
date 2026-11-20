@@ -32,8 +32,8 @@ and 0.6 mm vias (0.8 mm on power).
 | J1, J2 | 1 × 16 and 1 × 12 sockets, 2.54 mm | The Feather's long and short headers | The FeatherS3D |
 | J3 | JST XH, 3 way | GND, KEY, LED+ | The off-board illuminated key (key to GND, its LED's cathode to GND) |
 | SW1 | 6 mm tactile key | In parallel with the off-board key | Testing without the key |
-| J4 / J5 | JST PH 9 way / 1 × 9 pins, in parallel | VCC, GND, DIN, CLK, CS, DC, RST, BUSY, PWR | Waveshare 2.13" e-Paper HAT V3 or 4.2" e-Paper Module V2 (8 way: pins 1 – 8); one e-paper at a time |
-| J16 / J17 | JST PH 7 way / 1 × 7 pins, in parallel | GND, VCC (switched), SCK, SDA (MOSI), DC, RES (GPIO 12), CS (GPIO 11) | The 3.12" SSD1322 OLED (§40.2). Its 10 kΩ CS-to-GND detect resistor stays on its lead (FR-35.25) |
+| J4 / J5 | JST PH 8 way / 1 × 8 pins, in parallel | VCC, GND, DIN, CLK, CS, DC, RST, BUSY | Waveshare 2.13" e-Paper HAT V3 or 4.2" e-Paper Module V2, one at a time. J4 is the display's own PH 2.0 socket in the display's order, so a straight 8-way PH 2.0 cable, female at both ends, joins them pin 1 to pin 1 |
+| J16 | 2 × 8 shrouded box header, 2.54 mm | The module's own order ([ws-displays.md](ws-displays.md#header)): GND, VCC (switched), NC, SCLK, SDIN, D2, D3 – D7, E/RD, R/W, DC, RES (GPIO 12), CS (GPIO 11) | The 3.12" SSD1322 OLED (§40.2), through a straight 16-way IDC ribbon, female at both ends. The board ties D3 – D7, E/RD and R/W to GND and leaves D2 open. R12 (10 kΩ) runs from CS to pin 3 for detection (FR-35.25) |
 | J6 | microSD, Molex 104031-0811 | SPI mode | The card, inserted from the right edge |
 | J7 | Qwiic (JST SH 4) | GND, 3V3, SDA, SCL | I2C1: the RV-8803 |
 | J8 + JP1 | Qwiic | GND, (3V3 through JP1, open), SDA, SCL | I2C1: the Notecarrier-X, its 3.3 V unconnected (§33.2) |
@@ -117,8 +117,11 @@ These were not checked against the physical parts:
    FeatherS3D on it. The long header's pin 1 (RST) is at the USB-C end, and
    the short header's BAT pin is level with the long header's fifth pin
    (GPIO 17).
-3. **The e-paper cable.** Check that the HAT's PH socket has VCC on pin 1 and
-   PWR on pin 9 (Rev2.1 boards). A HAT with an 8-way cable uses pins 1 – 8.
+3. **The display cables.** The e-paper's PH cable must be a same-direction
+   one (pin 1 to pin 1), not a reversed one. The OLED's ribbon is a standard
+   straight IDC cable. Check that the OLED module's pin 3 is unconnected, then
+   bridge its pins 1 and 3 (the first two pins of the same row) on its back, so
+   that R12 sees ground only when the OLED is plugged in.
 4. **The Qwiic pinout.** Pin 1 is GND and pin 4 is SCL, as on SparkFun and
    Adafruit boards.
 5. **§40.2.** The FSD still names the Pololu #2808 as the display supply. If

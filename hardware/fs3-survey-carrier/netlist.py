@@ -64,14 +64,14 @@ PARTS = [
       note="CT to VIN: about 4 ms turn-on"),
     P("C3", C, "10u", FP["C"], pins(VSW, GND), "Display supply", (65.0, 30.0, 90)),
     P("C4", C, "100n", FP["C"], pins(VSW, GND), "Display supply", (68.0, 30.0, 90)),
-    # ---- e-paper: the Waveshare 2.13" HAT's 9-way cable, two footprints in parallel
-    P("J4", conn(9), "E-paper PH", "Connector_JST:JST_PH_B9B-PH-K_1x09_P2.00mm_Vertical",
-      pins(VSW, GND, "MOSI", "SCK", "EPD_CS", "EPD_DC", "EPD_RST", "EPD_BUSY", VSW),
-      "E-paper", (36.957, 5.08, 0), "JST B9B-PH-K-S",
-      "Waveshare HAT order: VCC GND DIN CLK CS DC RST BUSY PWR"),
-    P("J5", conn(9), "E-paper pins", "Connector_PinHeader_2.54mm:PinHeader_1x09_P2.54mm_Vertical",
-      pins(VSW, GND, "MOSI", "SCK", "EPD_CS", "EPD_DC", "EPD_RST", "EPD_BUSY", VSW),
-      "E-paper", (36.957, 11.43, 90), "1x9 2.54 mm header", "For the HAT's Dupont lead"),
+    # ---- e-paper: the Waveshare 8-way PH socket, the same on the 2.13" HAT and the 4.2" module
+    P("J4", conn(8), "E-paper PH", "Connector_JST:JST_PH_B8B-PH-K_1x08_P2.00mm_Vertical",
+      pins(VSW, GND, "MOSI", "SCK", "EPD_CS", "EPD_DC", "EPD_RST", "EPD_BUSY"),
+      "E-paper", (33.0, 5.08, 0), "JST B8B-PH-K-S",
+      "As on the display: VCC GND DIN CLK CS DC RST BUSY; a straight PH 2.0 8-way cable, pin 1 to pin 1"),
+    P("J5", conn(8), "E-paper pins", "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical",
+      pins(VSW, GND, "MOSI", "SCK", "EPD_CS", "EPD_DC", "EPD_RST", "EPD_BUSY"),
+      "E-paper", (33.0, 11.43, 90), "1x8 2.54 mm header", "For a Dupont lead"),
     # ---- microSD on the display supply, pull-ups as on Adafruit #4682
     P("J6", ("Connector", "Micro_SD_Card"), "microSD", "Connector_Card:microSD_HC_Molex_104031-0811",
       {"1": "SD_DAT2", "2": "SD_CS", "3": "MOSI", "4": VSW, "5": "SCK", "6": GND, "7": "MISO",
@@ -133,15 +133,20 @@ PARTS = [
       pins(GND, VBAT, "SER_EN", "SER_RX"), "Add-ons", (33.0, 85.5, 0), "JST B4B-XH-A",
       "§40.2 serial port: enable GPIO 33, RX GPIO 14"),
     P("J15", conn(6), "Spare", "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
-      pins(GND, "IO11", "IO12", "TX43", "RX44", V33), "Spare", (81.026, 5.08, 90),
+      pins(GND, "IO11", "IO12", "TX43", "RX44", V33), "Spare", (85.026, 5.08, 90),
       "1x6 2.54 mm header", "Free header pins"),
-    # ---- the 3.12" SSD1322 OLED (§40.2): its own socket beside the e-paper's, both on SPI2
-    P("J16", conn(7), "OLED 3.12 PH", "Connector_JST:JST_PH_B7B-PH-K_1x07_P2.00mm_Vertical",
-      pins(GND, VSW, "SCK", "MOSI", "EPD_DC", "IO12", "IO11"), "OLED 3.12", (60.96, 5.08, 0), "JST B7B-PH-K-S",
-      "GND VCC SCLK SDIN DC RES CS; the 10k CS-GND detect resistor stays on the OLED's lead"),
-    P("J17", conn(7), "OLED 3.12 pins", "Connector_PinHeader_2.54mm:PinHeader_1x07_P2.54mm_Vertical",
-      pins(GND, VSW, "SCK", "MOSI", "EPD_DC", "IO12", "IO11"), "OLED 3.12", (60.96, 11.43, 90),
-      "1x7 2.54 mm header", "For a Dupont lead"),
+    # ---- the 3.12" SSD1322 OLED (§40.2): a 2x8 box header with the module's own pinout
+    # (ws-displays.md), so a straight 16-way IDC ribbon joins the two. The board ties the
+    # module's unused parallel inputs (D3 - D7, E/RD, R/W) to GND and leaves D2 open.
+    P("J16", ("Connector_Generic", "Conn_02x08_Odd_Even"), "OLED 3.12 2x8",
+      "Connector_IDC:IDC-Header_2x08_P2.54mm_Vertical",
+      {"1": GND, "2": VSW, "3": "OLED_DET", "4": "SCK", "5": "MOSI", "6": None,
+       "7": GND, "8": GND, "9": GND, "10": GND, "11": GND, "12": GND, "13": GND,
+       "14": "EPD_DC", "15": "IO12", "16": "IO11"},
+      "OLED 3.12", (59.0, 8.5, 90), "2x8 2.54 mm shrouded box header (e.g. Amphenol T821116A1S100CEU)",
+      "GND VCC NC SCLK SDIN D2 D3-D7 E R/W DC RES CS; pin 3 is NC on the module"),
+    P("R12", R, "10k", FP["R"], pins("IO11", "OLED_DET"), "OLED 3.12", (75.0, 17.5, 0),
+      note="OLED detect (FR-35.25): reaches GND only when the module bridges its pins 1 and 3"),
     # ---- spare Qwiic sockets, two on each bus
     P("J18", QW, "I2C1 spare", FP["QWIIC"], pins(GND, V33, "SDA1", "SCL1"), "I2C1", (106.5, 44.0, 90),
       "JST SM04B-SRSS-TB"),
