@@ -7,7 +7,8 @@ posts above the board. The key, the display supply, the displays, the microSD,
 both I2C buses, the add-on boards and the bench lines then reach the Feather
 through keyed connectors. The pins are FSD §40.2's
 ([feathers3-build.md](feathers3-build.md) gives the header order). The design
-files are in [`hardware/fs3-survey-carrier/`](../../../hardware/fs3-survey-carrier/).
+files are in [`hardware/fs3-survey-carrier/`](../../../hardware/fs3-survey-carrier/), and
+[`hardware/README.md`](../../../hardware/README.md) lists the steps to produce the boards.
 
 Wiring sheet 17 shows where each part sits, with the Feather and the
 Notecarrier-X drawn as outlines over the board. Its
