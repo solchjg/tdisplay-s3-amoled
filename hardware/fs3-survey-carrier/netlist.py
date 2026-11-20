@@ -176,6 +176,16 @@ PARTS = [
       "Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical",
       pins("FBAT_IN", "FBAT_OUT", "NBAT_IN", "NBAT_OUT"), "Battery switch", (43.0, 65.0, 0),
       "2x2 2.54 mm header + 2 jumpers", "Pole A 1-2 (Feather), pole B 3-4 (Notecarrier)"),
+    # ---- the shared cell (C-33.1): the Feather's VBAT through a 3 A fuse to a socket, and a
+    # short lead (at most 150 mm, at least 22 AWG) from there to the Notecarrier-X header's
+    # VBAT and GND. The Notecarrier's own LiPo socket (and so J24 / J25) and its USB-C then
+    # carry nothing: two cells never join.
+    P("F1", ("Device", "Fuse"), "3A", "Fuse:Fuse_1206_3216Metric", pins(VBAT, "NC_VBAT"),
+      "Shared battery", (54.0, 73.0, 90), "Littelfuse 0466003.NR (3 A fast, 1206)",
+      "At the board end of the Notecarrier's VBAT lead (C-33.1)"),
+    P("J27", conn(2), "Notecarrier VBAT", "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical",
+      pins(GND, "NC_VBAT"), "Shared battery", (60.0, 73.0, 0), "JST B2B-XH-A",
+      "Lead to the Notecarrier-X header: pin 1 GND, pin 2 VBAT (C-33.1)"),
     # ---- posts for the Notecarrier-X above the board (Blues 66.11 x 38.10 mm, holes 58.49 x 30.48 mm)
     P("H5", ("Mechanical", "MountingHole"), "M2.5", "MountingHole:MountingHole_2.7mm_M2.5", {}, "Mech",
       (34.81, 21.81, 0)),
@@ -203,7 +213,7 @@ PAD_EXTRA = {
     "J21": {"MP": GND},
 }
 
-POWER_NETS = {GND, V33, LDO2, VBAT, VSW, "FBAT_1", "FBAT_IN", "FBAT_OUT", "NBAT_1", "NBAT_IN", "NBAT_OUT"}
+POWER_NETS = {GND, V33, LDO2, VBAT, VSW, "FBAT_1", "FBAT_IN", "FBAT_OUT", "NBAT_1", "NBAT_IN", "NBAT_OUT", "NC_VBAT"}
 BOARD_W, BOARD_H = 110.0, 90.0
 # The Notecarrier-X on posts: its outline on the board, x, y, w, h (mm)
 NOTECARRIER = (31.0, 18.0, 66.11, 38.10)
@@ -216,7 +226,7 @@ SCH_LAYOUT = {   # group: (x, y, width) on the A3 sheet
     "Feather": (20, 35, 40), "Display supply": (85, 35, 75), "E-paper": (170, 35, 40),
     "OLED 3.12": (215, 35, 40), "microSD": (262, 35, 85), "Add-ons": (355, 35, 40),
     "Mech": (350, 112, 60), "Battery switch": (200, 112, 90),
-    "Spare": (300, 112, 40),
+    "Spare": (300, 112, 40), "Shared battery": (135, 112, 55),
     "Key": (20, 175, 110), "Bench": (135, 175, 60), "I2C1": (200, 175, 85),
     "I2C2": (290, 175, 120),
 }
@@ -246,6 +256,7 @@ SILK = [  # (text, x, y, size, rotation)
     ("FEATHER BATTERY", 11.0, 62.4, 0.8, 0), ("NOTECARRIER BATTERY", 30.0, 62.4, 0.8, 0),
     ("LIPO IN", 7.0, 70.0, 0.8, 0), ("TO FEATHER", 15.0, 70.0, 0.8, 0),
     ("LIPO IN", 26.0, 70.0, 0.8, 0), ("TO NOTECARR.", 34.0, 70.0, 0.8, 0),
+    ("NOTECARRIER VBAT (SHARED CELL)", 62.0, 69.4, 0.8, 0), ("G  BAT", 61.25, 76.6, 0.8, 0),
     ("BATT SW", 44.3, 62.4, 0.8, 0), ("A 1-2  B 3-4", 44.3, 71.2, 0.8, 0),
 ]
 

@@ -42,6 +42,7 @@ WHAT = {
     "J18": ["J18", "I2C1"], "J19": ["J19", "I2C1"], "J20": ["J20", "I2C2"], "J21": ["J21", "I2C2"],
     "J22": ["J22", "LIPO"], "J23": ["J23", "FEATHER"], "J24": ["J24", "LIPO"],
     "J25": ["J25", "NOTE"], "J26": ["J26", "BAT SW"],
+    "J27": ["J27 NOTE", "VBAT"], "F1": ["F1"],
     "U1": ["U1"], "SW1": ["SW1 KEY"], "JP1": ["JP1"],
 }
 
@@ -189,6 +190,9 @@ def main():
         "J24/J25  Notecarrier LiPo in / lead to the Notecarrier",
         "J26  Battery switch: jumpers 1-2 and 3-4, or a panel",
         "       DPST switch (pole A Feather, pole B Notecarrier)",
+        "J27  Shared cell (C-33.1): the Feather's VBAT through",
+        "       F1 (3 A) to the Notecarrier-X header VBAT, GND;",
+        "       then J24, J25 and the Notecarrier's USB-C stay empty",
         "J14  Testbench lines: EN BOOT GND",
         "J15  Spare Feather pins: GND 43 44 3V3 (UART 0)",
         "# Holes",

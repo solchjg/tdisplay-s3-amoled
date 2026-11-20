@@ -5,6 +5,7 @@ Qty,Value,Designators,Footprint,Part
 3,100n,C4 C5 C6,C_0805_2012Metric,0805 X7R 16 V
 2,PESD5V0S1BA,D1 D2,D_SOD-323,Nexperia PESD5V0S1BA
 2,BAT43W,D3 D4,D_SOD-123,BAT43W
+1,3A,F1,Fuse_1206_3216Metric,"Littelfuse 0466003.NR (3 A fast, 1206)"
 1,Feather long,J1,PinSocket_1x16_P2.54mm_Vertical,Samtec SSW-116-01-T-S or any 1x16 2.54 mm socket
 1,Feather short,J2,PinSocket_1x12_P2.54mm_Vertical,1x12 2.54 mm socket
 1,Key,J3,JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical,JST B3B-XH-A
@@ -28,6 +29,7 @@ Qty,Value,Designators,Footprint,Part
 1,Notecarrier LiPo in,J24,JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical,JST B2B-PH-K-S
 1,To Notecarrier,J25,JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical,JST B2B-PH-K-S
 1,Battery switch,J26,PinHeader_2x02_P2.54mm_Vertical,2x2 2.54 mm header + 2 jumpers
+1,Notecarrier VBAT,J27,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,JST B2B-XH-A
 1,Notecarrier 3V3,JP1,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,"solder jumper, left open"
 7,10k,R1 R5 R6 R7 R8 R9 R12,R_0805_2012Metric,0805 1 %
 1,1k,R2,R_0805_2012Metric,0805 1 %
