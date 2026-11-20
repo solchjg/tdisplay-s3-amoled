@@ -1,0 +1,17 @@
+requires 'perl', '5.026';
+requires 'Excel::Writer::XLSX', '1.00';
+requires 'DBI';
+requires 'DBD::SQLite';
+requires 'DateTime';
+requires 'DateTime::TimeZone';
+requires 'Email::MIME';
+requires 'Mail::IMAPClient';     # poll
+requires 'IO::Socket::SSL';      # poll, email
+requires 'Email::Sender', '1.300';  # email (STARTTLS needs 2.0+)
+requires 'JSON::PP';
+
+on test => sub {
+    requires 'Test::More';
+    requires 'Archive::Zip';
+    requires 'Spreadsheet::ParseXLSX';
+};

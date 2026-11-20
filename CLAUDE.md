@@ -238,7 +238,9 @@ Other builds sharing the components:
   report emails over IMAP, keeps the samples in SQLite, posts them to ThingsBoard (one device per site)
   and writes `water-report.xlsx`/`.ods` (Summary plus a tab per site with trend charts, daily lows and highs per US
   Eastern day), emailed by its `email` command; pure parser and statistics, tested by `water-monitor/tests` on anonymised real reports
-  (`ci.yml` job `water-monitor`). See `water-monitor/README.md`.
+  (`ci.yml` job `water-monitor`). See `water-monitor/README.md`. `water-monitor/perl/` is a Perl port that
+  writes only the `.xlsx` (no ThingsBoard, no `.ods`) from the same `water.toml` and SQLite archive, tested by
+  `prove -l t/` on the same fixtures (`ci.yml` job `water-monitor-perl`).
 
 ## Testing
 

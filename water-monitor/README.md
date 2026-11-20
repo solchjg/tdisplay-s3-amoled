@@ -8,7 +8,9 @@ four trend charts (level, temperature and conductivity as daily low, high and
 average; the LevelSender battery). The files work offline, and the `email`
 command sends them, so the data is at hand when ThingsBoard is not.
 
-It is a server service, separate from the firmware in this repository. It
+It is a server service, separate from the firmware in this repository.
+A Perl port that writes the `.xlsx` only lives in [`perl/`](perl/README.md);
+it shares this version's `water.toml` and archive. It
 needs Python 3.11+ and `openpyxl`; the `.ods` writer uses the standard library.
 
 ```

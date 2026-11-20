@@ -30,6 +30,18 @@ jobs:
       - run: pip install 'pytest==8.*' -r water-monitor/requirements.txt
       - run: pytest water-monitor/tests -q
 
+  water-monitor-perl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libexcel-writer-xlsx-perl libdbd-sqlite3-perl \
+            libdatetime-perl libdatetime-timezone-perl libemail-mime-perl \
+            libarchive-zip-perl libspreadsheet-parsexlsx-perl
+      - run: prove -l t/
+        working-directory: water-monitor/perl
+
   devcontainer:
     runs-on: ubuntu-latest
     steps:
