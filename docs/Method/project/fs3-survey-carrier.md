@@ -46,6 +46,7 @@ and 0.6 mm vias (0.8 mm on power).
 | J22 / J23 | JST PH 2 way, each | Battery in / battery out | The Feather's LiPo plugs into J22; a straight PH lead runs from J23 to the Feather's battery socket |
 | J24 / J25 | JST PH 2 way, each | Battery in / battery out | The same for the Notecarrier-X's LiPo |
 | J26 | 2 × 2 pins, 2.54 mm | Pole A: 1 – 2 (Feather), pole B: 3 – 4 (Notecarrier) | Two jumpers, or a lead to a panel DPST switch |
+| J27 | JST XH, 2 way | GND, VBAT through F1 (3 A) | The shared cell (C-33.1): a lead to the Notecarrier-X header's VBAT and GND |
 | J14 | 1 × 3 pins | EN, BOOT, GND | The testbench's slot lines |
 | J15 | 1 × 4 pins | GND, GPIO 43, 44, 3V3 | The header's free pins (UART 0); GPIO 11 and 12 belong to the OLED |
 
@@ -96,6 +97,24 @@ and 3 – 4 both batteries are always connected. A panel DPST switch on J26 turn
 both off together. A battery can also plug straight into its own board, which
 bypasses the switch. The tracks are 0.5 mm wide, enough for the Notecard's
 transmit bursts.
+
+**Shared cell.** J27 serves C-33.1's single cell: the Feather's VBAT (its
+header's BAT pin) through F1, a 3 A fast fuse at the board end, to a lead of at
+most 150 mm and at least 22 AWG on the Notecarrier-X header's VBAT and GND. The
+cell is then the Feather's alone, in J22 behind pole A of J26 or in the
+Feather's own socket, and the Feather alone charges it. J24, J25, the
+Notecarrier's LiPo socket and its USB-C carry nothing, so two cells or two
+chargers never meet; one USB-C at the enclosure wall to the Feather charges the
+cell. With J27 unused, each board keeps its own cell (C-40.11) and one 5 V
+source of at least 3 A feeds both USB-C sockets through a power-only Y cable.
+Check the lead's polarity with a meter before the Notecarrier is fitted.
+
+**Room at the Notecarrier-X's ends.** Its USB-C, LiPo socket and ESLOV
+socket sit on its short ends, over x 31 and x 97 on the posts. The shared cell
+needs none of them: only the two u.FL antenna leads and J27's lead to the
+header. For two cells on the Y cable, the right end has 13 mm to the board
+edge for the LiPo plug and its bend, and the left end a USB-C plug crosses the
+Feather: use a right-angle USB-C plug there.
 
 **Bench lines.** These keep sheet 16's two Schottky diodes (BAT43W, cathode at
 the bench), so the bench can only pull RST or GPIO 0 low. The carrier adds

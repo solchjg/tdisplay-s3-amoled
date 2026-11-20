@@ -9,6 +9,7 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "D2","PESD5V0S1BA","D_SOD-323",35.000000,10.000000,0.000000,top
 "D3","BAT43W","D_SOD-123",11.000000,13.000000,0.000000,top
 "D4","BAT43W","D_SOD-123",11.000000,10.000000,0.000000,top
+"F1","3A","Fuse_1206_3216Metric",54.000000,17.000000,90.000000,top
 "J1","Feather long","PinSocket_1x16_P2.54mm_Vertical",6.096000,81.110000,0.000000,top
 "J2","Feather short","PinSocket_1x12_P2.54mm_Vertical",26.416000,70.950000,0.000000,top
 "J3","Key","JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical",20.500000,4.500000,0.000000,top
@@ -34,6 +35,7 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "J24","Notecarrier LiPo in","JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",25.000000,24.000000,0.000000,top
 "J25","To Notecarrier","JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",33.000000,24.000000,0.000000,top
 "J26","Battery switch","PinHeader_2x02_P2.54mm_Vertical",43.000000,25.000000,0.000000,top
+"J27","Notecarrier VBAT","JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical",60.000000,17.000000,0.000000,top
 "R1","10k","R_0805_2012Metric",21.000000,11.500000,90.000000,top
 "R2","1k","R_0805_2012Metric",24.000000,11.500000,90.000000,top
 "R3","330","R_0805_2012Metric",30.000000,11.500000,90.000000,top
