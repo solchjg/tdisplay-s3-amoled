@@ -24,8 +24,8 @@
 //      until the user key (GPIO 1) or BOOT (GPIO 0).
 //
 // An off-board key may sit beside the user key on GPIO 1, and its LED on
-// GPIO 13 (with the board's blue LED): on while surveying, blinking on the
-// result, off asleep.
+// GPIO 3 (the board's blue LED on GPIO 13, not on the header, follows it): on
+// while surveying, blinking on the result, off asleep.
 //
 // The Notecard can neither choose nor scan operators, so the cellular line is
 // the one network its SIM registered on (docs/Method/project/blues-cellular.md,
@@ -72,7 +72,9 @@
 #define PIN_BUSY 10
 #define PIN_KEY 1   // user key, active low, 10 kΩ pull-up
 #define PIN_BOOT 0  // BOOT key, active low
-#define PIN_LED 13  // the board's blue LED and the off-board key's LED (to GND through a resistor)
+#define PIN_LED 13      // the board's blue LED (not on the header)
+#define PIN_KEY_LED 3   // the off-board key's LED, to GND through a 330 Ω resistor (header pin 3)
+#define LED_MASK ((1ULL << PIN_LED) | (1ULL << PIN_KEY_LED))
 #define I2C1_SDA 8
 #define I2C1_SCL 9
 #define I2C2_SDA 16
@@ -886,16 +888,17 @@ static void lines_inputs(void)
     gpio_config(&in);
 }
 
-// The LED on GPIO 13 (the board's and the off-board key's).
+// Both LEDs: the board's (GPIO 13) and the off-board key's (GPIO 3).
 static void led(bool on)
 {
     gpio_set_level(PIN_LED, on);
+    gpio_set_level(PIN_KEY_LED, on);
 }
 
-// The LED off and its line an input (no current) for the deep sleep.
+// Both LEDs off and their lines inputs (no current) for the deep sleep.
 static void led_release(void)
 {
-    gpio_config_t in = {.pin_bit_mask = 1ULL << PIN_LED, .mode = GPIO_MODE_INPUT,
+    gpio_config_t in = {.pin_bit_mask = LED_MASK, .mode = GPIO_MODE_INPUT,
                         .pull_up_en = GPIO_PULLUP_DISABLE, .pull_down_en = GPIO_PULLDOWN_DISABLE};
     gpio_config(&in);
 }
@@ -1199,7 +1202,7 @@ void app_main(void)
     rtc_gpio_deinit(PIN_BOOT);
     gpio_config(&keys);
     // The LED on while the survey runs, blinking on the result, off asleep.
-    gpio_config_t lc = {.pin_bit_mask = 1ULL << PIN_LED, .mode = GPIO_MODE_OUTPUT};
+    gpio_config_t lc = {.pin_bit_mask = LED_MASK, .mode = GPIO_MODE_OUTPUT};
     gpio_config(&lc);
     led(true);
     while (key_down()) {  // the press that woke it
