@@ -32,6 +32,7 @@ and the LiPo connector on the top edge.
 | RST, GPIO 0 | The bench's lines through Schottky diodes (C-40.9); the long header's first and third pins, GND the fourth; GPIO 0 is also the BOOT button | 11, 16 |
 | GPIO 1 | User key to GND, 10 kΩ pull-up to 3V3 | 11 |
 | GPIO 2 | The MAX17048 fuel gauge's alert, on the board, not used | — |
+| GPIO 3 | Free on the station build; the site survey (`commissioning/fs3-survey`) drives the off-board key's LED there, through 330 Ω to GND | — |
 | GPIO 4, 40, 41 | The light sensor, the RGB LED's data and the antenna select (low: chip antenna), on the board, not on the header | — |
 | GPIO 5, 6, 7, 10 | E-paper CS, DC (shared), RST, BUSY | 12 |
 | GPIO 11, 12 | OLED CS (10 kΩ to GND), RES | 12 |

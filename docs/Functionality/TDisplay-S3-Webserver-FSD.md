@@ -65,6 +65,7 @@ reused.
 | 40 | Low-Power Build (FeatherS3) | cross-cutting |
 | 41 | Satellite Uplink (optional) | L1 |
 | 42 | Remote Session (optional) | L1 |
+| 43 | Site Survey (Waveshare, draft) | program |
 | 11 | Operational Procedures | operations |
 | 12 | Verification & Validation | operations |
 | A | Constants & Configuration Catalogue | |
@@ -563,6 +564,19 @@ testbench.
 - **Dependencies.** §32's remote settings, §33; §41 only for FR-42.2; an
   endpoint for the `hist` route (open decision).
 
+### 3.24 Phase 24: Site survey (Waveshare)
+
+- **Scope.** §43: the survey program on the Waveshare board, with a carrier
+  scan and a registration on each carrier, and a satellite check through an
+  optional Notecard for Skylo.
+- **Deliverables.** `commissioning/ws-survey`; the carrier rules in a pure
+  core beside `survey_core` (scan and `+CEREG` parsing, the order of tries,
+  bars, the OLED rows, the CSV columns); the §43 setup in the User Manual.
+- **Exit criteria.** The §43.6 host rows pass; an outdoor operator run lists
+  each carrier with its result and the satellite check, within NFR-43.1.
+- **Dependencies.** §35's board bring-up (Phase 17), the shared `sim7670`;
+  a multi-carrier SIM; a Notecard for Skylo for the satellite row (R-49).
+
 ---
 
 ## 4. Risks, Assumptions & Dependencies
@@ -617,6 +631,8 @@ testbench.
 | R-49 | Skylo coverage, the Notecard for Skylo's availability and Blues' NTN rules (templates, environment variables over NTN) are taken from Blues' documents, not yet from a run of this firmware | Possible | Medium | The sat-probe trial's stage 3 and the §41.6 operator rows prove them before the section is relied on |
 | R-50 | §42's power, data and transfer times come from Blues' published figures for another duty cycle, and the I2C rate to the Notecard's binary buffer is unmeasured, so a year's history may take longer than NFR-42.1 allows | Possible | Medium | NFR-42.1 and NFR-42.2 are measured in the §42.4 operator rows; a slow transfer moves the history to a packed form, defined as a new requirement first |
 | R-51 | Anyone who can send requests through ThingsBoard or Notehub can change a station's setup in a session | Possible | Medium | A session can change only FR-32.17's settings (FR-42.7, C-42.1), as a shared attribute can; ThingsBoard and Notehub accounts are the access control |
+| R-52 | The Notecard can neither scan nor choose operators and has no AT access, also with an external SIM, so a Notecard survey shows only the one network its SIM registers on (`docs/Method/project/blues-cellular.md`, Limits) | Certain | Medium | §43 surveys carriers with the SIM7670G's AT commands; the Notecard is kept for satellite only |
+| R-53 | A manual registration may be refused for plan reasons, not coverage (a carrier outside the SIM's roaming list), and `AT+COPS=?` can take minutes or miss a network still in range | Likely | Low | FR-43.6 records `denied` apart from `none`; `carriers` tries a network the scan missed (FR-43.5); the SIM's carrier list is part of the survey's setup |
 | R-47 | The EALLT-1's supply current is not published and may not fit the isolated 24 V beside a shorted loop | Possible | Medium | Measured at commissioning; C-40.10 sizes the converter from it |
 | R-34 | The shunt's 0.1 % and the ADS1115's worst-case gain error of 0.15 % together can exceed NFR-29.1 at 20 mA (0.05 mA against 0.04 mA); typical parts are well inside it | Unlikely | Medium | The NFR-29.1 calibrator test decides on each board; a board that fails gets a one-point gain trim setting, defined as a new requirement first |
 | R-27 | The testbench offers no RS232 peer today, so the bench tier of §30 needs a USB-RS232 adapter on the testbench host, wired to the DUT's DE-9, and a way for a test to drive it | Certain | Medium | The user adds the adapter (decided 2026-11-01); until the bench declares it, the RS232 bench rows are `not done` and the cores are host-tested; the loopback runs on the target tier |
@@ -3751,7 +3767,7 @@ off-board key (FR-35.3), and can read its settings from a microSD card
 Peers: the modem on UART 1; the cellular network; the senders' servers,
 reached over the internet; the OLED, the optional e-paper display (§36), the
 off-board key and the microSD card. The T-Display build is unchanged by this
-section.
+section. The site survey of §43 runs on this board as its own program.
 
 Its verification contracts are §35.6.
 
@@ -5153,6 +5169,196 @@ Session:
 | FR-42.5 | Operator, the Notecard's antenna removed before the start | L69 `nocell`, `session_state` `failed nocell` after 10 minutes, the station back on its timer wakes | The station left awake | bench (operator) |
 | NFR-42.2 | Operator, a Mojo or meter on the Notecarrier's battery through a two-hour session | At most 40 mAh | | bench (operator) |
 
+## 43. Site Survey (Waveshare, draft)
+
+### 43.1 Purpose & peers
+
+Before a station is placed, a site survey shows which networks reach the site
+and how well [user]. It records the GPS position, each carrier the SIM can
+register on with its signal, whether a satellite message gets through, the
+weather and the batteries. The result appears on the panel and is kept as CSV
+lines on the microSD [user].
+
+The FeatherS3D survey (`commissioning/fs3-survey`) did this for the field demo
+of 2026-11-18. That survey can report only the one network its Notecard
+registers on, because the Notecard can neither scan nor choose operators (R-52).
+This section moves the survey to the cellular build's Waveshare board
+(§35.2). There, the SIM7670G's AT commands list the operators in range and
+register on each in turn [proposed]. A Notecard for Skylo, used for satellite
+only, joins the board's sensor bus for the satellite check [user].
+
+The survey is its own program, `commissioning/ws-survey`, flashed in place of
+the station firmware for a site visit [proposed]. It is not a station feature,
+and §35's firmware is unchanged by this section. It reuses the FeatherS3D
+survey's pure core (`survey_core`) for its settings, result lines and CSV,
+and the shared `sim7670`, `notecard`, `bme280`, `max17048`, `ssd1322`,
+`ssd1683` and `ble_setup` components.
+
+Peers:
+- The SIM7670G on UART 1, with a multi-carrier SIM.
+- The cellular networks in range.
+- The Notecard for Skylo on the sensor bus, the Skylo network and Notehub.
+- The modem's GNSS.
+- The BME280 and the MAX17048.
+- The OLED or the e-paper of §35.2.
+- The off-board key.
+- The microSD card.
+- A phone running §26's setup page.
+
+Its verification contracts are §43.6.
+
+### 43.2 Hardware
+
+| Item | Value | Source |
+|------|-------|--------|
+| Board | The Waveshare ESP32-S3-SIM7670G-4G with §35.2's switches, pins, cell, sensor bus, panels, off-board key and microSD; nothing rewired | [derived from §35.2] |
+| Survey SIM | A multi-carrier nano SIM in the board's slot whose plan roams on the US LTE networks (e.g. Hologram: AT&T, T-Mobile, Verizon), so a manual registration on each is allowed. A single-carrier SIM shows the others as `denied` | [proposed] |
+| Satellite (optional) | A Notecard for Skylo (NOTE-NBGLWX) in a Notecarrier-X, used for satellite only (`card.transport` `ntn`). It sits on the sensor bus at I2C 0x17 through §35.2's Qwiic star, with GND, SDA and SCL only (the Notecarrier's 3.3 V not joined to the board's). Its own LiPo, or the board's cell under C-33.1. Its pull-ups count toward §35.2's bus limit | [user]; wiring [proposed] |
+| Antennas | LTE: the board's antenna on the modem's main u.FL. GNSS: an active antenna on the modem's GNSS u.FL. Satellite: the Notecard's `MAIN` antenna with a clear view of the southern sky, at least 20 cm from the LTE antenna | [derived from §35.2, §41.2]; spacing [proposed] |
+| Battery | The board's 18650, read from the MAX17048 (0x36); the Notecard's supply from `card.voltage` | [derived from §35.2] |
+
+### 43.3 Settings
+
+The settings are set over Bluetooth on §26's page (the shared `ble_setup`
+service), kept in NVS and kept through a reflash. They are FeatherS3D
+survey's fields plus `carriers` and `apn`. Absent fields keep their stored
+values.
+
+| Field | Format | Valid | Empty or absent |
+|-------|--------|-------|-----------------|
+| `site` | the site's name, written on the screen and in every CSV line | 0 – 20 characters: letters, digits, space, `-`, `_`, `.` | the stored value; empty when none is stored [user] |
+| `sat` | `on` runs the satellite step when a Notecard for Skylo answers | `on` or `off` | the stored value; `on` [user] |
+| `gps_min` | the GPS step's limit, minutes | 1 – 10 | the stored value; 5 [proposed] |
+| `sat_min` | the satellite step's limit, minutes | 1 – 15 | the stored value; 5 [proposed] |
+| `display` | the panel drawn on when both are plugged in | `auto` (the e-paper first), `epaper`, `oled` | the stored value; `auto` [user] |
+| `carriers` | the networks to try, as MCC+MNC separated by `,`, in that order; empty tries every LTE network the scan lists | empty, or 1 – 6 entries of 5 – 6 digits | the stored value; empty [proposed] |
+| `apn` | the SIM's access point name, for the data check | empty, or 1 – 63 bytes of letters, digits, `.`, `-` | the stored value; empty (no data check) [proposed] |
+
+### 43.4 The survey
+
+A boot or key wake runs these steps in order. The panel shows each step's
+progress, and a key press held 100 ms skips the step running. In the carrier
+step, a press skips only the current carrier.
+
+1. **Setup window**, on a power-up or reset only (not on a key wake). The
+   board advertises as `WS-<last three MAC bytes>` and shows its passkey on the
+   panel. The window ends on the page's Done, a key press, 120 s with no phone
+   or 300 s in all.
+2. **GPS.** The modem's GNSS runs until a fix or `gps_min`, with LTE off
+   while it runs (as FR-35.14). The fix gives the place and, with no
+   network time yet, the clock.
+3. **Carrier scan.** The modem goes on LTE, and `AT+COPS=?` lists the
+   operators in range (up to 180 s).
+4. **Each carrier.** Every LTE operator from the scan, or every `carriers`
+   entry, is tried in turn, at most 6. The modem registers on it manually
+   (`AT+COPS=1,2,"<MCC+MNC>",7`, up to 90 s). Once registered, it reads the
+   signal (`AT+CSQ`, `AT+CPSI?`: RSRP, RSRQ, SINR, band). With `apn` set, it
+   also runs a data check (PDP context up, then down). The result per
+   carrier is one of:
+   - `ok`: registered;
+   - `denied`: the network refused registration;
+   - `none`: no registration within the limit.
+5. **Back to automatic.** `AT+COPS=0`, then the modem powered down
+   (`AT+CPOF` and its supply cut, as FR-35.23).
+6. **Satellite.** Runs with `sat` `on` and a Notecard for Skylo answering on
+   the bus. The Notecard is given the step 2 fix as a fixed location
+   (§41.2), and one templated note on port 20 is sent over `ntn`. The result
+   is `ok` with its time once the sync completes, or `none` at `sat_min`.
+   With no fix the step does not run (`no place`); with no Notecard it reads
+   `n/a`.
+7. **Weather and batteries.** The BME280, the MAX17048 and `card.voltage`.
+8. **Result.** The panel shows the result (§43.5, FR-43.9), and the CSV gets
+   one line per carrier tried, each repeating the survey's shared columns.
+   Then the OLED holds the result for 600 s, every line is released, and
+   the board deep-sleeps until the off-board key or BOOT is pressed; a press
+   starts a new survey.
+
+### 43.5 Requirements
+
+Program:
+
+- **FR-43.1** [Must] [proposed] The survey shall be a program of its own
+  (`commissioning/ws-survey`) for the Waveshare board. The station builds
+  (§35, C-10.7) and their sources do not change, and the station's NVS
+  settings are not read or written.
+- **FR-43.2** [Must] [user] The survey shall take the §43.3 settings from a
+  BLE `settings` write on §26's page during the setup window, valid per
+  §43.3, and answer `invalid=<field>` for the first bad field, storing
+  nothing. Absent fields keep their stored values, and the settings survive
+  a reflash.
+- **FR-43.3** [Must] [user] The setup window shall open on a power-up or
+  reset only, with the passkey on the panel. It ends on Done, a key press,
+  120 s with no phone or 300 s in all [proposed], and the survey then starts.
+
+Steps:
+
+- **FR-43.4** [Must] [proposed] The GPS step shall run the modem's GNSS until
+  a fix or `gps_min`, with LTE off while it runs, and record the place, the
+  satellites used and the seconds taken.
+- **FR-43.5** [Must] [proposed] The carrier step shall list the operators in
+  range with `AT+COPS=?` (180 s limit). It then tries, in the order given,
+  either each LTE operator listed or each `carriers` entry, at most 6. A
+  `carriers` entry the scan did not list is still tried.
+- **FR-43.6** [Must] [proposed] Each carrier shall be tried by a manual
+  registration (90 s limit) and recorded as `ok`, `denied` (+CEREG status 3)
+  or `none`. With `ok`, the record adds RSRP, RSRQ, SINR, the band, the bars
+  of FR-43.9, the seconds to register and, with `apn` set, whether a PDP
+  context came up.
+- **FR-43.7** [Must] [derived from FR-35.23] After the last carrier the modem
+  shall be returned to automatic selection (`AT+COPS=0`) and powered down.
+  An interrupted survey (a reset, a key press) leaves no manual selection at
+  the next boot.
+- **FR-43.8** [Must] [user] With `sat` `on` and a Notecard for Skylo
+  answering, the satellite step shall send one templated note over `ntn` from
+  the GPS step's place and record `ok` with its seconds, or `none` at
+  `sat_min`. With no place, it does not run and records `no place`; with no
+  Notecard, it records `n/a`.
+
+Result:
+
+- **FR-43.9** [Must] [proposed] The result shall show on the chosen panel
+  (§43.3 `display`; the panel found by FR-35.25):
+  - the OLED's six rows of 42 characters: the GPS line; the three best `ok`
+    carriers by RSRP, each as name, band, RSRP and bars (4 at −90 dBm or
+    better, 3 to −100, 2 to −110, 1 below), with `+<n> more` when more; the
+    satellite line; and the weather and battery line;
+  - the e-paper: the same plus every carrier, the time and the SD status.
+- **FR-43.10** [Must] [user] Each survey shall add to `/survey.csv` one line
+  per carrier tried (one line with carrier `none` when none was). The
+  columns are FeatherS3D survey's, with `carrier_result`, `rsrq_db`,
+  `sinr_db`, `band` and `data` added. A file with a different header is kept
+  under the next free `survey-<n>.csv`, as on the FeatherS3D.
+- **FR-43.11** [Should] [proposed] The clock for the CSV shall come from the
+  network's time after the first registration, else from the GNSS fix, in
+  US Eastern time (FR-22.2). With neither, the line's time reads
+  `time unknown`.
+- **FR-43.12** [Must] [derived from FR-27.5, FR-27.6] The setup page's history download
+  shall return the CSV lines, filtered by the page's date range.
+
+Power:
+
+- **FR-43.13** [Must] [derived from FR-35.23] Between surveys the board shall
+  deep-sleep with the modem's supply cut, the panels' and card's lines inputs,
+  and the Notecard idle.
+- **NFR-43.1** [Should] [proposed] A survey of three carriers with a GPS fix
+  and the satellite check shall end within 20 minutes of the setup window's
+  end.
+
+### 43.6 Verification contracts
+
+Bench rows run on SLOT2 with the Waveshare board and a multi-carrier SIM.
+`(core)` rows drive the pure core on the host.
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|----|------------------------|----------------------|-----------------|------|
+| FR-43.2 (core) | Settings bodies: `carriers=310410,311480`; `carriers=3104`; seven entries; `apn=hologram`; `display=oled`; `site=a,b` | valid; `invalid=carriers` twice; valid; valid; `invalid=site` | A refused body stored in part | host |
+| FR-43.5, FR-43.6 (core) | Scan answers with AT&T, T-Mobile and Verizon on LTE and a 2G entry; `carriers` empty, then `311480,310410` | Three tries in the scan's order, the 2G entry skipped; then Verizon, AT&T | More than 6 tries | host |
+| FR-43.6 (core) | Registration answers +CEREG 1, 5, 3, and nothing within 90 s; `+CPSI` with RSRP −97 | `ok`, `ok`, `denied`, `none`; −97 dBm, 3 bars | A carrier recorded `ok` without a registration | host |
+| FR-43.9, FR-43.10 (core) | Result with 4 `ok` carriers, satellite `ok`, weather; then with no carrier | OLED rows ≤ 42 characters with the 3 best and `+1 more`; 4 CSV lines with the header's column count; then one line with carrier `none` | A row wrapped; a column count unlike the header | host |
+| FR-43.4 – FR-43.8, NFR-43.1 | Operator, outdoors, the multi-carrier SIM, a Notecard for Skylo, power-up, then Done on the page | Each carrier listed with its result, the satellite `ok`, the CSV lines on the card, all within 20 minutes; then `AT+COPS?` on the next boot shows automatic selection | The modem left on, or left on a manual selection | bench (operator) |
+| FR-43.7 | Operator, a key reset during the carrier step | The next boot's survey begins in automatic selection | A survey stuck on one carrier | bench (operator) |
+| FR-43.13 | Operator, a meter on the cell after the result | The sleep current within 10 % of §35's station sleep | The modem drawing current asleep | bench (operator) |
+
 ---
 
 ## 11. Operational Procedures
@@ -5381,7 +5587,7 @@ they apply in changed (SHOWING → LCD_OK, §5.3's display region).
 
 ```yaml
 document_status: draft
-fsd_version: 0.67.0
+fsd_version: 0.68.0
 repository: https://github.com/solchjg/tdisplay-s3-amoled
 baseline_commit: (the commit introducing this version)
 applicable_firmware_version: none yet
@@ -5389,7 +5595,7 @@ author: solchjg
 reviewers: []
 approval_status: approved by the user except the open decisions
 created: 2026-10-23
-last_updated: 2026-11-17
+last_updated: 2026-11-19
 change_history:
   - 0.0.0 2026-10-23 stub, project created from the tdisplay-s3-hello base
   - "0.1.0 2026-10-23 initial definition: station + portal, status page/API, HTTP OTA with rollback, watchdog, factory reset, UDP log, mDNS"
@@ -5494,8 +5700,10 @@ change_history:
   - "0.65.0 2026-11-16 approved by the user: §40.2's display supply feeds the OLED's VCC from the switch's 3.3 V with no step-up, since the module was as bright on 3.3 V as on 5 V, on USB and on the LiPo (Phase 21)"
   - "0.66.0 2026-11-17 approved by the user (PR #162): §40.2's microSD row (Adafruit #4682 in SPI mode on SPI2, CS GPIO 38 [user], SO GPIO 37, DET unconnected) on the display supply; §40.3 microSD settings as §35; FR-40.4 and FR-40.5 extended to the card; FR-40.14 the card before any display traffic"
   - "0.67.0 2026-11-18 approved by the user (PR #165): C-33.1, one shared cell for the board and the Notecarrier-X as an option on every Notecard build (one charger, the board's; the Notecarrier-X on `VBAT` with its JST-PH and USB-C empty; 150 mm of 22 AWG with a 3 A fuse; battery and ground only; polarity checked; 0 – 45 °C charging; no reset through a sync at 3.5 V); §33.2's Shared cell row, C-40.11's option, §40.2's Charging row and §35.2's Power row point to it"
+  - "0.68.0 2026-11-19 draft for the user's review, from the user's request after the FeatherS3D survey demo: §43 Site Survey (Waveshare): the survey as its own program on the Waveshare board, a carrier scan and a manual registration on each carrier through the SIM7670G, a satellite check through a satellite-only Notecard for Skylo on the sensor bus, the FeatherS3D survey's Bluetooth settings plus `carriers` and `apn`, a CSV line per carrier (FR-43.1 – FR-43.13, NFR-43.1); R-52 (the Notecard cannot scan or choose operators), R-53; Phase 24; §35.1 points to it"
 superseded_requirements: [FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-5.6, FR-5.7, FR-5.8, FR-5.9, FR-5.10, FR-7.1, FR-7.2, FR-7.3, FR-7.4, FR-9.1, C-10.4, FR-15.2, FR-15.3, FR-15.4, FR-15.6, FR-15.7, FR-14.1, FR-14.2, FR-5.22, FR-6.5, FR-6.6, FR-15.5, FR-18.1, FR-7.15, FR-6.9, FR-6.10, FR-6.11, FR-7.11, FR-23.6, FR-23.11, FR-23.8, FR-24.4, FR-21.10, FR-24.5, FR-24.10, FR-18.2, FR-25.4, FR-25.7, FR-23.2, FR-9.2, FR-25.2, FR-7.33, C-10.6, FR-23.14, FR-6.2, FR-6.12, FR-23.13, FR-27.2, C-10.9, FR-24.12, FR-26.14, NFR-30.2, FR-36.2]
 open_decisions:
+  - "§43 Site Survey, the whole section: a program of its own (not a mode of the station build), the multi-carrier SIM, the per-carrier steps and limits (180 s scan, 90 s registration, at most 6 carriers), the `carriers` and `apn` settings and the data check, `gps_min` and `sat_min` defaults, the bars thresholds, the OLED and e-paper result layout, the CSV columns added, the clock source, 20 cm antenna spacing, NFR-43.1's 20 minutes"
   - "§42 Remote Session, the whole section: the Notehub session over the other options, `session_at`/`session_h` and `s_session`/`s_hours`, the requests, 1-minute syncs and 5 s polling, 64 KB history chunks to the `hist` route and that route's endpoint (a file store the user chooses), the 10-minute connect limit, the 3.50 V cut-off, NFR-42.1 and NFR-42.2"
   - "§38 ESP-NOW Link, the items marked proposed: the frame layout and nonce, `espnow_ch` and its search (3 missed wakes), 5 frames a wake, 3 tries and 50 ms, the counter kept every 256 frames, the clock from the reply (2 s), 16 nodes a gateway, MQTT on 1883/8883 with a gateway device token, a reply only after the broker's acknowledgement, no gateway on the T-Display's Notecard, the FR-21.13 and FR-34.8 exceptions"
   - "§35.2 the e-paper's RST on GPIO 20 and the OLED's RES on GPIO 19; FR-35.25 the detection method (CS resistor, BUSY pulse) and `epaper` `on` by default; §35.4 the `oled` setting (default on) and FR-35.2's e-paper in every window with `oled` `off`; FR-35.24 the status block's 10 rows, drawn only in the final full refresh, kept in RTC memory, and their content"

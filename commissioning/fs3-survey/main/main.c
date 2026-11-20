@@ -1,25 +1,36 @@
-// fs3-survey: a site survey on the FeatherS3D, for a field demo. Each boot or
-// key wake: the display supply (the Pololu switch, GPIO 17) and LDO2 on; the
-// microSD mounted (SPI2: SO 37, CS 38); the panel found (the 2.13" e-Paper HAT,
-// V3, on SPI2 when its BUSY is driven, else a 1.3" SSD1306 OLED at 0x3C on
-// I2C2); the battery from the MAX17048; then through the Notecard on I2C1 a GPS
-// fix (continuous mode, up to the gps_min setting) and a Notehub sync with the network
-// it registers on (card.wireless, up to CELL_LIMIT_S), and with a Starnote the
-// same note sent over satellite (card.transport ntn, up to sat_min, when sat is on); the
-// BME280 on I2C2 adds the weather. The result goes on the
-// panel and as a line in /survey.csv with the local date and time from the
-// Notecard. Then, with the e-paper, the panel's deep sleep, every panel and card
-// line an input and the supplies off, and deep sleep until the user key (GPIO 1)
-// or BOOT (GPIO 0) is pressed; with the OLED the result stays up for
-// OLED_HOLD_S first. On a power-up or reset a Bluetooth setup window comes
-// first (ble_window). An off-board key may sit beside the user key on GPIO 1, and
-// its LED on GPIO 13 (with the board's blue LED): on while surveying, blinking on
-// the result, off asleep. Serial lines start "survey:". Never released.
+// fs3-survey: a site survey on the FeatherS3D, for a field demo (no FSD
+// section; the Waveshare build's survey is FSD §43). Serial lines start
+// "survey:". Never released.
+//
+// A boot or key wake runs, in order:
+//   1. Power: the display supply (the Pololu switch, GPIO 17) and LDO2 (I2C2) on;
+//      the microSD mounted (SPI2, CS 38); both panels looked for: the 2.13"
+//      e-Paper HAT (V3) on SPI2, found by its BUSY pulse, and a 1.3" SSD1306
+//      OLED at 0x3C on I2C2. The `display` setting picks the one drawn on.
+//   2. Bluetooth setup (ble_window), on a power-up or reset only: the shared
+//      ble_setup service, named FS3-<last 3 MAC bytes>, with a passkey shown on
+//      the panel. Its settings (site, sat, gps_min, sat_min, display) are kept
+//      in NVS. It ends on the page's Done, a key press, BLE_IDLE_S with no
+//      phone or BLE_MAX_S in all.
+//   3. The survey, through the Notecard on I2C1: a GPS fix (gps_phase), the
+//      network it registers on and a Notehub sync (cell_phase), and with a
+//      satellite radio and `sat` on the same note over satellite (sat_phase);
+//      the BME280 on I2C2 and both batteries (the MAX17048, card.voltage).
+//      A key press skips the step running.
+//   4. The result on the panel and as a line in /survey.csv, dated by the
+//      Notecard's clock; the Notecard's transport and GPS mode put back.
+//   5. Sleep: with the OLED the result stays up for OLED_HOLD_S first; then
+//      every panel and card line an input, the supplies off and deep sleep
+//      until the user key (GPIO 1) or BOOT (GPIO 0).
+//
+// An off-board key may sit beside the user key on GPIO 1, and its LED on
+// GPIO 3 (the board's blue LED on GPIO 13, not on the header, follows it): on
+// while surveying, blinking on the result, off asleep.
 //
 // The Notecard can neither choose nor scan operators, so the cellular line is
-// the one network its SIM registered on. Without a satellite radio (a Notecard
-// for Skylo, or a Starnote answering ntn.status) the
-// satellite line reads n/a. The Notecard's transport is put back afterwards.
+// the one network its SIM registered on (docs/Method/project/blues-cellular.md,
+// Limits). Without a satellite radio (a Notecard for Skylo, or a Starnote
+// answering ntn.status) the satellite line reads n/a.
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -61,7 +72,9 @@
 #define PIN_BUSY 10
 #define PIN_KEY 1   // user key, active low, 10 kΩ pull-up
 #define PIN_BOOT 0  // BOOT key, active low
-#define PIN_LED 13  // the board's blue LED and the off-board key's LED (to GND through a resistor)
+#define PIN_LED 13      // the board's blue LED (not on the header)
+#define PIN_KEY_LED 3   // the off-board key's LED, to GND through a 330 Ω resistor (header pin 3)
+#define LED_MASK ((1ULL << PIN_LED) | (1ULL << PIN_KEY_LED))
 #define I2C1_SDA 8
 #define I2C1_SCL 9
 #define I2C2_SDA 16
@@ -81,6 +94,8 @@
 
 // ---------------------------------------------------------------- supplies
 
+// Drives the Pololu switch's CTRL to level for 10 ms, then lets it float:
+// the switch latches the state, so the line needs no current afterwards.
 static void supply_ctrl(int level)
 {
     gpio_hold_dis(PIN_SUPPLY);
@@ -92,6 +107,8 @@ static void supply_ctrl(int level)
     gpio_config(&c);
 }
 
+// LDO2 (I2C2's 3.3 V, FSD FR-40.3) on or off, the level set before the pin
+// becomes an output so it never glitches.
 static void ldo2(bool on)
 {
     gpio_hold_dis(PIN_LDO2);
@@ -115,6 +132,7 @@ static void ldo2(bool on)
 static spi_device_handle_t epd;
 static uint8_t fb[EPD_BYTES];  // 1 = white
 
+// Sends n bytes as a command (data false) or data, in SPI_CHUNK pieces.
 static void epd_send(bool data, const uint8_t *p, size_t n)
 {
     gpio_set_level(PIN_DC, data ? 1 : 0);
@@ -127,6 +145,7 @@ static void epd_send(bool data, const uint8_t *p, size_t n)
     }
 }
 
+// One controller command and its data bytes.
 static void epd_cmd(uint8_t c, const uint8_t *data, size_t n)
 {
     epd_send(false, &c, 1);
@@ -141,6 +160,7 @@ static void epd_cmd(uint8_t c, const uint8_t *data, size_t n)
         epd_cmd((c), d_, sizeof d_);        \
     } while (0)
 
+// Waits for BUSY to go low: the milliseconds waited, or -1 after BUSY_LIMIT_MS.
 static long epd_wait(void)
 {
     int64_t t0 = esp_timer_get_time();
@@ -199,6 +219,7 @@ static const uint8_t lut_partial[159] = {
     0x22, 0x17, 0x41, 0x00, 0x32, 0x36,
 };
 
+// A hardware reset: RST low 2 ms, then 10 ms to start.
 static void epd_reset(void)
 {
     gpio_set_level(PIN_RST, 0);
@@ -207,6 +228,8 @@ static void epd_reset(void)
     esp_rom_delay_us(10000);
 }
 
+// Loads a 159-byte Waveshare V3 waveform: the LUT, then its end, gate,
+// source and VCOM voltages.
 static long epd_lut(const uint8_t *lut)
 {
     epd_cmd(0x32, lut, 153);
@@ -218,12 +241,14 @@ static long epd_lut(const uint8_t *lut)
     return ms;
 }
 
+// The RAM window: the whole panel.
 static void epd_window(void)
 {
     CMD(0x44, 0x00, EPD_W / 8 - 1);
     CMD(0x45, 0x00, 0x00, (EPD_H - 1) & 0xFF, (EPD_H - 1) >> 8);
 }
 
+// The frame buffer into one RAM (0x24 black/white, 0x26 the previous image).
 static void epd_write(uint8_t ram)
 {
     CMD(0x4E, 0x00);
@@ -231,6 +256,8 @@ static void epd_write(uint8_t ram)
     epd_cmd(ram, fb, sizeof fb);
 }
 
+// Reset and set up the controller for a full refresh; false when BUSY
+// never goes low (no panel, or a dead one).
 static bool epd_init(void)
 {
     epd_reset();
@@ -250,6 +277,8 @@ static bool epd_init(void)
     return epd_wait() >= 0 && epd_lut(lut_full) >= 0;
 }
 
+// A full refresh of the frame buffer (both RAMs, so the next partial
+// starts from it): the milliseconds it took, or -1.
 static long epd_full(void)
 {
     epd_write(0x24);
@@ -284,6 +313,7 @@ static long epd_partial(void)
     return epd_wait();
 }
 
+// One pixel of the landscape picture (LW x LH) in the frame buffer.
 static void epd_px(int x, int y, bool black)
 {
     if (x < 0 || y < 0 || x >= LW || y >= LH) {
@@ -308,6 +338,7 @@ static i2c_master_bus_handle_t i2c2;
 static i2c_master_dev_handle_t oled;
 static uint8_t ob[OLED_H / 8][OLED_W];
 
+// Up to 31 SSD1306 command bytes in one I2C write (control byte 0x00).
 static esp_err_t oled_cmds(const uint8_t *c, size_t n)
 {
     uint8_t b[32];
@@ -316,6 +347,8 @@ static esp_err_t oled_cmds(const uint8_t *c, size_t n)
     return i2c_master_transmit(oled, b, n + 1, 50);
 }
 
+// Opens I2C2 (port 1) and looks for the OLED at 0x3C or 0x3D: when found, sets
+// it up and keeps the bus open; with none, closes the bus again.
 static bool oled_find(void)
 {
     const i2c_master_bus_config_t bc = {.i2c_port = 1, .sda_io_num = I2C2_SDA, .scl_io_num = I2C2_SCL,
@@ -343,6 +376,7 @@ static bool oled_find(void)
     return false;
 }
 
+// One pixel in the OLED's page buffer.
 static void oled_px(int x, int y, bool on)
 {
     if (x < 0 || y < 0 || x >= OLED_W || y >= OLED_H) {
@@ -355,6 +389,7 @@ static void oled_px(int x, int y, bool on)
     }
 }
 
+// The page buffer to the panel, one 128-byte page at a time.
 static esp_err_t oled_push(void)
 {
     esp_err_t err = ESP_OK;
@@ -371,6 +406,7 @@ static esp_err_t oled_push(void)
     return err;
 }
 
+// The OLED's display off (0xAE), its RAM kept; nothing when none was found.
 static void oled_off(void)
 {
     if (oled) {
@@ -403,6 +439,7 @@ static void display_choose(void)
            epd_ok ? "found" : "absent", oled_ok ? "found" : "absent");
 }
 
+// Text at x, y on the chosen panel, cut at its right edge.
 static void draw_text(const text_font_t *f, int x, int y, const char *s)
 {
     static uint16_t line[LW * FONT_H];
@@ -463,6 +500,8 @@ static void show(const char *title, char lines[SV_LINES][SV_LINE_MAX], bool full
 
 static sdmmc_card_t *card;
 
+// Mounts the microSD (SPI2, 10 MHz) at SD_MOUNT; false with no card or no
+// FAT file system (never formatted here).
 static bool sd_mount(void)
 {
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
@@ -489,6 +528,8 @@ static bool sd_mount(void)
     return err == ESP_OK;
 }
 
+// Adds the result as a line to /survey.csv, writing the header first on a
+// new file; false with no card or on a write error.
 static bool sd_append(const sv_result_t *r)
 {
     if (!card) {
@@ -546,6 +587,7 @@ static bool nc_send(const char *req)
     return err == ESP_OK && !nc_err(rsp, NULL, 0);
 }
 
+// Sends a request with no arguments, e.g. {"req":"hub.sync"}.
 static bool nc_name(const char *name)
 {
     char req[64];
@@ -565,6 +607,7 @@ static bool nc_time(int64_t *epoch, int *minutes)
     return true;
 }
 
+// Either key (user GPIO 1, or BOOT GPIO 0) is low now.
 static int key_down(void)
 {
     return gpio_get_level(PIN_KEY) == 0 || gpio_get_level(PIN_BOOT) == 0;
@@ -607,6 +650,8 @@ static bool poll_wait(void)
 static sv_result_t res;
 static bool survey_note(void);
 
+// The screen while surveying: the GPS and cell lines given, the rest from
+// the result so far.
 static void progress(const char *gps, const char *cell, bool full)
 {
     char lines[SV_LINES][SV_LINE_MAX];
@@ -618,6 +663,8 @@ static void progress(const char *gps, const char *cell, bool full)
     show(res.site[0] ? res.site : "Site survey", lines, full);
 }
 
+// The GPS step: the Notecard's GPS in continuous mode until a fix newer
+// than t_start, the gps_min limit or a key press; its old mode put back.
 static void gps_phase(int64_t t_start)
 {
     char saved[24] = "";
@@ -676,6 +723,9 @@ static void gps_phase(int64_t t_start)
     }
 }
 
+// The cell step: transport cell, the survey note and a hub.sync, then
+// card.wireless every POLL_S until registered and synced, CELL_LIMIT_S or a
+// key press. Leftover satellite values (rat NTN, MCC 901) are not a network.
 static void cell_phase(int64_t t_start, const char *gps_line)
 {
     char req[96];
@@ -805,6 +855,8 @@ static bool sync_wait(int limit_s, int *took_s, const char *gps_line, const char
 
 static bool has_ntn;  // card.version's "ntn":true
 
+// The satellite step, when sat is on and a satellite radio answers:
+// transport ntn, the note again, a sync waited for up to sat_min.
 static void sat_phase(const char *gps_line, const char *cell_line)
 {
     // A Notecard for Skylo (card.version "ntn":true) or a paired Starnote
@@ -823,6 +875,8 @@ static void sat_phase(const char *gps_line, const char *cell_line)
     res.sat = sync_wait(set.sat_min * 60, &res.sat_s, gps_line, cell_line);
 }
 
+// Every SPI line of the panel and card an input, so nothing back-powers them
+// once their supply is off.
 static void lines_inputs(void)
 {
     gpio_config_t in = {.pin_bit_mask = (1ULL << PIN_SCK) | (1ULL << PIN_MOSI) | (1ULL << PIN_MISO) |
@@ -834,19 +888,22 @@ static void lines_inputs(void)
     gpio_config(&in);
 }
 
+// Both LEDs: the board's (GPIO 13) and the off-board key's (GPIO 3).
 static void led(bool on)
 {
     gpio_set_level(PIN_LED, on);
+    gpio_set_level(PIN_KEY_LED, on);
 }
 
-// The LED off and its line an input (no current) for the deep sleep.
+// Both LEDs off and their lines inputs (no current) for the deep sleep.
 static void led_release(void)
 {
-    gpio_config_t in = {.pin_bit_mask = 1ULL << PIN_LED, .mode = GPIO_MODE_INPUT,
+    gpio_config_t in = {.pin_bit_mask = LED_MASK, .mode = GPIO_MODE_INPUT,
                         .pull_up_en = GPIO_PULLUP_DISABLE, .pull_down_en = GPIO_PULLDOWN_DISABLE};
     gpio_config(&in);
 }
 
+// Deep sleep until the user key or BOOT is pressed (EXT1, either low).
 static void sleep_until_key(void)
 {
     led_release();
@@ -868,6 +925,8 @@ static void sleep_until_key(void)
 
 #define NVS_NS "survey"
 
+// The settings from NVS, or the defaults when none (or a damaged blob) are
+// stored.
 static void settings_load(void)
 {
     sv_settings_default(&set);
@@ -887,6 +946,7 @@ static void settings_load(void)
            set.gps_min, set.sat_min);
 }
 
+// Stores the settings in NVS; false when NVS cannot be written.
 static bool settings_save(const sv_settings_t *s)
 {
     nvs_handle_t h;
@@ -905,6 +965,7 @@ static volatile uint32_t ble_code;      // the passkey on show, or 0
 static volatile bool ble_code_on, ble_conn, ble_done, ble_dirty, display_changed;
 static char hist_from[11], hist_to[11];  // the page's date range, "" for open
 
+// Appends s unencoded at *p; false when it does not fit.
 static bool put_raw(char *out, size_t cap, size_t *p, const char *s)
 {
     size_t n = strlen(s);
@@ -916,6 +977,8 @@ static bool put_raw(char *out, size_t cap, size_t *p, const char *s)
     return true;
 }
 
+// The BLE info read: the name, the battery and the CSV header (the
+// history's columns for the page).
 static size_t ble_read_info(char *out, size_t cap)
 {
     char head[256], v[48];
@@ -934,16 +997,21 @@ static size_t ble_read_info(char *out, size_t cap)
     return ok ? p : 0;
 }
 
+// The BLE settings read: the stored settings as a form body.
 static size_t ble_read_settings(char *out, size_t cap)
 {
     return sv_settings_form(&set, out, cap);
 }
 
+// The BLE form read: the page's rules for each field.
 static size_t ble_read_form(char *out, size_t cap)
 {
     return sv_settings_rules(out, cap);
 }
 
+// The BLE apply: checks the staged body, stores it and answers "ok", or
+// answers "invalid=<field>" and changes nothing. A new screen choice is
+// drawn at once by ble_window.
 static void ble_apply(const char *body, size_t len, char *result, size_t cap)
 {
     sv_settings_t s;
@@ -962,6 +1030,7 @@ static void ble_apply(const char *body, size_t len, char *result, size_t cap)
     ble_dirty = true;
 }
 
+// The pairing code to show (shown true) or take down.
 static void ble_passkey(uint32_t passkey, bool shown)
 {
     ble_code = passkey;
@@ -969,6 +1038,7 @@ static void ble_passkey(uint32_t passkey, bool shown)
     ble_dirty = true;
 }
 
+// Connection, pairing and done events, kept for ble_window's screen and loop.
 static void ble_event(ble_setup_event_t ev)
 {
     if (ev == BLE_SETUP_EV_CONNECTED) {
@@ -1021,6 +1091,8 @@ static size_t ble_read_history(uint32_t line, char *out, size_t cap)
     return p;
 }
 
+// The page's date range for the history ("YYYY-MM-DD,YYYY-MM-DD", either
+// side empty for open); false when malformed.
 static bool ble_history_range(const char *text, size_t len)
 {
     char t[32];
@@ -1130,7 +1202,7 @@ void app_main(void)
     rtc_gpio_deinit(PIN_BOOT);
     gpio_config(&keys);
     // The LED on while the survey runs, blinking on the result, off asleep.
-    gpio_config_t lc = {.pin_bit_mask = 1ULL << PIN_LED, .mode = GPIO_MODE_OUTPUT};
+    gpio_config_t lc = {.pin_bit_mask = LED_MASK, .mode = GPIO_MODE_OUTPUT};
     gpio_config(&lc);
     led(true);
     while (key_down()) {  // the press that woke it
