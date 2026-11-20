@@ -249,9 +249,18 @@ and set the device up again. The password is never shown or logged.
 Instead of the `TDS3-…` WiFi portal you can use Bluetooth from a phone or
 computer, with Chrome or Edge (on an iPhone, the Bluefy browser), on the
 device setup page that ships with the shared components
-(`shared/components/ble_setup/web/index.html`, served over HTTPS, e.g. from
-GitHub Pages). nRF Connect works too: write the form text to the `settings`
-characteristic, then `apply` to `control`.
+(`shared/components/ble_setup/web/index.html`), published at
+<https://solchjg.github.io/esp-idf-components/components/ble_setup/web/index.html>.
+The page needs a connection only the first time: open it once on WiFi and add it
+to the home screen (Chrome: ⋮ → **Install app** or **Add to Home screen**), and
+from then on it opens with no WiFi or cell service and talks to the device over
+Bluetooth alone. On Android, Bluetooth and Location must both be on.
+
+nRF Connect works too, with no page at all: connect while the device's window is
+open, write the form text (e.g. `site=Well_3&display=oled`) to the `settings`
+characteristic (`…0003`), `apply` to `control` (`…0005`), read `ok` from
+`result` (`…0004`), then `done` to `control`. Writing `settings` only stages the
+text; nothing is stored until `apply`.
 
 - **First setup.** While the display says `Setup WiFi`, Bluetooth is already
   on by itself: line 5 shows `BLE setup on`, and the device is visible as

@@ -55,6 +55,7 @@ void sv_time_text(int64_t local_s, char *buf, size_t n)
     snprintf(buf, n, "%04d-%02d-%02d %02d:%02d", y, m, d, (int)(sec / 3600), (int)(sec / 60 % 60));
 }
 
+// The carrier's short name, else "MCC-MNC", else "cell".
 static void carrier_text(const sv_result_t *r, char *buf, size_t n)
 {
     const char *name = sv_carrier(r->mcc, r->mnc);
@@ -167,6 +168,7 @@ void sv_settings_default(sv_settings_t *s)
     s->sat_min = 5;
 }
 
+// A hex digit's value, or -1.
 static int hexval(char c)
 {
     return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
@@ -232,6 +234,7 @@ bool sv_url_put(char *out, size_t cap, size_t *pos, const char *src)
     return true;
 }
 
+// Appends src unencoded at *pos; false when it does not fit.
 static bool raw_put(char *out, size_t cap, size_t *pos, const char *src)
 {
     size_t n = strlen(src);
@@ -243,6 +246,8 @@ static bool raw_put(char *out, size_t cap, size_t *pos, const char *src)
     return true;
 }
 
+// A whole-number field within lo..hi into *v: true when valid or absent
+// (*v kept), false when present and invalid.
 static bool int_field(const char *body, size_t len, const char *name, int lo, int hi, int *v)
 {
     char t[8];

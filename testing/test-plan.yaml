@@ -3789,6 +3789,30 @@ tests:
     impl: [tests/host/test_sat_day.py::test_sample_days_header_is_the_generator_output, tests/host/test_sat_day.py::test_sample_days_pack_as_the_reference]
     result: {status: not done}
 
+  # FeatherS3D site survey (commissioning/fs3-survey): no FSD rule covers the
+  # program; its core is reused by §43, whose requirements these do not verify yet.
+  - id: TC-SRV-01
+    title: "Survey result lines fit the OLED and match the CSV header"
+    shape: atomic
+    kind: standard
+    tier: host
+    verifies: []
+    needs: []
+    observable: "the seven result lines are at most 21 characters with every field set or none; the carrier, satellite, battery and SD lines read as on the bench; the CSV line has the header's column count and ends with the site"
+    impl: [tests/host/test_survey_core.py::test_result_lines_fit_the_oled, tests/host/test_survey_core.py::test_result_lines_content, tests/host/test_survey_core.py::test_csv_line_matches_header]
+    result: {status: not done}
+
+  - id: TC-SRV-02
+    title: "Survey Bluetooth settings: field rules, absent fields kept, panel choice, history range"
+    shape: atomic
+    kind: negative
+    tier: host
+    verifies: []
+    needs: []
+    observable: "site (20 characters, no comma), sat, gps_min 1 - 10, sat_min 1 - 15 and display are refused out of range by name; absent fields keep their values; auto picks the e-paper first and a missing chosen panel falls back to the other; a CSV line passes the date range only by its date"
+    impl: [tests/host/test_survey_core.py::test_settings_parse, tests/host/test_survey_core.py::test_settings_absent_fields_keep_their_values, tests/host/test_survey_core.py::test_display_pick, tests/host/test_survey_core.py::test_in_range]
+    result: {status: not done}
+
   - id: TC-TSIM-01
     title: "Cellular build settings: apn, cell_plmn and cell_mail on/off, no Notehub fields"
     shape: atomic

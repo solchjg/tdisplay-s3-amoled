@@ -272,6 +272,8 @@ carrier per run, the one it registered on, and cannot compare AT&T, T-Mobile and
 at a site. A per-carrier survey needs a modem the ESP32-S3 drives over AT commands, such
 as the SIM7080G in [lte-m-modem.md](lte-m-modem.md) or the Waveshare board's SIM7670G,
 which can scan with `AT+COPS=?` and register on each network in turn with `AT+COPS=1`.
+FSD §43 (draft) defines that survey on the Waveshare board, keeping a Notecard for Skylo
+for the satellite check only (R-52).
 
 ## Sources
 
