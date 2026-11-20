@@ -26,7 +26,8 @@ and the LiPo connector on the top edge.
 | [16 Bench BOOT and RST](wiring/wiring-16-fs3-bench.png) ([.fzz](wiring/wiring-16-fs3-bench.fzz)) | The testbench Pi's EN and BOOT GPIOs through two Schottky diodes to RST and GPIO 0, and GND |
 
 The [survey carrier board](fs3-survey-carrier.md) carries the same pins on a PCB for the
-site survey and the add-ons, in place of hand wiring.
+site survey and the add-ons, in place of hand wiring; sheet [17](wiring/wiring-17-fs3-carrier.png)
+shows where each of its parts sits.
 
 ## Pins
 

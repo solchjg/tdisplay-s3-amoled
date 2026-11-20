@@ -13,7 +13,7 @@ import pcbnew
 
 import route
 from make_sch import uid
-from netlist import BOARD_H, BOARD_W, PAD_EXTRA, PARTS, POWER_NETS, GND
+from netlist import BOARD_H, BOARD_W, NOTECARRIER, PAD_EXTRA, PARTS, POWER_NETS, GND
 
 HERE = Path(__file__).resolve().parent
 NAME = "fs3-survey-carrier"
@@ -84,19 +84,23 @@ def text(board, s, x, y, size=1.0, layer=pcbnew.F_SilkS, rot=0, bold=False):
 
 
 SILK = [  # (text, x, y, size, rotation)
-    ("FeatherS3D survey carrier", 50.0, 47.0, 1.5, 0),
-    ("rev A  tdisplay-s3-amoled", 50.0, 49.5, 1.0, 0),
+    ("FeatherS3D survey carrier", 64.0, 63.0, 1.5, 0),
+    ("rev B  tdisplay-s3-amoled", 64.0, 65.6, 1.0, 0),
     ("FEATHER: USB-C THIS EDGE", 16.2, 1.2, 0.8, 0),
     ("RST", 3.0, 8.9, 0.8, 0),
-    ("E-PAPER: VCC GND DIN CLK CS DC RST BUSY PWR", 47.0, 1.6, 0.8, 0),
-    ("SPARE: GND 11 12 43 44 3V3", 66.3, 8.4, 0.8, 0),
-    ("BENCH: EN BT G", 11.5, 63.0, 0.8, 0),
-    ("KEY: G K LED", 23.0, 62.0, 0.8, 0),
-    ("SER: G BAT EN RX", 36.75, 62.0, 0.8, 0),
-    ("ANALOG: G BAT EN SCL SDA 3V3", 86.2, 51.75, 0.8, 90),
-    ("I2C2 IN", 59.0, 60.4, 0.8, 0), ("BME280", 68.0, 60.4, 0.8, 0), ("OLED", 77.0, 60.4, 0.8, 0),
-    ("RTC", 86.4, 30.0, 0.8, 90), ("NOTECARD", 82.2, 38.5, 0.8, 90),
-    ("microSD", 87.0, 25.6, 0.8, 0),
+    ("E-PAPER 2.13/4.2: VCC GND DIN CLK CS DC RST BUSY PWR", 47.0, 1.6, 0.8, 0),
+    ("OLED 3.12: G VCC SCK SDA DC RES CS", 68.6, 14.6, 0.8, 0),
+    ("SPARE: G 11 12 43 44 3V3", 87.4, 8.4, 0.8, 0),
+    ("NOTECARRIER-X ON M2.5 POSTS (66 x 38 mm)", 64.0, 54.6, 1.0, 0),
+    ("BENCH: EN BT G", 11.5, 83.0, 0.8, 0),
+    ("KEY: G K LED", 23.0, 82.0, 0.8, 0),
+    ("SER: G BAT EN RX", 36.75, 82.0, 0.8, 0),
+    ("ANALOG: G BAT EN SCL SDA 3V3", 101.2, 71.75, 0.8, 90),
+    ("I2C2 IN", 58.0, 80.4, 0.8, 0), ("BME280", 66.5, 80.4, 0.8, 0), ("OLED", 75.0, 80.4, 0.8, 0),
+    ("I2C2", 83.5, 80.4, 0.8, 0), ("I2C2", 92.0, 80.4, 0.8, 0),
+    ("RTC", 102.4, 27.0, 0.8, 90), ("NOTECARD", 98.4, 35.5, 0.8, 90),
+    ("I2C1", 102.4, 44.0, 0.8, 90), ("I2C1", 102.4, 52.5, 0.8, 90),
+    ("microSD", 103.0, 22.6, 0.8, 0),
 ]
 
 
@@ -138,6 +142,10 @@ def build():
     corners = [(0, 0), (BOARD_W, 0), (BOARD_W, BOARD_H), (0, BOARD_H)]
     for a, b in zip(corners, corners[1:] + corners[:1]):
         segment(board, pcbnew.Edge_Cuts, pt(*a), pt(*b), 0.1)
+    nx, ny, nw, nh = NOTECARRIER          # the Notecarrier's outline, where it sits on its posts
+    nc = [(nx, ny), (nx + nw, ny), (nx + nw, ny + nh), (nx, ny + nh)]
+    for a, b in zip(nc, nc[1:] + nc[:1]):
+        segment(board, pcbnew.F_SilkS, pt(*a), pt(*b), 0.15)
     for s, x, y, size, rot in SILK:
         text(board, s, x, y, size, rot=rot)
     board.Save(str(path))

@@ -2,17 +2,23 @@
 
 A two-layer carrier PCB that replaces the hand wiring of the FeatherS3D site
 survey (`commissioning/fs3-survey`) and of the §40 build's add-ons. The
-FeatherS3D plugs into two socket strips. The key, the display supply, the
-e-paper, the microSD, both I2C buses, the add-on boards and the bench lines
-then reach it through keyed connectors. The pins are FSD §40.2's
+FeatherS3D plugs into two socket strips, and the Notecarrier-X stands on four
+posts above the board. The key, the display supply, the displays, the microSD,
+both I2C buses, the add-on boards and the bench lines then reach the Feather
+through keyed connectors. The pins are FSD §40.2's
 ([feathers3-build.md](feathers3-build.md) gives the header order). The design
 files are in [`hardware/fs3-survey-carrier/`](../../../hardware/fs3-survey-carrier/).
 
-![Top copper](../../../hardware/fs3-survey-carrier/fab/top.png)
+Wiring sheet 17 shows where each part sits, with the Feather and the
+Notecarrier-X drawn as outlines over the board. Its
+[`.fzz`](wiring/wiring-17-fs3-carrier.fzz) opens in Fritzing, where hovering
+over a pin shows its net.
+
+![Part placement](wiring/wiring-17-fs3-carrier.png)
 
 ## The board
 
-95 × 70 mm, two layers, 1.6 mm FR-4, four M3 holes at the corners. All parts
+110 × 90 mm, two layers, 1.6 mm FR-4, four M3 holes at the corners. All parts
 are on the top. The Feather sits at the left with its USB-C at the top edge, so
 the cable and the board's own STEMMA QT sockets, RST and BOOT buttons stay
 reachable. Only tracks and the head of the top-left screw lie under it. B.Cu is a ground pour, with tracks
@@ -26,16 +32,28 @@ and 0.6 mm vias (0.8 mm on power).
 | J1, J2 | 1 × 16 and 1 × 12 sockets, 2.54 mm | The Feather's long and short headers | The FeatherS3D |
 | J3 | JST XH, 3 way | GND, KEY, LED+ | The off-board illuminated key (key to GND, its LED's cathode to GND) |
 | SW1 | 6 mm tactile key | In parallel with the off-board key | Testing without the key |
-| J4 / J5 | JST PH 9 way / 1 × 9 pins, in parallel | VCC, GND, DIN, CLK, CS, DC, RST, BUSY, PWR | Waveshare 2.13" e-Paper HAT V3 (its PH cable, or its Dupont lead) |
+| J4 / J5 | JST PH 9 way / 1 × 9 pins, in parallel | VCC, GND, DIN, CLK, CS, DC, RST, BUSY, PWR | Waveshare 2.13" e-Paper HAT V3 or 4.2" e-Paper Module V2 (8 way: pins 1 – 8); one e-paper at a time |
+| J16 / J17 | JST PH 7 way / 1 × 7 pins, in parallel | GND, VCC (switched), SCK, SDA (MOSI), DC, RES (GPIO 12), CS (GPIO 11) | The 3.12" SSD1322 OLED (§40.2). Its 10 kΩ CS-to-GND detect resistor stays on its lead (FR-35.25) |
 | J6 | microSD, Molex 104031-0811 | SPI mode | The card, inserted from the right edge |
 | J7 | Qwiic (JST SH 4) | GND, 3V3, SDA, SCL | I2C1: the RV-8803 |
 | J8 + JP1 | Qwiic | GND, (3V3 through JP1, open), SDA, SCL | I2C1: the Notecarrier-X, its 3.3 V unconnected (§33.2) |
 | J9 | Qwiic | GND, 3V3 (LDO2), SDA, SCL | I2C2 in: a Qwiic cable from the Feather's I2C2 socket |
 | J10, J11 | Qwiic | GND, 3V3 (LDO2), SDA, SCL | I2C2 out: the BME280 and the 1.3" OLED (and the ADS1115 chained on) |
+| J18, J19 | Qwiic | GND, 3V3, SDA, SCL | I2C1 spares |
+| J20, J21 | Qwiic | GND, 3V3 (LDO2), SDA, SCL | I2C2 spares |
 | J12 | JST XH, 6 way | GND, VBAT, EN (GPIO 18), SCL2, SDA2, 3V3 (LDO2) | The analog board (§40.2) |
 | J13 | JST XH, 4 way | GND, VBAT, EN (GPIO 33), RX (GPIO 14) | The isolated serial port (§40.2) |
 | J14 | 1 × 3 pins | EN, BOOT, GND | The testbench's slot lines |
 | J15 | 1 × 6 pins | GND, GPIO 11, 12, 43, 44, 3V3 | The free header pins |
+
+**Notecarrier-X.** Four M2.5 holes (H5 – H8) take posts for the
+Notecarrier-X above the middle of the board. They match Blues' v1.2
+dimensional drawing: the board is 66.11 × 38.10 mm, and its holes are
+58.49 × 30.48 mm apart, 3.81 mm in from each edge. The silkscreen outlines it.
+Its Qwiic lead runs to J8. Its USB-C and LiPo socket are on its short ends, and
+the antenna leads leave from its top face. Only passives lie under it, so any
+post of 10 mm or more clears them; Blues recommends nylon screws for its
+satellite carriers.
 
 Each add-on connector has a different pin count, so a cable fits only its own
 socket. GPIO 15 and 16 (I2C2) are not on the Feather's header, so the switched
@@ -93,15 +111,17 @@ actively drives it low.
 
 These were not checked against the physical parts:
 
-1. **The Feather's footprint.** Print `fab/assembly.pdf` at 100 % and lay a
+1. **The Notecarrier's holes.** Check that a Notecarrier-X v1.3 has the same
+   holes as the v1.2 drawing, and that M2.5 posts fit them.
+2. **The Feather's footprint.** Print `fab/assembly.pdf` at 100 % and lay a
    FeatherS3D on it. The long header's pin 1 (RST) is at the USB-C end, and
    the short header's BAT pin is level with the long header's fifth pin
    (GPIO 17).
-2. **The e-paper cable.** Check that the HAT's PH socket has VCC on pin 1 and
+3. **The e-paper cable.** Check that the HAT's PH socket has VCC on pin 1 and
    PWR on pin 9 (Rev2.1 boards). A HAT with an 8-way cable uses pins 1 – 8.
-3. **The Qwiic pinout.** Pin 1 is GND and pin 4 is SCL, as on SparkFun and
+4. **The Qwiic pinout.** Pin 1 is GND and pin 4 is SCL, as on SparkFun and
    Adafruit boards.
-4. **§40.2.** The FSD still names the Pololu #2808 as the display supply. If
+5. **§40.2.** The FSD still names the Pololu #2808 as the display supply. If
    this board is adopted, the user changes that row.
 
 ## Ordering and assembly
@@ -135,6 +155,7 @@ python3 make_sch.py        # the schematic
 python3 make_pcb.py        # placement, routing (route.py), ground pours
 python3 check.py --pcb     # schematic and board match netlist.py; KiCad DRC: no errors
 python3 make_fab.py        # fab/: Gerbers, drill, BOM, positions, PDFs, pictures
+python3 make_fritzing.py   # wiring sheet 17, the part placement
 ```
 
 `route.py` is a small maze router: it routes each net on a 0.127 mm grid and

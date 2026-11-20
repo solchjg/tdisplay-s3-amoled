@@ -2,7 +2,7 @@
 
 Fritzing sketches of what is wired to the LilyGO T-Display-S3 AMOLED 1.91" (sheets
 1 – 6, 9, 10), the Waveshare SIM7670G board (7, 8) and the Unexpected Maker FeatherS3D
-(11 – 16), one sheet per subsystem. Each `.fzz` opens in Fritzing 1.0 or later with no extra
+(11 – 17), one sheet per subsystem. Each `.fzz` opens in Fritzing 1.0 or later with no extra
 parts library: every part is a simple custom part embedded in the sketch, and
 it lands in the "Temp" bin when the sketch opens. Wires are drawn in the
 breadboard view. The schematic and PCB views show only ratsnest lines, so route
@@ -43,6 +43,7 @@ FSD but not built yet, and orange means proposed and not in the FSD.
 | [14 FeatherS3: isolated serial port, MaxBotix](wiring-14-fs3-serial.png) ([.fzz](wiring-14-fs3-serial.fzz)) | Specified (FSD §40.2, FR-40.12) | GPIO 33 supply enable, GPIO 14 RX, VBAT, GND |
 | [15 FeatherS3: field entry](wiring-15-fs3-entry.png) ([.fzz](wiring-15-fs3-entry.fzz)) | Specified (FSD C-40.5 – C-40.8) | None: field side only |
 | [16 FeatherS3D: bench BOOT and RST](wiring-16-fs3-bench.png) ([.fzz](wiring-16-fs3-bench.fzz)) | Specified (FSD C-40.9), the diodes proposed | RST, GPIO 0 through Schottky diodes from the Pi's EN and BOOT GPIOs; GND |
+| [17 FeatherS3D survey carrier: part placement](wiring-17-fs3-carrier.png) ([.fzz](wiring-17-fs3-carrier.fzz)) | Proposed PCB, [fs3-survey-carrier.md](../fs3-survey-carrier.md); written by `hardware/fs3-survey-carrier/make_fritzing.py`, not by `make_wiring.py` | Where each part and connector sits on the board, with the FeatherS3D and Notecarrier-X outlines; pins named by net, no wires |
 
 The I2C devices on the board's bus share GPIO 43/44: the BME280 at 0x76, the
 water ADS1115 at 0x48, the Notecard at 0x17 and the

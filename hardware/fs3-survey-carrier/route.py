@@ -260,6 +260,8 @@ class Router:
             todo.sort(key=lambda p: min(math.hypot(p["x"] - i * G, p["y"] - j * G) for _, i, j in tree))
             p = todo.pop(0)
             path = self.astar(net, tree, self.cell(p["x"], p["y"]), p["layers"])
+            if path is None:   # a long way round: search further before giving up
+                path = self.astar(net, tree, self.cell(p["x"], p["y"]), p["layers"], limit=3000000)
             if path is None:
                 failed.append(p)
                 continue
