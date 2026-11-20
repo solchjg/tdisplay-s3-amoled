@@ -3,7 +3,10 @@
 Reads the daily Solinst LevelSender report emails, keeps every sample in a
 local archive, posts them to ThingsBoard (one device per site) and builds
 `water-report.xlsx` and `water-report.ods`: a Summary sheet and one tab per
-site with each US Eastern day's lows, highs and averages.
+site with each US Eastern day's lows, highs and averages, and beside the table
+four trend charts (level, temperature and conductivity as daily low, high and
+average; the LevelSender battery). The files work offline, and the `email`
+command sends them, so the data is at hand when ThingsBoard is not.
 
 It is a server service, separate from the firmware in this repository. It
 needs Python 3.11+ and `openpyxl`; the `.ods` writer uses the standard library.
@@ -15,6 +18,8 @@ python -m water_monitor -c water.toml --no-send ingest report.eml   # one file, 
 python -m water_monitor -c water.toml poll                 # read the mailbox once
 python -m water_monitor -c water.toml poll --every 900     # keep reading, every 15 min
 python -m water_monitor -c water.toml export               # write the two spreadsheets
+python -m water_monitor -c water.toml email                # write both files and email them ([email] in water.toml)
+python -m water_monitor -c water.toml email --to a@x.org   # to someone else this once
 python -m water_monitor -c water.toml late                 # alert on sites with no report for 26 h
 pytest water-monitor/tests -q                              # from the repository root
 ```
@@ -29,7 +34,8 @@ pytest water-monitor/tests -q                              # from the repository
 | Intake | `water_monitor/intake.py` | One email: parse, archive, check (missing report numbers, low battery, a clock that disagrees with the email time by more than 3 h), send |
 | ThingsBoard | `water_monitor/tb.py` | Hourly `temp_f`, `level_ft`, `cond_us_cm`, `p_psi`; per report `battery_pct`, `bat_v`, `signal`, `report_no`, `logger_battery_pct`; per day `<key>_min/_max/_avg/_min_at/_max_at`, `samples`, `partial` at Eastern midnight; attributes for location, serials and states |
 | Mailbox | `water_monitor/mailbox.py` | IMAP: every message in the folder is processed and moved to `done` or `failed`; if ThingsBoard is down the message stays for the next poll. Alerts go to ntfy when set |
-| Spreadsheets | `water_monitor/workbook.py` | The sheets as rows, written as `.xlsx` (openpyxl) and `.ods` |
+| Spreadsheets | `water_monitor/workbook.py` | The sheets as rows, written as `.xlsx` (openpyxl) and `.ods`, each site tab with four line charts on a date axis drawn from its own columns, so they stay right if the table is edited |
+| Email | `water_monitor/mailer.py` | The message (a few lines per site from the Summary, both files attached) and SMTP with STARTTLS or SSL; the password comes from `WM_SMTP_PASSWORD` |
 
 ThingsBoard keeps one value per key and time, and the archive keeps one
 sample per site and time, so reading the same email twice changes nothing.
@@ -60,13 +66,14 @@ reason, so a new site is never stored under a guessed clock.
 ## Deployment on the cloud VM
 
 `Dockerfile` and `compose.water.yml` add the poller to the ThingsBoard Compose
-project. The spreadsheets are built nightly by the host's cron, in Eastern
-time:
+project. The spreadsheets are built nightly and emailed every Monday morning by the
+host's cron, in Eastern time:
 
 ```
 CRON_TZ=America/New_York
 0 6 * * *  cd /opt/tb && docker compose -f docker-compose.yml -f compose.water.yml run --rm water-intake export
 0 * * * *  cd /opt/tb && docker compose -f docker-compose.yml -f compose.water.yml run --rm water-intake late
+5 6 * * 1  cd /opt/tb && docker compose -f docker-compose.yml -f compose.water.yml run --rm water-intake email
 ```
 
 Caddy serves `water-data/exports/` behind a password, for the dashboard's

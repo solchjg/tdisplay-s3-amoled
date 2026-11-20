@@ -348,3 +348,113 @@ def test_poll_files_good_and_bad_mail(cfg, store):
     assert poll(cfg, store, imap=imap, send=False) == 2
     assert imap.moved == {b"1": "done", b"2": "failed"}
     assert len(store.samples("100002")) == 24
+
+
+# --- charts ------------------------------------------------------------------
+
+def test_charts_in_both_files(cfg, store, tmp_path):
+    from openpyxl import load_workbook
+
+    sheets = _filled(cfg, store)
+    assert sheets[0].charts == []  # Summary has none
+    assert [c.columns for c in sheets[1].charts] == [
+        (3, 4, 5), (8, 9, 10), (11, 12, 13), (14,)]
+    head = sheets[1].rows[0]
+    assert [head[i] for i in (3, 8, 11, 14)] == [
+        "Level min (ft)", "Temp min (°F)", "Cond min (µS/cm)", "Battery (%)"]
+    assert sheets[1].data_rows == 4
+
+    x, o = tmp_path / "w.xlsx", tmp_path / "w.ods"
+    write_xlsx(sheets, x)
+    write_ods(sheets, o)
+    wb = load_workbook(x)  # openpyxl drops charts on load; read the zip
+    assert wb.sheetnames[1] == "100001 North Well"
+    with zipfile.ZipFile(x) as z:
+        charts = [n for n in z.namelist() if n.startswith("xl/charts/chart")]
+        assert len(charts) == 8  # four per site
+        c1 = z.read("xl/charts/chart1.xml").decode()
+    assert "'100001 North Well'!$D$2:$D$5" in c1 and "dateAx" in c1
+
+    with zipfile.ZipFile(o) as z:
+        names = z.namelist()
+        assert "Object 8/content.xml" in names and "Object 9/content.xml" \
+            not in names
+        manifest = z.read("META-INF/manifest.xml").decode()
+        assert 'manifest:full-path="Object 1/"' in manifest
+        chart = z.read("Object 1/content.xml").decode()
+        content = z.read("content.xml").decode()
+    ET.fromstring(chart)
+    ET.fromstring(content)
+    assert "&apos;100001 North Well&apos;.D2:&apos;100001 North Well&apos;.D5" \
+        in chart.replace("'", "&apos;")
+    assert 'xlink:href="./Object 1"' in content
+
+
+# --- email -------------------------------------------------------------------
+
+def test_email_body_and_attachments(cfg, store, tmp_path):
+    from water_monitor.mailer import body_text, build_message
+
+    sheets = _filled(cfg, store)
+    body = body_text(sheets[0], NOW)
+    assert body.startswith("Water monitoring report, 2026-11-13 06:00 ET")
+    assert "100001 North Well" in body
+    assert "last report 2026-11-12 14:25 ET (no. 57), battery 66%" in body
+    assert "missing reports: 4" in body
+    x = tmp_path / "water-report.xlsx"
+    write_xlsx(sheets, x)
+    m = build_message("r@example.org", ["a@example.org", "b@example.org"],
+                      "Water", body, [x])
+    assert m["To"] == "a@example.org, b@example.org"
+    (att,) = list(m.iter_attachments())
+    assert att.get_filename() == "water-report.xlsx"
+    assert att.get_content_type().endswith("spreadsheetml.sheet")
+
+
+class FakeSmtp:
+    def __init__(self):
+        self.calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.calls.append("quit")
+
+    def starttls(self, context=None):
+        self.calls.append("starttls")
+
+    def login(self, user, password):
+        self.calls.append(("login", user, password))
+
+    def send_message(self, msg):
+        self.calls.append(("send", msg["To"]))
+
+
+def test_email_send_order():
+    from email.message import EmailMessage
+
+    from water_monitor.mailer import send
+
+    m = EmailMessage()
+    m["To"] = "a@example.org"
+    smtp = FakeSmtp()
+    send(m, "h", 587, "u", "pw", "starttls", smtp=smtp)
+    assert smtp.calls == ["starttls", ("login", "u", "pw"),
+                          ("send", "a@example.org"), "quit"]
+
+
+def test_email_command(cfg, tmp_path, monkeypatch):
+    import water_monitor.__main__ as cli
+
+    cfg_path = tmp_path / "water.toml"
+    text = (HERE.parent / "water.example.toml").read_text()
+    cfg_path.write_text(text.replace('url = "https://tb.example.org"', 'url = ""'))
+    sent = []
+    monkeypatch.setattr(cli, "smtp_send", lambda msg, *a: sent.append(msg))
+    assert cli.main(["-c", str(cfg_path), "--no-send", "ingest", str(R57)]) == 0
+    assert cli.main(["-c", str(cfg_path), "email", "--to", "x@example.org"]) == 0
+    (msg,) = sent
+    assert msg["To"] == "x@example.org"
+    assert sorted(a.get_filename() for a in msg.iter_attachments()) == [
+        "water-report.ods", "water-report.xlsx"]

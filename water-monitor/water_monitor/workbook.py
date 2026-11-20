@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -26,10 +26,29 @@ KEYS = (("level_ft", "Level", "ft"), ("temp_f", "Temp", "°F"),
 
 
 @dataclass
+class Chart:
+    """A line chart of some columns of the sheet's data rows, against column 0."""
+    title: str
+    y_title: str
+    columns: tuple[int, ...]  # 0-based column indexes of the series
+
+
+@dataclass
 class Sheet:
     name: str
     rows: list[list[Cell]]
     header_rows: tuple[int, ...] = (0,)
+    charts: list[Chart] = field(default_factory=list)
+
+    @property
+    def data_rows(self) -> int:
+        """Rows under the header that hold data (up to the first empty row)."""
+        n = 0
+        for r in self.rows[1:]:
+            if not r:
+                break
+            n += 1
+        return n
 
 
 def sheet_name(title: str) -> str:
@@ -72,6 +91,16 @@ def site_rows(days: list[Day], reports: list[dict]) -> list[list[Cell]]:
                 r["report_no"] if r else None, "; ".join(d.flags)]
         rows.append(row)
     return rows
+
+
+def site_charts() -> list[Chart]:
+    """Daily trends on each site tab; columns as ``site_rows`` lays them out."""
+    return [
+        Chart("Level, daily low / high / average", "ft", (3, 4, 5)),
+        Chart("Temperature, daily low / high / average", "°F", (8, 9, 10)),
+        Chart("Conductivity, daily low / high / average", "µS/cm", (11, 12, 13)),
+        Chart("LevelSender battery", "%", (14,)),
+    ]
 
 
 def _window(samples, since: datetime, key: str):
@@ -134,7 +163,8 @@ def build(store, cfg, now: datetime) -> list[Sheet]:
         while name in used:
             name = sheet_name(name[:28] + f"-{len(used)}")
         used.add(name)
-        tabs.append(Sheet(name, site_rows(daily(samples), reports)))
+        tabs.append(Sheet(name, site_rows(daily(samples), reports),
+                          charts=site_charts()))
     return [Sheet("Summary", summary_rows(summary_in, now))] + tabs
 
 
@@ -163,17 +193,129 @@ def write_xlsx(sheets: list[Sheet], path: str | Path) -> None:
             ws.column_dimensions[col[0].column_letter].width = min(
                 max(width + 2, 8), 40)
         ws.freeze_panes = "A2"
+        _xlsx_charts(ws, sh)
     wb.save(str(path))
+
+
+CHART_COL = 20  # charts sit to the right of the table, from column T
+CHART_ROWS = 18  # rows each chart takes
+
+
+def _xlsx_charts(ws, sh: Sheet) -> None:
+    from openpyxl.chart import LineChart, Reference
+    from openpyxl.chart.axis import DateAxis
+    from openpyxl.utils import get_column_letter
+
+    n = sh.data_rows
+    if not n or not sh.charts:
+        return
+    dates = Reference(ws, min_col=1, min_row=2, max_row=n + 1)
+    for i, c in enumerate(sh.charts):
+        ch = LineChart()
+        ch.title = c.title
+        ch.y_axis.title = c.y_title
+        ch.height, ch.width = 8.5, 18
+        for col in c.columns:
+            ch.add_data(Reference(ws, min_col=col + 1, min_row=1,
+                                  max_row=n + 1), titles_from_data=True)
+        # A date axis spaces the days by date (a gap shows as a gap) and
+        # runs oldest to newest, though the rows are newest first.
+        ch.x_axis = DateAxis(crossAx=100)
+        ch.x_axis.number_format = "mm-dd"
+        ch.x_axis.majorTimeUnit = "days"
+        ch.x_axis.title = "Date (ET)"
+        ch.set_categories(dates)
+        ch.legend.position = "b"
+        ch.x_axis.delete = False
+        ch.y_axis.delete = False
+        for series in ch.series:
+            series.smooth = False
+        anchor = f"{get_column_letter(CHART_COL)}{2 + i * CHART_ROWS}"
+        ws.add_chart(ch, anchor)
 
 
 # --- .ods ------------------------------------------------------------------
 
-_MANIFEST = """<?xml version="1.0" encoding="UTF-8"?>
+_MANIFEST_HEAD = """<?xml version="1.0" encoding="UTF-8"?>
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
-</manifest:manifest>
 """
+
+_CHART_HEAD = """<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content
+ xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+ xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0"
+ xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+ xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+ xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+ xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+ office:version="1.2">
+<office:automatic-styles>
+ <number:date-style style:name="Nmd"><number:month number:style="long"/><number:text>-</number:text><number:day number:style="long"/></number:date-style>
+ <style:style style:name="xax" style:family="chart" style:data-style-name="Nmd"><style:chart-properties chart:axis-type="date" chart:reverse-direction="true" chart:display-label="true" chart:link-data-style-to-source="false"/><style:graphic-properties svg:stroke-color="#b3b3b3"/><style:text-properties fo:font-size="8pt"/></style:style>
+ <style:style style:name="yax" style:family="chart"><style:chart-properties chart:display-label="true" chart:link-data-style-to-source="true"/><style:graphic-properties svg:stroke-color="#b3b3b3"/><style:text-properties fo:font-size="8pt"/></style:style>
+ <style:style style:name="wall" style:family="chart"><style:graphic-properties draw:fill="none" svg:stroke-color="#b3b3b3"/></style:style>
+ <style:style style:name="s0" style:family="chart"><style:chart-properties chart:symbol-type="none"/><style:graphic-properties svg:stroke-width="0.05cm" svg:stroke-color="#2f6db5"/></style:style>
+ <style:style style:name="s1" style:family="chart"><style:chart-properties chart:symbol-type="none"/><style:graphic-properties svg:stroke-width="0.05cm" svg:stroke-color="#c0392b"/></style:style>
+ <style:style style:name="s2" style:family="chart"><style:chart-properties chart:symbol-type="none"/><style:graphic-properties svg:stroke-width="0.05cm" svg:stroke-color="#5a9e3a"/></style:style>
+</office:automatic-styles>
+<office:body><office:chart>
+"""
+
+CHART_W_CM, CHART_H_CM = 16.0, 8.0
+
+
+def _col(i: int) -> str:
+    name = ""
+    i += 1
+    while i:
+        i, r = divmod(i - 1, 26)
+        name = chr(65 + r) + name
+    return name
+
+
+def _ref(sheet: str, col: int, first: int, last: int | None = None) -> str:
+    """An ODF cell or range address, rows 1-based: 'Name'.A2:'Name'.A9."""
+    q = "'" + sheet.replace("'", "''") + "'"
+    a = f"{q}.{_col(col)}{first}"
+    return a if last is None else f"{a}:{q}.{_col(col)}{last}"
+
+
+def _ods_chart(sh: Sheet, c: Chart) -> str:
+    n = sh.data_rows
+    first = min(c.columns)
+    last = max(c.columns)
+    q = "'" + sh.name.replace("'", "''") + "'"
+    rng = f"{q}.{_col(first)}1:{q}.{_col(last)}{n + 1}"
+    series = "".join(
+        f'<chart:series chart:style-name="s{k % 3}" chart:class="chart:line" '
+        f'chart:values-cell-range-address="{escape(_ref(sh.name, col, 2, n + 1))}" '
+        f'chart:label-cell-address="{escape(_ref(sh.name, col, 1))}"/>'
+        for k, col in enumerate(c.columns))
+    return (
+        _CHART_HEAD
+        + f'<chart:chart svg:width="{CHART_W_CM}cm" svg:height="{CHART_H_CM}cm" '
+        f'chart:class="chart:line">'
+        f"<chart:title><text:p>{escape(c.title)}</text:p></chart:title>"
+        '<chart:legend chart:legend-position="bottom"/>'
+        f'<chart:plot-area table:cell-range-address="{escape(rng)}" '
+        'chart:data-source-has-labels="both">'
+        '<chart:axis chart:dimension="x" chart:name="primary-x" '
+        'chart:style-name="xax">'
+        "<chart:title><text:p>Date (ET)</text:p></chart:title>"
+        f'<chart:categories table:cell-range-address="'
+        f'{escape(_ref(sh.name, 0, 2, n + 1))}"/></chart:axis>'
+        '<chart:axis chart:dimension="y" chart:name="primary-y" '
+        'chart:style-name="yax">'
+        f"<chart:title><text:p>{escape(c.y_title)}</text:p></chart:title>"
+        "<chart:grid chart:class=\"major\"/></chart:axis>"
+        f'{series}<chart:wall chart:style-name="wall"/></chart:plot-area>'
+        "</chart:chart>"
+        "</office:chart></office:body></office:document-content>")
 
 _CONTENT_HEAD = """<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content
@@ -183,6 +325,9 @@ _CONTENT_HEAD = """<?xml version="1.0" encoding="UTF-8"?>
  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+ xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+ xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
  office:version="1.2">
 <office:automatic-styles>
  <number:date-style style:name="Nd"><number:year number:style="long"/><number:text>-</number:text><number:month number:style="long"/><number:text>-</number:text><number:day number:style="long"/></number:date-style>
@@ -216,8 +361,24 @@ def _ods_cell(v: Cell, bold: bool) -> str:
 
 def write_ods(sheets: list[Sheet], path: str | Path) -> None:
     parts = [_CONTENT_HEAD]
+    objects: list[str] = []  # each chart's content.xml, as "Object N"
     for sh in sheets:
         parts.append(f'<table:table table:name="{escape(sh.name)}">')
+        if sh.charts and sh.data_rows:
+            # Charts to the right of the table (column T on), one below another.
+            parts.append("<table:shapes>")
+            for i, c in enumerate(sh.charts):
+                objects.append(_ods_chart(sh, c))
+                name = f"Object {len(objects)}"
+                x = 3.2 * 19 + 0.5
+                y = 0.5 + i * (CHART_H_CM + 0.5)
+                parts.append(
+                    f'<draw:frame draw:z-index="{i}" svg:x="{x:.2f}cm" '
+                    f'svg:y="{y:.2f}cm" svg:width="{CHART_W_CM}cm" '
+                    f'svg:height="{CHART_H_CM}cm"><draw:object '
+                    f'xlink:href="./{name}" xlink:type="simple" '
+                    'xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>')
+            parts.append("</table:shapes>")
         width = max((len(r) for r in sh.rows), default=1)
         parts.append(f'<table:table-column table:style-name="co" '
                      f'table:number-columns-repeated='
@@ -234,7 +395,18 @@ def write_ods(sheets: list[Sheet], path: str | Path) -> None:
         z.writestr(zipfile.ZipInfo("mimetype"),
                    "application/vnd.oasis.opendocument.spreadsheet",
                    compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/manifest.xml", _MANIFEST,
+        manifest = [_MANIFEST_HEAD]
+        for i, obj in enumerate(objects, 1):
+            manifest.append(
+                f' <manifest:file-entry manifest:full-path="Object {i}/" '
+                'manifest:media-type="application/vnd.oasis.opendocument.chart"/>\n'
+                f' <manifest:file-entry manifest:full-path="Object {i}/content.xml" '
+                'manifest:media-type="text/xml"/>\n')
+        manifest.append("</manifest:manifest>\n")
+        z.writestr("META-INF/manifest.xml", "".join(manifest),
                    compress_type=zipfile.ZIP_DEFLATED)
         z.writestr("content.xml", "".join(parts),
                    compress_type=zipfile.ZIP_DEFLATED)
+        for i, obj in enumerate(objects, 1):
+            z.writestr(f"Object {i}/content.xml", obj,
+                       compress_type=zipfile.ZIP_DEFLATED)

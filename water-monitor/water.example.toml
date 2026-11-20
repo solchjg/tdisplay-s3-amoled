@@ -27,6 +27,18 @@ battery_low_pct = 30
 ntfy_url = ""                       # e.g. https://ntfy.example.org/water
 ntfy_token_env = "WM_NTFY_TOKEN"
 
+[email]
+# "python -m water_monitor email" builds the spreadsheets and mails them.
+smtp_host = "smtp.example.org"
+smtp_port = 587
+security = "starttls"               # starttls (587), ssl (465) or none
+user = "reports@example.org"
+password_env = "WM_SMTP_PASSWORD"
+sender = "Water monitoring <reports@example.org>"
+to = ["someone@example.org"]
+subject = "Water monitoring report" # the date is added
+attach = ["xlsx", "ods"]            # drop one to send only the other
+
 # One [[site]] per LevelSender. utc_offset is the offset of the logger's
 # clock from UTC: the sample times in the email carry no zone. Check it
 # against the email's arrival time (the intake logs and alerts when the

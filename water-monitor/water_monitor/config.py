@@ -43,6 +43,23 @@ class Mail:
 
 
 @dataclass
+class Email:
+    smtp_host: str = ""
+    smtp_port: int = 587
+    security: str = "starttls"  # starttls, ssl or none
+    user: str = ""
+    password_env: str = "WM_SMTP_PASSWORD"
+    sender: str = ""
+    to: list[str] = field(default_factory=list)
+    subject: str = "Water monitoring report"
+    attach: list[str] = field(default_factory=lambda: ["xlsx", "ods"])
+
+    @property
+    def password(self) -> str:
+        return os.environ.get(self.password_env, "")
+
+
+@dataclass
 class Config:
     store: Path
     export_dir: Path
@@ -53,6 +70,7 @@ class Config:
     ntfy_url: str = ""
     ntfy_token_env: str = "WM_NTFY_TOKEN"
     mail: Mail = field(default_factory=Mail)
+    email: Email = field(default_factory=Email)
     sites: dict[str, Site] = field(default_factory=dict)
 
     def site(self, serial: str) -> Site | None:
@@ -80,6 +98,7 @@ def load(path: str | Path) -> Config:
         ntfy_url=alerts.get("ntfy_url", "").rstrip("/"),
         ntfy_token_env=alerts.get("ntfy_token_env", "WM_NTFY_TOKEN"),
         mail=Mail(**raw.get("mail", {})),
+        email=Email(**raw.get("email", {})),
     )
     for s in raw.get("site", []):
         site = Site(serial=str(s["serial"]), name=s.get("name", ""),

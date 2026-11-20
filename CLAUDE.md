@@ -236,8 +236,8 @@ Other builds sharing the components:
 
 - `water-monitor/` — a server service, not firmware (no FSD section): reads the Solinst LevelSender
   report emails over IMAP, keeps the samples in SQLite, posts them to ThingsBoard (one device per site)
-  and writes `water-report.xlsx`/`.ods` (Summary plus a tab per site, daily lows and highs per US
-  Eastern day); pure parser and statistics, tested by `water-monitor/tests` on anonymised real reports
+  and writes `water-report.xlsx`/`.ods` (Summary plus a tab per site with trend charts, daily lows and highs per US
+  Eastern day), emailed by its `email` command; pure parser and statistics, tested by `water-monitor/tests` on anonymised real reports
   (`ci.yml` job `water-monitor`). See `water-monitor/README.md`.
 
 ## Testing

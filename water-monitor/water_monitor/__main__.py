@@ -3,6 +3,7 @@
     python -m water_monitor -c water.toml ingest report1.eml report2.txt
     python -m water_monitor -c water.toml poll [--every 900]
     python -m water_monitor -c water.toml export
+    python -m water_monitor -c water.toml email [--to a@x.org]
     python -m water_monitor -c water.toml late
 """
 
@@ -20,6 +21,8 @@ from . import config as config_mod
 from .daily import EASTERN
 from .intake import late_sites, process
 from .mailbox import notify, poll
+from .mailer import body_text, build_message
+from .mailer import send as smtp_send
 from .store import Store
 from .workbook import build, write_ods, write_xlsx
 
@@ -60,6 +63,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="repeat every N seconds (0: once)")
     sub.add_parser("export", help="write the .xlsx and .ods files")
     sub.add_parser("late", help="alert for sites with no recent report")
+    p_mail = sub.add_parser("email", help="build the spreadsheets and email them")
+    p_mail.add_argument("--to", action="append",
+                        help="recipient (repeat); default: [email] to")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO,
@@ -91,6 +97,25 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "export":
             for p in export(cfg, store):
                 print(p)
+            return 0
+        if args.cmd == "email":
+            e = cfg.email
+            to = args.to or e.to
+            if not (e.smtp_host and e.sender and to):
+                print("set smtp_host, sender and to in [email]",
+                      file=sys.stderr)
+                return 2
+            now = datetime.now(timezone.utc)
+            paths = [p for p in export(cfg, store, now)
+                     if p.suffix.lstrip(".") in e.attach]
+            summary = build(store, cfg, now)[0]
+            msg = build_message(
+                e.sender, to,
+                f"{e.subject}, {now.astimezone(EASTERN):%Y-%m-%d}",
+                body_text(summary, now), paths)
+            smtp_send(msg, e.smtp_host, e.smtp_port, e.user, e.password,
+                      e.security)
+            print(f"sent to {', '.join(to)}")
             return 0
         if args.cmd == "late":
             notify(cfg, late_sites(store, cfg, datetime.now(timezone.utc)))
