@@ -241,7 +241,7 @@ Other builds sharing the components:
   survey carrier PCB and its two isolated add-on boards (§40.2's analog board and serial port), KiCad 7, each
   generated from its `netlist.py` by the shared `hardware/pcbgen/` scripts run from the board's directory
   (`make_sch.py`, `make_pcb.py` with its own router `route.py`, `make_fab.py`), checked by `check.py --pcb`;
-  the carrier's part placement is wiring sheet 17 (`make_fritzing.py`), the leads between the boards sheet 18
+  the part placement is wiring sheet 17 for the carrier, 19 and 20 for the add-on boards (`make_placement.py`, from each board's `placement.py`), the leads between the boards sheet 18
   (`make_connections.py`); edit `netlist.py`, never the KiCad files (`docs/Method/project/fs3-survey-carrier.md`;
   no FSD section: the carrier's display supply differs from §40.2's Pololu #2808).
 
