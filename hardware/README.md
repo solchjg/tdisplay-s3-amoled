@@ -26,6 +26,7 @@ Each board's `fab/` folder holds what a board house and an assembler need:
 | `bom.csv` | The parts list: quantity, value, designators, footprint, part number |
 | `positions.csv` | Part placement for an assembly service (origin at the bottom-left corner) |
 | `cpl-jlc.csv`, `bom-jlc.csv` | The surface-mount parts' placement (CPL) and parts list in JLCPCB's columns |
+| `cpl-jlc-all.csv`, `bom-jlc-all.csv` | The same for every fitted part, through-hole connectors, sockets and the key included |
 | `assembly.pdf` | The top side with each part's designator, for hand assembly and for the fit checks below |
 | `schematic.pdf` | The schematic |
 | `top.png`, `bottom.png` | Pictures of the finished board |
@@ -65,7 +66,9 @@ The minimum order (usually 5) of each board is enough for spares.
 To have the board house fit the surface-mount parts too, upload the BOM and placement
 files with the Gerbers and fit the through-hole parts yourself afterwards:
 
-- **JLCPCB:** `bom-jlc.csv` and `cpl-jlc.csv`. They hold only the surface-mount parts.
+- **JLCPCB:** `bom-jlc.csv` and `cpl-jlc.csv` hold only the surface-mount parts;
+  `bom-jlc-all.csv` and `cpl-jlc-all.csv` add the through-hole parts, for JLCPCB to fit
+  those too (at extra cost; check that each through-hole part is one it stocks).
   The `LCSC Part #` column is empty: fill it in, or pick each part in JLCPCB's matcher,
   checking it against the part number in the `Comment` column. In the placement
   preview, check each part's rotation and pin 1, above all the SOT-23, SOIC and TSSOP

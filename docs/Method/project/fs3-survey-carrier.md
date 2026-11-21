@@ -229,7 +229,8 @@ parts are 0805 passives, SOD-123 and SOD-323 diodes, one SOT-23-6, the
 microSD socket and the Qwiic sockets, all hand-solderable.
 `fab/bom.csv` lists them, and `fab/positions.csv` gives the placement
 (origin at the bottom-left corner) for an assembly service; `fab/bom-jlc.csv`
-and `fab/cpl-jlc.csv` are the surface-mount parts in JLCPCB's columns
+and `fab/cpl-jlc.csv` are the surface-mount parts in JLCPCB's columns, and the
+`-all` pair every fitted part
 ([hardware/README.md](../../../hardware/README.md) says how to use them). Fit the
 through-hole connectors last. Leave JP1 open.
 
