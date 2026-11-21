@@ -22,7 +22,7 @@ Qty,Value,Designators,Footprint,Part
 1,150,R8,R_0805_2012Metric,0805 1 %
 1,240,R9,R_0805_2012Metric,0805 1 %
 2,4.7k,R10 R11,R_0805_2012Metric,0805 1 %
-2,47,R12 R13,R_1206_3216Metric,0805 1 %
+2,47,R12 R13,R_1206_3216Metric,1206 1 %
 1,15k,R14,R_0805_2012Metric,15 kohm 0.1 % 25 ppm 0805
 1,10k,R15,R_0805_2012Metric,10 kohm 0.1 % 25 ppm 0805
 2,200,RV1 RV2,Potentiometer_Bourns_3296W_Vertical,Bourns 3296W-1-201LF
