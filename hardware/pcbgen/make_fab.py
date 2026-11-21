@@ -4,6 +4,8 @@
   fab/<board>-gerbers.zip the same, zipped for upload to a board house
   fab/bom.csv             parts by value and footprint, with designators and part numbers
   fab/positions.csv       pick-and-place for the top side (all parts are on top)
+  fab/cpl-jlc.csv         the same for the surface-mount parts in JLCPCB's CPL columns
+  fab/bom-jlc.csv         the surface-mount parts in JLCPCB's BOM columns (LCSC numbers to fill in)
   fab/schematic.pdf       the schematic
   fab/assembly.pdf        top copper outline, silk and fab layer (reference designators)
   fab/top.png, fab/bottom.png   pictures of both copper sides
@@ -57,7 +59,8 @@ def main():
     for p in PARTS:
         if p["group"] == "Mech":
             continue
-        part = p["mpn"] or generic.get(p["value"], "0805 1 %" if p["ref"].startswith("R") else "")
+        size = "1206" if "1206" in p["fp"] else "0805"
+        part = p["mpn"] or generic.get(p["value"], f"{size} 1 %" if p["ref"].startswith("R") else "")
         rows[(p["value"], p["fp"].split(":")[1], part)].append(p["ref"])
 
     def nat(ref):
@@ -68,6 +71,40 @@ def main():
         w.writerow(["Qty", "Value", "Designators", "Footprint", "Part"])
         for (value, fp, part), refs in sorted(rows.items(), key=lambda r: nat(min(r[1], key=nat))):
             w.writerow([len(refs), value, " ".join(sorted(refs, key=nat)), fp, part])
+    jlc(rows, nat)
+
+
+def jlc(rows, nat):
+    """JLCPCB's assembly files for the surface-mount parts; the through-hole ones are fitted by hand.
+
+    Positions are KiCad's footprint origins from the board's bottom-left corner, y up, as
+    positions.csv; JLCPCB's preview shows any part whose rotation its library draws otherwise.
+    """
+    import pcbnew
+    board = pcbnew.LoadBoard(PCB)
+    ox, oy = (pcbnew.ToMM(v) for v in board.GetDesignSettings().GetAuxOrigin())
+    smd = {}
+    for fp in board.GetFootprints():
+        if fp.GetAttributes() & pcbnew.FP_SMD and not fp.GetAttributes() & pcbnew.FP_EXCLUDE_FROM_POS_FILES:
+            pos = fp.GetPosition()
+            smd[fp.GetReference()] = (pcbnew.ToMM(pos.x) - ox, oy - pcbnew.ToMM(pos.y),
+                                      fp.GetOrientationDegrees() % 360)
+    with open(FAB / "cpl-jlc.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Designator", "Mid X", "Mid Y", "Layer", "Rotation"])
+        for ref in sorted(smd, key=nat):
+            x, y, r = smd[ref]
+            w.writerow([ref, f"{x:.4f}mm", f"{y:.4f}mm", "Top", f"{r:g}"])
+    with open(FAB / "bom-jlc.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Comment", "Designator", "Footprint", "LCSC Part #"])
+        lines = defaultdict(list)    # one line per part: a part number alone, a generic one with its value
+        for (value, fp, part), refs in rows.items():
+            generic = not part or part.startswith(("0805", "1206"))
+            lines[(f"{value} {part}".strip() if generic else part, fp)] += [r for r in refs if r in smd]
+        for (comment, fp), refs in sorted(lines.items(), key=lambda r: nat(min(r[1], key=nat, default="Z0"))):
+            if refs:
+                w.writerow([comment, ",".join(sorted(refs, key=nat)), fp, ""])
 
 if __name__ == "__main__":
     main()

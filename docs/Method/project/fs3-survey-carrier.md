@@ -228,7 +228,9 @@ layers, 1.6 mm, HASL or ENIG, with the default 0.2 mm (8 mil) rules. The
 parts are 0805 passives, SOD-123 and SOD-323 diodes, one SOT-23-6, the
 microSD socket and the Qwiic sockets, all hand-solderable.
 `fab/bom.csv` lists them, and `fab/positions.csv` gives the placement
-(origin at the bottom-left corner) for an assembly service. Fit the
+(origin at the bottom-left corner) for an assembly service; `fab/bom-jlc.csv`
+and `fab/cpl-jlc.csv` are the surface-mount parts in JLCPCB's columns
+([hardware/README.md](../../../hardware/README.md) says how to use them). Fit the
 through-hole connectors last. Leave JP1 open.
 
 After assembly, and before the Feather goes in, check the following:

@@ -25,6 +25,7 @@ Each board's `fab/` folder holds what a board house and an assembler need:
 | `<board>-gerbers.zip` | Gerbers and drill files, for the board house |
 | `bom.csv` | The parts list: quantity, value, designators, footprint, part number |
 | `positions.csv` | Part placement for an assembly service (origin at the bottom-left corner) |
+| `cpl-jlc.csv`, `bom-jlc.csv` | The surface-mount parts' placement (CPL) and parts list in JLCPCB's columns |
 | `assembly.pdf` | The top side with each part's designator, for hand assembly and for the fit checks below |
 | `schematic.pdf` | The schematic |
 | `top.png`, `bottom.png` | Pictures of the finished board |
@@ -61,9 +62,16 @@ similar). The settings are the same for all three:
 
 The minimum order (usually 5) of each board is enough for spares.
 
-To have the board house fit the surface-mount parts too, upload `bom.csv` and
-`positions.csv` with the Gerbers. Check its part matches against the part numbers in
-`bom.csv`, and fit the through-hole connectors yourself afterwards.
+To have the board house fit the surface-mount parts too, upload the BOM and placement
+files with the Gerbers and fit the through-hole parts yourself afterwards:
+
+- **JLCPCB:** `bom-jlc.csv` and `cpl-jlc.csv`. They hold only the surface-mount parts.
+  The `LCSC Part #` column is empty: fill it in, or pick each part in JLCPCB's matcher,
+  checking it against the part number in the `Comment` column. In the placement
+  preview, check each part's rotation and pin 1, above all the SOT-23, SOIC and TSSOP
+  parts, the diodes and the Qwiic and microSD sockets. JLCPCB's library draws some
+  footprints turned from KiCad's, and the preview lets you rotate a part to fix it.
+- **Other assemblers:** `bom.csv` and `positions.csv` (KiCad's format, all parts).
 
 ## 3. Order the parts
 
