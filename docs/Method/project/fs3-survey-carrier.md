@@ -150,6 +150,9 @@ the field wiring:
 ![Leads between the boards](wiring/wiring-18-fs3-boards.png)
 
 Its [`.fzz`](wiring/wiring-18-fs3-boards.fzz) opens in Fritzing.
+Sheets [19](wiring/wiring-19-fs3-analog.png) ([.fzz](wiring/wiring-19-fs3-analog.fzz)) and
+[20](wiring/wiring-20-fs3-serial.png) ([.fzz](wiring/wiring-20-fs3-serial.fzz)) show where each
+part sits on the analog and serial boards, as sheet 17 does for the carrier.
 
 Both boards share a front end. The enable line has a 100 kΩ pull-down, so the board is
 off through sleep and reset. It drives a P-MOSFET load switch from VBAT (Q1 AO3401A,
@@ -253,7 +256,7 @@ python3 ../pcbgen/make_sch.py      # the schematic
 python3 ../pcbgen/make_pcb.py      # placement, routing (route.py), ground pours
 python3 ../pcbgen/check.py --pcb   # schematic and board match netlist.py; KiCad DRC: no errors
 python3 ../pcbgen/make_fab.py      # fab/: Gerbers, drill, BOM, positions, PDFs, pictures
-python3 make_fritzing.py           # carrier only: wiring sheet 17, the part placement
+python3 ../pcbgen/make_placement.py  # wiring sheet 17, 19 or 20: the part placement
 python3 make_connections.py        # carrier only: wiring sheet 18, the leads between boards
 ```
 

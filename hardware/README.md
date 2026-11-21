@@ -4,7 +4,10 @@ This folder holds three boards for the FeatherS3D site survey and the §40 build
 plus the generator that makes them. This page lists the steps from the design files
 to a working set of boards. The design itself, and the reasons behind it, are in
 [fs3-survey-carrier.md](../docs/Method/project/fs3-survey-carrier.md). Wiring sheets
-[17](../docs/Method/project/wiring/wiring-17-fs3-carrier.png) (part placement) and
+[17](../docs/Method/project/wiring/wiring-17-fs3-carrier.png),
+[19](../docs/Method/project/wiring/wiring-19-fs3-analog.png) and
+[20](../docs/Method/project/wiring/wiring-20-fs3-serial.png) (where each part sits on the
+carrier, the analog board and the serial board) and
 [18](../docs/Method/project/wiring/wiring-18-fs3-boards.png) (the leads between the boards)
 show how the boards fit together.
 
@@ -169,7 +172,7 @@ python3 ../pcbgen/make_sch.py      # schematic
 python3 ../pcbgen/make_pcb.py      # placement, routing, ground pours
 python3 ../pcbgen/check.py --pcb   # schematic and board match netlist.py; DRC has no errors
 python3 ../pcbgen/make_fab.py      # fab/: Gerbers, drill, BOM, positions, PDFs, pictures
-python3 make_fritzing.py           # carrier only: wiring sheet 17
+python3 ../pcbgen/make_placement.py  # wiring sheet 17, 19 or 20: the part placement
 python3 make_connections.py        # carrier only: wiring sheet 18
 ```
 
