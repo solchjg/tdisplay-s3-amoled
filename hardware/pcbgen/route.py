@@ -5,6 +5,7 @@ Each net is routed pad by pad with A* over F.Cu and B.Cu on a 0.127 mm grid
 them), joining the net's tree so far; a layer change is a via. B.Cu costs more,
 so it stays mostly ground pour. Ground is not routed: each surface-mount ground
 pad gets a short stub and a via into the B.Cu pour, and both layers are poured.
+No via sits in or against a pad, so no pad needs its vias filled.
 
 Two occupancy maps, one for signal tracks (0.25 mm) and one for power tracks
 (0.5 mm), keep every obstacle back by the clearance plus that class's half
@@ -24,6 +25,7 @@ EDGE = 0.5               # copper to board edge, mm
 HALF = (0.125, 0.25)     # half track width: signal, power
 VIA = (0.6, 0.8)         # via diameter: signal, power
 VIA_COST = 40
+VIA_PAD = 0.1            # via copper to any pad's edge, at least, mm
 B_COST = 1.8
 TURN_COST = 0.8
 FREE, BLOCK = -1, -2
@@ -48,6 +50,7 @@ class Router:
             for L in (0, 1):
                 self.mark(L, x0, y0, x1, y1, BLOCK, 0)
         self.pads, self.vias = [], []
+        self.novia = np.zeros((self.nx, self.ny), dtype=bool)   # cells where a via would touch a pad
         for fp in board.GetFootprints():
             for pad in fp.Pads():
                 self._pad(pad)
@@ -102,6 +105,14 @@ class Router:
         x1, y1 = self.to_mm(bb.GetEnd())
         name = pad.GetNetname()
         net = self.nid(name) if name else BLOCK
+        r = VIA[1] / 2 + VIA_PAD             # no via in or against any pad: nothing for solder to wick into
+        i0, j0 = max(0, int(math.floor((x0 - r) / G))), max(0, int(math.floor((y0 - r) / G)))
+        i1, j1 = min(self.nx - 1, int(math.ceil((x1 + r) / G))), min(self.ny - 1, int(math.ceil((y1 + r) / G)))
+        if i0 <= i1 and j0 <= j1:
+            xs = np.arange(i0, i1 + 1)[:, None] * G
+            ys = np.arange(j0, j1 + 1)[None, :] * G
+            d = np.hypot(np.maximum(np.maximum(x0 - xs, xs - x1), 0), np.maximum(np.maximum(y0 - ys, ys - y1), 0))
+            self.novia[i0:i1 + 1, j0:j1 + 1] |= d <= r
         layers = [L for L, cu in ((0, pcbnew.F_Cu), (1, pcbnew.B_Cu)) if pad.IsOnLayer(cu)]
         if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
             layers, net = [0, 1], BLOCK
@@ -154,7 +165,11 @@ class Router:
 
         far = (VIA[1] + CLR + 0.1) / G
 
+        novia = self.novia
+
         def via_ok(i, j):
+            if novia[i, j]:
+                return False
             for vi, vj in self.vias:
                 if abs(vi - i) < far and abs(vj - j) < far:
                     return False

@@ -4,7 +4,8 @@
    netlist.py gives, pin for pin, and no net with a single pin.
 2. With --pcb, every pad on the board carries the net netlist.py gives it, and
    KiCad's DRC (pcbnew.WriteDRCReport) finds no error, unconnected items included
-   (warnings are left in drc.rpt).
+   (warnings are left in drc.rpt), and no via lies in or against a pad (a board house
+   asks to fill such vias, or warns of poor soldering).
 Run from the board's directory: python3 ../pcbgen/check.py [--pcb]
 """
 import re
@@ -71,6 +72,15 @@ def check_pcb():
                 continue
             if pad.GetNetname() != want.get(key, ""):
                 errors.append(f"pad {ref}.{pad.GetNumber()}: board {pad.GetNetname()!r} want {want.get(key, '')!r}")
+    pads = [pad for fp in board.GetFootprints() for pad in fp.Pads()]
+    for v in board.GetTracks():
+        if v.GetClass() != "PCB_VIA":
+            continue
+        at, r = v.GetPosition(), v.GetWidth() // 2
+        for pad in pads:
+            if pad.HitTest(at, r):
+                x, y = pcbnew.ToMM(at.x) - 100, pcbnew.ToMM(at.y) - 100
+                errors.append(f"via in pad {pad.GetParent().GetReference()}.{pad.GetNumber()} at {x:.2f}, {y:.2f}")
     with tempfile.TemporaryDirectory() as d:
         rpt = Path(d) / "drc.rpt"
         pcbnew.WriteDRCReport(board, str(rpt), pcbnew.EDA_UNITS_MILLIMETRES, True)
