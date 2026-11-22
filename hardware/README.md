@@ -27,6 +27,7 @@ Each board's `fab/` folder holds what a board house and an assembler need:
 | `positions.csv` | Part placement for an assembly service (origin at the bottom-left corner) |
 | `cpl-jlc.csv`, `bom-jlc.csv` | The surface-mount parts' placement (CPL) and parts list in JLCPCB's columns |
 | `cpl-jlc-all.csv`, `bom-jlc-all.csv` | The same for every fitted part, through-hole connectors, sockets and the key included |
+| `centroid-pcbway.csv`, `bom-pcbway.csv` | Every fitted part's placement (centroid) and parts list in PCBWay's columns, each line marked SMD or THT |
 | `assembly.pdf` | The top side with each part's designator, for hand assembly and for the fit checks below |
 | `schematic.pdf` | The schematic |
 | `top.png`, `bottom.png` | Pictures of the finished board |
@@ -74,6 +75,10 @@ files with the Gerbers and fit the through-hole parts yourself afterwards:
   preview, check each part's rotation and pin 1, above all the SOT-23, SOIC and TSSOP
   parts, the diodes and the Qwiic and microSD sockets. JLCPCB's library draws some
   footprints turned from KiCad's, and the preview lets you rotate a part to fix it.
+- **PCBWay:** `bom-pcbway.csv` and `centroid-pcbway.csv`. They list every fitted part;
+  the `Type` column says which are SMD and which THT, so you can delete the THT lines or
+  note "do not place" against them to fit those parts yourself. Check rotations in the
+  engineering query PCBWay sends before assembly, as for JLCPCB.
 - **Other assemblers:** `bom.csv` and `positions.csv` (KiCad's format, all parts).
 
 ## 3. Order the parts
