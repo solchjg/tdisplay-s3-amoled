@@ -7,6 +7,7 @@
   fab/cpl-jlc.csv         the same for the surface-mount parts in JLCPCB's CPL columns
   fab/bom-jlc.csv         the surface-mount parts in JLCPCB's BOM columns (LCSC numbers to fill in)
   fab/cpl-jlc-all.csv, fab/bom-jlc-all.csv   the same for every fitted part, through-hole too
+  fab/centroid-pcbway.csv, fab/bom-pcbway.csv  every fitted part in PCBWay's columns
   fab/schematic.pdf       the schematic
   fab/assembly.pdf        top copper outline, silk and fab layer (reference designators)
   fab/top.png, fab/bottom.png   pictures of both copper sides
@@ -113,6 +114,44 @@ def jlc(rows, nat):
             for (comment, fp), refs in sorted(lines.items(), key=lambda r: nat(min(r[1], key=nat, default="Z0"))):
                 if refs:
                     w.writerow([comment, ",".join(sorted(refs, key=nat)), fp, ""])
+    pcbway(rows, nat, place, smd)
+
+
+MAKERS = ("Alpha & Omega", "XP Power", "Aerosemi", "Amphenol", "Bourns", "JST", "Littelfuse", "Microchip",
+          "Molex", "Nexperia", "onsemi", "Phoenix", "Samtec", "TI", "Vishay")
+
+
+def pcbway(rows, nat, place, smd):
+    """PCBWay's assembly files for every fitted part: centroid-pcbway.csv (Designator, Footprint,
+    Mid X, Mid Y, Layer, Rotation; bottom-left origin, y up) and bom-pcbway.csv in the columns of
+    PCBWay's BOM template, a line per part with its type (SMD or THT)."""
+    fps = {r: fp for (_v, fp, _p), refs in rows.items() for r in refs}
+    with open(FAB / "centroid-pcbway.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Designator", "Footprint", "Mid X", "Mid Y", "Layer", "Rotation"])
+        for ref in sorted(place, key=nat):
+            x, y, r = place[ref]
+            w.writerow([ref, fps[ref], f"{x:.4f}mm", f"{y:.4f}mm", "T", f"{r:g}"])
+    with open(FAB / "bom-pcbway.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Item #", "Designator", "Qty", "Manufacturer", "Mfg Part #", "Description / Value",
+                    "Package / Footprint", "Type", "Your Instructions / Notes"])
+        n = 0
+        for (value, fp, part), refs in sorted(rows.items(), key=lambda r: nat(min(r[1], key=nat))):
+            refs = sorted((r for r in refs if r in place), key=nat)
+            if not refs:
+                continue
+            maker = next((m for m in MAKERS if part.startswith(m + " ")), "")
+            if maker:                                   # "TI ADS1115IDGSR": maker, part number
+                mpn, desc = part[len(maker):].strip(), value
+            elif part[:1].isdigit():                    # a generic passive: "0805 1 %", "22 uF 1206 ..."
+                mpn = ""
+                desc = f"{value} {part}" if part.startswith(("0805", "1206")) else part
+            else:                                       # a part number alone: "SMBJ28CA"
+                mpn, desc = part, value
+            n += 1
+            w.writerow([n, ",".join(refs), len(refs), maker, mpn, desc, fp,
+                        "SMD" if refs[0] in smd else "THT", ""])
 
 
 if __name__ == "__main__":
