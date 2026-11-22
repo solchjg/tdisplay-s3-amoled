@@ -156,6 +156,9 @@ def do_route(path):
     failed = route.route(board, OX, OY, BOARD_W, BOARD_H, order, POWER_NETS, list(GROUNDS), KEEPOUTS)
     pour(board)
     board.Save(str(path))
+    # A3, not KiCad's A4: the board sits at (100, 100) mm, and on A4 it runs into the title
+    # block of assembly.pdf (the Python API has no page settings to set)
+    path.write_text(path.read_text().replace('(paper "A4")', '(paper "A3")', 1))
     return failed
 
 
