@@ -232,7 +232,7 @@ SCH_LAYOUT = {   # group: (x, y, width) on the A3 sheet
 }
 SCH_FLAGS = (V33, GND, VBAT, LDO2)        # nets that come in on a passive connector
 SILK_RECTS = [NOTECARRIER]
-ROUTE_FIRST = ["SCK", "MOSI", "MISO"]     # the SPI bus reaches four parts
+ROUTE_FIRST = ["SDA1", "SCL1", "SCK", "MOSI", "MISO"]   # the Qwiic column first, then the SPI bus (four parts)
 BOM_GENERIC = {"1u": "0805 X7R 16 V", "1n": "0805 C0G 50 V", "10u": "0805 X5R 10 V",
                "100n": "0805 X7R 16 V", "Notecarrier 3V3": "solder jumper, left open"}
 SILK = [  # (text, x, y, size, rotation)
